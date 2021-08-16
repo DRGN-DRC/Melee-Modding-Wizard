@@ -1,0 +1,34 @@
+
+
+801A45A0 = 0x1A1180 (Boot to Match)
+
+801B148C = 0x1AE06C (Custom Match Code) - Branch to 18DCC0
+
+
+800171cc 00000174 800171cc 0 Stages_LoadStage_LoadFile
+80017ebc 000002e0 80017ebc 0 Preload_AllocateAndLoadFile (DATfile_StageFileLoad_CharFileLoad?)
+8002785c 00000254 8002785c 0 Audio_LoadStageAndCharAudio (andSetDSPEchoLevel)
+800c06c0 00000028 800c06c0 0 Stage_InitalizeStageInteractionNumber
+8016b004 00000010 8016b004 0 MatchInfo_StageID_Load
+801c06b8 0000009c 801c06b8 0 Stages_GetFileNameAndLoad
+
+801c0754 000000ac 801c0754 0 Stages_LoadStage_InitAndLoad
+801c0800 00000270 801c0800 0 StageInitialization
+80225194 00000008 80225194 0 StageID_Load
+8022519c 00000018 8022519c 0 Stage_ExternalIDToInternal
+802251b4 00000034 802251b4 0 Preload_LoadStage(r3=ExtID)
+803e9960 00000d68 803e9960 0 Stages_ExternalToInternalIDTable
+804d49e8 00000004 804d49e8 0 Stage_ExternalID
+804d49ec 00000004 804d49ec 0 Stage_PointerToExternalToInternalIDTable
+
+8021a9c4 000000e4 8021a9c4 0 FinalDestination_InitStageSpinAnimation
+
+
+StartMelee
+  v
+Stage_SetupSomething
+  Stage_InitalizeStageInteractionNumber
+
+
+
+8033796c DVDConvertPathToEntrynum

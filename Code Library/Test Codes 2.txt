@@ -1,0 +1,31 @@
+
+
+
+Uses TEST_Func
+[DRGN]
+Revision ---- DOL Offset ---- Hex to Replace ---------- ASM Code -
+NTSC 1.02 ----- 0x1234 ------ 00000000 -> Branch
+
+81DE0064 2C0E0002
+40820008 4E800020
+7C0802A6 00000000
+bl <TEST_Func>
+
+
+	-==-
+
+
+testcode
+testDesc
+[Punkline]
+Revision ---- DOL Offset ---- Hex to Replace ---------- ASM Code -
+<mytestfunc> ALL
+00000000 00000000
+00000000 00000000
+
+NTSC 1.02 ---- 0xBF980 ------ 38B80001 -> Branch
+
+lis r0, <<mytestfunc>>@h
+ori r4, r0, <<mytestfunc>>@l
+80A3000C 7C842A14
+00000000

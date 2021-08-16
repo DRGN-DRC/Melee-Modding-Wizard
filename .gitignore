@@ -1,0 +1,14 @@
+# Ignore compiled python files
+*.pyc
+
+# Ignore the settings.ini file (user settings)
+*.ini
+
+# Ignore directories output by build operations
+/[Bb]uild*/
+
+# Ignore program temporary files
+bin/tempFiles/
+
+# Visual Studio Code project folder
+.vscode

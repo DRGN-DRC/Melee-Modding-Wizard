@@ -1,0 +1,2881 @@
+#!/usr/bin/python
+# This file's encoding: UTF-8, so that non-ASCII characters can be used in strings.
+#
+#		███╗   ███╗ ███╗   ███╗ ██╗    ██╗			-------                                                   -------
+#		████╗ ████║ ████╗ ████║ ██║    ██║		 # -=======---------------------------------------------------=======- #
+#		██╔████╔██║ ██╔████╔██║ ██║ █╗ ██║		# ~ ~ Written by DRGN of SmashBoards (Daniel R. Cappel);  May, 2020 ~ ~ #
+#		██║╚██╔╝██║ ██║╚██╔╝██║ ██║███╗██║		 #            [ Built with Python v2.7.16 and Tkinter 8.5 ]            #
+#		██║ ╚═╝ ██║ ██║ ╚═╝ ██║ ╚███╔███╔╝		  # -======---------------------------------------------------======- #
+#		╚═╝     ╚═╝ ╚═╝     ╚═╝  ╚══╝╚══╝ 			 ------                                                   ------
+#		  -  - Melee Modding Wizard -  -  
+
+
+# External GUI dependencies
+import os
+import ttk
+import time
+import struct
+import tkFileDialog
+import Tkinter as Tk
+from binascii import hexlify
+from PIL import Image, ImageTk, ImageDraw, ImageFont
+
+# Internal dependencies
+import globalData
+from disc import MicroMelee
+from tplCodec import TplEncoder
+from hsdFiles import StageFile
+from hsdStructures import MapMusicTableEntry
+from basicFunctions import uHex, validHex, humansize, grammarfyList, msg, createFolders
+from guiSubComponents import (
+	getColoredShape, importGameFiles, exportSingleFileWithGui, importSingleFileWithGui, importSingleTexture,
+	getNewNameFromUser, BasicWindow, HexEditDropdown, 
+	VerticalScrolledFrame, ToolTip, ToolTipEditor, ToolTipButton )
+from audioManager import AudioControlModule
+
+
+class StageSwapTable( object ):
+
+	""" Data table for 20XX HP's Stage Engine. This table is 0x5D0 bytes long, and located at 
+		the 'tableOffset' value below. It is composed of 31 entries, each 0x30 bytes long. 
+		Each entry is of this form:
+			B	0x0: Stage name (ASCII; only used as identifier in this table)
+			B	0x8: New Stage ID; SSS, page 1
+			B	0x9: New Stage ID; SSS, page 2
+			B	0xA: New Stage ID; SSS, page 3
+			B	0xB: New Stage ID; SSS, page 4
+			B	0xC: Stage Flags; SSS, page 1
+			B	0xD: Stage Flags; SSS, page 2
+			B	0xE: Stage Flags; SSS, page 3
+			B	0xF: Stage Flags; SSS, page 4
+			I	0x10: RAM Pointer for Byte Replacement; SSS, page 1
+			I	0x14: RAM Pointer for Byte Replacement; SSS, page 2
+			I	0x18: RAM Pointer for Byte Replacement; SSS, page 3
+			I	0x1C: RAM Pointer for Byte Replacement; SSS, page 4
+			B	0x20: Byte Replacement at Pointer Address; SSS, page 1
+			B	0x21: Byte Replacement at Pointer Address; SSS, page 2
+			B	0x22: Byte Replacement at Pointer Address; SSS, page 3
+			B	0x23: Byte Replacement at Pointer Address; SSS, page 4
+			I	0x24: Random Byte Replacements at Pointer Address (if above is 0xFF); SSS, page 2
+			I	0x28: Random Byte Replacements at Pointer Address (if above is 0xFF); SSS, page 3
+			I	0x2C: Random Byte Replacements at Pointer Address (if above is 0xFF); SSS, page 4 
+	"""
+
+	stageOffsets = { # Key = internalStageId, value=tableEntryOffset
+		0x0C: 	0x0,	# Fountain of Dreams
+		0x10: 	0x30,	# Pokemon Stadium
+		0x02:	0x60,	# Peach's Castle
+		0x04:	0x90,	# Kongo Jungle
+		0x08:	0xC0,	# Brinstar
+		0x0E:	0xF0,	# Corneria
+		0x0A:	0x120,	# Yoshi's Story
+		0x14:	0x150,	# Onett
+		0x12:	0x180,	# Mute City
+		0x03:	0x1B0,	# Rainbow Cruise
+		0x05:	0x1E0,	# Jungle Japes
+		0x06:	0x210,	# Great Bay
+		0x07:	0x240,	# Hyrule Temple
+		0x09:	0x270,	# Brinstar Depths
+		0x0B:	0x2A0,	# Yoshi's Island
+		0x0D:	0x2D0,	# Green Greens
+		0x15:	0x300,	# Fourside
+		0x18:	0x330,	# Mushroom Kingdom I
+		0x19:	0x360,	# Mushroom Kingdom II
+		0x0F:	0x3C0,	# Venom
+		0x11:	0x3F0,	# Poke Floats
+		0x13:	0x420,	# Big Blue
+		0x16:	0x450,	# Icicle Mountain
+		0x1B:	0x4B0,	# Flatzone
+		0x1C:	0x4E0,	# Dream Land (N64)
+		0x1D:	0x510,	# Yoshi's Island (N64)
+		0x1E:	0x540,	# Kongo Jungle (N64)
+		0x24:	0x570,	# Battlefield
+		0x25:	0x5A0	# Final Destination
+	}
+
+	def __init__( self, dolFile ):
+		self.dol = dolFile
+
+		# Check for a file in the disc filesystem specifically for the stage swap table
+		self.sstFile = globalData.disc.files.get( globalData.disc.gameId + '/StageSwapTable.bin' )
+
+		if self.sstFile:
+			self.tableOffset = 0x10
+		else:
+			self.tableOffset = 0x3F8C80 # Offset/location within the DOL
+
+	def getEntryValues( self, internalStageId ):
+
+		""" Gets all values for a given stage ID. This includes data for each SSS page. 
+			Returns 28 values; 0x28 bytes of data (doesn't get stage name identifier). """
+
+		# Get the offset, data, and values for this entry
+		entryOffset = self.stageOffsets[internalStageId]
+		dataOffset = self.tableOffset + entryOffset + 8
+
+		if self.sstFile:
+			entryData = self.sstFile.getData( dataOffset, 0x28 )
+		else:
+			entryData = self.dol.getData( dataOffset, 0x28 )
+
+		return struct.unpack( '>BBBBBBBBIIIIBBBBBBBBBBBBBBBB', entryData )
+
+	def getEntryInfo( self, internalStageId, page ):
+
+		""" Retrieves the values for a given stage, for a given page. 
+			The provided page value is expected to be a 1-indexed string. """
+
+		# Get the offset, data, and values for this entry
+		values = self.getEntryValues( internalStageId )
+
+		# Index the returned values for the given page
+		page -= 1 # Count 0-indexed
+		newStageId = values[page] # External Stage ID
+		stageFlags = values[page+4]
+		byteReplacePointer = values[page+8]
+		byteReplacement = values[page+12]
+
+		if page == 0: # No random byte values for first SSS page
+			randomByteValues = ( 0, 0, 0, 0 )
+		else:
+			randomByteValuesIndex = 12 + ( 4 * page )
+			randomByteValues = tuple( values[randomByteValuesIndex:randomByteValuesIndex+4] )
+
+		return newStageId, stageFlags, byteReplacePointer, byteReplacement, randomByteValues
+
+	def setEntryInfo( self, internalStageId, page, newStageId, stageFlags, byteReplacePointer, byteReplacement, randomByteValues ):
+
+		""" Sets the values for a given stage, for a given page. 
+			The provided page value is expected to be a 1-indexed string. """
+		
+		# Get the values for this entry
+		values = self.getEntryValues( internalStageId )
+		newValues = list( values )
+
+		page -= 1 # Count 0-indexed
+		newValues[page] = newStageId
+		newValues[page+4] = stageFlags
+		newValues[page+8] = byteReplacePointer
+		newValues[page+12] = byteReplacement
+
+		if page == 0:
+			# Make sure not trying to use byte replacement on first page of SSS
+			assert byteReplacement != 0xFF, 'Invalid Stage Swap Table values; cannot use random byte values on SSS page 1.'
+		else:
+			randomByteValuesIndex = 12 + ( 4 * page )
+			newValues[randomByteValuesIndex:randomByteValuesIndex+4] = randomByteValues
+
+		# Check if this is actually new (changed data)
+		if values == tuple( newValues ):
+			globalData.gui.updateProgramStatus( 'No changes to submit to the Stage Swap Table.' )
+		else:
+			# Calculate the offset for the data, and pack the values to bytes
+			entryOffset = self.stageOffsets[internalStageId]
+			dataOffset = self.tableOffset + entryOffset + 8
+			newData = struct.pack( '>BBBBBBBBIIIIBBBBBBBBBBBBBBBB', *newValues ) # Using '*' to expand the list into pack's args
+
+			# Build a user message
+			stageName = globalData.internalStageIds[internalStageId]
+			updateMsg = 'Stage Swap Table updated for {} icon slot, on page {}'.format( stageName, page+1 )
+
+			# Determine the file to update, and set the data packed above
+			if self.sstFile:
+				fileToModify = self.sstFile
+			else:
+				fileToModify = self.dol
+			fileToModify.setData( dataOffset, newData )
+
+			# Remember this change, and update the program's status bar
+			if updateMsg not in fileToModify.unsavedChanges:
+				fileToModify.unsavedChanges.append( updateMsg )
+			globalData.gui.updateProgramStatus( updateMsg )
+
+
+class ScrollArrows( object ):
+
+	""" These are for the canvases which contain the stage icons for each SSS page. """
+
+	def __init__( self, canvas ):
+		self.canvas = canvas
+		canvas.scrollPosition = 0
+		canvas.scrollHeight = 300
+		self.scrollAmount = 150 # Positive values scroll up; negative scrolls down
+
+		# Get/create the arrow images
+		downArrowImage = getColoredShape( 'arrowDown', '#7077ac', getAsPilImage=True )
+		downArrowImageHovered = getColoredShape( 'arrowDown', '#8089ff', getAsPilImage=True )
+
+		# Copy and flip them to create the up arrows
+		upArrowImage = downArrowImage.transpose( Image.FLIP_TOP_BOTTOM )
+		upArrowImageHovered = downArrowImageHovered.transpose( Image.FLIP_TOP_BOTTOM )
+
+		# Convert these into a type of image Tkinger can display
+		self.downArrowImage = ImageTk.PhotoImage( downArrowImage )
+		self.downArrowImageHovered = ImageTk.PhotoImage( downArrowImageHovered )
+		self.upArrowImage = ImageTk.PhotoImage( upArrowImage )
+		self.upArrowImageHovered = ImageTk.PhotoImage( upArrowImageHovered )
+		
+		self.addDownArrow()
+		self.upArrowId = None
+		
+		# Add the arrow button click and hover event handlers
+		canvas.tag_bind( 'downArrow', '<1>', lambda event: self.scrollItems(-self.scrollAmount) )
+		canvas.tag_bind( 'downArrow', '<Enter>', self.downArrowHovered )
+		canvas.tag_bind( 'downArrow', '<Leave>', self.downArrowUnhovered )
+		canvas.tag_bind( 'upArrow', '<1>', lambda event: self.scrollItems(self.scrollAmount) )
+		canvas.tag_bind( 'upArrow', '<Enter>', self.upArrowHovered )
+		canvas.tag_bind( 'upArrow', '<Leave>', self.upArrowUnhovered )
+		canvas.yview_scroll = self.onMouseWheelScroll
+
+	def addUpArrow( self ): self.upArrowId = self.canvas.create_image( 600, 10, image=self.upArrowImage, anchor='ne', tags='upArrow' )
+	def addDownArrow( self ): self.downArrowId = self.canvas.create_image( 600, 140, image=self.downArrowImage, anchor='se', tags='downArrow' )
+	def removeUpArrow( self ):
+		self.canvas.delete( self.upArrowId )
+		self.upArrowId = None
+		self.canvas['cursor'] = ''
+	def removeDownArrow( self ):
+		self.canvas.delete( self.downArrowId )
+		self.downArrowId = None
+		self.canvas['cursor'] = ''
+
+	def downArrowHovered( self, event ):
+		self.canvas['cursor'] = 'hand2'
+		self.canvas.itemconfigure( self.downArrowId, image=self.downArrowImageHovered )
+	def downArrowUnhovered( self, event ):
+		self.canvas['cursor'] = ''
+		self.canvas.itemconfigure( self.downArrowId, image=self.downArrowImage )
+
+	def upArrowHovered( self, event ):
+		self.canvas['cursor'] = 'hand2'
+		self.canvas.itemconfigure( self.upArrowId, image=self.upArrowImageHovered )
+	def upArrowUnhovered( self, event ):
+		self.canvas['cursor'] = ''
+		self.canvas.itemconfigure( self.upArrowId, image=self.upArrowImage )
+
+	# def arrowClicked( self, event ):
+	# 	canvas = event.widget
+	# 	itemId = canvas.find_closest( event.x, event.y )[0]
+
+	# 	if itemId == self.downArrowId:
+	# 		self.scrollItems( -self.scrollAmount )
+	# 	else:
+	# 		self.scrollItems( self.scrollAmount )
+
+	# def placeOrRemoveArrows( self, event ):
+	# 	print 'configuring canvas'
+
+	def scrollItems( self, distance ):
+
+		""" Negative scrollPosition means the icons are moving up. """
+
+		newScrollPosition = self.canvas.scrollPosition + distance
+
+		if newScrollPosition >= 0: # Upper scroll bounds reached
+			distance -= newScrollPosition # Subtract however much it was overshot
+			self.removeUpArrow()
+
+		elif newScrollPosition <= -self.canvas.scrollHeight: # Lower scroll bounds reached
+			distance += abs( newScrollPosition + self.canvas.scrollHeight )
+			self.removeDownArrow()
+
+		else: # Not hitting a boundary; make sure both scroll arrows are present
+			if not self.canvas.find_withtag( 'upArrow' ):
+				self.addUpArrow()
+			if not self.canvas.find_withtag( 'downArrow' ):
+				self.addDownArrow()
+
+		self.canvas.move( 'icons', 0, distance )
+		self.canvas.move( 'selectionBorder', 0, distance )
+		self.canvas.scrollPosition += distance
+
+	def onMouseWheelScroll( self, amount, units ):
+		# Multiply the amount a bit, since it will be 4 for each mouseWheel movement. And reverse it
+		self.scrollItems( amount * -6 )
+
+
+class MusicToolTip( ToolTip ):
+
+	""" Subclass of the ToolTip class in order to provide an ACM (Audio Control Module), 
+		for controlling or editing music selections, which behaves like a hoverable tooltip. 
+		Also, unlike with the tooltip class, this module will wait a second before 
+		disappearing, and will not disappear if the user's mouse is over it."""
+
+	def __init__( self, master, valueIndex, mainTab, *args, **kwargs ):
+		ToolTip.__init__( self, master, *args, **kwargs )
+
+		self.valueIndex = valueIndex
+		self.mainTab = mainTab
+		self.acm = None 	# Audio Control Module
+
+	def _hasText(self):
+		return True # Makes sure the module thinks the tooltip (entry) is worth showing
+
+	def leave(self, event=None):
+
+		""" Instead of the usual tooltip behavior of unscheduling the creation method 
+			(if it's queued) and destroying the window, we first wait a second to destroy it. """
+
+		self._unschedule()
+		self.master.after( 1000, self.queueHide )
+
+	def queueHide(self):
+
+		""" Overriding this method to first see if the entry widget is being 
+			hovered over or is focused, implying the user intends to use it. """
+
+		# Check if the tooltip window exists
+		if not self._tipwindow:
+			return
+		elif self.mousedOver():
+			return
+
+		self._hide()
+
+	def mousedOver( self ):
+
+		# Get the widget currently beneath the mouse
+		x, y = self.master.winfo_pointerxy()
+		hoveredWidget = globalData.gui.root.winfo_containing( x, y )
+
+		if not hoveredWidget:
+			return False
+		elif hoveredWidget == self._tipwindow:
+			return True
+
+		# Traverse upwards in the widget heirarchy
+		parent = hoveredWidget.master
+		while parent:
+			if parent == self._tipwindow:
+				return True
+			parent = parent.master # Will eventually become '' after root
+
+		return False
+
+	def create_contents( self ):
+		print 'creating tooltip for index', self.valueIndex
+		# # Hide any other tooltips currently shown
+		# for toolTip in self.mainTab.toolTips.values():
+		# 	if toolTip._tipwindow and toolTip != self:
+		# 		toolTip._unschedule()
+		# 		toolTip._hide()
+		
+		# Get the music ID and associated audio file
+		musicId = self.getMusicId()
+		musicFile = globalData.disc.getMusicFile( musicId )
+
+		self.acm = AudioControlModule( self._tipwindow, globalData.gui.audioEngine, musicFile )
+		self.acm.pack( side='left' )
+		self.acm.bind( "<Leave>", self.leave, '+' ) # Hide again when user leaves the module
+
+		ttk.Button( self._tipwindow, text='E', width=3, command=self.edit ).pack( side='left' )
+
+	# def updateAcm( self ):
+
+	# 	""" If this tooltip's contents have been created (the ACM), this re-fetches the 
+	# 		music ID for this tooltip, and updates the ACM with the appropriate file. """
+
+	# 	if self.acm:
+	# 		# Get the music ID and associated audio file
+	# 		musicId = self.getMusicId()
+	# 		musicFile = globalData.disc.getMusicFile( musicId )
+	# 		self.acm.audioFile = musicFile
+
+	def getMusicId( self ):
+
+		""" Accesses the currently selected file's music table struct (for the music table 
+			entry currently selected) and gets the music ID to be used for this tooltip. """
+
+		# Get the index of the currently selected table entry, and the values for just this particular entry
+		entryIndex = int( self.mainTab.musicTableEntry.get().split( '|' )[0] ) - 1 # Switching back to 0-indexed self.musicTableEntry
+		values = self.mainTab.musicTableStruct.getEntryValues( entryIndex )
+		musicId = values[self.valueIndex]
+
+		return musicId
+	
+	def edit( self ):
+
+		""" Called by the 'Edit' button on the tooltip. Prompts the user 
+			with a new window for choosing a new track for this song slot. """
+
+		if not self.mainTab.musicTableStruct: # Failsafe; might not be possible
+			globalData.gui.updateProgramStatus( 'No stage is selected', warning=True )
+			return
+
+		SongChooser( self.mainTab, self.valueIndex, self.getMusicId() )
+		self._hide()
+
+	def _show(self):
+		# Hide any other tooltips currently shown
+		for toolTip in self.mainTab.toolTips.itervalues():
+			if toolTip._tipwindow and toolTip != self:
+				toolTip._unschedule()
+				toolTip._hide()
+
+		if self._opts['state'] == 'disabled' or not self._hasText():
+			self._unschedule()
+			print 'state disabled. unscheduling', self.valueIndex
+			return
+		if not self._tipwindow:
+			self._tipwindow = tw = Tk.Toplevel(self.master)
+			# hide the window until we know the geometry
+			tw.withdraw()
+			tw.wm_overrideredirect(1)
+
+			if tw.tk.call("tk", "windowingsystem") == 'aqua':
+				tw.tk.call("::tk::unsupported::MacWindowStyle", "style", tw._w, "help", "none")
+
+			self.create_contents()
+			tw.update_idletasks()
+			x, y = self.coords()
+			tw.wm_geometry("+%d+%d" % (x, y))
+			tw.deiconify()
+			print 'deiconify after creation', self.valueIndex
+		else:
+			print 'deiconify', self.valueIndex
+			x, y = self.coords()
+			self._tipwindow.wm_geometry("+%d+%d" % (x, y))
+			self._tipwindow.deiconify()
+
+	def _hide(self):
+		print 'hiding', self.valueIndex
+		tw = self._tipwindow
+		#self._tipwindow = None
+		if tw:
+			#tw.destroy()
+			#print 'withdraw'
+			tw.withdraw()
+
+
+class SongChooser( BasicWindow ):
+
+	#songsToInclude = ( 'howto_s.hps', 'opening.hps' )
+
+	def __init__( self, stageTab, valueIndex, initialSelection=-1 ):
+
+		BasicWindow.__init__( self, globalData.gui.root, "Song Chooser", resizable=True )
+		self.stageTab = stageTab
+		self.valueIndex = valueIndex # Index into the music table structure, relative to table entry
+		self.lineDict = {} # Tracks which song is on which line; key=lineNumber, value=tuple(musicId, filename, description)
+
+		# Create the listbox, with a scrollbar
+		scrollbar = Tk.Scrollbar( self.window, )
+		self.listbox = Tk.Listbox( self.window, width=40, height=20, exportselection=0, activestyle='none', yscrollcommand=scrollbar.set )
+		self.listbox.bind( '<<ListboxSelect>>', self.selectionChanged )
+		self.listbox.grid( column=0, row=0, sticky='ns', padx=(6, 0) )
+		scrollbar.config( command=self.listbox.yview )
+		scrollbar.grid( column=1, row=0, sticky='ns', padx=(0, 6) )
+
+		# Construct a list of music file objects from the disc; start with vanilla songs
+		musicFiles = []
+		for musicId in range( 0, 0x62 ):
+			musicFile = globalData.disc.getMusicFile( musicId )
+			if not musicFile: continue
+			
+			# Exclude fanfare (victory) audio clips and other short tracks most likely not wanted for songs
+			elif musicFile.size < 0xF0000 or musicFile.filename == 'howto.hps':
+				if musicFile.filename in ( '10.hps', 'inis2_02.hps' ): # Allow this track through (both are for MK2 Finale)
+					pass
+				else:
+					#print ' - skipping', hex(musicId), '|', musicFile.filename, '-', musicFile.description
+					continue
+
+			#musicFile.musicId = musicId
+			musicFiles.append( musicFile )
+			# print hex(musicId), '|', musicFile.filename, '-', musicFile.description
+			
+		# Add Hex Tracks if this is 20XX
+		if stageTab.stageSwapTable:
+			# Hex track number doesn't correspond to music ID, so tracks 0x30-0x62 haven't been included yet either
+			for musicId in range( 0x10030, 0x10100 ):
+				musicFile = globalData.disc.getMusicFile( musicId )
+				if musicFile:
+					#musicFile.trackId = musicId # Corresponds to a hex track file name
+					#musicFile.musicId = 0x10000 | musicId
+					musicFiles.append( musicFile )
+				# else:
+				# 	print '\t', 'no file for id', hex(musicId)
+
+		# Populate the listbox
+		self.listbox.insert( 'end', 'None' )
+		self.lineDict[0] = None
+		lineToSelect = -1
+		for musicFile in musicFiles:
+			if musicFile.description:
+				self.listbox.insert( 'end', musicFile.description )
+				#self.lineDict[len(self.lineDict)] = ( musicFile.musicId, musicFile.filename, musicFile.description )
+			else:
+				self.listbox.insert( 'end', 'No description (' + musicFile.filename + ')' )
+				#self.lineDict[len(self.lineDict)] = ( musicFile.musicId, musicFile.filename, musicFile.filename )
+
+			self.lineDict[len(self.lineDict)] = musicFile
+
+			if musicFile.musicId == initialSelection:
+				lineToSelect = len( self.lineDict ) - 1
+		#self.lineDict[-1] = ( -1, musicFile.filename, musicFile.description )
+
+		# Initialize an ACM for this window
+		self.acm = AudioControlModule( self.window, globalData.gui.audioEngine )
+		self.acm.grid( column=0, columnspan=2, row=1, pady=4 )
+
+		# Select the current/initially set song
+		if lineToSelect != -1:
+			self.listbox.selection_set( lineToSelect )
+			self.acm.audioFile = self.lineDict[lineToSelect]
+
+		buttonsCell = ttk.Frame( self.window )
+		ttk.Button( buttonsCell, text='Select', command=self.selectSong ).grid( column=0, row=1, padx=4 )
+		ttk.Button( buttonsCell, text='Cancel', command=self.close ).grid( column=1, row=1, padx=4 )
+		buttonsCell.grid( column=0, columnspan=2, row=2, pady=4 )
+
+		self.window.columnconfigure( 0, weight=1 )
+		self.window.columnconfigure( (1,2), weight=0 )
+		self.window.rowconfigure( 'all', weight=1 )
+
+	def selectionChanged( self, event ):
+
+		""" Changes the file currently assigned to the ACM. """
+
+		lineNumber = self.listbox.curselection()[0]
+		#filename = self.lineDict[lineNumber][1] # todo: just store/get the file object
+		#print 'selected', self.lineDict[lineNumber]
+
+		#self.acm.audioFile = globalData.disc.files.get( globalData.disc.gameId + '/audio/' + filename )
+		self.acm.audioFile = self.lineDict[lineNumber]
+
+	def selectSong( self ):
+
+		""" Confirms the current selection, and sets the song's music ID in the stage file. 
+			If Main Music or Alt. Main Music are changed, also update Sudden Death and Alt. 
+			Sudden Death Music to be the same (this is the probable usual case, and can still 
+			be changed independantly afterwards if the user wishes. """
+
+		lineNumber = self.listbox.curselection()[0]
+		#musicId, _, newSongName = self.lineDict[lineNumber]
+		musicFile = self.lineDict[lineNumber]
+		if musicFile:
+			musicId = musicFile.musicId
+			newSongName = musicFile.description
+		else:
+			musicId = -1
+			newSongName = 'None'
+
+		# Get the index of the currently selected music table entry
+		entryIndex = int( self.stageTab.musicTableEntry.get().split( '|' )[0] ) - 1 # Switching back to 0-indexed
+
+		# Get the name of the target music selection, and its GUI label widget (the one displaying name info, not the description label)
+		if self.valueIndex == 1:
+			targetMusic = 'Main Music and Sudden Death Music'
+			labels = ( self.stageTab.mainMusicLabel, self.stageTab.suddenDeathMusicLabel )
+			toolTips = ( self.stageTab.toolTips['mainMusic'], self.stageTab.toolTips['suddenMusic'] )
+		elif self.valueIndex == 2:
+			targetMusic = 'Alt. Music and Sudden Death Alt. Music'
+			labels = ( self.stageTab.altMusicLabel, self.stageTab.altSuddenDeathLabel )
+			toolTips = ( self.stageTab.toolTips['altMusic'], self.stageTab.toolTips['altSuddenMusic'] )
+		elif self.valueIndex == 3:
+			targetMusic = 'Sudden Death Music'
+			labels = ( self.stageTab.suddenDeathMusicLabel, )
+			toolTips = ( self.stageTab.toolTips['suddenMusic'], )
+		elif self.valueIndex == 4:
+			targetMusic = 'Sudden Death Alt. Music'
+			labels = ( self.stageTab.altSuddenDeathLabel, )
+			toolTips = ( self.stageTab.toolTips['altSuddenMusic'], )
+		else:
+			raise Exception( 'Invalid valueIndex given to Song Chooser module: ' + str(self.valueIndex) )
+
+		# Construct a description for the change (for file.unsavedChanges, and for the program status bar)
+		origSongName = labels[0]['text'].split( '|' )[-1].strip()
+		userMessage = '{} of Music Table entry {} updated from {} to {}'.format(targetMusic, entryIndex+1, origSongName, newSongName)
+
+		# Update the value in the file structure
+		if self.valueIndex == 1 or self.valueIndex == 2: # Update both the main/alt music and the super sudden death main/alt music
+			self.stageTab.musicTableStruct.setEntryValue( entryIndex, self.valueIndex, musicId ) # Ignores extra steps which will be handled below
+			self.stageTab.selectedStage.updateStructValue( self.stageTab.musicTableStruct, self.valueIndex+2, musicId, userMessage, entryIndex=entryIndex )
+		else:
+			self.stageTab.selectedStage.updateStructValue( self.stageTab.musicTableStruct, self.valueIndex, musicId, userMessage, entryIndex=entryIndex )
+
+		# Update the GUI
+		globalData.gui.updateProgramStatus( userMessage )
+		for label in labels:
+			#label['text'] = '0x{:X} | {}'.format( musicId, newSongName )
+			label['text'] = uHex( musicId ) + ' | ' + newSongName
+		
+		# Destroy the music control module (it may just be hidden). This will cause it to be recreated on next mouse-over
+		for toolTip in toolTips:
+			if toolTip._tipwindow:
+				toolTip._tipwindow.destroy()
+				toolTip._tipwindow = None
+
+		# Close this Song Chooser window
+		self.close()
+
+
+class StageManager( ttk.Frame ):
+
+	""" Info viewer and editor interface for stages in SSBM. """
+
+	stageTextureOffsets = { # Key=internalStageId, value=( icon, previewText, insignia )
+		0x02: ( 0xE2C0, 0x3C840, 0x2EB40 ), # Princess Peach's Castle
+		0x03: ( 0xF2E0, 0x3E0C0, 0x2EB40 ), # Rainbow Cruise
+		0x04: ( 0x10300, 0x3F940, 0x2F340 ), # Kongo Jungle
+		0x05: ( 0x11320, 0x411C0, 0x2F340 ), # Jungle Japes
+		0x06: ( 0x12340, 0x42A40, 0x2FB40 ), # Great Bay
+		0x07: ( 0x13360, 0x442C0, 0x2FB40 ), # Hyrule Temple
+		0x08: ( 0x14380, 0x45B40, 0x30340 ), # Brinstar
+		0x09: ( 0x153A0, 0x473C0, 0x30340 ), # Brinstar Depths
+		0x0A: ( 0x163C0, 0x48C40, 0x30B40 ), # Yoshi's Story
+		0x0B: ( 0x173E0, 0x4A4C0, 0x30B40 ), # Yoshi's Island
+		0x0C: ( 0x18400, 0x4BD40, 0x31340 ), # Fountain of Dreams
+		0x0D: ( 0x19420, 0x4D5C0, 0x31340 ), # Green Greens
+		0x0E: ( 0x1A440, 0x4EE40, 0x31B40 ), # Corneria
+		0x0F: ( 0x1B460, 0x506C0, 0x31B40 ), # Venom
+		0x10: ( 0x1C480, 0x51F40, 0x32340 ), # Pokemon Stadium
+		0x11: ( 0x1D4A0, 0x537C0, 0x32340 ), # Poke Floats
+		0x12: ( 0x1E4C0, 0x55040, 0x32B40 ), # Mute City
+		0x13: ( 0x1F4E0, 0x568C0, 0x32B40 ), # Big Blue
+		0x14: ( 0x20500, 0x58140, 0x33340 ), # Onett
+		0x15: ( 0x21520, 0x599C0, 0x33340 ), # Fourside
+		0x16: ( 0x24580, 0x5E340, 0x33B40 ), # Icicle Mountain
+		#0x17: ( 0x, 0x, 0x ), # Unused?
+		0x18: ( 0x22540, 0x5B240, 0x2EB40 ), # Mushroom Kingdom
+		0x19: ( 0x23560, 0x5CAC0, 0x2EB40 ), # Mushroom Kingdom II
+		#0x1A: ( 0x, 0x, 0x ), # Akaneia (Deleted Stage)
+		0x1B: ( 0x255A0, 0x5FBC0, 0x34340 ), # Flat Zone
+		0x1C: ( 0x28600, 0x64540, 0x31340 ), # Dream Land (N64)
+		0x1D: ( 0x29120, 0x65DC0, 0x30B40 ), # Yoshi's Island (N64)
+		0x1E: ( 0x29C40, 0x67640, 0x2F340 ), # Kongo Jungle (N64)
+		0x24: ( 0x265C0, 0x61440, 0x34B40 ), # Battlefield
+		0x25: ( 0x275E0, 0x62CC0, 0x35340 ), # Final Destination
+	}
+
+	def __init__( self, parent, mainGui ):
+
+		ttk.Frame.__init__( self, parent ) #, padding="11 0 0 11" ) # Padding order: Left, Top, Right, Bottom.
+
+		# Add this tab to the main GUI
+		mainGui.mainTabFrame.add( self, text=' Stage Manager ' )
+
+		self.selectedStage = None
+		self.selectedStageId = -1	# Internal Stage ID
+		self.musicTableStruct = None
+		self.stageSwapTable = None # For use with 20XX
+		self.toolTips = {}
+		padding = 6
+
+		# Add page tabs
+		self.pagesNotebook = ttk.Notebook( self )
+		self.pagesNotebook.grid( column=0, row=0, pady=12 )
+
+		variationsLabelFrame = ttk.Frame( self ) # Padding order: Left, Top, Right, Bottom.
+		ttk.Label( variationsLabelFrame, text='- -  Variations  - -', foreground='blue' ).grid( column=0, row=0, pady=4 )
+		treeScroller = Tk.Scrollbar( variationsLabelFrame )
+		self.variationsTreeview = ttk.Treeview( variationsLabelFrame, selectmode='browse', show='tree', columns=('filename'), yscrollcommand=treeScroller.set, height=7 )
+		self.variationsTreeview.column( '#0', width=200 )
+		self.variationsTreeview.column( 'filename', width=90 )
+		self.variationsTreeview.tag_configure( 'fileNotFound', foreground='red' )
+		self.variationsTreeview.tag_configure( 'warning', foreground='#A0A000' ) # Shade of yellow
+		self.variationsTreeview.grid( column=0, row=1, sticky='ns' )
+		treeScroller.config( command=self.variationsTreeview.yview )
+		treeScroller.grid( column=1, row=1, sticky='ns' )
+		variationsLabelFrame.grid( column=1, row=0, padx=padding, pady=padding )
+
+		# Add treeview event handlers
+		self.variationsTreeview.bind( '<<TreeviewSelect>>', self.stageVariationSelected )
+		# self.variationsTreeview.bind( '<Double-1>', onFileTreeDoubleClick )
+		#self.variationsTreeview.bind( "<3>", self.createContextMenu ) # Right-click
+
+		# Construct the right-hand side of the interface, the info panels
+		#infoPane = ttk.Frame( self )
+		row1 = ttk.Frame( self )
+		
+		# Basic Info
+		basicLabelFrame = ttk.LabelFrame( row1, text='  Basic Info  ', labelanchor='n', padding=8 )
+		# self.stageNameLabel = ttk.Label( basicLabelFrame, font="-weight bold" )
+		# self.stageNameLabel.grid( column=0, columnspan=2, row=0 )
+		ttk.Label( basicLabelFrame, text=('File Size:\n'
+										'Init Function:\n'
+										'OnGo Function:') ).grid( column=0, row=1, padx=(0, 5) )
+		self.basicInfoLabel = ttk.Label( basicLabelFrame, width=25 )
+		self.basicInfoLabel.grid( column=1, row=1 )
+		basicLabelFrame.grid( column=0, row=0, padx=(padding, 0), pady=padding )
+
+		# Stage Swap Details
+		fileLoadLabelFrame = ttk.LabelFrame( row1, text='  20XX HP Stage Swap Details  ', labelanchor='n', padding=8 )
+		ttk.Label( fileLoadLabelFrame, text=('Orig. Internal Stage ID:\n'
+											'New Internal Stage ID:\n'
+											'New External Stage ID:\n'
+											'Filename Offset:\n'
+											'Byte Replacement Offset:\n'
+											'Byte Replacement:\n'
+											'Stage Flags:') ).grid( column=0, row=0, padx=(0, 5) )
+		self.stageSwapDetailsLabel = ttk.Label( fileLoadLabelFrame, width=38 )
+		self.stageSwapDetailsLabel.grid( column=1, row=0 )
+		self.editStageSwapDetailsBtn = ttk.Button( fileLoadLabelFrame, text='Edit', width=8, command=self.editSwapDetails )
+		self.editStageSwapDetailsBtn.place( anchor='se', relx=1, rely=1 )
+		fileLoadLabelFrame.grid( column=1, columnspan=2, row=0, padx=0, pady=padding )
+
+		# Controls (basic functions like import/export)
+		#emptyWidget = Tk.Frame( relief='flat' ) # This is used as a simple workaround for the labelframe, so we can have no text label with no label gap.
+		#self.controlsFrame = ttk.Labelframe( row1, labelwidget=emptyWidget, padding=(20, 4) )
+		self.controlsFrame = ttk.LabelFrame( row1, text='  Stage File Operations  ', labelanchor='n', padding=8 )
+		ttk.Button( self.controlsFrame, text='Export', command=self.exportStage ).grid( column=0, row=0, padx=4, pady=4 )
+		ttk.Button( self.controlsFrame, text='Import', command=self.importStage ).grid( column=1, row=0, padx=4, pady=4 )
+		ttk.Button( self.controlsFrame, text='Delete', command=self.deleteStage ).grid( column=0, row=2, padx=4, pady=4 )
+		ttk.Button( self.controlsFrame, text='Add Variation', command=self.addStageVariation ).grid( column=1, row=2, padx=4, ipadx=7, pady=4 )
+		ttk.Button( self.controlsFrame, text='Test', command=self.testStage ).grid( column=0, row=3, padx=4, pady=4 )
+		ttk.Button( self.controlsFrame, text='Rename', command=self.renameStage ).grid( column=1, row=3, padx=4, pady=4 )
+		self.controlsFrame.grid( column=3, row=0, padx=(0, padding), pady=padding )
+
+		row1.grid( column=0, columnspan=2, row=1, sticky='nsew' )
+		row1.columnconfigure( 'all', weight=1 )
+		row1.rowconfigure( 'all', weight=1 )
+		row2 = ttk.Frame( self )
+
+		# Music (entry selector and edit button)
+		musicLabelFrame = ttk.LabelFrame( row2, text='  Music Table  ', labelanchor='n', padding=8 )
+		ttk.Label( musicLabelFrame, text='Music Table Entry: ' ).grid( column=0, row=0 )
+		self.musicTableEntry = Tk.StringVar()
+		self.musicTableOptionMenu = ttk.OptionMenu( musicLabelFrame, self.musicTableEntry, '', *[], command=self.selectMusicTableEntry )
+		self.musicTableOptionMenu['state'] = 'disabled'
+		self.musicTableOptionMenu.grid( column=0, columnspan=2, row=1, pady=(0, 8) )
+		#ttk.Button( musicLabelFrame, text='TEST', command=self.test ).place( anchor='ne', relx=1.0, rely=0 )
+
+		# Music (song labels)
+		ttk.Label( musicLabelFrame, text='External Stage ID:' ).grid( column=0, row=2, padx=(0, 5), sticky='w' )
+		self.extStageIdLabel = ttk.Label( musicLabelFrame, width=46 )
+		self.extStageIdLabel.grid( column=1, row=2, sticky='w' )
+		ttk.Label( musicLabelFrame, text='Main Music:' ).grid( column=0, row=3, padx=(0, 5), sticky='w' )
+		self.mainMusicLabel = ttk.Label( musicLabelFrame )
+		self.toolTips['mainMusic'] = MusicToolTip( self.mainMusicLabel, 1, self, delay=500, location='e' )
+		self.mainMusicLabel.grid( column=1, row=3, sticky='w' )
+		ttk.Label( musicLabelFrame, text='Alt. Music:' ).grid( column=0, row=4, padx=(0, 5), sticky='w' )
+		self.altMusicLabel = ttk.Label( musicLabelFrame )
+		self.toolTips['altMusic'] = MusicToolTip( self.altMusicLabel, 2, self, delay=500, location='e' )
+		self.altMusicLabel.grid( column=1, row=4, sticky='w' )
+		ttk.Label( musicLabelFrame, text='Sudden Death Music:' ).grid( column=0, row=5, padx=(0, 5), sticky='w' )
+		self.suddenDeathMusicLabel = ttk.Label( musicLabelFrame )
+		self.toolTips['suddenMusic'] = MusicToolTip( self.suddenDeathMusicLabel, 3, self, delay=500, location='e' )
+		self.suddenDeathMusicLabel.grid( column=1, row=5, sticky='w' )
+		ttk.Label( musicLabelFrame, text='Sudden Death Alt. Music:' ).grid( column=0, row=6, padx=(0, 5), sticky='w' )
+		self.altSuddenDeathLabel = ttk.Label( musicLabelFrame )
+		self.toolTips['altSuddenMusic'] = MusicToolTip( self.altSuddenDeathLabel, 4, self, delay=500, location='e' )
+		self.altSuddenDeathLabel.grid( column=1, row=6, sticky='w' )
+
+		# Music (behavior and alt music chance)
+		ttk.Label( musicLabelFrame, text='Music Behavior:' ).grid( column=0, row=7, padx=(0, 5), sticky='w' )
+		self.songBehaviorLabel = ttk.Label( musicLabelFrame )
+		self.toolTips['musicBehaviorEditor'] = ToolTipButton( self.songBehaviorLabel, self, delay=500, location='e', width=4 )
+		self.songBehaviorToolTipText = Tk.StringVar()
+		self.toolTips['musicBehavior'] = ToolTip( self.songBehaviorLabel, textvariable=self.songBehaviorToolTipText, delay=500, wraplength=350, location='e', offset=55 )
+		self.songBehaviorLabel.grid( column=1, row=7, sticky='w' )
+		ttk.Label( musicLabelFrame, text='Alt. Music % Chance:' ).grid( column=0, row=8, padx=(0, 5), sticky='w' )
+		self.altMusicChanceLabel = ttk.Label( musicLabelFrame )
+		self.toolTips['altChanceEditor'] = ToolTipEditor( self.altMusicChanceLabel, self, delay=500, location='e', width=4 )
+		self.altMusicChanceLabel.grid( column=1, row=8, sticky='w' )
+		musicLabelFrame.grid( column=0, columnspan=2, row=1, padx=padding, pady=padding )
+
+		# Preview Text
+		previewTextLabelFrame = ttk.LabelFrame( row2, text='  Preview Text  ', labelanchor='n', padding=8 )
+		self.previewTextCanvas = Tk.Canvas( previewTextLabelFrame, width=224, height=56, borderwidth=0, highlightthickness=0 )
+		self.previewTextCanvas.image = None # Used to store an image for this canvas, to prevent garbage collection
+		self.previewTextCanvas.pilImage = None
+		def noScroll( arg1, arg2 ): pass
+		self.previewTextCanvas.yview_scroll = noScroll
+		self.previewTextCanvas.grid( column=0, columnspan=3, row=0, pady=(2, 6) )
+		ttk.Label( previewTextLabelFrame, text='Top Text:' ).grid( column=0, row=1 )
+		self.previewTextTopTextEntry = ttk.Entry( previewTextLabelFrame, width=22 )
+		self.previewTextTopTextEntry.bind( '<Return>', self.generatePreviewText )
+		self.previewTextTopTextEntry.grid( column=1, columnspan=2, row=1, pady=3 )
+		ttk.Label( previewTextLabelFrame, text='Bottom Text:' ).grid( column=0, row=2 )
+		self.previewTextBottomTextEntry = ttk.Entry( previewTextLabelFrame, width=22 )
+		self.previewTextBottomTextEntry.bind( '<Return>', self.generatePreviewText )
+		self.previewTextBottomTextEntry.grid( column=1, columnspan=2, row=2, pady=3 )
+		previewBtn = ttk.Button( previewTextLabelFrame, text='Preview Texture', command=self.generatePreviewText )
+		previewBtn.grid( column=0, columnspan=2, row=3, pady=3, ipadx=7 )
+		ToolTip( previewBtn, text='Generates a new texture from the text entered above. Does not automatically save the texture to file; for that, hit Save.' )
+		saveBtn = ttk.Button( previewTextLabelFrame, text='Save', command=self.savePreviewText )
+		saveBtn.grid( column=2, row=3, pady=3 )
+		ToolTip( saveBtn, text='Saves the texture shown above to the current stage select screen file.' )
+		exportBtn = ttk.Button( previewTextLabelFrame, text='Export', command=self.exportPreviewText )
+		exportBtn.grid( column=0, columnspan=2, row=4, pady=3 )
+		ToolTip( exportBtn, text='Export the texture shown above to an external PNG/TPL file.' )
+		importBtn = ttk.Button( previewTextLabelFrame, text='Import', command=self.importPreviewText )
+		importBtn.grid( column=2, row=4, pady=3 )
+		ToolTip( importBtn, text='Import an external PNG/TPL file to the current stage select screen file.' )
+		previewTextLabelFrame.grid( columnspan=2, column=2, row=1, padx=padding, pady=padding )
+
+		row2.grid( column=0, columnspan=2, row=2, sticky='nsew' )
+		row2.columnconfigure( 'all', weight=1 )
+		row2.rowconfigure( 'all', weight=1 )
+		
+		# Configure window resize behavior
+		self.columnconfigure( 0, weight=3 )
+		self.columnconfigure( 1, weight=1 )
+		self.rowconfigure( 0, weight=0 )
+		self.rowconfigure( 1, weight=1 )
+		self.rowconfigure( 2, weight=1 )
+
+	def test( self ):
+		importGameFiles( multiple=False )
+		importGameFiles( multiple=True )
+
+	def clear( self ):
+
+		""" Clears and resets this tab's GUI contents. """
+
+		self.selectedStage = None
+
+		# Delete the current items in the canvases notebook
+		for tab in self.pagesNotebook.winfo_children():
+			tab.destroy()
+		
+		# Delete the current items in the stage variations treeview
+		for item in self.variationsTreeview.get_children():
+			self.variationsTreeview.delete( item )
+
+		# Clear labels
+		self.basicInfoLabel['text'] = ''
+		self.stageSwapDetailsLabel['text'] = ''
+
+		# Clear the preview text canvas
+		self.previewTextCanvas.delete( 'all' )
+		self.previewTextCanvas.image = None
+		self.previewTextCanvas.pilImage = None
+
+		# Disable the controls for stages until a stage is selected
+		self.editStageSwapDetailsBtn['state'] = 'disabled'
+		for widget in self.controlsFrame.winfo_children():
+			widget['state'] = 'disabled'
+
+		self.clearMusicSection()
+
+		# Empty the text entry widgets for Preview Text
+		self.previewTextTopTextEntry.delete( 0, 'end' )
+		self.previewTextBottomTextEntry.delete( 0, 'end' )
+
+	def clearMusicSection( self ):
+		# Clear labels
+		self.basicInfoLabel['text'] = ''
+		self.extStageIdLabel['text'] = ''
+		self.mainMusicLabel['text'] = ''
+		self.altMusicLabel['text'] = ''
+		self.suddenDeathMusicLabel['text'] = ''
+		self.altSuddenDeathLabel['text'] = ''
+		self.songBehaviorLabel['text'] = ''
+		self.altMusicChanceLabel['text'] = ''
+
+		# Clear the music dropdown menu
+		self.musicTableOptionMenu['state'] = 'disabled'
+		self.musicTableOptionMenu.set_menu( None )
+		self.musicTableOptionMenu._variable.set( '' )
+
+	def showBasicInfo( self, internalStageId, stageFile ):
+		
+		readableSize = humansize( stageFile.size )
+
+		#self.basicInfoLabel['text'] = '\n'.join( (readableSize, stageFile.initFunction, stageFile.onGoFunction) )
+		self.basicInfoLabel['text'] = '{}\n{:X}\n{:X}'.format( readableSize, stageFile.initFunction, stageFile.onGoFunction )
+
+	def showSwapDetails( self, newIntStageId, newExtStageId, iFilenameOffset, byteReplacePointer, byteReplacement, randByteReplacements, stageFlags ):
+
+		""" Assesses values from the 20XX Stage Stap Table, and filenames from the DOL, to construct 
+			strings to be displayed in the GUI for the Stage Swap Details information display panel. """
+		
+		# Create a string for the original stage to load
+		stageName = globalData.internalStageIds[self.selectedStageId]
+		#filename = globalData.stageFileNames[self.selectedStageId]
+		filename = self.dol.getStageFileName( self.selectedStageId )[1]
+		origBaseStage = '0x{:X} | {} ({})'.format( self.selectedStageId, stageName, filename )
+		
+		# Create a string for the new stage to load
+		# Check if the new stage is the same as the original stage (no file swap on the base stage)
+		if self.selectedStageId == newIntStageId or newIntStageId == 0:
+			newBaseStage = '0x{:X} | {} (same)'.format( newIntStageId, stageName ) # Use the same file description as above
+		elif newIntStageId == 0x1A: # i.e. external stage ID 0x15, Akaneia (a deleted stage)
+			newBaseStage = '0x1A | Akaneia (deleted stage)'
+		elif newIntStageId == 0x16: # i.e. external stage ID 0x1A, Icicle Mountain (anticipating no hacked stages of this); switch to current Target Test stage
+			newBaseStage = '0x16 | Current Target Test stage'
+		else:
+			# Use the internal ID to get the new stage name and file name
+			stageName = globalData.internalStageIds.get( newIntStageId, 'Unknown' )
+			#filename = globalData.stageFileNames.get( newIntStageId, 'Unknown' )
+			filename = self.dol.getStageFileName( self.selectedStageId )[1]
+			if stageName == 'Unknown':
+				print 'Unable to find a stage name for internal stage ID', hex(newIntStageId)
+			elif filename == 'Unknown':
+				print 'Unable to find a stage filename for internal stage ID', hex(newIntStageId)
+			newBaseStage = '0x{:X} | {} ({})'.format( newIntStageId, stageName, filename )
+
+		# Check for stKind (external stage ID description)
+		if newExtStageId == 0:
+			stkindString = 'N/A (no swap)'
+		else:
+			stkindDescription = globalData.externalStageIds.get( newExtStageId, 'Unidentified Ext. ID' )
+			stkindString = '0x{:X} | {}'.format( newExtStageId, stkindDescription )
+
+		# Create a string for the filename offset
+		sFilenameOffset = '0x{:X} | 0x{:X}'.format( self.dol.offsetInRAM(iFilenameOffset), iFilenameOffset )
+
+		# Create a string for the byte replacement offset and values
+		if byteReplacePointer == 0:
+			sByteReplaceOffset = 'N/A'
+			byteReplacement = 'N/A'
+		else:
+			dolByteReplaceOffset = self.dol.offsetInDOL( byteReplacePointer ) # Convert from a RAM address to a DOL offset
+			sByteReplaceOffset = '0x{:X} | 0x{:X}'.format( byteReplacePointer, dolByteReplaceOffset )
+			relativeOffset = dolByteReplaceOffset - iFilenameOffset
+
+			if relativeOffset < 0 or relativeOffset >= len( filename ):
+				warningMsg = 'Invalid stage swap parameters detected for {}! Byte replacement offset: {}  Filename offset: {}'.format( filename, sByteReplaceOffset, sFilenameOffset )
+				globalData.gui.updateProgramStatus( warningMsg, warning=True )
+				byteReplacement = 'Invalid definition'
+			else:
+				origByte = filename[relativeOffset]
+				if byteReplacement == 0xFF:
+					newByte = ' / '.join( [chr(byte) for byte in randByteReplacements if byte != 0] )
+				else:
+					newByte = chr( byteReplacement )
+				byteReplacement = '{} - > {}'.format( origByte, newByte )
+		
+		# Create a string for the stage flags
+		if stageFlags == 0:
+			stageFlags = 'None'
+		else:
+			stageFlags = uHex( stageFlags )
+
+		self.stageSwapDetailsLabel['text'] = '\n'.join( (origBaseStage, newBaseStage, stkindString, sFilenameOffset, sByteReplaceOffset, byteReplacement, stageFlags) )
+
+	def getTextureOffset( self, intStageId, icon=False, previewText=False, insignia=False ):
+
+		""" Gets offsets of the textures specified, adjusting them depending on whether this is 20XX or Vanilla Melee. """
+
+		offsets = []
+		iconOffset, previewTextOffset, insigniaOffset = self.stageTextureOffsets[intStageId]
+
+		if icon:
+			offsets.append( iconOffset )
+		if previewText:
+			offsets.append( previewTextOffset )
+		if insignia:
+			offsets.append( insigniaOffset )
+		assert offsets, 'Invalid usage of getTextureOffset(); no targets given.'
+		
+		# Check for the 20XX stage swap table to determine offset adjustments
+		# if self.stageSwapTable: # Has a custom icon which shifts the other texture offsets
+		# 	dataShift = 0x420
+		# else: # Vanilla file/offsets
+		# 	dataShift = -0x20 # Removes displacement of the file header
+
+		# Check the cursor icon to see if icon offsets need adjusting
+		canvas = self.getCurrentCanvas()
+		cursorIconData = canvas.sssFile.getStruct( 0xDEA0 ) # Offset relative to data section
+		assert cursorIconData, 'Unable to initialize a structure for the cursor texture; unrecognized file.'
+		if cursorIconData.length == 0x400: # Vanilla file/offsets
+			dataShift = -0x20 # Removes displacement of the file header
+		else: # Has a custom icon which shifts the other texture offsets
+			dataShift = 0x420
+		offsets = [ o + dataShift for o in offsets ]
+
+		return offsets
+
+	def addStageSelectCanvas( self, pageName, filename ):
+
+		# Create a new tab/frame for this page and add it to the notebook
+		newTab = ttk.Frame( self.pagesNotebook )
+		self.pagesNotebook.add( newTab, text=pageName )
+
+		# Create the canvas and set up some data containers
+		newTab.canvas = canvas = Tk.Canvas( newTab, width=640, height=150, borderwidth=0, highlightthickness=0 )
+		canvas.sssFile = sssFile = globalData.disc.files.get( globalData.disc.gameId + '/' + filename )
+		assert sssFile, 'Unable to get the {} file from the disc filesystem!'.format( filename )
+		canvas.create_image( 0, 0, image=globalData.gui.imageBank('sssBg'), anchor='nw', tags='bg' )
+		canvas.pageName = pageName.strip()
+		try:
+			canvas.pageNumber = int( pageName.split()[-1] )
+		except: # e.g. for 'Vanilla SSS'
+			canvas.pageNumber = 1
+		canvas.iconImages = {} # Used to store the images, to prevent garbage collection
+		canvas.iconCanvasIds = {} # key=canvasIconIid, value=internalStageId
+		canvas.pack()
+
+		# Init the stage select screen file (separate data groups, build pointer and offset lists, etc.)
+		# tic = time.clock()
+		sssFile.initialize()
+		# toc = time.clock()
+		# print 'time to initialize:', toc - tic
+		
+		# tic = time.clock()
+		# sssFile.parseDataSection()
+		# toc = time.clock()
+		# print 'time to fully parse data section:', toc - tic
+
+		# Check the cursor icon to see if icon offsets need adjusting
+		# cursorIconData = sssFile.getStruct( 0xDEA0 ) # Offset relative to data section
+		# assert cursorIconData, 'Unable to initialize a structure for the cursor texture; unrecognized file.'
+		# if cursorIconData.length == 0x400: # Vanilla file/offsets
+		# 	dataShift = -0x20 # Removes displacement of the file header
+		# else: # Has a custom icon which shifts the other texture offsets
+		# 	dataShift = 0x420
+		
+		# Add the first two rows (Icicle Mountain through Flat Zone)
+		#tic = time.clock()
+		x = 50
+		y = 47
+		for internalStageId in ( 0x16, 2, 4, 6, 0xA, 0xC, 0xE, 3, 5, 7, 0xB, 0xD, 0xF, 0x1B ):
+			#iconTextureOffset = self.stageTextureOffsets[internalStageId][0] + dataShift
+			iconTextureOffset = self.getTextureOffset( internalStageId, icon=True )[0]
+			canvas.iconImages[internalStageId] = sssFile.getTexture( iconTextureOffset, 64, 56, 9, 0xE00 )
+			canvasId = canvas.create_image( x, y, image=canvas.iconImages[internalStageId], anchor='nw', tags='icons' )
+			canvas.iconCanvasIds[canvasId] = internalStageId
+
+			# Adjust coordinates for next row
+			if internalStageId == 0x16: # First icon (Icicle Mountain) placed; move to top row
+				y = 17
+			elif internalStageId == 0xE: # Corneria placed; switch to bottom row
+				y = 77 # 60 px below top row
+			elif internalStageId == 0xF: # Venom placed; switch back to middle row
+				y = 47
+
+			if internalStageId == 0xE: # Corneria placed; switch to bottom row
+				x = 118
+			else: # Progress right-ward
+				x += 68 # Assuming 4 px between icons
+
+		# Load the next two rows off-canvas ()
+		x = 118
+		y = 167 # 150 px below the above set (17 px padding above/below rows)
+		for internalStageId in ( 0x8, 0x14, 0x12, 0x10, 0x18, 0x9, 0x15, 0x13, 0x11, 0x19 ):
+			#iconTextureOffset = self.stageTextureOffsets[internalStageId][0] + dataShift
+			iconTextureOffset = self.getTextureOffset( internalStageId, icon=True )[0]
+			canvas.iconImages[internalStageId] = sssFile.getTexture( iconTextureOffset, 64, 56, 9, 0xE00 )
+			canvasId = canvas.create_image( x, y, image=canvas.iconImages[internalStageId], anchor='nw', tags='icons' )
+			canvas.iconCanvasIds[canvasId] = internalStageId
+
+			# Adjust coordinates for next row
+			if internalStageId == 0x18: # MKI placed; switch to bottom row
+				y = 227 # 60 px below above row
+				x = 118
+			else: # Progress right-ward
+				x += 68 # Assuming 4 px between icons
+		
+		# Load the final, single row
+		x = 192
+		y = 349 # 300 px below the first set (49 px padding above/below rows)
+		for internalStageId in ( 0x24, 0x25, 0x1C, 0x1D, 0x1E ):
+			#iconTextureOffset = self.stageTextureOffsets[internalStageId][0] + dataShift
+			iconTextureOffset = self.getTextureOffset( internalStageId, icon=True )[0]
+
+			if internalStageId == 0x24 or internalStageId == 0x25: # Resize Battlefield and FD, since that's how they appear in-game
+				origImage = sssFile.getTexture( iconTextureOffset, 64, 56, 9, 0xE00, getAsPilImage=True )
+				resizedImage = origImage.resize( (48, 48), Image.ANTIALIAS )
+				canvas.iconImages[internalStageId] = ImageTk.PhotoImage( resizedImage )
+			else:
+				canvas.iconImages[internalStageId] = sssFile.getTexture( iconTextureOffset, 48, 48, 9, 0x900 )
+
+			canvasId = canvas.create_image( x, y, image=canvas.iconImages[internalStageId], anchor='nw', tags='icons' )
+			canvas.iconCanvasIds[canvasId] = internalStageId
+
+			# Adjust coordinates for next row
+			x += 52 # Assuming 4 px between icons
+
+		# Add click and hover event handlers
+		canvas.tag_bind( 'icons', '<1>', self.iconClicked )
+		canvas.tag_bind( 'icons', '<Enter>', self.iconHovered )
+		canvas.tag_bind( 'icons', '<Leave>', self.iconUnhovered )
+
+		# Add a right-click context menu
+		canvas.menu = Tk.Menu( globalData.gui.root, tearoff=False )
+		canvas.menu.add_command( label='Export icon texture', underline=0, command=self.exportIconTexture )
+		canvas.menu.add_command( label='Import icon texture', underline=0, command=self.importIconTexture )
+		canvas.tag_bind( 'icons', '<3>', self.iconRightClicked )
+
+		# Add arrows and scroll wheel support for traversing the icons
+		ScrollArrows( canvas )
+
+		# toc = time.clock()
+		# print 'time to populate', filename, 'canvas:', toc-tic
+
+	# Icon hover (mousein/mouseout) events for stage icons on the SSS canvas
+	def iconHovered( self, event ): self.pagesNotebook['cursor'] = 'hand2'
+	def iconUnhovered( self, event ): self.pagesNotebook['cursor'] = ''
+
+	def loadVanillaStageLists( self ):
+		self.clear()
+
+		self.addStageSelectCanvas( '  Vanilla SSS  ', 'MnSlMap.usd' )
+		#self.addStageSelectCanvas( '  Other  ' )
+
+		# Get the DOL file
+		self.dol = globalData.disc.dol
+		self.stageSwapTable = None
+
+	def load20XXStageLists( self ):
+
+		""" Load stage info from the currently loaded disc into this tab. """
+
+		self.clear()
+
+		# Create the page canvases
+		for pageName in ( '  SSS Page 1  ', '  SSS Page 2  ', '  SSS Page 3  ', '  SSS Page 4  ' ):
+			pageFileName = 'MnSlMap.{}sd'.format( pageName.split()[-1] )
+			self.addStageSelectCanvas( pageName, pageFileName )
+
+		# Get the DOL file
+		self.dol = globalData.disc.dol
+		self.stageSwapTable = StageSwapTable( self.dol )
+
+	def iconRightClicked( self, event ):
+
+		""" Determines the stage icon that was right-clicked on, store it, and summons the right-click context menu. """
+
+		canvas = event.widget
+		itemId = canvas.find_closest( event.x, event.y )[0]
+		self.stageRightClickedOn = canvas.iconCanvasIds[itemId] # Internal Stage ID
+		canvas.menu.post( event.x_root, event.y_root )
+
+	def exportIconTexture( self ):
+
+		""" Export the displayed stage icon texture to an external PNG/TPL file, 
+			while prompting the user on where they'd like to save it. 
+			Updates the default directory to search in when opening or exporting files. 
+			Also handles updating the GUI with the operation's success/failure status. """
+
+		canvas = self.getCurrentCanvas()
+		internalStageId = self.stageRightClickedOn
+		filename = '{} icon slot (page {}).png'.format( globalData.internalStageIds[internalStageId], canvas.pageNumber )
+
+		# Prompt for a place to save the file. (Excluding defaultextension option to give user more control, as it may silently append ext in some cases)
+		savePath = tkFileDialog.asksaveasfilename(
+			title="Where would you like to export the file?",
+			parent=globalData.gui.root,
+			initialdir=globalData.settings.get( 'General Settings', 'defaultSearchDirectory' ),
+			initialfile=filename,
+			filetypes=[( "PNG files", '*.png' ), ("TPL files", '*.tpl' ), ( "All files", "*.*" )] )
+
+		# The above will return an empty string if the user canceled
+		if not savePath: return ''
+
+		# Make sure folders exist for the chosen destination
+		directoryPath = os.path.dirname( savePath ) # Used at the end of this function
+		createFolders( directoryPath )
+
+		# Get the image
+		iconTextureOffset = self.getTextureOffset( internalStageId, icon=True )[0]
+		if internalStageId in ( 0x24, 0x25, 0x1C, 0x1D, 0x1E ):
+			texture = canvas.sssFile.getTexture( iconTextureOffset, 48, 48, 9, 0x900, getAsPilImage=True )
+		else:
+			texture = canvas.sssFile.getTexture( iconTextureOffset, 64, 56, 9, 0xE00, getAsPilImage=True )
+
+		if savePath.lower().endswith( '.tpl' ): # Convert the image into TPL format
+			texture = texture.convert( 'RGBA' ) # Returns a modified image without affecting the original
+
+			newImage = TplEncoder( '', texture.size, 0 )
+			newImage.imageDataArray = texture.getdata()
+			newImage.rgbaPaletteArray = texture.getpalette()
+
+			returnCode = newImage.createTplFile( savePath )
+		else:
+			try:
+				texture.save( savePath )
+				returnCode = 0
+			except ValueError as err:
+				returnCode = 3
+				print 'ValueError during PIL image saving;', err
+			except IOError as err:
+				print 'IOError during PIL image saving;', err
+				returnCode = 2
+			except Exception as err: # For everything else
+				print 'Exception during PIL image saving;', err
+				returnCode = -1
+
+		# Update the default directory to start in when opening or exporting files.
+		globalData.settings.set( 'General Settings', 'defaultSearchDirectory', directoryPath )
+		with open( globalData.paths['settingsFile'], 'w' ) as theSettingsFile:
+			globalData.settings.write( theSettingsFile )
+
+		# Check status of the export, and give user feedback in the program's status bar
+		if returnCode == 0:
+			globalData.gui.updateProgramStatus( 'File exported successfully', success=True )
+		elif returnCode == 1:
+			msg( 'Unable to export due to a TPL encoding error. Check the error log file for details.', 'Export Error' )
+			globalData.gui.updateProgramStatus( 'Unable to encode the TPL image. Check the error log file for details', error=True )
+		elif returnCode == 2:
+			msg( 'Unable to save the image file. Be sure that this program has write permissions to the destination.', 'Export Error' )
+			globalData.gui.updateProgramStatus( 'Unable to save the image file. Be sure that this program has write permissions to the destination', error=True )
+		elif returnCode == 3:
+			msg( 'Unable to save the PIL image. This may be due to an unsupported image file format. Try using a different file extension.', 'Export Error' )
+			globalData.gui.updateProgramStatus( 'Unable to export. This may be due to an unsupported image file extension', error=True )
+		else: # Failsafe; not expected to be possible
+			msg( 'Unable to export the image due to an unknown error. Check the error log file for details.', 'Export Error' )
+			globalData.gui.updateProgramStatus( 'Unable to export the image due to an unknown error', error=True )
+	
+	def importIconTexture( self ):
+
+		""" Imports a stage icon texture over the icon that was last right-clicked on. 
+			Also handles updating the GUI with the operation's success/failure status. """
+
+		internalStageId = self.stageRightClickedOn
+		if internalStageId in ( 0x1C, 0x1D, 0x1E ): # These icons are smaller
+			imagePath = importSingleTexture( "Choose an icon texture of 48x48 to import" )
+		else:
+			imagePath = importSingleTexture( "Choose an icon texture of 64x56 to import" )
+
+		# The above will return an empty string if the user canceled
+		if not imagePath: return ''
+
+		canvas = self.getCurrentCanvas()
+		sssFile = canvas.sssFile
+		textureName = globalData.internalStageIds[internalStageId]
+
+		# Load the icon texture and set it in the SSS file
+		imageDataOffset = self.getTextureOffset( internalStageId, icon=True )[0]
+		returnCode, _, _ = sssFile.setTexture( imageDataOffset, imagePath=imagePath, textureName='{} icon texture'.format(textureName) ) # Will also record the change
+		print 'returnCode:', returnCode
+
+		if returnCode == 0:
+			# Get the new texture data, so we can show it in the GUI
+			if internalStageId == 0x24 or internalStageId == 0x25: # Resize Battlefield and FD, since that's how they appear in-game
+				origImage = sssFile.getTexture( imageDataOffset, 64, 56, 9, 0xE00, getAsPilImage=True )
+				resizedImage = origImage.resize( (48, 48), Image.ANTIALIAS )
+				canvas.iconImages[internalStageId] = ImageTk.PhotoImage( resizedImage )
+
+			elif internalStageId in ( 0x1C, 0x1D, 0x1E ):
+				canvas.iconImages[internalStageId] = sssFile.getTexture( imageDataOffset, 48, 48, 9, 0x900 )
+			else:
+				canvas.iconImages[internalStageId] = sssFile.getTexture( imageDataOffset, 64, 56, 9, 0xE00 )
+
+			# Update the image in the canvas
+			itemId = self.getCanvasIconId( canvas, internalStageId )
+			canvas.itemconfig( itemId, image=canvas.iconImages[internalStageId] )
+
+			selectedTabId = self.pagesNotebook.select() # This will be a tab ID, not the actual widget
+			tabName = self.pagesNotebook.tab( selectedTabId, 'text' ).strip()
+			globalData.gui.updateProgramStatus( '{} icon texture updated in the {} file ({}), at offset 0x{:X}'.format(textureName, tabName, sssFile.filename, 0x20+imageDataOffset), success=True )
+
+		else: # Probably don't need to be too specific; low chance of problems here
+			globalData.gui.updateProgramStatus( 'Unable to set the icon texture', error=True )
+
+	def iconClicked( self, event ):
+
+		""" Initial method called when a canvas stage icon is clicked on. Determines and 
+			sets the internal stage ID of the icon that was clicked on, and calls the main
+			stage selection method. """
+		
+		globalData.gui.updateProgramStatus( '' )
+
+		# Determine which canvas item was clicked on, and use that to look up the stage
+		canvas = event.widget
+		itemId = canvas.find_closest( event.x, event.y )[0]
+		self.selectedStageId = canvas.iconCanvasIds[itemId]
+
+		self.selectStage( canvas, itemId )
+
+	def getCanvasIconId( self, canvas, internalStageId ):
+
+		""" Canvas Icon IDs are the IDs assigned to images, lines, and other items added to the 
+			canvases. This returns an ID for the stage icon image for a given internal stage ID. """
+
+		for canvasIconIid, intStageId in canvas.iconCanvasIds.items():
+			if intStageId == internalStageId:
+				return canvasIconIid
+		else:
+			raise Exception( 'Unable to find a canvas icon ID for internal stage ID 0x{:X}.'.format(self.selectedStageId) )
+
+	def selectStage( self, canvas, itemId=None ):
+		
+		""" Moves the selection border to the new icon, clears the Variations list, and calls the appropriate click method. """
+
+		# Remove any pre-existing selection border
+		canvas.delete( 'selectionBorder' )
+
+		# Get the canvas item id of the currently selected stage
+		if not itemId:
+			itemId = self.getCanvasIconId( canvas, self.selectedStageId )
+
+		# Highlight the newly selected icon
+		selectionCoords = canvas.coords( itemId )
+		newX = selectionCoords[0] - 2
+		newY = selectionCoords[1] - 2
+		if self.selectedStageId in ( 0x24, 0x25, 0x1C, 0x1D, 0x1E ): # These icons are 48x48 in size
+			canvas.create_rectangle( newX, newY, newX+52, newY+52, outline='gold', width=2, tags='selectionBorder' )
+		else:
+			canvas.create_rectangle( newX, newY, newX+68, newY+60, outline='gold', width=2, tags='selectionBorder' )
+		
+		# Delete the current items in the stage variations treeview
+		for item in self.variationsTreeview.get_children():
+			self.variationsTreeview.delete( item )
+
+		# Empty the text entry widgets for Preview Text
+		# self.previewTextTopTextEntry.delete( 0, 'end' )
+		# self.previewTextBottomTextEntry.delete( 0, 'end' )
+
+		# Call the main click event handler
+		if self.stageSwapTable:
+			self.clicked20XXIcon( canvas )
+		else:
+			self.clickedVanillaIcon( canvas )
+
+	def determineStageFiles( self, page, newIntStageId, byteReplacePointer, byteReplacement, randomByteValues ):
+
+		""" Determines the stage filenames that are expected to be loaded for a given stage icon on the Stage Select Screen. 
+			Used to determine the filenames to search for in the disc, to populate the Variations treeview and other GUI elements. 
+
+			Returns two values:
+				- An int; DOL offset of the filename string that will be used for stage file loading
+				- A list; of all filenames that may be loaded by the currently selected icon. """
+
+		if newIntStageId == 0:
+			stageIdToLoad = self.selectedStageId
+		# elif newIntStageId == 0x1A: # i.e. external stage ID 0x15, Akaneia (a deleted stage)
+		# 	newIntStageId = 'Akaneia (deleted stage)'
+		elif newIntStageId == 0x16: # i.e. external stage ID 0x1A, Icicle Mountain (anticipating no hacked stages of this); switch to current Target Test stage
+			#newIntStageId = 'Current Target Test stage'
+			print 'Unsupported; target test stage filename undetermined'
+			return -1, ()
+		else:
+			stageIdToLoad = newIntStageId
+
+		# Get the filename and its offset
+		dolFilenameOffset, dolStageFilename = self.dol.getStageFileName( stageIdToLoad )
+		if dolFilenameOffset == -1:
+			return -1, ()
+
+		# Check for 20XX random neutrals
+		if page == 1 and stageIdToLoad in ( 0xC, 0x24, 0x25, 0x1C, 0x10, 0xA ): # FoD, Battlefield, FD, DreamLand, Stadium, Yoshi's Story
+			filenames = []
+			for char in '0123456789abcde':
+				if stageIdToLoad == 0x10: # Pokemon Stadium; use .usd file extension
+					filenames.append( 'GrP{}.usd'.format(char) )
+				else:
+					filenames.append( '{}.{}at'.format(dolStageFilename[:-4], char) )
+
+		# One variation; no byte replacements
+		elif byteReplacePointer == 0:
+			filenames = [dolStageFilename]
+
+		# Multiple variations; byte(s) will be replaced in the stage filename
+		else:
+			# Get the DOL offset of the byte to be replaced
+			dolByteReplaceOffset = self.dol.offsetInDOL( byteReplacePointer ) # Convert from a RAM address to a DOL offset
+			relativeOffset = dolByteReplaceOffset - dolFilenameOffset
+
+			if byteReplacement == 0xFF:
+				filenames = []
+				for byte in randomByteValues:
+					if byte == 0: continue
+					newFilename = dolStageFilename[:relativeOffset] + chr( byte ) + dolStageFilename[relativeOffset+1:]
+					filenames.append( newFilename )
+			else:
+				newFilename = dolStageFilename[:relativeOffset] + chr( byteReplacement ) + dolStageFilename[relativeOffset+1:]
+				filenames = [newFilename]
+
+		# Add .dat/.usd file extensions if needed; check country code to determine which to use
+		# countryCode = globalData.disc.countryCode
+		# for i, name in enumerate( filenames ):
+		# 	if not '.' in name:
+		# 		if countryCode == 1: # Banner file encoding = latin_1
+		# 			filenames[i] = name + '.usd'
+		# 		else: # Banner file encoding = shift_jis
+		# 			filenames[i] = name + '.dat'
+
+		return dolFilenameOffset, filenames
+
+	def getVariationDisplayName( self, stageFile ):
+
+		if stageFile.isRandomNeutral():
+			displayName = stageFile.getDescription( inConvenienceFolder=True, updateInternalRef=False ).lstrip() # Force simpler names
+		elif stageFile.filename[2] == 'T':
+			displayName = stageFile.getDescription( inConvenienceFolder=False, updateInternalRef=False ) # Force simpler names
+		elif stageFile.description:
+			displayName = stageFile.description
+		else:
+			displayName = ' - - '
+
+		return displayName
+
+	def clickedVanillaIcon( self, canvas ):
+		# Make sure the ID is recognized
+		# vanillaStageFileName = globalData.stageFileNames.get( self.selectedStageId )
+		# if not vanillaStageFileName:
+		# 	print 'Unable to find a stage filename for internal stage ID', hex( self.selectedStageId )
+		# 	return
+
+		# # Get the vanilla stage file name for this stage slot, and get the offset for its string in the DOL
+		# # if vanillaStageFileName == 'GrPs.usd': # Special case for Stadium, which numbers for random neutrals differently
+		# # 	searchString = '/GrP0'
+		# # else:
+		# searchString = '/' + vanillaStageFileName.split( '.' )[0]
+		# dolFilenameOffset = self.dol.data.find( searchString ) + 1 # Luckily there will only be one match
+		# # todo: potential big perf gain by using https://inspirated.com/2010/06/19/using-boyer-moore-horspool-algorithm-on-file-streams-in-python
+		# assert dolFilenameOffset != -1, 'Unable to find the stage file name for "{}" in the DOL!'.format( searchString )
+		# #dolStageFilename = self.dol.data[dolFilenameOffset:dolFilenameOffset+10].split( '\x00' )[0]
+
+		dolFilenameOffset, dolStageFilename = self.dol.getStageFileName( self.selectedStageId )
+		if dolFilenameOffset == -1:
+			print 'Unable to determine a stage file name for stage ID', hex( self.selectedStageId )
+			return
+
+		# if not '.' in dolStageFilename:
+		# 	if globalData.disc.countryCode == 1: # Banner file encoding = latin_1
+		# 		dolStageFilename += '.usd'
+		# 	else: # Banner file encoding = shift_jis
+		# 		dolStageFilename += '.dat'
+
+		#print 'clicked', dolStageFilename, 'at', uHex( dolFilenameOffset )
+		
+		isoPath = globalData.disc.gameId + '/' + dolStageFilename
+		stageFile = globalData.disc.files.get( isoPath )
+		if stageFile:
+			displayName = self.getVariationDisplayName( stageFile )
+			self.variationsTreeview.insert( '', 'end', text=displayName, values=(dolStageFilename, isoPath) )
+		else:
+			self.variationsTreeview.insert( '', 'end', text='- No File -', values=(dolStageFilename, isoPath), tags='fileNotFound' )
+			
+		self.stageSwapDetailsLabel['text'] = '0x{:X}\nN/A (no swap)\nN/A (no swap)\nN/A\nN/A\nN/A\nN/A'.format( self.selectedStageId )
+
+		# Set the Preview Text image
+		previewTextureOffset = self.getTextureOffset( self.selectedStageId, previewText=True )[0]
+		newPreviewImage = canvas.sssFile.getTexture( previewTextureOffset, 224, 56, 0, 0x1880, getAsPilImage=True )
+		self.updatePreviewImage( newPreviewImage )
+
+		# Select the first item in the treeview by default (which will also call the selection method, stageVariationSelected)
+		variationIids = self.variationsTreeview.get_children()
+		if len( variationIids ) > 0:
+			firstItem = variationIids[0]
+			self.variationsTreeview.focus( firstItem )
+			self.variationsTreeview.selection_set( firstItem )
+
+	def clicked20XXIcon( self, canvas ):
+
+		""" Check the 20XX Stage Engine system to determine what file(s) this icon may load, and populate the GUI with information. """
+
+		# Get information from the Stage Swap Table on what file(s) this icon/stage slot should load
+		newExtStageId, stageFlags, byteReplacePointer, byteReplacement, randomByteValues = self.stageSwapTable.getEntryInfo( self.selectedStageId, canvas.pageNumber )
+		newIntStageId = self.dol.getIntStageIdFromExt( newExtStageId )
+		#print 'new external id:', hex(newExtStageId), '  new internal id:', hex(newIntStageId)
+
+		dolFilenameOffset, filenames = self.determineStageFiles( canvas.pageNumber, newIntStageId, byteReplacePointer, byteReplacement, randomByteValues )
+
+		# Populate the variations treeview with the file names (and descriptions) determined above
+		gameId = globalData.disc.gameId
+		pathsAdded = set()
+		for filename in filenames:
+			isoPath = gameId + '/' + filename
+			stageFile = globalData.disc.files.get( isoPath )
+
+			if stageFile:
+				displayName = self.getVariationDisplayName( stageFile )
+
+				if isoPath in pathsAdded:
+					self.variationsTreeview.insert( '', 'end', text=displayName +' (duplicate)', values=(filename, isoPath), tags='warning' )
+				else:
+					self.variationsTreeview.insert( '', 'end', text=displayName, values=(filename, isoPath) )
+			else:
+				self.variationsTreeview.insert( '', 'end', text='- No File -', values=(filename, isoPath), tags='fileNotFound' ) # No need to check for dups; not possible
+			
+			pathsAdded.add( isoPath )
+
+		# Update text shown in the 'Stage Swap Details' panel
+		self.showSwapDetails( newIntStageId, newExtStageId, dolFilenameOffset, byteReplacePointer, byteReplacement, randomByteValues, stageFlags )
+
+		# Set the Preview Text image
+		previewTextureOffset = self.getTextureOffset( self.selectedStageId, previewText=True )[0]
+		newPreviewImage = canvas.sssFile.getTexture( previewTextureOffset, 224, 56, 0, 0x1880, getAsPilImage=True )
+		self.updatePreviewImage( newPreviewImage )
+
+		# Select the first item in the treeview by default (which will also call the selection method, stageVariationSelected)
+		variationIids = self.variationsTreeview.get_children()
+		if len( variationIids ) > 0:
+			firstItem = variationIids[0]
+			self.variationsTreeview.focus( firstItem )
+			self.variationsTreeview.selection_set( firstItem )
+
+	def getSelectedStage( self ):
+
+		""" Gets the stage variation currently selected in the "Variations" file list, as a stage file object. """
+
+		iidSelectionsTuple = self.variationsTreeview.selection()
+		if len( iidSelectionsTuple ) != 1: # Failsafe; shouldn't be possible?
+			return None
+
+		isoPath = self.variationsTreeview.item( iidSelectionsTuple[0], 'values' )[1] # Values tuple is (filename, isoPath)
+
+		return globalData.disc.files.get( isoPath )
+
+	def getCurrentCanvas( self ):
+
+		""" Gets the canvas from the currently selected SSS tab. """
+
+		selectedTabId = self.pagesNotebook.select() # This will be a tab ID, not the actual widget
+		selectedTab = globalData.gui.root.nametowidget( selectedTabId )
+		return selectedTab.canvas
+
+	def stageVariationUnselected( self ):
+
+		""" Called when a non-existant stage from the Variations treeview (a stage file that doesn't exist in the disc) 
+			is clicked on. Clears or resets GUI elements specific to a stage file. """
+
+		self.selectedStage = None
+
+		self.clearMusicSection()
+
+		# Disable the controls for stages until a stage is selected
+		for widget in self.controlsFrame.winfo_children():
+			# if widget['text'] == 'Import':
+			# 	widget['state'] = 'normal'
+			# else:
+			widget['state'] = 'disabled'
+
+	def stageVariationSelected( self, event ):
+
+		""" This is called when a user clicks on a file selection in the "Variations" file list display,
+			and it is also automatically called after a stage icon is clicked on, in order to load the
+			first file in the list by default. """
+
+		stageFile = self.getSelectedStage()
+
+		# Check whether this is the same stage that was already selected (to prevent unncessary work)
+		if not stageFile:
+			self.stageVariationUnselected()
+			return
+		elif stageFile == self.selectedStage:
+			return
+		else:
+			self.selectedStage = stageFile
+
+		# Initialize the file (parse it for data structures)
+		stageFile.initialize()
+
+		# Show some basic info
+		self.showBasicInfo( self.selectedStageId, stageFile )
+
+		# Get song info from the music table struct and update the GUI with it
+		self.updateMusicTableInterface( stageFile )
+
+		# Enable the stage control buttons
+		if self.stageSwapTable: # Means it's 20XX
+			self.editStageSwapDetailsBtn['state'] = 'normal'
+			canvas = self.getCurrentCanvas()
+
+			for widget in self.controlsFrame.winfo_children():
+				# Disable the Add Variation button if this stage is maxed out on slots; all else enabled
+				if widget['text'] == 'Add Variation':
+					if stageFile.isRandomNeutral():
+						if self.variationsTreeview.tag_has( 'fileNotFound' ):
+							widget['state'] = 'normal'
+						else:
+							widget['state'] = 'disabled'
+					elif canvas.pageNumber == 1: # Random byte value replacements (mode 0xFF) not supported on first page
+						widget['state'] = 'disabled'
+					elif len( self.variationsTreeview.get_children() ) == 4: # For other pages, only up to 4 variations supported
+						widget['state'] = 'disabled'
+					else:
+						widget['state'] = 'normal'
+				else:
+					widget['state'] = 'normal'
+
+		else: # Is vanilla Melee
+			for widget in self.controlsFrame.winfo_children():
+				if widget['text'] == 'Add Variation':
+					widget['state'] = 'disabled'
+				else:
+					widget['state'] = 'normal'
+
+	def updateMusicTableInterface( self, stageFile ):
+		
+		""" Gets/stores the given stage's music table struct, creates the Table Entry dropdown list,
+			calls the method to populate the song labels, and updates their ACM tooltips. """
+
+		# Get song info from the music table struct
+		grGroundParamStruct = stageFile.getStructByLabel( 'grGroundParam' )
+		musicTableOffset = grGroundParamStruct.getValues( 'Music_Table_Pointer' )
+		self.musicTableStruct = stageFile.getStruct( musicTableOffset )
+		values = self.musicTableStruct.getValues()
+		valuesPerEntry = len( values ) / self.musicTableStruct.entryCount
+
+		# Build the list of options for the Music Table entry list dropdown
+		options = []
+		for i in range( self.musicTableStruct.entryCount ):
+			# Pick out the external stage ID names to get the names for each entry
+			externalId = values[i*valuesPerEntry]
+			externalIdName = globalData.externalStageIds.get( externalId, 'Unknown External ID' )
+			options.append( '{} | {}'.format(i+1, externalIdName) )
+
+		# Update the dropdown menu with the above options
+		self.musicTableOptionMenu['state'] = 'normal'
+		self.musicTableOptionMenu.set_menu( options[0], *options ) # Using * to expand the list into the arguments input
+
+		# Select the first entry in the table by default, and populate the Music Table fields in the GUI
+		self.selectMusicTableEntry( options[0] )
+
+		# Update the audio files attached to the tooltip ACMs (Audio Control Modules)
+		# for tooltip in self.toolTips.values():
+		# 	if isinstance( tooltip, MusicToolTip ):
+		# 		tooltip.updateAcm()
+	
+	def selectMusicTableEntry( self, selectedOption ):
+
+		""" Updates information displayed in the Music Table pane. Called by the user selecting an entry 
+			from the dropdown menu, as well as by the method called when a stage variation is selected. """
+
+		# Get the index of the currently selected table entry, and the values for just this particular entry
+		entryIndex = int( selectedOption.split( '|' )[0] ) - 1 # Switching back to 0-indexed self.musicTableEntry
+		values = self.musicTableStruct.getEntryValues( entryIndex )
+		songBehavior = values[5]
+
+		# Display this entry's external stage ID
+		self.extStageIdLabel['text'] = uHex( values[0] )
+
+		# Convert the song IDs to names and update the respective labels
+		valueIndex = 1
+		toolTips = { 1: self.toolTips['mainMusic'], 2: self.toolTips['altMusic'], 3: self.toolTips['suddenMusic'], 4: self.toolTips['altSuddenMusic'] }
+		for label in ( self.mainMusicLabel, self.altMusicLabel, self.suddenDeathMusicLabel, self.altSuddenDeathLabel ):
+			songId = values[valueIndex]
+			toolTip = toolTips[valueIndex]
+
+			if songId == -1:
+				label['text'] = '-1 | None'
+				toolTip._opts['state'] = 'normal'
+
+				# Remove the audio file from the ACM, so it doesn't play a past-selected song
+				if toolTip.acm:
+					toolTip.acm.audioFile = None
+
+			elif songBehavior == 8 and ( valueIndex == 2 or valueIndex == 4 ): # Dealing with disabled alt music
+				label['text'] = 'N/A (not used by this behavior)'
+				toolTip._opts['state'] = 'disabled'
+
+			else:
+				#songName = globalData.musicIdNames.get( songId )
+				musicFile = globalData.disc.getMusicFile( songId )
+
+				if musicFile:
+					if musicFile.description:
+						label['text'] = uHex( songId ) + ' | ' + musicFile.description
+					else:
+						label['text'] = uHex( songId ) + ' | Unknown Track'
+				else:
+					label['text'] = uHex( songId ) + ' | Not Found in the Disc!'
+
+				# Update the tooltip's ACM, so it plays the correct file
+				if toolTip.acm:
+					toolTip.acm.audioFile = musicFile
+				toolTip._opts['state'] = 'normal'
+
+			valueIndex += 1
+		
+		# Update the song behavior label and tooltip with the above info
+		unknownIdString = 'Unknown (Behavior ID: ' + uHex(songBehavior) + ')' # Used as default text if the below 'get' fails
+		self.songBehaviorLabel['text'] = uHex( songBehavior ) + ' | ' + self.musicTableStruct.enums['Song_Behavior'].get( songBehavior, unknownIdString )
+		self.songBehaviorToolTipText.set( self.musicTableStruct.songBehaviorDescriptions.get( songBehavior, 'N/A' ) )
+
+		# Update the Alt. Music % Chance label
+		if songBehavior > 1 and songBehavior < 8:
+			self.altMusicChanceLabel['text'] = '{}%'.format( values[6] )
+		else:
+			self.altMusicChanceLabel['text'] = 'N/A (Not used by this behavior)'
+
+	def updatePreviewImage( self, newImage ):
+
+		""" Updates the stage preview text canvas display. Called when the user selects a stage 
+			(in which case the image is pulled from the SSS file), or to display an image created 
+			by the generatePreviewText() method. """
+
+		# Clear the canvas
+		self.previewTextCanvas.delete( 'all' )
+
+		# Add the new image
+		self.previewTextCanvas.image = ImageTk.PhotoImage( newImage )
+		self.previewTextCanvas.pilImage = newImage
+		self.previewTextCanvas.create_image( 0, 0, image=self.previewTextCanvas.image, anchor='nw' )
+	
+	def generatePreviewText( self, event=None ):
+
+		""" Generates new preview text, based on the text input in the Entry fields. """
+
+		# Load the fonts to use
+		topTextFontSize = 17
+		bottomTextFontSize = 39
+		try:
+			bottomTextFontPath = os.path.join( globalData.paths['fontsFolder'], 'A-OTF Folk Pro, Bold.otf' )
+			topTextFont = ImageFont.FreeTypeFont( os.path.join( globalData.paths['fontsFolder'], 'Palatino Linotype, Bold.ttf'), topTextFontSize )
+			bottomTextFont = ImageFont.FreeTypeFont( bottomTextFontPath, bottomTextFontSize )
+		except Exception as err:
+			print 'Unable to load fonts for preview text:', err
+			globalData.gui.updateProgramStatus( 'Unable to load fonts for preview text!', error=True )
+			return
+
+		# Get the text to be written
+		topText = self.previewTextTopTextEntry.get()
+		bottomText = self.previewTextBottomTextEntry.get()
+		# topText = 'Lylat System'
+		# bottomText = 'Venom'
+
+		# Define width for the initial image (creating it wider than needed so it can be later squished, to make it look more like the vanilla text)
+		widthBuffer = 50 # This is used to prevent the text from being cut off when transformed (sheared for italicising). This is later cropped off
+		imageWidth = 269 + widthBuffer # Space excluding the width buffer is ~20 wider than the finished texture
+
+		# Increase the width of the image to accommodate more characters (to an extent); the image will later be squished more horizontally to overcome this
+		width, height = bottomTextFont.getsize( bottomText )
+		sizeDiff = width - imageWidth + widthBuffer + 40 # Extra 20 to ensure there's at least a small band between the text and edge of the texture
+		# print 'sizeDiff =', width, '-', imageWidth, '+', widthBuffer
+		# print 'width diff:', sizeDiff
+		if sizeDiff >= 200:
+			imageWidth += 240
+		elif sizeDiff > 0:
+			imageWidth += sizeDiff
+
+		# If still too wide, reduce the font size of the bottom text
+		#width, height = bottomTextFont.getsize( bottomText )
+		while width >= imageWidth - widthBuffer - 5:
+			bottomTextFontSize -= 1
+			# print 'too wide; attempting new font of size', bottomTextFontSize
+			bottomTextFont = ImageFont.FreeTypeFont( bottomTextFontPath, bottomTextFontSize )
+			width, height = bottomTextFont.getsize( bottomText )
+
+		# Create the initial image
+		newTexture = Image.new( 'L', (imageWidth, 56), 'black' )
+		imgDrawing = ImageDraw.Draw( newTexture )
+		
+		# Draw the bottom text (twice, so it's a bit bolder) and apply a shear to italicize it
+		xCoord = ( imageWidth/2 - width/2 ) + 18
+		imgDrawing.text( (xCoord, 33-height/2), bottomText, 'white', font=bottomTextFont )
+		imgDrawing.text( (xCoord, 33-height/2), bottomText, 'white', font=bottomTextFont )
+		transformMatrix = ( 1, .5, 0, 0, 1, 0 )
+		newTexture = newTexture.transform( (imageWidth, 56), Image.AFFINE, data=transformMatrix, resample=Image.BICUBIC )
+
+		# Crop off the width buffer
+		newTexture = newTexture.crop( (widthBuffer/2, 0, imageWidth-widthBuffer/2, 56) )
+		# print 'new texture width:', newTexture.size
+
+		# Horizontally squish the texture down to its final size
+		newTexture = newTexture.resize( (224, 56), resample=Image.BICUBIC )
+
+		width, height = topTextFont.getsize( topText )
+		# print 'top text char count:', len( topText )
+		# print 'top text width:', width
+		
+		# Adjust the font size of the top text if it's too wide
+		addKerning = False
+		if width >= 224:
+			# print 'top text too wide. shrinking...'
+			while width >= 224:
+				topTextFontSize -= 1
+				# print 'testing new font of size', topTextFontSize
+				topTextFont = ImageFont.FreeTypeFont( os.path.join( globalData.paths['fontsFolder'], 'Palatino Linotype, Bold.ttf'), topTextFontSize )
+				width, height = topTextFont.getsize( topText )
+
+		# If the top text isn't already quite wide, add 1px to the kerning
+		elif width < 210:
+			# Check how much width would be required with the new kerning
+			width = 0
+			relCharPositions = [ 0 ]
+			for char in topText:
+				charWidth = topTextFont.getsize( char )[0]
+				nextCharPosition = width + charWidth + 1
+				relCharPositions.append( nextCharPosition )
+				width += charWidth + 1
+
+			width -= 1 # Ignore kerning after last character
+			# print 'width with kerning added:', width
+			if width < 210:
+				addKerning = True
+
+		imgDrawing = ImageDraw.Draw( newTexture )
+		imgDrawing.fontmode
+		if addKerning:
+			# print 'writing top text with kerning'
+			# Write the top text with increased kerning
+			startingPosition = 112 - width / 2
+			for char, relPosition in zip( topText, relCharPositions ):
+				imgDrawing.text( (startingPosition+relPosition, 1), char, 'white', font=topTextFont )
+		else:
+			# print 'writing top text without kerning'
+			#width, height = topTextFont.getsize( topText )
+			imgDrawing.text( (112-width/2, 1), topText, 'white', font=topTextFont )
+
+		self.updatePreviewImage( newTexture )
+
+		if globalData.gui:
+			globalData.gui.updateProgramStatus( 'Displaying generated preview. Click "Save" to save it to the SSS file' )
+
+	def savePreviewText( self ):
+
+		""" Saves the currently displayed preview text image to the SSS file. """
+
+		# Make sure there is an image to save
+		if not self.previewTextCanvas.pilImage:
+			globalData.gui.updateProgramStatus( 'No texture to save. Choose a stage to begin' )
+			return
+
+		# Get the target SSS file
+		canvas = self.getCurrentCanvas()
+		sssFile = canvas.sssFile
+
+		# Get the offset for the preview texture and set it in the SSS file
+		imageDataOffset = self.getTextureOffset( self.selectedStageId, previewText=True )[0]
+		returnCode, _, _ = sssFile.setTexture( imageDataOffset, self.previewTextCanvas.pilImage, textureName='Preview text texture' ) # Will also record the change
+
+		if returnCode == 0:
+			selectedTabId = self.pagesNotebook.select() # This will be a tab ID, not the actual widget
+			tabName = self.pagesNotebook.tab( selectedTabId, 'text' ).strip()
+			#globalData.disc.unsavedChanges.append( (tabName + ' file updated', sssFile) )
+			#globalData.disc.recordChange( '' )
+			#sssFile.unsavedChanges.append( 'Preview text texture updated at offset 0x{:X}'.format(0x20+imageDataOffset) )
+			globalData.gui.updateProgramStatus( 'Preview text texture updated in the {} file ({}), at offset 0x{:X}'.format(tabName, sssFile.filename, 0x20+imageDataOffset), success=True )
+
+		else: # Probably don't need to be too specific; low chance of problems here
+			globalData.gui.updateProgramStatus( 'Unable to set the preview text texture', error=True )
+
+	def exportPreviewText( self ):
+
+		""" Export the currently shown stage preview text texture to an external PNG/TPL file, 
+			while prompting the user on where they'd like to save it. 
+			Updates the default directory to search in when opening or exporting files. 
+			Also handles updating the GUI with the operation's success/failure status. """
+
+		# Make sure there is an image to export
+		if not self.previewTextCanvas.pilImage:
+			globalData.gui.updateProgramStatus( 'No texture to export. Choose a stage to begin' )
+			return
+
+		# Prompt for a place to save the file. (Excluding defaultextension option to give user more control, as it may silently append ext in some cases)
+		savePath = tkFileDialog.asksaveasfilename(
+			title="Where would you like to export the file?",
+			parent=globalData.gui.root,
+			initialdir=globalData.settings.get( 'General Settings', 'defaultSearchDirectory' ),
+			initialfile="Stage preview text.png",
+			filetypes=[( "PNG files", '*.png' ), ("TPL files", '*.tpl' ), ( "All files", "*.*" )] )
+
+		# The above will return an empty string if the user canceled
+		if not savePath: return ''
+
+		# Make sure folders exist for the chosen destination
+		directoryPath = os.path.dirname( savePath ) # Used at the end of this function
+		createFolders( directoryPath )
+
+		if savePath.lower().endswith( '.tpl' ): # Convert the image into TPL format
+			pilImage = self.previewTextCanvas.pilImage
+			pilImage = pilImage.convert( 'RGBA' ) # Does not modify the original image
+
+			newImage = TplEncoder( '', pilImage.size, 0 )
+			newImage.imageDataArray = pilImage.getdata()
+			newImage.rgbaPaletteArray = pilImage.getpalette()
+
+			returnCode = newImage.createTplFile( savePath )
+		else:
+			try:
+				self.previewTextCanvas.pilImage.save( savePath )
+				returnCode = 0
+			except ValueError as err:
+				returnCode = 3
+				print 'ValueError during PIL image saving;', err
+			except IOError as err:
+				print 'IOError during PIL image saving;', err
+				returnCode = 2
+			except Exception as err: # For everything else
+				print 'Exception during PIL image saving;', err
+				returnCode = -1
+
+		# Update the default directory to start in when opening or exporting files.
+		globalData.settings.set( 'General Settings', 'defaultSearchDirectory', directoryPath )
+		with open( globalData.paths['settingsFile'], 'w' ) as theSettingsFile:
+			globalData.settings.write( theSettingsFile )
+
+		# Check status of the export, and give user feedback in the program's status bar
+		if returnCode == 0:
+			globalData.gui.updateProgramStatus( 'File exported successfully', success=True )
+		elif returnCode == 1:
+			msg( 'Unable to export due to a TPL encoding error. Check the error log file for details.', 'Export Error' )
+			globalData.gui.updateProgramStatus( 'Unable to encode the TPL image. Check the error log file for details', error=True )
+		elif returnCode == 2:
+			msg( 'Unable to save the image file. Be sure that this program has write permissions to the destination.', 'Export Error' )
+			globalData.gui.updateProgramStatus( 'Unable to save the image file. Be sure that this program has write permissions to the destination', error=True )
+		elif returnCode == 3:
+			msg( 'Unable to save the PIL image. This may be due to an unsupported image file format. Try using a different file extension.', 'Export Error' )
+			globalData.gui.updateProgramStatus( 'Unable to export. This may be due to an unsupported image file extension', error=True )
+		else: # Failsafe; not expected to be possible
+			msg( 'Unable to export the image due to an unknown error. Check the error log file for details.', 'Export Error' )
+			globalData.gui.updateProgramStatus( 'Unable to export the image due to an unknown error', error=True )
+
+	def importPreviewText( self ):
+
+		""" Prompts the user for a texture to import, and then updates it in the GUI and saves it to the current SSS file. """
+		
+		if not self.selectedStage:
+			msg( 'No stage file is selected!' )
+			return
+		
+		# # Prompt to select the file to import
+		# imagePath = tkFileDialog.askopenfilename( # Will return a unicode string (if one file selected), or a tuple
+		# 	title="Choose an icon texture of 224x56 to import:",
+		# 	parent=globalData.gui.root,
+		# 	initialdir=globalData.settings.get( 'General Settings', 'defaultSearchDirectory' ),
+		# 	filetypes=[ ('PNG files', '*.png'), ('TPL files', '*.tpl'), ('All files', '*.*') ],
+		# 	multiple=False
+		# 	)
+
+		imagePath = importSingleTexture( "Choose an icon texture of 224x56 to import" )
+
+		# The above will return an empty string if the user canceled
+		if not imagePath: return ''
+
+		# Load the texture as a PIL image
+		try:
+			newImage = Image.open( imagePath )
+		except Exception as err:
+			globalData.gui.updateProgramStatus( 'Unable to open the texture due to an unrecognized error. Check the log for details.' )
+			print err
+			return
+
+		# Ensure the image isn't too large (at least by dimensions)
+		if not newImage.size == ( 224, 56 ):
+			globalData.gui.updateProgramStatus( 'Invalid texture size. The preview text texture should be 224x56 pixels' )
+			msg( 'The preview text texture should be 224x56 pixels.', 'Invalid texture size.' )
+			return
+
+		self.updatePreviewImage( newImage )
+		self.savePreviewText()
+
+	def exportStage( self ):
+		if self.selectedStage:
+			exportSingleFileWithGui( self.selectedStage )
+		else: # Failsafe (the button should be disabled in this case)
+			msg( 'No stage file is selected!' )
+
+	def importStage( self ):
+
+		""" Prompts the user for an external/standalone file to import, 
+			and then replaces the currently selected file with that file. 
+			If no file is selected, and a file can't be found to load, this 
+			will instead add a new file to the disc. """
+
+		selection = self.variationsTreeview.selection()
+
+		# Make sure there is only 1 stage selected (failsafe; shouldn't be possible?)
+		if len( selection ) == 0:
+			msg( 'No stage file is selected!' )
+			return
+		elif len( selection ) > 1:
+			msg( 'Please only select one file to import.' )
+			return
+
+		if self.selectedStage:
+			# A single, existing file is selected; replace it
+			success = importSingleFileWithGui( self.selectedStage )
+			stageObj = self.selectedStage
+		else:
+			# Attempt to get the file object
+			isoPath = self.variationsTreeview.item( selection[0], 'values' )[1]
+			stageObj = globalData.disc.files.get( isoPath )
+
+			if stageObj: # Failsafe; not sure how this could happen
+				print 'selectedStage=None while attempting to import a stage'
+				success = importSingleFileWithGui( stageObj )
+
+			else: # No file by this name in the disc; it's probably a random neutral stage slot selected. User probably wants to add a new file to disc
+				success = self.chooseStageFileToAddToDisc( isoPath )
+				stageObj = globalData.disc.files.get( isoPath )
+
+		if not success:
+			return
+
+		# Update the name shown in the Variations treeview
+		self.variationsTreeview.item( selection[0], text=self.getVariationDisplayName(stageObj), tags=() )
+
+		# Show the new file in the Disc File Tree
+		if globalData.gui.discTab:
+			globalData.gui.discTab.loadDisc( updateStatus=False, preserveTreeState=True )
+			globalData.gui.discTab.isoFileTree.item( stageObj.isoPath, tags='changed' )
+
+		# Update the Disc Details Tab
+		detailsTab = globalData.gui.discDetailsTab
+		if detailsTab:
+			detailsTab.isoFileCountText.set( "{:,}".format(len(globalData.disc.files)) )
+			#detailsTab # todo: disc size as well
+
+		# Simulate clicking on the same stage variation, to reload its info display
+		self.selectedStage = None # Allows the current stage to be reloaded in the GUI
+		self.variationsTreeview.event_generate( '<<TreeviewSelect>>' )
+
+		# Prompt the user to choose a new name for this stage slot
+		returnCode = self.renameStage( useDefaultText=False, updateProgramStatus=False )
+
+		# Assuming no problems above, update program status with success
+		if returnCode == 0:
+			globalData.gui.updateProgramStatus( 'Stage added successfully' )
+
+	def chooseStageFileToAddToDisc( self, newIsoPath ):
+
+		""" Prompts the user for a new file to add to the disc, initilizes it, and adds it to the disc filesystem. 
+			Returns True/False on success. """
+
+		print 'attempting to add', newIsoPath
+
+		 # No file by this name in the disc; it's probably a random neutral stage slot selected. User probably wants to add a new file to disc
+		fileTypeOptions = [ ('Stage files', '*.dat *.usd *.0at *.1at *.2at *.3at *.4at *.5at *.6at *.7at *.8at *.9at *.aat *.bat *.cat *.dat *.eat'),
+							('All files', '*.*') ]
+		# Need to add a new file to the disc
+		newFilePath = importGameFiles( title='Choose a stage file to add to the disc.', fileTypeOptions=fileTypeOptions )
+						
+		# The above will return an empty string if the user canceled
+		if not newFilePath: return False
+
+		# Initialize the new file
+		try:
+			newFileObj = StageFile( None, -1, -1, newIsoPath, extPath=newFilePath, source='file' )
+			newFileObj.getData()
+		except Exception as err:
+			print 'Exception during file load;', err
+			globalData.gui.updateProgramStatus( 'Unable to load file; ' + str(err), error=True )
+			return False
+
+		globalData.disc.addFiles( [newFileObj] )
+
+		return True
+
+	def addStageVariation( self ):
+
+		""" Called by the main control button. Adds a new stage variation for the currently selected stage slot/icon.
+			Will add to the first empty slot (if there is one). """
+
+		variationIids = self.variationsTreeview.get_children()
+		if not variationIids: # Failsafe; not possible?
+			msg( 'No variations for this stage are available!' )
+			return
+
+		# Look for the first available open slot
+		for iid in variationIids:
+			isoPath = self.variationsTreeview.item( iid, 'values' )[1]
+			stageObj = globalData.disc.files.get( isoPath )
+			if not stageObj:
+				print 'unused isoPath (first unused variation slot):', isoPath
+				break
+		else: # Loop above didn't break; all slots are filled
+			print 'all slots filled'
+
+			if stageObj.isRandomNeutral():
+				msg( 'There are no open random neutral slots for this stage. You will need to import over, or delete, an existing variation.', 'No open stage slots' )
+			else:
+				msg( 'There are no open slots for this stage. You will need to import over, or delete, '
+					 'an existing variation. Or modify the stage Swap Details to allow for more variations.', 'No open stage slots' )
+			globalData.gui.updateProgramStatus( "No empty slots available.", warning=True )
+			return
+
+		self.chooseStageFileToAddToDisc( isoPath )
+
+	def renameStage( self, useDefaultText=True, updateProgramStatus=True ):
+
+		""" Prompts the user for a new stage name, and sets it for the stage 
+			currently selected in the Variations treeview. """
+
+		if not self.selectedStage: # Failsafe (the button should be disabled in such a case)
+			msg( 'No stage file is selected!' )
+			return 0
+		elif self.selectedStage.isRandomNeutral():
+			charLimit = 31 # Max space in CSS file
+		else:
+			charLimit = 42 # Somewhat arbitrary limit
+		
+		# Prompt the user to enter a new name, and validate it
+		if useDefaultText:
+			defaultText = self.selectedStage.description
+		else:
+			defaultText = ''
+		newName = getNewNameFromUser( charLimit, message='Enter a new stage name:', defaultText=defaultText )
+
+		if not newName:
+			if updateProgramStatus:
+				globalData.gui.updateProgramStatus( 'Name update canceled' )
+			return 0
+
+		# Save the new name to file
+		returnCode = self.selectedStage.setDescription( newName )
+
+		if returnCode != 0 and not updateProgramStatus:
+			return returnCode
+
+		# Check the return code and update the operation status in the GUI
+		if returnCode == 0:
+			# Success. Update the new name in the treeview on this tab, as well as in the Disc File Tree
+			self.renameTreeviewItem( self.selectedStage.isoPath, newName ) # No error if not currently displayed
+			if globalData.gui.discTab:
+				globalData.gui.discTab.isoFileTree.item( self.selectedStage.isoPath, values=(newName, 'file'), tags='changed' )
+
+			if updateProgramStatus:
+				if self.selectedStage.isRandomNeutral():
+					globalData.gui.updateProgramStatus( 'Stage name updated in the CSS file', success=True )
+				else:
+					globalData.gui.updateProgramStatus( 'Stage name updated in the {}.yaml config file'.format(globalData.disc.gameId), success=True )
+
+		elif returnCode == 1:
+			globalData.gui.updateProgramStatus( 'Unable to update stage name in the {}.yaml config file'.format(globalData.disc.gameId), error=True )
+		elif returnCode == 2:
+			globalData.gui.updateProgramStatus( "Unable to update CSS with stage name; couldn't find the CSS file in the disc", error=True )
+		elif returnCode == 3:
+			globalData.gui.updateProgramStatus( "Unable to update CSS with stage name; couldn't save the name to the CSS file", error=True )
+		else:
+			msg( 'An unrecognized return code was given from .setDescription(): ' + str(returnCode) )
+
+		return returnCode
+
+	def renameTreeviewItem( self, targetIsoPath, newName ):
+
+		""" Renames an item in the Variations treeview with the given name. 
+			Should fail silently if the given isoPath isn't found. """
+
+		iidFound = False # Track duplicates that may arise
+
+		for iid in self.variationsTreeview.get_children():
+			isoPath = self.variationsTreeview.item( iid, 'values' )[1]
+
+			if isoPath == targetIsoPath:
+				if iidFound:
+					self.variationsTreeview.item( iid, text=newName + ' (duplicate)' )
+				else:
+					self.variationsTreeview.item( iid, text=newName )
+					iidFound = True
+
+	def deleteStage( self ):
+		
+		# if not self.selectedStage: # Failsafe (the button should be disabled in such a case)
+		# 	msg( 'No stage file is selected!' )
+		# 	return
+		
+		# Check for a selected item in the Variations treeview
+		iidSelectionsTuple = self.variationsTreeview.selection()
+		if len( iidSelectionsTuple ) != 1: # Failsafe; shouldn't be possible?
+			return None
+		iid = iidSelectionsTuple[0]
+
+		# Get the selected file object from the disc
+		isoPath = self.variationsTreeview.item( iid, 'values' )[1] # Values tuple is (filename, isoPath)
+		stageObj = globalData.disc.files.get( isoPath )
+		
+		if stageObj:
+			# Remove the file from the disc
+			globalData.disc.removeFiles( [stageObj] )
+
+			# Update the GUI
+			self.stageVariationUnselected()
+			self.variationsTreeview.item( iid, text='- No File -', tags='fileNotFound' )
+			globalData.gui.updateProgramStatus( '{} removed from the disc'.format(stageObj.filename) )
+
+			# Update the Disc File Tree Tab
+			discTab = globalData.gui.discTab
+			if discTab:
+				discTab.isoFileTree.delete( stageObj.isoPath )
+			
+			# Update the Disc Details Tab
+			detailsTab = globalData.gui.discDetailsTab
+			if detailsTab:
+				detailsTab.isoFileCountText.set( "{:,}".format(len(globalData.disc.files)) )
+				#detailsTab # todo: disc size as well
+
+	def updateSongBehavior( self ):
+
+		""" Called from the popup Edit button. """
+
+		origText = self.songBehaviorLabel['text']
+		initialValue = int( origText.split('|')[0] )
+
+		# Prompt with a set of radio buttons to choose a new behavior. Blocks until the window is closed
+		chooserWindow = MusicBehaviorEditor( initialValue )
+		newValue = chooserWindow.selectedBehavior.get()
+
+		# Return if no change was made
+		if newValue == initialValue:
+			return
+
+		# Get the index of the currently selected table entry
+		entryIndex = int( self.musicTableEntry.get().split( '|' )[0] ) - 1 # Switching back to 0-indexed
+
+		# Create a string to describe this change
+		origBehaviorName = origText.split( '|' )[1].strip()
+		newBehaviorName = self.musicTableStruct.enums['Song_Behavior'].get( newValue )
+		userMessage = 'Music Behavior of Music Table entry {} updated from {} to {}.'.format(entryIndex+1, origBehaviorName, newBehaviorName)
+
+		# Update the value in the file and structure
+		self.selectedStage.updateStructValue( self.musicTableStruct, 5, newValue, userMessage, entryIndex=entryIndex )
+
+		# Update the GUI
+		psuedoEntryName = str( entryIndex+1 ) + '|' # Don't need to feed it the whole selection name, just the entry index
+		self.selectMusicTableEntry( psuedoEntryName ) # Repopulates the Music Table interface.
+		globalData.gui.updateProgramStatus( userMessage )
+
+	# def updateMusicTableEntry( self, valueIndex, newValue, description ):
+
+	# 	# Get the index of the currently selected table entry
+	# 	entryIndex = int( self.musicTableEntry.get().split( '|' )[0] ) - 1 # Switching back to 0-indexed
+
+	# 	self.selectedStage.updateStructValue( self.musicTableStruct, valueIndex, newValue, description, entryIndex=entryIndex )
+
+	
+	def updateAltMusicChance( self, newValue ):
+
+		""" Called from the hovering entry widget; newValue should already be validated. """
+
+		# Get the index of the currently selected table entry
+		entryIndex = int( self.musicTableEntry.get().split( '|' )[0] ) - 1 # Switching back to 0-indexed
+
+		# Create a string to describe this change
+		origValue = self.altMusicChanceLabel['text']
+		formattedNewValue = '{}%'.format( newValue )
+		userMessage = 'Alt. Music % Chance of Music Table entry {} updated from {} to {}.'.format(entryIndex+1, origValue, formattedNewValue)
+
+		# Update the value in the file and structure
+		self.selectedStage.updateStructValue( self.musicTableStruct, 6, newValue, userMessage, entryIndex=entryIndex )
+
+		# Update the GUI
+		globalData.gui.updateProgramStatus( userMessage )
+		self.altMusicChanceLabel['text'] = formattedNewValue
+
+	def testStage( self ):
+
+		""" Initialize a Micro Melee build, add the selected stage to it 
+			(and necessary codes), and boot it up in Dolphin. """
+
+		if not self.selectedStage:
+			msg( 'No stage file is selected!' )
+			return
+
+		# Get the micro melee disc object
+		microMelee = globalData.getMicroMelee()
+		if not microMelee: return # User may have canceled the vanilla melee disc prompt
+
+		microMelee.testStage( self.selectedStage )
+
+	def editSwapDetails( self ):
+
+		""" Prompt the user with a simple GUI to modify values in the 20XX Stage Engine system, 
+			to determine what file(s) a specific SSS icon may load. This is called from the 'Edit' 
+			button in the Stage Swap details box, so it should only be possible when a stage is 
+			selected and the button is enabled. """
+
+		# Determine the currently selected SSS tab and canvas, and create a Stage Swap Editor gui instance
+		canvas = self.getCurrentCanvas()
+		stageSwapEditor = StageSwapEditor( self, self.selectedStageId, canvas )
+
+
+class StageSwapEditor( BasicWindow ):
+
+	""" GUI for modifying 20XX's Stage Swap Table in the DOL. """
+
+	illegalChars = ( '\t', '\n', '-', '\\', '/', ':', '*', '?', '<', '>', '|', ' ', ';', '"' ) # For byte replacements or within stage file names
+
+	def __init__( self, stageManagerTab, internalStageId, canvas ):
+
+		# Initialize the basic window
+		stageName = globalData.internalStageIds.get( internalStageId, 'Unknown' )
+		BasicWindow.__init__( self, globalData.gui.root, "    Stage Swap Editor - {}, {}".format(canvas.pageName, stageName), unique=True )
+
+		self.stageManagerTab = stageManagerTab
+		self.wrapLen = 500 # Wrap length for long text strings
+		self.internalStageId = internalStageId
+		self.canvas = canvas
+		notesForeground = '#444454'
+
+		# Get the current values for this SSS and stage
+		newExtStageId, stageFlags, byteReplacePointer, byteReplacement, randomByteValues = self.stageManagerTab.stageSwapTable.getEntryInfo( internalStageId, canvas.pageNumber )
+		newIntStageId = self.stageManagerTab.dol.getIntStageIdFromExt( newExtStageId )
+		newStageName = globalData.externalStageIds.get( newExtStageId, 'Unknown' )
+		self.newExtStageId = newExtStageId
+
+		# Display the original stage info (internal stage ID and name)
+		self.mainFrame = ttk.Frame( self.window )
+		ttk.Label( self.mainFrame, text='Original Icon Slot - Stage Name / Internal ID:' ).grid( column=0, row=0, padx=6, pady=4 )
+		ttk.Label( self.mainFrame, text='{} / 0x{:X}'.format(stageName, internalStageId) ).grid( column=1, row=0, padx=6, pady=4 )
+
+		# Display the NEW stage info (internal stage ID and name), and a dropdown to change it
+		ttk.Label( self.mainFrame, text='New - Stage Name / Internal ID / External ID:' ).grid( column=0, row=1, padx=6, pady=4 )
+
+		if newExtStageId == 0:
+			defaultOption = 'N/A (No swap)'
+		else:
+			defaultOption = '{} / 0x{:X} / 0x{:X}'.format( newStageName, newIntStageId, newExtStageId )
+		self.extStageChoice = Tk.StringVar( value=defaultOption )
+		ttk.Label( self.mainFrame, textvariable=self.extStageChoice ).grid( column=0, row=2, padx=6, pady=4 )
+		ttk.Button( self.mainFrame, text='Change Stage to Load', command=self.chooseNewExtStageId ).grid( column=1, row=1, padx=6, pady=4, ipadx=7 )
+		ttk.Button( self.mainFrame, text='Reset (No Stage Change)', command=lambda: self.updateWithNewExtStageId(0) ).grid( column=1, row=2, padx=6, pady=4, ipadx=7 )
+
+		# Get the original stage file name for this stage slot from the DOL, and check other files that may be loaded by this slot
+		dolFilenameOffset, _ = self.stageManagerTab.determineStageFiles( canvas.pageNumber, newIntStageId, byteReplacePointer, byteReplacement, randomByteValues )
+		self.dolStageFilename = dolStageFilename = self.stageManagerTab.dol.data[dolFilenameOffset:dolFilenameOffset+10].split( '\x00' )[0].decode( 'ascii' )
+		
+		# Add .dat/.usd file extensions if needed; check country code to determine which to use
+		if '.' in dolStageFilename:
+			ext = ''
+		else:
+			if globalData.disc.countryCode == 1: # Banner file encoding = latin_1
+				ext = '.usd'
+			else: # Banner file encoding = shift_jis
+				ext = '.dat'
+			dolStageFilename += ext
+
+		ttk.Label( self.mainFrame, foreground=notesForeground, text=("The stage to load above should be the 'base stage' of the "
+									"stage you wish to load, i.e. the stage it was designed to go over or which it was based on.\n\n"
+									"Each icon on the Stage Select Screen normally corresponds to a specific file name string in the "
+									"game executable (the DOL) to become part of a disc file path. That string and its location "
+									"are shown below."), wraplength=self.wrapLen ).grid( column=0, columnspan=2, row=3, padx=6, pady=4 )
+
+		ttk.Label( self.mainFrame, text='Original DOL Filename to be Loaded:' ).grid( column=0, row=4, padx=6, pady=4 )
+		self.stageToLoadVar = Tk.StringVar( value=dolStageFilename )
+		ttk.Label( self.mainFrame, textvariable=self.stageToLoadVar ).grid( column=1, row=4, padx=6, pady=4 )
+
+		ttk.Label( self.mainFrame, text='Filename Location (RAM Address | DOL Offset):' ).grid( column=0, row=5, padx=6, pady=4 )
+		self.filenameRamAddress = self.stageManagerTab.dol.offsetInRAM( dolFilenameOffset )
+		self.stageToLoadLocationVar = Tk.StringVar( value='0x{:X} | 0x{:X}'.format(self.filenameRamAddress, dolFilenameOffset) )
+		ttk.Label( self.mainFrame, textvariable=self.stageToLoadLocationVar ).grid( column=1, row=5, padx=6, pady=4 )
+		self.mainFrame.pack()
+
+		self.nameEntryFrame = ttk.Frame( self.window )
+
+		ttk.Label( self.nameEntryFrame, foreground=notesForeground, text=("20XX's Stage Engine code may modify the above filename and load a "
+									'different stage by changing a single character at a particular address. That new filename will then be '
+									'loaded instead. To configure this feature, replace a single character in the filename below with a single '
+									'underscore ("_"). Or, change the character back to the original (as seen above) to disable this feature.'), wraplength=self.wrapLen ).grid( column=0, columnspan=2, row=0, padx=6, pady=4 )
+
+		# Create a text entry field for modifing the filename string
+		validationCommand = globalData.gui.root.register( self.nameEntryModified )
+		self.nameModEntry = ttk.Entry( self.nameEntryFrame, width=10, justify='center', validate='key', validatecommand=(validationCommand, '%s', '%P') )
+		self.nameModEntry.grid( column=0, row=1, padx=6, pady=4, sticky='e' )
+		self.nameModEntryExt = Tk.StringVar()
+		ttk.Label( self.nameEntryFrame, textvariable=self.nameModEntryExt ).grid( column=1, row=1, padx=6, pady=4, sticky='w' ) # Displays file extension
+		self.setNameEntryFrame( byteReplacePointer, ext )
+		self.nameEntryFrame.pack()
+
+		# Add prompt to use a random byte value
+		self.useRandoByteValuesFrame = ttk.Frame( self.window )
+		self.useRandomByteValue = Tk.BooleanVar()
+		self.useRandoByteValuesFrame.pack()
+
+		# Add widgets for the byte value replacement(s)
+		self.byteValuesFrame = ttk.Frame( self.window )
+		self.populateByteValuesFrame( byteReplacePointer, byteReplacement, randomByteValues )
+		self.byteValuesFrame.pack()
+
+		# Add Stage Flags
+		stageFlagsFrame = ttk.Frame( self.window )
+		ttk.Label( stageFlagsFrame, text='Stage Flags:' ).pack( side='left' )
+		self.stageFlagsEntry = ttk.Entry( stageFlagsFrame, width=6, justify='center' )
+		self.stageFlagsEntry.insert( 'end', '0x'+hex(stageFlags)[2:].upper() )
+		self.stageFlagsEntry.pack( side='left', padx=6 )
+		helpBtn = ttk.Label( stageFlagsFrame, text='?', foreground='#445', cursor='hand2' )
+		helpBtn.pack( side='left', padx=10 )
+		helpBtn.bind( '<1>', self.showStageFlagsHelp )
+		stageFlagsFrame.pack( pady=(4, 10) )
+
+		buttonFrame = ttk.Frame( self.window )
+		ttk.Button( buttonFrame, text='Submit Changes', command=self.submitChanges ).grid( column=0, row=0, padx=6, ipadx=10 )
+		ttk.Button( buttonFrame, text='Cancel', command=self.close ).grid( column=1, row=0, padx=6 )
+		buttonFrame.pack( pady=(4, 6) )
+
+	def setNameEntryFrame( self, byteReplacePointer, ext ):
+
+		""" Sets the stage file name displayed in the name modification entry widget (e.g. GrNBa.0at or GrNBa._at). """
+
+		# Remove any text that might be in the widget
+		self.nameModEntry.delete( 0, 'end' )
+
+		if byteReplacePointer == 0:
+			underscoreIndex = -1
+			modifiedFileName = self.dolStageFilename
+		else:
+			underscoreIndex = byteReplacePointer - self.filenameRamAddress
+			modifiedFileName = self.dolStageFilename[:underscoreIndex] + '_' + self.dolStageFilename[underscoreIndex+1:]
+
+		# Insert the new name and update the file extension display
+		self.nameModEntry.insert( 'end', modifiedFileName )
+		self.nameModEntryExt.set( ext )
+
+	def populateByteValuesFrame( self, byteReplacePointer, byteReplacement, randomByteValues ):
+
+		""" Populates widgets for the 'Use Random Byte Value' radio buttons, and text entry widgets 
+			for entering random byte/character changes in the filename string (including buttons to 
+			add or remove random bytes/characters). """
+
+		# Clear the associated frames to create new widgets
+		for widget in self.useRandoByteValuesFrame.winfo_children() + self.byteValuesFrame.winfo_children():
+			widget.destroy()
+		
+		# Don't add any byte replacement widgets/options if the feature isn't turned on
+		if byteReplacePointer == 0:
+			return
+
+		ttk.Label( self.useRandoByteValuesFrame, text='Use Random Byte Value:' ).grid( column=0, row=0, padx=6, pady=4 )
+		ttk.Radiobutton( self.useRandoByteValuesFrame, text='Yes', variable=self.useRandomByteValue, value=True, command=self.useRandoByteToggled ).grid( column=1, row=0, padx=6, pady=4 )
+		ttk.Radiobutton( self.useRandoByteValuesFrame, text='No', variable=self.useRandomByteValue, value=False, command=self.useRandoByteToggled ).grid( column=2, row=0, padx=6, pady=4 )
+
+		self.useRandomByteValue.set( False )
+
+		# Add a label explaining the upcoming byte entry widgets
+		if self.canvas.pageNumber == 1:
+			for widget in self.useRandoByteValuesFrame.winfo_children():
+				widget['state'] = 'disabled'
+			ttk.Label( self.byteValuesFrame, text='Random Byte Values cannot be used on the first Stage Select Screen.\n'
+												'The character omitted above will be changed as follows:', wraplength=self.wrapLen ).grid( column=0, columnspan=6, row=0, padx=6, pady=4 )
+		elif byteReplacement == 0xFF:
+			self.useRandomByteValue.set( True )
+			ttk.Label( self.byteValuesFrame, text='The character omitted above will be randomly changed as follows:' ).grid( column=0, columnspan=6, row=0, padx=6, pady=4 )
+		else:
+			ttk.Label( self.byteValuesFrame, text='The character omitted above will be changed as follows:' ).grid( column=0, columnspan=6, row=0, padx=6, pady=4 )
+
+		entryValidation = globalData.gui.root.register( self.byteEntryUpdated )
+		
+		# Determine where the underscore should be
+		underscoreIndex = byteReplacePointer - self.filenameRamAddress
+
+		# Add the byte entry widgets
+		if byteReplacement == 0xFF:
+			# Determine whether to add remove buttons, based on the number of non-0 values
+			addRemoveButtons = ( randomByteValues.count(0) < 3 )
+
+			# There may be up to 4 random byte values; add them in a 2x2 grid
+			x, y = 0, 1
+			for value in randomByteValues:
+				if value == 0:
+					btn = ttk.Button( self.byteValuesFrame, text='+', width=5, command=self.addRandomByteValue )
+					btn.grid( column=x, row=y, columnspan=3, padx=6, pady=4 )
+					ToolTip( btn, text='Add random byte' )
+					break
+				char = chr( value )
+				entry = Tk.Entry( self.byteValuesFrame, width=3, justify='center', highlightbackground='#b7becc', borderwidth=1, 
+									relief='flat', highlightthickness=1, validate='key', validatecommand=(entryValidation, '%P', '%W') )
+				entry.insert( 'end', char )
+				entry.grid( column=x, row=y, padx=8, pady=4, sticky='e' )
+				x += 1
+				moddedStageName = self.dolStageFilename[:underscoreIndex] + char + self.dolStageFilename[underscoreIndex+1:]
+				ttk.Label( self.byteValuesFrame, text=' -> {}'.format(moddedStageName) ).grid( column=x, row=y, padx=0, pady=4 )
+				x += 1
+
+				if addRemoveButtons:
+					#btn = ttk.Button( self.byteValuesFrame, text='-', width=3, command=self.removeRandomByteValue, style='red.TButton' )
+					btn = ttk.Button( self.byteValuesFrame, text='-', width=3, style='red.TButton' )
+					btn.bind( '<1>', self.removeRandomByteValue )
+					btn.grid( column=x, row=y, padx=8, pady=4, sticky='w' )
+					ToolTip( btn, text='Remove this random byte' )
+					x += 1
+
+				# Switch to the next row after the second set of widgets (for the second random byte value) is added
+				if x == 6:
+					x = 0
+					y = 2
+		else:
+			char = chr( byteReplacement )
+			entry = Tk.Entry( self.byteValuesFrame, width=3, justify='center', highlightbackground='#b7becc', borderwidth=1, 
+									relief='flat', highlightthickness=1, validate='key', validatecommand=(entryValidation, '%P', '%W') )
+			entry.insert( 'end', char )
+			entry.grid( column=0, row=1, padx=6, pady=4, sticky='e' )
+			moddedStageName = self.dolStageFilename[:underscoreIndex] + char + self.dolStageFilename[underscoreIndex+1:]
+			ttk.Label( self.byteValuesFrame, text=' -> {}'.format(moddedStageName) ).grid( column=1, row=1, padx=6, pady=4, sticky='w' )
+
+	def useRandoByteToggled( self ):
+
+		""" Repopulates the GUI input for the byte replacement value and random byte replacement values. """
+
+		# print 'radio button toggled to', self.useRandomByteValue.get()
+
+		byteReplacePointer = self.getByteReplacePointer()
+		byteReplacement, randomByteValues = self.getByteReplacementValues()
+
+		# Repopulate the frames containing the random byte values
+		if self.useRandomByteValue.get():
+			# If newly toggling to True, add a random byte value to ensure there are at least two
+			self.addRandomByteValue()
+		else:
+			self.populateByteValuesFrame( byteReplacePointer, byteReplacement, randomByteValues )
+
+	def getByteReplacePointer( self, nameModEntryText='' ):
+		# Get the offset of the byte to be replaced, relative to the start of the filename in the DOL
+		if not nameModEntryText:
+			nameModEntryText = self.nameModEntry.get()
+		relNameOffset = nameModEntryText.find( '_' )
+
+		if relNameOffset == -1:
+			return 0
+		else:
+			return self.filenameRamAddress + relNameOffset
+
+	def getByteReplacementValues( self ):
+
+		""" Returns the byte replacement value, and a tuple of random byte replacements (which will be four zeros if not used). """
+
+		usingRandomByteValue = self.useRandomByteValue.get()
+		values = []
+
+		for widget in self.byteValuesFrame.winfo_children():
+			if widget.winfo_class() == 'Entry':
+				widgetContents = widget.get()
+				try:
+					stringValue = widgetContents[0] # Will raise an error if no character is present
+					stringValue.encode( 'ascii' ) # Will raise an error if not an ASCII character
+					intValue = ord( stringValue )
+					if not usingRandomByteValue:
+						return intValue, (0, 0, 0, 0)
+					values.append( intValue )
+				except:
+					print 'Unable to convert character to value:', widgetContents
+
+		# Ensure there are 4 values
+		zeroesToAdd = 4 - len( values )
+		values.extend( [0] * zeroesToAdd )
+
+		if usingRandomByteValue:
+			return 0xFF, tuple( values )
+
+		else: # No value was found above. Determine a default value from the original file name
+			modifiedName = self.nameModEntry.get()
+			relNameOffset = modifiedName.find( '_' )
+
+			# Default to the value for the character '0' if no underscore is found
+			if relNameOffset == -1:
+				return 0x30, tuple( values )
+			else:
+				return ord( self.dolStageFilename[relNameOffset] ), tuple( values )
+
+	def addRandomByteValue( self ):
+
+		""" Called by one of the 'Add' buttons in the random byte values frame, to add a 
+			new value. Repopulates the frame with a new 0x30 value included. """
+
+		byteReplacePointer = self.getByteReplacePointer()
+		byteReplacement, randomByteValues = self.getByteReplacementValues()
+
+		newValues = []
+		newValueAdded = False
+		for value in randomByteValues:
+			if value == 0 and not newValueAdded:
+				newValues.append( 0x30 ) # Adding an arbitrary value for a default (must be non-0); 0x30 = ascii character '0'
+				newValueAdded = True
+			else:
+				newValues.append( value )
+		
+		self.populateByteValuesFrame( byteReplacePointer, byteReplacement, newValues )
+
+	def removeRandomByteValue( self, event ):
+
+		""" Called by one of the 'Remove' buttons in the random byte values frame, to remove that value. 
+			Repopulates the frame without the value from the associated entry widget. """
+
+		values = []
+		lastValue = -1
+		
+		for widget in self.byteValuesFrame.winfo_children():
+			widgetClass = widget.winfo_class()
+			if widgetClass == 'Entry':
+				widgetContents = widget.get()
+				try:
+					stringValue = widgetContents[0] # Will raise an error if no character is present
+					stringValue.encode( 'ascii' ) # Will raise an error if not an ASCII character
+					lastValue = ord( stringValue )
+				except:
+					print 'Unable to convert character to value:', widgetContents
+			elif widgetClass == 'TButton' and lastValue != -1:
+				# Ignore this value if this was the 'Remove' button that was clicked
+				if widget != event.widget:
+					values.append( lastValue )
+				lastValue = -1
+
+		# if lastValue != -1:
+		# 	values.append( lastValue )
+
+		# Ensure there are 4 values
+		zeroesToAdd = 4 - len( values )
+		values.extend( [0] * zeroesToAdd )
+
+		# Repopulate the random byte values frame with the above collected values
+		byteReplacePointer = self.getByteReplacePointer()
+		self.populateByteValuesFrame( byteReplacePointer, 0xFF, values )
+
+	def nameEntryModified( self, oldString, newString ):
+
+		""" Validates text input into the filename entry/modification field, whether entered by the user 
+			or programmatically. Makes sure there are no illegal characters, that the entered text is 
+			ASCII, and rebuilds part of the GUI if an underscore was added or removed."""
+
+		# Do nothing if there's incomplete input (the program may be trying to write to the field)
+		if not oldString or not newString:
+			return True
+
+		try:
+			# Check for illegal characters
+			for char in newString:
+				if char in self.illegalChars:
+					print 'illegal character detected'
+					raise Exception( 'Illegal character detected' )
+
+			# Make sure the string is purely ASCII
+			newString.encode( 'ascii' )
+		except:
+			return False
+
+		# Validation passed; check for an underscore in the new and old strings
+		oldUnderscoreIndex = oldString.find( '_' )
+		newUnderscoreIndex = newString.find( '_' )
+		oldUnderscoreFound = ( oldUnderscoreIndex != -1 )
+		newUnderscoreFound = ( newUnderscoreIndex != -1 )
+
+		# Rebuild the Byte Replacement frames with new widgets if the underscore was just added, removed, or moved
+		if oldUnderscoreFound and not newUnderscoreFound: # The underscore was newly removed
+			# Clear the associated frames to create new widgets
+			for widget in self.useRandoByteValuesFrame.winfo_children() + self.byteValuesFrame.winfo_children():
+				widget.destroy()
+		elif newUnderscoreFound and not oldUnderscoreFound or oldUnderscoreIndex != newUnderscoreIndex: # The underscore was newly added or moved
+			# Determine default values for the following, and rebuild the lower portion of the GUI with them included
+			byteReplacePointer = self.getByteReplacePointer( newString )
+			byteReplacement, randomByteValues = self.getByteReplacementValues()
+			
+			self.populateByteValuesFrame( byteReplacePointer, byteReplacement, randomByteValues )
+
+		return True
+
+	def byteEntryUpdated( self, newString, widgetName ):
+
+		""" Validates text input into the byte replacement field(s), whether entered by the user or programmatically. 
+			Makes sure there are no illegal characters, that the entered text is as most 1 character long, and is ASCII. 
+			Also updates text widgets that may be present and paired with the entry (which may not be present during 
+			initial creation of the GUI. """
+
+		if not newString: return True
+		elif len( newString ) > 1: return False
+
+		# Check that the character can be encoded
+		try:
+			char = newString[0]
+			char.encode( 'ascii' ) # Will raise an error if not an ASCII character
+			value = ord( char )
+			if char in self.illegalChars:
+				raise Exception( 'Illegal character for stage name string.' )
+			failedEncoding = False
+		except Exception as err:
+			print 'Unable to convert character to value:', newString[0]
+			print err
+			failedEncoding = True
+		
+		# Look for a label widget paired with this entry, and update it if found
+		labelIsNext = False
+		for widget in self.byteValuesFrame.winfo_children():
+			if labelIsNext: # Update the label's filename text
+				moddedStageName = self.nameModEntry.get().replace( '_', newString[0] )
+				widget['text'] = ' -> {}'.format( moddedStageName )
+				break
+			elif widget == globalData.gui.root.nametowidget( widgetName ):
+				if failedEncoding:
+					widget['highlightcolor'] = '#f05555'
+					widget['highlightbackground'] = '#f05555'
+					break
+				else:
+					widget['highlightcolor'] = '#0099f0'
+					widget['highlightbackground'] = '#b7becc'
+				labelIsNext = True
+		
+		return True
+
+	def chooseNewExtStageId( self ):
+
+		""" Prompts the user to choose a new stage for this icon slot to swap to. Called by the "Change" button in the GUI. """
+
+		selectionWindow = ExternalStageIdChooser()
+
+		if not selectionWindow.stageId: # User canceled
+			return
+
+		self.updateWithNewExtStageId( selectionWindow.stageId )
+
+	def updateWithNewExtStageId( self, extStageId ):
+
+		""" Updates the GUI with a new external stage ID, setting all labels and entry fields with new default values. """
+
+		# Update the text displaying the new stage to load
+		newIntStageId = self.stageManagerTab.dol.getIntStageIdFromExt( extStageId )
+		if extStageId == 0:
+			descriptiveText = 'N/A (No swap)'
+		else:
+			newStageName = globalData.externalStageIds.get( extStageId, 'Unknown' )
+			descriptiveText = '{} / 0x{:X} / 0x{:X}'.format( newStageName, newIntStageId, extStageId )
+		self.newExtStageId = extStageId
+		self.extStageChoice.set( descriptiveText )
+
+		# Set up some default values to refresh the GUI with
+		byteReplacePointer = 0
+		byteReplacement = 0
+		randomByteValues = ( 0, 0, 0, 0 )
+
+		# Update the original (DOL) stage name and offset (and internal ram address)
+		dolFilenameOffset, _ = self.stageManagerTab.determineStageFiles( self.canvas.pageNumber, newIntStageId, byteReplacePointer, byteReplacement, randomByteValues )
+		self.dolStageFilename = self.stageManagerTab.dol.data[dolFilenameOffset:dolFilenameOffset+10].split( '\x00' )[0].decode( 'ascii' )
+		displayedStageFilename = self.dolStageFilename
+		if '.' in displayedStageFilename:
+			ext = ''
+		else:
+			if globalData.disc.countryCode == 1: # Banner file encoding = latin_1
+				ext = '.usd'
+			else: # Banner file encoding = shift_jis
+				ext = '.dat'
+			displayedStageFilename += ext
+		self.stageToLoadVar.set( displayedStageFilename )
+		
+		# Update the internal RAM address and displayed address/offset
+		self.filenameRamAddress = self.stageManagerTab.dol.offsetInRAM( dolFilenameOffset )
+		self.stageToLoadLocationVar.set( '0x{:X} | 0x{:X}'.format(self.filenameRamAddress, dolFilenameOffset) )
+
+		# Update widgets for the stage name/underscore entry, and byte value changes
+		self.setNameEntryFrame( byteReplacePointer, ext )
+		self.populateByteValuesFrame( byteReplacePointer, byteReplacement, randomByteValues )
+
+	def submitChanges( self ):
+
+		""" Confirms the choices currently set in the GUI, saves them to the DOL, and closes this window. """
+
+		# Get the new external stage ID
+		stageFlags = self.stageFlagsEntry.get().strip()
+		try:
+			stageFlags = int( stageFlags, 16 )
+		except:
+			msg( 'Unable to convert the given stage flags.', 'Invalid input' )
+			return
+
+		# Collect values from the GUI
+		byteReplacePointer = self.getByteReplacePointer()
+		byteReplacement, randomByteValues = self.getByteReplacementValues()
+
+		# Update the DOL with the data collected by this window, and then close it
+		stageName = globalData.internalStageIds.get( self.internalStageId, 'Unknown' )
+		self.stageManagerTab.stageSwapTable.setEntryInfo( self.internalStageId, self.canvas.pageNumber, self.newExtStageId, stageFlags, byteReplacePointer, byteReplacement, randomByteValues )
+		globalData.gui.updateProgramStatus( 'Stage Swap Table updated for SSS page {}, for the {} icon slot'.format(self.canvas.pageNumber, stageName) )
+		self.close()
+
+		# If this window is for the currently selected stage, force a re-select of this stage, to repopulate the GUI with updated information
+		if self.stageManagerTab.selectedStageId == self.internalStageId:
+			self.stageManagerTab.selectStage( self.canvas )
+
+	def showStageFlagsHelp( self, event ):
+		msg( 'Stage flags are an advanced feature, useful for those wanting to write ASM codes for stage mods. '
+			 'The byte defined here will be stored at 0x803FA2E5 upon stage selection, which you can then load in your '
+			 'code during match initialization.\n\nFor example, say you made one page contain two N64 Dream Lands; you '
+			 "could set one to have a stage flag of 0x10 which could mean it doesn't have wind. You would then write "
+			 'the ASM code, executed while playing on Dream Land, to check the stage flag value while performing the wind '
+			 'logic. This gives a lot of flexibility and power.\n\nDo not use the first three bits of this byte, which '
+			 "are used for the custom spawn points code. You may set the value to 0 if you don't intend to use it.", 'Stage Flags Help', self.window )
+
+
+class ExternalStageIdChooser( BasicWindow ):
+
+	""" Prompts the user with several categorized drop-down lists, to select a stage via external stage ID. """
+
+	def __init__( self ):
+
+		BasicWindow.__init__( self, globalData.gui.root, 'Select a Stage', offsets=(300, 300) )
+		self.emptySelection = '---'
+		self.stageId = None
+
+		# Separate the external stage ID dictionary into more manageable chunks
+		idList = globalData.externalStageIds.items() # Creates a list of key/value pairs, which will be (externalStageId, stageName)
+		self.stageLists = [
+			( 'Standard Stages', [ item for item in idList if item[0] >= 0 and item[0] <= 0x20 ] ),
+			( 'Target Test Stages', [ item for item in idList if item[0] > 0x20 and item[0] <= 0x3A ] ),
+			( 'Adventure Mode', [ item for item in idList if item[0] > 0x3A and item[0] <= 0x51 ] ),
+			( 'Classic Mode', [ item for item in idList if item[0] > 0x55 and item[0] <= 0x7C ] )
+		]
+		self.stageLists[0][1][0] = ( 0, 'No change' )
+
+		mainFrame = ttk.Frame( self.window )
+		ttk.Label( mainFrame, text='Stage Name / External Stage ID:' ).grid( column=1, row=0, padx=6, pady=4 )
+		row = 1
+		self.listWidgets = []
+		for listName, stageList in self.stageLists:
+			# Add the list name label
+			ttk.Label( mainFrame, text=listName ).grid( column=0, row=row, padx=14, pady=4 )
+
+			# Add the dropdown menu
+			options = [ '{} / 0x{:X}'.format(stageName, stageId) if stageId != 0 else 'N/A (No swap)' for stageId, stageName in stageList ]
+			stageChoice = Tk.StringVar()
+			stageIdChooser = ttk.OptionMenu( mainFrame, stageChoice, self.emptySelection, *options, command=self.optionSelected )
+			stageIdChooser.grid( column=1, row=row, padx=14, pady=4 )
+			stageIdChooser.var = stageChoice
+			stageIdChooser.stageList = stageList
+			self.listWidgets.append( stageIdChooser )
+			row += 1
+		mainFrame.pack( pady=(4, 0) )
+		
+		buttonFrame = ttk.Frame( self.window )
+		ttk.Button( buttonFrame, text='Confirm', command=self.close ).grid( column=0, row=0, padx=6 )
+		ttk.Button( buttonFrame, text='Cancel', command=self.cancel ).grid( column=1, row=0, padx=6 )
+		buttonFrame.pack( pady=(4, 6) )
+
+		# Make this window modal (will not allow the user to interact with main GUI until this is closed)
+		self.window.grab_set()
+		globalData.gui.root.wait_window( self.window )
+
+	def optionSelected( self, selectedOption ):
+		# Get the stage ID by itself
+		stageId = selectedOption.split( '/' )[1]
+		self.stageId = int( stageId.strip(), 16 )
+
+		# Figure out which list widget this selection is from, and blank out the rest
+		for widget in self.listWidgets:
+			if self.stageId < widget.stageList[0][0] or self.stageId > widget.stageList[-1][0]:
+				widget.var.set( self.emptySelection )
+		# else: # Loop above didn't break; unable to find the list!
+		# 	self.stageId = None
+		# 	return
+
+		#self.stageId = stageId
+		print 'stage ID set to', self.stageId
+
+	def cancel( self ):
+		self.stageId = None
+		self.close()
+
+
+class MusicBehaviorEditor( BasicWindow ):
+
+	""" Prompts the user with several options for stage music behavior, 
+		for the currently selected music table entry. """
+
+	def __init__( self, initialValue ):
+
+		BasicWindow.__init__( self, globalData.gui.root, 'Select a Music Behavior', offsets=(300, 300) )
+
+		self.initialValue = initialValue
+		self.selectedBehavior = Tk.IntVar( value=initialValue )
+
+		for index, behavior in MapMusicTableEntry.enums['Song_Behavior'].items():
+			# Add the radio button to the GUI
+			btn = ttk.Radiobutton( self.window, text=behavior, value=index, variable=self.selectedBehavior )
+			btn.grid( column=0, columnspan=2, row=index, sticky='w', pady=3, padx=(25, 15) )
+
+			# Add a tooltip description
+			description = MapMusicTableEntry.songBehaviorDescriptions[index]
+			ToolTip( btn, text=description, delay=700, wraplength=500 )
+		
+		#buttonFrame = ttk.Frame( self.window )
+		# ttk.Button( self.window, text='Confirm', command=self.close ).grid( column=0, row=index+1, padx=6 )
+		# ttk.Button( self.window, text='Cancel', command=self.cancel ).grid( column=1, row=index+1, padx=6 )
+		#buttonFrame.pack( pady=(4, 6) )
+
+		# Make this window modal (will not allow the user to interact with main GUI until this is closed)
+		self.window.grab_set()
+		globalData.gui.root.wait_window( self.window )
+
+	#def updateValue( self ):
+
+
+	# def optionSelected( self, selectedOption ):
+	# 	# Get the stage ID by itself
+	# 	stageId = selectedOption.split( '/' )[1]
+	# 	self.stageId = int( stageId.strip(), 16 )
+
+	# 	# Figure out which list widget this selection is from, and blank out the rest
+	# 	for widget in self.listWidgets:
+	# 		if self.stageId < widget.stageList[0][0] or self.stageId > widget.stageList[-1][0]:
+	# 			widget.var.set( self.emptySelection )
+	# 	# else: # Loop above didn't break; unable to find the list!
+	# 	# 	self.stageId = None
+	# 	# 	return
+
+	# 	#self.stageId = stageId
+	# 	print 'stage ID set to', self.stageId
+
+	# def cancel( self ):
+	# 	self.selectedBehavior.set( self.initialValue )
+	# 	self.close()

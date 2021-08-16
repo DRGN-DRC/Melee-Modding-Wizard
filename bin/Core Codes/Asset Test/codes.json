@@ -1,0 +1,346 @@
+{
+	"codes": [
+		{
+			"name": "Asset Test",
+			"authors": [ "UnclePunch" ],
+			"description": [ "Configures the game to boot strait into a match or menu, with customizable settings." ],
+			"category": "Core Codes",
+			"webLinks": [ "https://smashboards.com/threads/boot-to-custom-match.474651/" ],
+			"customizations": [
+				{
+					"name": "Timer",
+					"type": "uint8",
+					"value": 0,
+					"default": 2,
+					"members": [
+						[ "None", 0 ],
+						[ "Unknown", 1 ],
+						[ "Count Down", 2 ],
+						[ "Count Up", 3 ]
+					]
+				},
+				{
+					"name": "HUD Count",
+					"type": "uint8",
+					"value": 8,
+					"default": 8,
+					"members": [
+						[ "One", 4 ],
+						[ "Two", 8 ],
+						[ "Three", 12 ],
+						[ "Four", 16 ],
+						[ "Five", 20 ],
+						[ "Six", 24 ]
+					]
+				},
+				{
+					"name": "Match Type",
+					"type": "uint8",
+					"value": 0,
+					"default": 32,
+					"members": [
+						[ "Stock", 32 ],
+						[ "Time", 0 ]
+					]
+				},
+				{
+					"name": "Music",
+					"type": "uint8",
+					"value": 0,
+					"default": 8,
+					"members": [
+						[ "On", 8 ],
+						[ "Off", 0 ]
+					]
+				},
+				{
+					"name": "GO! Display",
+					"type": "uint8",
+					"value": 20,
+					"default": 0,
+					"members": [
+						[ "On", 0 ],
+						[ "Off", 20 ]
+					]
+				},
+				{
+					"name": "Offscreen Unknown",
+					"type": "uint8",
+					"value": 0,
+					"default": 0,
+					"members": [
+						[ "Option 1", 64 ],
+						[ "Option 2", 0 ]
+					]
+				},
+				{
+					"name": "Show HUD",
+					"type": "uint8",
+					"value": 2,
+					"default": 2,
+					"members": [
+						[ "Yes", 2 ],
+						[ "No", 0 ]
+					]
+				},
+				{
+					"name": "Show Player Scores",
+					"type": "uint8",
+					"value": 0,
+					"default": 0,
+					"members": [
+						[ "Yes", 128 ],
+						[ "No", 0 ]
+					]
+				},
+				{
+					"name": "Timer Stops While Paused",
+					"type": "uint8",
+					"value": 0,
+					"default": 0,
+					"members": [
+						[ "Yes", 0 ],
+						[ "No", 1 ]
+					]
+				},
+				{
+					"name": "Hitbox Collisions",
+					"type": "uint8",
+					"value": 0,
+					"default": 0,
+					"members": [
+						[ "Enabled", 0 ],
+						[ "Disabled", 32 ]
+					]
+				},
+				{
+					"name": "Items",
+					"type": "int8",
+					"value": -1,
+					"default": -1,
+					"members": [
+						[ "Off", -1 ],
+						[ "Very Low", 0 ],
+						[ "Low", 1 ],
+						[ "Medium", 2 ],
+						[ "High", 3 ],
+						[ "Very High", 4 ]
+					]
+				},
+				{
+					"name": "Player 1 Character",
+					"type": "uint8",
+					"value": 0,
+					"default": 0,
+					"members": [
+						[ "Captain Falcon", 0 ],
+						[ "DK", 1 ],
+						[ "Fox", 2 ],
+						[ "Game & Watch", 3 ],
+						[ "Kirby", 4 ],
+						[ "Bowser", 5 ],
+						[ "Link", 6 ],
+						[ "Luigi", 7 ],
+						[ "Mario", 8 ],
+						[ "Marth", 9 ],
+						[ "Mewtwo", 10 ],
+						[ "Ness", 11 ],
+						[ "Peach", 12 ],
+						[ "Pikachu", 13 ],
+						[ "Ice Climbers", 14 ],
+						[ "Jigglypuff", 15 ],
+						[ "Samus", 16 ],
+						[ "Yoshi", 17 ],
+						[ "Zelda", 18 ],
+						[ "Sheik", 19 ],
+						[ "Falco", 20 ],
+						[ "Young Link", 21 ],
+						[ "Doc", 22 ],
+						[ "Roy", 23 ],
+						[ "Pichu", 24 ],
+						[ "Ganondorf", 25 ]
+					]
+				},
+				{
+					"name": "Player 2 Character",
+					"type": "uint8",
+					"value": 0,
+					"default": 0,
+					"members": [
+						[ "Captain Falcon", 0 ],
+						[ "DK", 1 ],
+						[ "Fox", 2 ],
+						[ "Game & Watch", 3 ],
+						[ "Kirby", 4 ],
+						[ "Bowser", 5 ],
+						[ "Link", 6 ],
+						[ "Luigi", 7 ],
+						[ "Mario", 8 ],
+						[ "Marth", 9 ],
+						[ "Mewtwo", 10 ],
+						[ "Ness", 11 ],
+						[ "Peach", 12 ],
+						[ "Pikachu", 13 ],
+						[ "Ice Climbers", 14 ],
+						[ "Jigglypuff", 15 ],
+						[ "Samus", 16 ],
+						[ "Yoshi", 17 ],
+						[ "Zelda", 18 ],
+						[ "Sheik", 19 ],
+						[ "Falco", 20 ],
+						[ "Young Link", 21 ],
+						[ "Doc", 22 ],
+						[ "Roy", 23 ],
+						[ "Pichu", 24 ],
+						[ "Ganondorf", 25 ]
+					]
+				},
+				{
+					"name": "Player 3 Character",
+					"type": "uint8",
+					"value": 0,
+					"default": 0,
+					"members": [
+						[ "Captain Falcon", 0 ],
+						[ "DK", 1 ],
+						[ "Fox", 2 ],
+						[ "Game & Watch", 3 ],
+						[ "Kirby", 4 ],
+						[ "Bowser", 5 ],
+						[ "Link", 6 ],
+						[ "Luigi", 7 ],
+						[ "Mario", 8 ],
+						[ "Marth", 9 ],
+						[ "Mewtwo", 10 ],
+						[ "Ness", 11 ],
+						[ "Peach", 12 ],
+						[ "Pikachu", 13 ],
+						[ "Ice Climbers", 14 ],
+						[ "Jigglypuff", 15 ],
+						[ "Samus", 16 ],
+						[ "Yoshi", 17 ],
+						[ "Zelda", 18 ],
+						[ "Sheik", 19 ],
+						[ "Falco", 20 ],
+						[ "Young Link", 21 ],
+						[ "Doc", 22 ],
+						[ "Roy", 23 ],
+						[ "Pichu", 24 ],
+						[ "Ganondorf", 25 ]
+					]
+				},
+				{
+					"name": "Player 4 Character",
+					"type": "uint8",
+					"value": 0,
+					"default": 0,
+					"members": [
+						[ "Captain Falcon", 0 ],
+						[ "DK", 1 ],
+						[ "Fox", 2 ],
+						[ "Game & Watch", 3 ],
+						[ "Kirby", 4 ],
+						[ "Bowser", 5 ],
+						[ "Link", 6 ],
+						[ "Luigi", 7 ],
+						[ "Mario", 8 ],
+						[ "Marth", 9 ],
+						[ "Mewtwo", 10 ],
+						[ "Ness", 11 ],
+						[ "Peach", 12 ],
+						[ "Pikachu", 13 ],
+						[ "Ice Climbers", 14 ],
+						[ "Jigglypuff", 15 ],
+						[ "Samus", 16 ],
+						[ "Yoshi", 17 ],
+						[ "Zelda", 18 ],
+						[ "Sheik", 19 ],
+						[ "Falco", 20 ],
+						[ "Young Link", 21 ],
+						[ "Doc", 22 ],
+						[ "Roy", 23 ],
+						[ "Pichu", 24 ],
+						[ "Ganondorf", 25 ]
+					]
+				},
+				{
+					"name": "Stage",
+					"annotation": "Uses External Stage ID",
+					"type": "uint16",
+					"value": 14,
+					"default": 14,
+					"members": [
+						[ "Fountain of Dreams", 2 ],
+						[ "Pokemon Stadium", 3 ],
+						[ "Peach's Castle", 4 ],
+						[ "Kongo Jungle", 5 ],
+						[ "Brinstar", 6 ],
+						[ "Corneria", 7 ],
+						[ "Yoshi's Story", 8 ],
+						[ "Onett", 9 ],
+						[ "Mute City", 10 ],
+						[ "Rainbow Cruise", 11 ],
+						[ "Jungle Japes", 12 ],
+						[ "Great Bay", 13 ],
+						[ "Hyrule Temple", 14 ],
+						[ "Brinstar Depths", 15 ],
+						[ "Yoshi's Island", 16 ],
+						[ "Green Greens", 17 ],
+						[ "Fourside", 18 ],
+						[ "Mushroom Kingdom I", 19 ],
+						[ "Mushroom Kingdom II", 20 ],
+						[ "Akaneia", 21 ],
+						[ "Venom", 22 ],
+						[ "PokeFloats", 23 ],
+						[ "Big Blue", 24 ],
+						[ "Icicle Mountain", 25 ],
+						[ "IceTop", 26 ],
+						[ "Flat Zone", 27 ],
+						[ "Dream Land", 28 ],
+						[ "Yoshi's Island 64", 29 ],
+						[ "Kongo Jungle 64", 30 ],
+						[ "Battlefield", 31 ],
+						[ "Final Destination", 32 ]
+					]
+				},
+				{
+					"name": "P1 Costume ID",
+					"type": "uint8",
+					"value": 0,
+					"default": 0
+				},
+				{
+					"name": "P2 Costume ID",
+					"type": "uint8",
+					"value": 0,
+					"default": 0
+				},
+				{
+					"name": "P3 Costume ID",
+					"type": "uint8",
+					"value": 0,
+					"default": 0
+				},
+				{
+					"name": "P4 Costume ID",
+					"type": "uint8",
+					"value": 0,
+					"default": 0
+				}
+			],
+			"build": [
+				{
+					"type": "replace",
+					"address": "801A45A0",
+					"value": "3800000E",
+					"annotation": "Boot to Match"
+				},
+				{
+					"type": "inject",
+					"address": "801B148C",
+					"sourceFile": "Custom Match Code.asm"
+				}
+			]
+		}
+	]
+}

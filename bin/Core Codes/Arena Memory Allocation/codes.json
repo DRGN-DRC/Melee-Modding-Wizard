@@ -1,0 +1,34 @@
+{
+	"category": "Core Codes",
+	"codes": [
+		{
+			"name": "Static ArenaHi Malloc",
+			"authors": [ "Punkline" ],
+			"description": [ "Creates a permanent allocation from the top of the arena of a custom size." ],
+			"customizations": [
+				{
+					"name": "Reservation Size",
+					"type": "int32",
+					"value": 0
+				},
+				{
+					"name": "Reservation Location",
+					"type": "int32",
+					"value": 0
+				}
+			],
+			"build": [
+				{
+					"type": "inject",
+					"address": "80375324",
+					"sourceFile": "Malloc.asm"
+				},
+				{
+					"type": "inject",
+					"address": "803753E4",
+					"sourceFile": "LoadCodes.asm"
+				}
+			]
+		}
+	]
+}

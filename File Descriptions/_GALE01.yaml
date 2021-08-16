@@ -1,0 +1,267 @@
+1p_qk.hps: All-Star Rest Area
+GmGover.dat: '1P Mode: Game Over Screen'
+GmPause.dat: Pause Screen
+GmRst.dat: Results Screen
+GmStRoll.dat: Credits Screen/Minigame
+GmTitle.dat: Title Screen
+GmTou1p.dat: Tournament Mode File 1
+GmTou2p.dat: Tournament Mode File 2
+GmTou3p.dat: Tournament Mode File 3
+GmTou4p.dat: Tournament Mode File 4
+GmTrain.dat: Training Mode
+GmTtAll.dat: Title Screen
+GrBb.dat: Big Blue
+GrC0.usd: Sector Z
+GrCn.dat: Corneria
+GrCn.usd: Corneria (English)
+GrCs.0at: Omega Peach's Castle
+GrCs.dat: Princess Peach's Castle
+GrEF1.dat: Goomba Trophy Stage
+GrEF2.dat: Entei Trophy Stage
+GrEF3.dat: Majora Trophy Stage
+GrFs.1at: Smashville Fourside
+GrFs.2at: Moonside
+GrFs.dat: Fourside
+GrFz.dat: Flat Zone
+GrGb.0at: Turtle Stage
+GrGb.1at: Great Bay Beach
+GrGb.dat: Great Bay
+GrGb.hat: Great Bay Hacked
+GrGd.0at: Jungle Japes
+GrGd.1at: Jungle Japes Hacked (w/platform)
+GrGd.2at: Jungle Japes Omega
+GrGd.dat: Jungle Japes [Garden]
+GrGr.0at: Green Greens
+GrGr.1at: Green Greens Hacked
+GrGr.dat: Green Greens
+GrHe.0at: All-Star Rest Area [Heal] (Walk-Off)
+GrHe.dat: All-Star Rest Area [Heal] (Walk-Off)
+GrHr.dat: Homerun Contest
+GrI1.0at: Milun's Mushroom Kingdom
+GrI1.1at: Porygon
+GrI1.2at: Shiny Porygon
+GrI1.dat: Mushroom Kingdom
+GrI2.dat: Mushroom Kingdom II (Subcon)
+GrIm.dat: Icicle Mountain
+GrIz.dat: Fountain of Dreams [Izumi]
+GrIz.gat: Cave of Dreams
+GrKg.dat: Kongo Jungle
+GrKg.hat: Kongo Jungle Hacked
+GrKr.dat: Brinstar Depths [Kraid]
+GrMc.dat: Mute City
+GrNBa.2at: Ancient Battlefield
+GrNBa.3at: Battlefield Plaza
+GrNBa.4at: Matrix Battlefield
+GrNBa.bat: Battlefield Plaza
+GrNBa.dat: Battlefield
+GrNBa.gat: Brawl Battlefield - Day
+GrNBa.hat: Brawl Battlefield - Day (w/Castle)
+GrNBa.iat: Brawl Battlefield - Void
+GrNBa.lat: Brawl Battlefield
+GrNBr.dat: F-Zero Grand Prix
+GrNFg.0at: Trophy Collector (Two platforms)
+GrNFg.1at: Trophy Collector (Three platforms)
+GrNFg.2at: Trophy Collector Omega
+GrNFg.dat: Trophy Collector [Figure Get]
+GrNKr.1at: Mushroom Kingdom Adventure Hacked
+GrNKr.2at: Mushroom Kingdom Adventure Omega
+GrNKr.dat: Mushroom Kingdom Adventure
+GrNLa.0at: Final Destination
+GrNLa.2at: Wii-U Final Destination
+GrNLa.dat: Final Destination
+GrNLa.gat: Wii-U Final Destination
+GrNLa.hat: zankyou FD
+GrNPo.dat: Race to the Finish [Pushon]
+GrNSr.1at: Hyrule Maze Hacked
+GrNSr.dat: Hyrule Maze
+GrNZr.dat: Brinstar Escape Shaft [Zebes]
+GrOk.0at: Monster Island
+GrOk.dat: Kongo Jungle (N64)
+GrOp.dat: Dream Land (N64)
+GrOp.gat: Halberd Land
+GrOp.kat: KirbyWare Inc.
+GrOp.rat: Return to Dream Land
+GrOt.dat: Onett
+GrOy.dat: Yoshi's Island (N64)
+GrOy.hat: Yoshi's Island (N64) Milun Hack
+GrOy.wat: WarioWare Inc.
+GrPb.usd: "Pok\xE9mon Stadium (Blue No transforms)"
+GrPg.usd: Indigo Stadium
+GrPn.usd: "Pok\xE9mon Stadium (Blue No transforms)"
+GrPs.dat: "Pok\xE9mon Stadium"
+GrPs1.dat: "Pok\xE9mon Stadium - Fire Form"
+GrPs2.dat: "Pok\xE9mon Stadium - Grass Form"
+GrPs3.dat: "Pok\xE9mon Stadium - Water Form"
+GrPs4.dat: "Pok\xE9mon Stadium - Rock Form"
+GrPu.dat: "Pok\xE9 Floats [Pura]"
+GrRc.dat: Rainbow Cruise
+GrSh.0at: Dark Temple
+GrSh.dat: Hyrule Temple [Shrine]
+GrSh.sat: Skyrule (Redux)
+GrSt.dat: Yoshi's Story
+GrSt.gat: Peach's Story
+GrTCa.gat: Silph Co. (Saffron City)
+GrTCl.bat: Smash 4 Battlefield
+GrTCl.gat: Brawl Battlefield - Dusk
+GrTCl.sat: Suzaku Castle
+GrTDk.0at: Meta Mine
+GrTDr.0at: Training Room
+GrTFe.kat: "Kalos Pok\xE9mon League"
+GrTFx.0at: The Plain
+GrTGn.0at: 75m
+GrTIc.dat: Icetop (unused stage)
+GrTKb.gat: Miiverse (variation 1)
+GrTKb.hat: Miiverse (variation 2)
+GrTKb.iat: Miiverse (variation 3)
+GrTKb.jat: Miiverse (variation 4)
+GrTKp.mat: Metroid Lab
+GrTLg.1at: Giant GameCube
+GrTLg.mat: Metal Cavern M
+GrTLk.0at: Lylat Cruise
+GrTMs.0at: Toy Time
+GrTNs.0at: Throne Room (Wario Land)
+GrTPe.hat: Hyrule Castle (N64)
+GrTSk.0at: Meta Crystal
+GrTe.dat: TEST (a.k.a. The Coffee Shop)
+GrVe.dat: Venom
+GrYt.0at: Yoshi's Island
+GrYt.1at: Yoshi's Island Hacked
+GrYt.2at: Milun's Island - Form A
+GrYt.3at: Milun's Island - Form B
+GrYt.4at: Milun's Island - Form C
+GrYt.dat: Yoshi's Island
+GrZe.dat: Brinstar [Zebes]
+IfComNJ.dat: NBA Jam Explanation
+IfComS0.dat: Dual 1v1 Infographic
+IfComS1.dat: Chess Melee Infographic
+IfComS2.dat: Turbo Mode Infographic
+IfComS3.dat: NBA Jam Infographic
+IfComS4.dat: SD Remix Infographic
+IfComS5.dat: SSBM Teir List
+IfComSn.dat: '"Coming Soon" Screen'
+IfComSn.usd: '"Coming Soon" Screen (English)'
+IfComT2.dat: Develop Mode Toggles
+IfComTL.dat: 2015 Tier List
+IfComTT.dat: Tag Team Explanation
+IfHrNoCn.dat: Home Run Contest File 1
+IfHrReco.dat: Home Run Contest File 2
+IfPrize.dat: Special Achievement Messages
+IfVsCam.dat: 'Special Melee: Camera Mode'
+IrAls.dat: '1P Mode: "VS." Intro Screens'
+ItCo.dat: Items
+LbMcGame.dat: Memory card banners and icon
+LbMcSnap.dat: Memory card snapshot banner/icon
+LbRb.dat: Controller Rumble Data
+MnExtAll.dat: Extra menu graphics for the CSS
+MnMaAll.dat: Main menu graphics file
+MnSlChr.0sd: Character Select Screen (English)
+MnSlChr.dat: Character Select Screen
+MnSlChr.usd: Character Select Screen (English)
+MnSlMap.1sd: Stage Select Screen (English)
+MnSlMap.dat: Stage Select Screen
+MnSlMap.usd: Stage Select Screen (English)
+MvHowto.mth: The How to Play video
+MvOmake15.mth: The 15-Minute "Special Movie"
+MvOpen.mth: The Game's Opening Movie
+NtAppro.dat: '''New Challenger'' Screens'
+PlCo.dat: Textures common to the cast
+SdMenu.dat: Special menu characters
+TestName.dat: Some description
+akaneia.hps: Fire Emblem
+baloon.hps: Balloon Fight
+bigblue.hps: Big Blue
+castle.hps: Princess Peach's Castle
+continue.hps: Continue
+corneria.hps: Corneria
+docmari.hps: Dr. Mario
+ending.hps: Ending Fanfare
+famidemo.hps: Demo Fanfare (Unused)
+ff_1p01.hps: 1P Mode Fanfare 1
+ff_1p02.hps: 1P Mode Fanfare 2
+ff_bad.hps: Unused Bad Fanfare
+ff_dk.hps: Donkey Kong Victory Theme
+ff_emb.hps: Fire Emblem Victory Theme
+ff_flat.hps: Game & Watch Victory Theme
+ff_fox.hps: Star Fox Victory Theme
+ff_fzero.hps: F-Zero Victory Theme
+ff_good.hps: Unused Good Fanfare
+ff_ice.hps: Ice Climber Victory Theme
+ff_kirby.hps: Kirby Victory Theme
+ff_link.hps: Legend of Zelda Victory Theme
+ff_mario.hps: Super Mario Victory Theme
+ff_nes.hps: Earthbound Victory Theme
+ff_poke.hps: "Pok\xE9mon Victory Theme"
+ff_samus.hps: Metroid Victory Theme
+ff_step1.hps: Unused Fanfare 1
+ff_step2.hps: Unused Fanfare 2
+ff_step3.hps: Unused Fanfare 3
+ff_yoshi.hps: Yoshi Victory Theme
+flatzone.hps: Flat Zone
+fourside.hps: Fourside
+gameover.hps: Game Over
+garden.hps: Kongo Jungle
+greatbay.hps: Great Bay
+greens.hps: Green Greens
+howto.hps: How to Play (video audio)
+howto_s.hps: How to Play
+hyaku.hps: Multi-Man Melee 1
+hyaku2.hps: Multi-Man Melee 2
+icemt.hps: Icicle Mountain
+inis1_01.hps: Mushroom Kingdom
+inis1_02.hps: Mushroom Kingdom (Finale)
+inis2_01.hps: Mushroom Kingdom II
+inis2_02.hps: Mushroom Kingdom II (Finale)
+intro_es.hps: Classic Fanfare
+intro_nm.hps: Adventure Fanfare
+item_h.hps: Hammer Theme
+item_s.hps: Star Theme
+izumi.hps: Fountain of Dreams
+kongo.hps: Jungle Japes
+kraid.hps: Brinstar Depths
+menu01.hps: Main Menu (Default)
+menu02.hps: Lottery
+menu3.hps: Main Menu (Alternate)
+mrider.hps: Mach Rider
+mutecity.hps: Mute City
+old_dk.hps: Kongo Jungle N64
+old_kb.hps: Dream Land 64
+old_ys.hps: Yoshi's Island 64
+onetto.hps: Onett
+onetto2.hps: Mother 2
+opening.dat: Game banner, title, and description texts
+opening.hps: Opening Movie audio
+pokesta.hps: "Battle Theme (Pok\xE9mon)"
+pstadium.hps: "Pok\xE9mon Stadium"
+pura.hps: "Pok\xE9 Floats"
+rcruise.hps: Rainbow Cruise
+s_info1.hps: Info Fanfare 1
+s_info2.hps: Info Fanfare 2
+s_info3.hps: Info Fanfare 3
+s_new1.hps: Trophy Fanfare
+s_new2.hps: Unused Fanfare
+s_newcom.hps: Challenger Approaching
+s_select.hps: Unused Song (Hammer Theme)
+saria.hps: Saria's Theme
+shrine.hps: Temple
+siren.hps: Brinstar Escape
+smari3.hps: Super Mario Bros. 3
+sp_end.hps: Final Destination
+sp_giga.hps: Giga Bowser
+sp_metal.hps: Metal Battle
+sp_zako.hps: Battlefield (Fighting Wire Frames)
+swm_15min.hps: Special Movie audio
+target.hps: Targets!
+venom.hps: Venom
+vl_battle.hps: Metal Mario Cutscene
+vl_castle.hps: Luigi Adventure Cutscene
+vl_corneria.hps: Corneria Adventure Cutscene
+vl_cosmos.hps: Space Adventure Cutscene
+vl_figure1.hps: Bowser Destroyed Cutscene
+vl_figure2.hps: Giga Bowser Destroyed Cutscene
+vl_fzero.hps: F-Zero Adventure Cutscene
+vl_last_v2.hps: Giga Bowser Cutscene
+vs_hyou1.hps: Tournament Mode 1
+vs_hyou2.hps: Tournament Mode 2
+yorster.hps: Yoshi's Island
+ystory.hps: Yoshi's Story
+zebes.hps: Brinstar

@@ -1,0 +1,35 @@
+
+
+Bowser - Flame Cancel
+Restores his Flame Cancel ability to as it was in v1.00.
+[Achilles]
+Version -- DOL Offset ------ Hex to Replace ---------- ASM Code
+1.02 ------ 0x132264 ---- 38800155 -> 38800156
+
+
+	-==-
+
+
+Captain Falcon - No Rapid Jabs
+[Achilles]
+Version -- DOL Offset ------ Hex to Replace ---------- ASM Code
+1.02 ------ 0xD376C ---- 7C0802A6 -> Branch
+
+81DE0064 2C0E0002
+40820008 4E800020
+7C0802A6 00000000
+
+
+	-==-
+
+
+Just an SF
+[DRGN]
+<TEST_Func> NTSC 1.02
+.long 0x01234567
+.long 0x01234567
+
+.long 0x01234567
+
+.long 0x01234567
+.long 0x01234567

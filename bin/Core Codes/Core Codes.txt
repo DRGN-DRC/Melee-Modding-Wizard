@@ -1,0 +1,11 @@
+
+
+Enable OSReport Print on Crash
+Enables an on-screen crash printout (stack trace) in cases where the game crashes; very useful for debugging. If this mod is to be used, the External Frame Buffer (XFB) option in Dolphin should be enabled, and the Aux Code Regions in MCM's Code-Space Options should not be used (i.e. that region should be vanilla code). This mod will automatically be selected by default if it's found in your library. You may change this behavior by setting the "alwaysEnableCrashReports" option in the "settings.py" file to False.
+<https://smashboards.com/threads/enable-osreport-print-on-crash.456513/>
+[UnclePunch]
+Revision ---- DOL Offset ---- Hex to Replace ---------- ASM Code -
+NTSC 1.02 --- 0x80397878 ---- 801E0000 -> 4800020C
+NTSC 1.01 --- 0x80396B98 ---- 801E0000 -> 4800020C
+NTSC 1.00 --- 0x803959B4 ---- 801E0000 -> 4800020C
+PAL 1.00 ---- 0x803977A0 ---- 801E0000 -> 4800020C
