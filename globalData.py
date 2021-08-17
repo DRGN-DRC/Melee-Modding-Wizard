@@ -86,9 +86,6 @@ def init( programArgs ):
 
 	gui = None
 	disc = None
-	#dat = None
-	#dol = None
-	#banner = None
 
 	codeMods = []
 	standaloneFunctions = {} # Key='functionName', value=( functionRamAddress, functionCustomCode, functionPreProcessedCustomCode )
@@ -120,7 +117,8 @@ def checkSetting( settingName ):
 
 def setSetting( settingName, value ):
 
-	""" Used for setting general settings and bools to the given value. """
+	""" Used for setting general settings and bools to the given value. 
+		Does not include overwriteOptions, for custom code regions. """
 
 	# Make sure there are no naming conflicts
 	if settingName in defaultSettings and settingName in defaultBoolSettings:
@@ -202,19 +200,17 @@ def loadProgramSettings( useBooleanVars=False ):
 
 def loadRegionOverwriteOptions( useBooleanVars=False ):
 
-	""" Checks saved options (the settings.ini file) for whether or not custom code regions are selected for use (i.e. can be overwritten). 
-		This is called just before scanning/parsing mod libraries, checking for enabled codes, or installing a mods list. 
-		Creates new BooleanVars only on first run, which should exist for the life of the program (they will only be updated after that). """
+	""" Checks saved options (the settings.ini file) for whether or not custom code regions are selected for use 
+		(i.e. can be overwritten). This is called from the dol class when a DOL file is loaded. Creates new BooleanVars 
+		only on first run, which should exist for the life of the program (they will only be updated after that). """
 
 	# Check for options file / persistent memory.
-	#if os.path.exists( genGlobals['optionsFilePath'] ): settings.read( genGlobals['optionsFilePath'] )
 	if not settings.has_section( 'Region Overwrite Settings' ):
 		settings.add_section( 'Region Overwrite Settings' )
 
 	processed = [] # Used to skip regions after it has been been checked for the first game revision
 
 	# Create BooleanVars for each defined region. These will be used to track option changes
-	#for regionName in dol.customCodeRegions.keys():
 	for fullRegionName in codeRegionSettings.customCodeRegions.keys():
 		regionName = fullRegionName.split( '|' )[1]
 		if regionName in processed: continue
@@ -598,16 +594,16 @@ costumeSlots = { # Character Costuems indexed by Costume ID, for each character
 	'Fc': ( 'Nr', 'Re', 'Bu', 'Gr' ),
 	'Cl': ( 'Nr', 'Re', 'Bu', 'Wh', 'Bk' ),
 	'Dr': ( 'Nr', 'Re', 'Bu', 'Gr', 'Bk' ),
-	'Fe': ( 'Nr', '', '', '' ),
-	'Pc': ( 'Nr', '', '', '' ),
-	'Gn': ( 'Nr', '', '', '' ),
-	'Mh': ( 'Nr', '', '', '' ),
-	'Bo': ( 'Nr', '', '', '' ),
-	'Gl': ( 'Nr', '', '', '' ),
-	'Gk': ( 'Nr', '', '', '' ),
-	'Ch': ( 'Nr', '', '', '' ),
-	'Sb': ( 'Nr', '', '', '' ),
-	'Nn': ( 'Nr', '', '', '' ),
+	'Fe': ( 'Nr', 'Re', 'Bu', 'Gr', 'Ye' ),
+	'Pc': ( 'Nr', 'Re', 'Bu', 'Gr' ),
+	'Gn': ( 'Nr', 'Re', 'Bu', 'Gr', 'La' ),
+	'Mh': ( 'Nr', ),
+	'Bo': ( 'Nr', ),
+	'Gl': ( 'Nr', ),
+	'Gk': ( 'Nr', ),
+	'Ch': ( 'Nr', ),
+	'Sb': ( 'Nr', ),
+	'Nn': ( 'Nr', 'Ye', 'Aq', 'Wh' ),
 }
 
 
