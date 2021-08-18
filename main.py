@@ -125,15 +125,30 @@ class FileMenu( Tk.Menu, object ):
 	def runInEmulator( self ):	globalData.gui.runInEmulator()
 
 	def showUnsavedChanges( self ):
-		if globalData.disc:
-			unsavedFiles = globalData.disc.getUnsavedChangedFiles()
-			
-			if not unsavedFiles and not globalData.disc.unsavedChanges and not globalData.disc.rebuildReason:
-				msg( 'There are no changes to be saved.' )
-			else:
-				msg( globalData.disc.concatUnsavedChanges(unsavedFiles, basicSummary=False) )
-		else:
+		if not globalData.disc:
 			msg( 'No disc has been loaded!' )
+			return
+
+		unsavedFiles = globalData.disc.getUnsavedChangedFiles()
+
+		if globalData.gui.codeManagerTab:
+			modsToInstall = []
+			modsToUninstall = []
+
+			# Scan the library for mods to be installed or uninstalled
+			for mod in globalData.codeMods:
+				if mod.state == 'pendingDisable':
+					modsToUninstall.append( mod.name )
+				elif mod.state == 'pendingEnable':
+					modsToInstall.append( mod.name )
+
+			print( len(modsToInstall), 'mods to install' )
+			print( len(modsToUninstall), 'mods to uninstall' )
+		
+		if not unsavedFiles and not globalData.disc.unsavedChanges and not globalData.disc.rebuildReason:
+			msg( 'There are no changes to be saved.' )
+		else:
+			msg( globalData.disc.concatUnsavedChanges(unsavedFiles, basicSummary=False) )
 
 
 class SettingsMenu( Tk.Menu, object ):
@@ -588,8 +603,10 @@ class MainGui( Tk.Frame, object ):
 		currentTab.focus() # Don't want keyboard/widget focus at any particular place yet
 
 		if currentTab == self.codeManagerTab:
-			# Need to align the control panel....
+			# Need to populate the initial tab and align the control panel
 			self.codeManagerTab.onTabChange()
+		elif self.codeManagerTab: # Not selected, but it exists
+			self.codeManagerTab.emptyModsPanels() # For improved GUI performance
 
 		# if currentTab == self.datTab:
 		# 	ttk.Style().configure( 'Treeview', rowheight=76 )
@@ -836,17 +853,18 @@ class MainGui( Tk.Frame, object ):
 
 		#self.mainMenu.remove()
 
+		# Load the disc, and load the disc's info into the GUI
+		tic = time.clock()
+		globalData.disc = Disc( targetPath )
+		globalData.disc.load()
+		toc = time.clock()
+		print( 'disc load time:', toc-tic )
+		
 		# Add/initialize the Disc File Tree tab
 		if not self.discTab:
 			self.discTab = DiscTab( self.mainTabFrame, self )
 			self.mainTabFrame.update_idletasks()
-
-		# Load the disc, and load the disc's info into the GUI
-		globalData.disc = Disc( targetPath )
-		tic = time.clock()
-		globalData.disc.load()
-		toc = time.clock()
-		print( 'file load time:', toc-tic )
+			#self.mainTabFrame.update()
 		self.discTab.loadDisc( updateStatus=updateStatus, preserveTreeState=preserveTreeState, switchTab=switchTab, updatedFiles=updatedFiles )
 
 		# Add/initialize the Disc Details tab, and load the disc's info into it
@@ -858,6 +876,7 @@ class MainGui( Tk.Frame, object ):
 		if not self.codeManagerTab:
 			self.codeManagerTab = CodeManagerTab( self.mainTabFrame, self )
 			self.mainTabFrame.update_idletasks()
+		self.codeManagerTab.autoSelectCodeRegions()
 		self.codeManagerTab.scanCodeLibrary( True )
 
 		if globalData.disc.isMelee:

@@ -140,7 +140,7 @@ class Dol( FileBase ):
 		self.version = ''
 		self.revision = ''
 		self.isMelee = False 					# Will only be true for Super Smash Bros. Melee
-		self.is20XX = False
+		self.is20XX = ''						# Will be a string such as '4.07++'/'5.0.0', but may still be evaluated as a bool
 		self.sectionInfo = OrderedDict()		# Will be a dict of key='text0', value=( fileOffset, memAddress, size )
 		self.maxDolOffset = -1
 		self.maxRamAddress = -1
@@ -148,6 +148,11 @@ class Dol( FileBase ):
 
 		self._musicFilePointers = ()
 		self._stageInfoStructPointers = ()
+
+		self.project = -1
+		self.major = -1
+		self.minor = -1
+		self.patch = -1
 
 	def load( self ):
 
@@ -236,18 +241,43 @@ class Dol( FileBase ):
 
 	def checkIf20XX( self ):
 
-		""" Checks the DOL file size, and looks for a 4-byte value (which is also the file size) 
-			at the end of the DOL file, in order to determine whether it's a DOL for 20XX HP. """
+		""" 20XX has a version string in the DOL at 0x0x3F7158, preceded by an ASCII string of '20XX'.
+			Versions up to 4.07++ used an ASCII string for the version as well (v4.07/4.07+/4.07++ do not differ).
+			Versions 5.x.x use a new method of project code, major version, minor version, and patch, respectively (one byte each). """
 
-		if len( self.data ) == 0x438800 and self.data[-8:] == bytearray( b'\x00\x43\x88\x00' ) :
-			self.is20XX = True
+		# Check for the '20XX' string
+		if self.data[0x3F7154:0x3F7158] != bytearray( b'\x32\x30\x58\x58' ):
+			self.is20XX = ''
+			return
+
+		versionData = self.data[0x3F7158:0x3F715C]
+		
+		# Check if using the new v5+ format
+		if versionData[0] == 0:
+			self.project, self.major, self.minor, self.patch = struct.unpack( 'BBBB', versionData )
+			self.is20XX = '{}.{}.{}'.format( self.major, self.minor, self.patch )
+		
+		else: # Using the old string format, with just major and minor
+			self.is20XX = versionData.decode( 'ascii' )
+
+			# Parse out major/minor versions
+			major, minor = self.is20XX.split( '.' )
+			self.major = int( major )
+			self.minor = int( minor )
+
+			# May be able to be more accurate
+			if self.is20XX == '4.07' and len( self.data ) == 0x438800 and self.data[-4:] == bytearray( b'\x00\x43\x88\x00' ):
+				self.is20XX = '4.07++'
+				self.patch = 2
+			else:
+				self.patch = 0
 
 	def getDolVersion( self ):
 
 		""" Checks the game version of the DOL by checking a custom string within the DOL's header, the 
 			name of the file, or by prompting the user (using disc region and version as predictors). """
 
-		# The range 0xE4 to 0x100 in the DOL is normally unused padding. This can be used to specify a DOL version.
+		# The range 0xE4 to 0x100 in the DOL is normally unused padding. This is used to specify DOL revision. (last 4 bytes are for project version)
 		customVersionString = self.data[0xE4:0x100].split(b'\x00')[0].decode( 'ascii' )
 
 		# If a custom string exists, validate and use that, or else prompt the user (using disc region/version for predictors)
@@ -456,25 +486,20 @@ class Dol( FileBase ):
 
 	def getBranchDistance( self, branchBytes ):
 
-		""" Get and return the distance encoded in a branch command. """
+		""" Get and return the distance encoded in a standard, unconditional branch command. 
+			The input should be 4 bytes. Output is a signed int. """
 
-		# Ignore the ba/bl flags by rounding down by 4
-		# numerator = int( branchHex[2:], 16 )
-		# branchDistance = numerator - ( numerator % 4 )
-
-		# # Move backwards if branching back
-		# opCode = branchHex[:2].lower()
-		# if opCode == '4b':
-		# 	branchDistance = -( 0x1000000 - branchDistance )
-		
+		# Get the raw branch distance value, and mask out the top byte (opcode and friends) and lower two bits (AA/LK flags)
 		rawValue = struct.unpack( '>I', branchBytes )[0]
-		branchDistance = rawValue & 0xFFFFFC # Mask out the top byte (opcode and friends) and lower two bits (AA/LK flags)
+		branchDistance = rawValue & 0xFFFFFC
 
-		# Move backwards if branching back
+		# Apply distance modifiers based on the op code
 		opCode = branchBytes[0]
-		if opCode == 0x48: pass
+		if opCode == 0x48: pass # Branching forward
 		elif opCode == 0x49:
 			branchDistance += 0x1000000
+
+		# Move backwards if branching back
 		elif opCode == 0x4A:
 			branchDistance = -( 0x2000000 - branchDistance )
 		elif opCode == 0x4B:
@@ -630,13 +655,13 @@ class Dol( FileBase ):
 
 					# Check that the region start is within the DOL's code or data sections
 					elif regionStart < 0x100 or regionStart >= self.maxDolOffset:
-						print "Region start (0x{:X}) for {} is outside of the DOL's code\\data sections.".format( regionStart, regionName )
+						print "Region start (0x{:X}) for {} is outside of the DOL's code/data sections.".format( regionStart, regionName )
 						incompatibleRegions.append( regionName )
 						break
 
 					# Check that the region end is within the DOL's code or data sections
 					elif regionEnd > self.maxDolOffset:
-						print "Region end (0x{:X}) for {} is outside of the DOL's code\\data sections.".format( regionEnd, regionName )
+						print "Region end (0x{:X}) for {} is outside of the DOL's code/data sections.".format( regionEnd, regionName )
 						incompatibleRegions.append( regionName )
 						break
 
@@ -652,7 +677,8 @@ class Dol( FileBase ):
 
 		""" This gets the regions defined for custom code use (regions permitted for overwrites) in codeRegionSettings.py. 
 			Returned as a list of tuples of the form (regionStart, regionEnd). The start position shifts (space reservations 
-			for the Gecko codelist/codehandler) should be counted in bytes. """
+			for the Gecko codelist/codehandler) should be counted in bytes. Note that the region names in the dictionary 
+			are not the "full" region names; i.e. they don't include revision. """
 
 		codeRegions = []
 
@@ -661,35 +687,38 @@ class Dol( FileBase ):
 			# Check if this dol region should be included by its BooleanVar option value (or if that's overridden, which is the first check)
 			if searchDisabledRegions or globalData.checkRegionOverwrite( regionName ):
 
+				if specificRegion and regionName != specificRegion:
+					continue
+
 				# Get all regions if specificRegion is not defined, or get only that region (or that group of regions)
-				if not specificRegion or regionName == specificRegion:
+				#if not specificRegion or regionName == specificRegion:
 
-					# Offset the start of (thus excluding) areas that will be partially used by the Gecko codelist or codehandler
-					# if codelistStartPosShift != 0 and gecko.environmentSupported and regionName == gecko.codelistRegion:
-					# 	codelistRegionStart, codelistRegionEnd = regions[0]
-					# 	codelistRegionStart += codelistStartPosShift
+				# Offset the start of (thus excluding) areas that will be partially used by the Gecko codelist or codehandler
+				# if codelistStartPosShift != 0 and gecko.environmentSupported and regionName == gecko.codelistRegion:
+				# 	codelistRegionStart, codelistRegionEnd = regions[0]
+				# 	codelistRegionStart += codelistStartPosShift
 
-					# 	if codelistRegionEnd - codelistRegionStart > 0: # This excludes the first area if it was sufficiently shrunk
-					# 		codeRegions.append( (codelistRegionStart, codelistRegionEnd) )
-					# 	codeRegions.extend( regions[1:] ) # If there happen to be any more regions that have been added for this.
+				# 	if codelistRegionEnd - codelistRegionStart > 0: # This excludes the first area if it was sufficiently shrunk
+				# 		codeRegions.append( (codelistRegionStart, codelistRegionEnd) )
+				# 	codeRegions.extend( regions[1:] ) # If there happen to be any more regions that have been added for this.
 
-					# elif codehandlerStartPosShift != 0 and gecko.environmentSupported and regionName == gecko.codehandlerRegion:
-					# 	codehandlerRegionStart, codehandlerRegionEnd = regions[0]
-					# 	codehandlerRegionStart += codehandlerStartPosShift
+				# elif codehandlerStartPosShift != 0 and gecko.environmentSupported and regionName == gecko.codehandlerRegion:
+				# 	codehandlerRegionStart, codehandlerRegionEnd = regions[0]
+				# 	codehandlerRegionStart += codehandlerStartPosShift
 
-					# 	if codehandlerRegionEnd - codehandlerRegionStart > 0: # This excludes the first area if it was sufficiently shrunk
-					# 		codeRegions.append( (codehandlerRegionStart, codehandlerRegionEnd) )
-					# 	codeRegions.extend( regions[1:] ) # If there happen to be any more regions that have been added for this.
+				# 	if codehandlerRegionEnd - codehandlerRegionStart > 0: # This excludes the first area if it was sufficiently shrunk
+				# 		codeRegions.append( (codehandlerRegionStart, codehandlerRegionEnd) )
+				# 	codeRegions.extend( regions[1:] ) # If there happen to be any more regions that have been added for this.
 
-					# else:
-					if useRamAddresses:
-						for regionStart, regionEnd in regions:
-							codeRegions.append( (self.offsetInRAM(regionStart), self.offsetInRAM(regionEnd)) )
-					else:
-						codeRegions.extend( regions )
+				# else:
+				if useRamAddresses:
+					for regionStart, regionEnd in regions:
+						codeRegions.append( (self.offsetInRAM(regionStart), self.offsetInRAM(regionEnd)) )
+				else:
+					codeRegions.extend( regions )
 
-					# If only looking for a specific revision, there's no need to iterate futher.
-					if specificRegion: break
+				# If only looking for a specific revision, there's no need to iterate futher.
+				if specificRegion: break
 
 		return codeRegions
 
@@ -725,8 +754,6 @@ class Dol( FileBase ):
 	# 	else:
 	# 		return offset
 
-
-	#def customCodeInDOL( self, startingOffset, customCode, freeSpaceCodeArea, excludeLastCommand=False, startOffsetUnknown=False ):
 	def customCodeInDOL( self, startingOffset, customCode, freeSpaceCodeArea, excludeLastCommand=False, startOffsetUnknown=False ):
 
 		""" Checks if the given custom code (a hex string) is installed within the given code area (a bytearray).
@@ -1096,136 +1123,3 @@ class Dol( FileBase ):
 		# 	mainNotebook.select( 0 )
 
 		#checkForPendingChanges()
-
-
-# class geckoInitializer( object ):
-
-# 	""" Validates Gecko configuration settings in the settings.py file, collects info, and ensures Gecko codes can be utilzed. """
-
-# 	def __init__( self ):
-# 		self.reset()
-
-# 	def reset( self ):
-# 		self.environmentSupported = False
-# 		self.hookOffset = -1
-# 		self.codelistRegion = ''
-# 		self.codelistRegionStart = self.codelistRegionEnd = -1
-# 		self.codehandlerRegion = ''
-# 		self.codehandlerRegionStart = self.codehandlerRegionEnd = -1
-# 		self.codehandler = ''
-# 		self.codehandlerLength = 0
-# 		self.spaceForGeckoCodelist = 0
-# 		self.spaceForGeckoCodehandler = 0
-# 		#self.geckoConfigWarnings = [] # possibly use this to remember them until the user 
-# 									   # tries to enable Gecko codes (instead of messaging user immediately)
-
-# 		# Check for a dictionary on Gecko configuration settings; this doesn't exist in pre-v4.0 settings files
-# 		self.geckoConfig = getattr( settingsFile, "geckoConfiguration", {} )
-
-# 	def checkSettings( self ):
-# 		self.reset()
-
-# 		if not dol.revision: return
-
-# 		self.setGeckoHookOffset()
-# 		if self.hookOffset == -1: 
-# 			msg( 'Warning! No geckoConfiguration properties could be found in the settings.py file for DOL revision "' + dol.revision + '".'
-# 				 'Gecko codes cannot be used until this is resolved.', 'Gecko Misconfiguration' )
-# 			return
-
-# 		self.codelistRegionStart, self.codelistRegionEnd = self.getCodelistRegion()
-# 		if self.codelistRegionStart == -1: return
-
-# 		self.codehandlerRegionStart, self.codehandlerRegionEnd = self.getCodehandlerRegion()
-# 		if self.codehandlerRegionStart == -1: return
-
-# 		self.codehandler = self.getGeckoCodehandler()
-# 		self.codehandlerLength = len( self.codehandler ) / 2 # divides by 2 to count by bytes rather than nibbles
-
-# 		self.spaceForGeckoCodelist = self.codelistRegionEnd - self.codelistRegionStart
-# 		self.spaceForGeckoCodehandler = self.codehandlerRegionEnd - self.codehandlerRegionStart
-
-# 		# Check that the codehandler can fit in the space defined for it
-# 		if self.codehandlerLength > self.spaceForGeckoCodehandler:
-# 			msg( 'Warning! The region designated to store the Gecko codehandler is too small! The codehandler is ' + hex( self.codehandlerLength ) + ' bytes '
-# 				 'in size, while the region defined (only the first section among those regions will be used) for it is ' + hex( self.spaceForGeckoCodehandler) + ' bytes long.'
-# 				 'Gecko codes cannot be used until this is resolved.', 'Gecko Misconfiguration' )
-
-# 		else: 
-# 			# If this has been reached, everything seems to check out.
-# 			self.environmentSupported = True
-
-# 		# Set the maximum value for the gecko code fill meter
-# 		freeGeckoSpaceIndicator['maximum'] = self.spaceForGeckoCodelist
-
-# 	def setGeckoHookOffset( self ): 
-		
-# 		""" Checks for the geckoConfiguration dictionary in the config file, and gets the hook offset for the current revision. """
-
-# 		if not self.geckoConfig: # For backwards compatability with pre-v4.0 config file.
-# 			oldHooksDict = getattr( settingsFile, "geckoHookOffsets", {} )
-
-# 			if not oldHooksDict:
-# 				self.hookOffset = -1
-# 			else:
-# 				if dol.region == 'PAL':
-# 					self.hookOffset = oldHooksDict['PAL']
-# 				else: self.hookOffset = oldHooksDict[dol.version]
-
-# 		# The usual expectation for v4.0+ settings files
-# 		elif self.geckoConfig:
-# 			self.hookOffset = self.geckoConfig['hookOffsets'].get( dol.revision, -1 ) # Assigns -1 if this dol revision isn't found
-
-# 	def getCodelistRegion( self ):
-# 		# Get the region defined in settings.py that is to be used for the Gecko codelist
-# 		if not self.geckoConfig and dol.isMelee: # For backwards compatability with pre-v4.0 config file.
-# 			self.codelistRegion = 'DebugModeRegion'
-
-# 		elif self.geckoConfig:
-# 			self.codelistRegion = self.geckoConfig['codelistRegion']
-
-# 		# Check for the codelist region among the defined regions, and get its first DOL area
-# 		if self.codelistRegion in dol.customCodeRegions:
-# 			return dol.customCodeRegions[self.codelistRegion][0]
-# 		else:
-# 			msg( 'Warning! The region assigned for the Gecko codelist (under geckoConfiguration in the settings.py file) could not '
-# 				 'be found among the code regions defined for ' + dol.revision + '. Double check the spelling, '
-# 				 'and keep in mind that the strings are case-sensitive. Gecko codes cannot be used until this is resolved.', 'Gecko Misconfiguration' )
-# 			self.codelistRegion = ''
-# 			return ( -1, -1 )
-
-# 	def getCodehandlerRegion( self ):
-# 		# Get the region defined in settings.py that is to be used for the Gecko codehandler
-# 		if not self.geckoConfig and dol.isMelee: # For backwards compatability with pre-v4.0 config file.
-# 			self.codehandlerRegion = 'AuxCodeRegions'
-
-# 		elif self.geckoConfig:
-# 			self.codehandlerRegion = self.geckoConfig['codehandlerRegion']
-
-# 		# Check for the codehandler region among the defined regions, and get its first DOL area
-# 		if self.codehandlerRegion in dol.customCodeRegions:
-# 			return dol.customCodeRegions[self.codehandlerRegion][0]
-# 		else:
-# 			msg( 'Warning! The region assigned for the Gecko codehandler (under geckoConfiguration in the settings.py file) could not '
-# 				 'be found among the code regions defined for ' + dol.revision + '. Double check the spelling, '
-# 				 'and keep in mind that the strings are case-sensitive. Gecko codes cannot be used until this is resolved.', 'Gecko Misconfiguration' )
-# 			self.codehandlerRegion = ''
-# 			return ( -1, -1 )
-
-# 	def getGeckoCodehandler( self ):
-# 		if os.path.exists( scriptHomeFolder + '\\geckoCodehandler.bin' ):
-# 			with open( scriptHomeFolder + '\\geckoCodehandler.bin', 'rb' ) as binFile: #todo maybe use a text file instead if I don't change to using bytearrays
-# 				geckoCodehandler = binFile.read().encode("hex").upper()
-
-# 		else:
-# 			geckoCodehandler = settingsFile.geckoCodehandler
-
-# 		# Append any padding needed to align its length to 4 bytes (so that any codes applied after it will be aligned).
-# 		totalRequiredCodehandlerSpace = roundTo32( len(geckoCodehandler)/2, base=4 ) # Rounds up to closest multiple of 4 bytes
-# 		paddingLength = totalRequiredCodehandlerSpace - len(geckoCodehandler)/2 # in bytes
-# 		padding = '00' * paddingLength
-
-# 		#print 'codehandler len:', len(geckoCodehandler)/2, 'rounded up:', totalRequiredCodehandlerSpace, 'padding len:', paddingLength
-# 		return geckoCodehandler + padding
-
-# 	def installMods( self, modsList ): pass
