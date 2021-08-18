@@ -322,68 +322,74 @@ class FileBase( object ):
 
 		""" Gets a file description; attempts to pull from the GALE01 yaml, or dynamicallys build it. """
 
-		# Check if there's a file explicitly defined in the file descriptions config file
-		description = self.yamlDescriptions.get( self.filename, '' )
-		if description:
-			self.description = description.encode( 'utf-8' )
-			return description
-
-		# If this is a usd file, check if there's a dat equivalent description
-		if self.ext == '.usd' and not self.filename.startswith( 'PlCa' ): # Excluding Falcon's red costume
-			filenameOnly = os.path.splitext( self.filename )[0]
-			description = self.yamlDescriptions.get( filenameOnly + '.dat', '' )
+		try:
+			# Check if there's a file explicitly defined in the file descriptions config file
+			description = self.yamlDescriptions.get( self.filename, '' )
 			if description:
-				description += ' (English)'
-
 				self.description = description.encode( 'utf-8' )
 				return description
 
-		# Let's see if we can dynamically build a name
-		if self.filename.startswith( 'Ef' ): # Effects files
-			if not inConvenienceFolder: description = 'Effects file for '
-			if self.filename == 'EfFxData.dat': description += 'Fox & Falco'
-			else: description += globalData.charNameLookup[ self.filename[2:4] ]
-		elif self.filename.startswith( 'GmRegend' ): # Congratulations screens
-			if not inConvenienceFolder: description = 'Congratulations screen'
-		elif self.filename.startswith( 'GmRstM' ): # Results screen animations
-			if inConvenienceFolder: description = globalData.charNameLookup[ self.filename[6:8] ]
-			else: description = 'Results screen animations for ' + globalData.charNameLookup[ self.filename[6:8] ]
-		elif self.filename.startswith( 'MvEnd' ): # 1-P Ending Movies
-			if not inConvenienceFolder: description = '1-P Ending Movie'
-		elif self.filename.startswith( 'Pl' ):
-			character = globalData.charNameLookup.get( self.filename[2:4], '' )
+			# If this is a usd file, check if there's a dat equivalent description
+			if self.ext == '.usd' and not self.filename.startswith( 'PlCa' ): # Excluding Falcon's red costume
+				filenameOnly = os.path.splitext( self.filename )[0]
+				description = self.yamlDescriptions.get( filenameOnly + '.dat', '' )
+				if description:
+					description += ' (English)'
 
-			if character:
-				colorKey = self.filename[4:6]
-				color = globalData.charColorLookup.get( colorKey, '' )
+					self.description = description.encode( 'utf-8' )
+					return description
 
-				if inConvenienceFolder: # No need to show the name, since it's already displayed
-					description = ''
-				elif character.endswith('s'):
-					description = character + "' "
-				else:
-					description = character + "'s "
+			# Let's see if we can dynamically build a name
+			if self.filename.startswith( 'Ef' ): # Effects files
+				if not inConvenienceFolder: description = 'Effects file for '
+				if self.filename == 'EfFxData.dat': description += 'Fox & Falco'
+				else: description += globalData.charNameLookup[ self.filename[2:4] ]
+			elif self.filename.startswith( 'GmRegend' ): # Congratulations screens
+				if not inConvenienceFolder: description = 'Congratulations screen'
+			elif self.filename.startswith( 'GmRstM' ): # Results screen animations
+				if inConvenienceFolder: description = globalData.charNameLookup[ self.filename[6:8] ]
+				else: description = 'Results screen animations for ' + globalData.charNameLookup[ self.filename[6:8] ]
+			elif self.filename.startswith( 'MvEnd' ): # 1-P Ending Movies
+				if not inConvenienceFolder: description = '1-P Ending Movie'
+			elif self.filename.startswith( 'Pl' ):
+				character = globalData.charNameLookup.get( self.filename[2:4], '' )
 
-				if color: # It's a character costume (model & textures) file
-					description += color + ' costume'
-					if self.ext == '.lat' or colorKey == 'Rl': description += " ('L' alt)" # For 20XX
-					elif self.ext == '.rat' or colorKey == 'Rr': description += " ('R' alt)"
-				elif colorKey == '.d': description += 'NTSC data & shared textures' # e.g. "PlCa.dat"
-				elif colorKey == '.p': description += 'PAL data & shared textures'
-				elif colorKey == '.s': description += 'SDR data & shared textures'
-				elif colorKey == 'AJ': description += 'animation data'
-				elif colorKey == 'Cp': # Kirb's copy abilities
-					copyChar = globalData.charNameLookup.get( self.filename[6:8], '' )
-					if ']' in copyChar: copyChar = copyChar.split( ']' )[1]
-					description += "copy power textures (" + copyChar + ")"
-				elif colorKey == 'DV': description += 'idle animation data'
+				if character:
+					colorKey = self.filename[4:6]
+					color = globalData.charColorLookup.get( colorKey, '' )
 
-				# Ensure the first word is capitalized
-				if description and inConvenienceFolder:
-					description = description[0].upper() + description[1:]
+					if inConvenienceFolder: # No need to show the name, since it's already displayed
+						description = ''
+					elif character.endswith('s'):
+						description = character + "' "
+					else:
+						description = character + "'s "
 
-		self.description = description.encode( 'utf-8' )
-		return description
+					if color: # It's a character costume (model & textures) file
+						description += color + ' costume'
+						if self.ext == '.lat' or colorKey == 'Rl': description += " ('L' alt)" # For 20XX
+						elif self.ext == '.rat' or colorKey == 'Rr': description += " ('R' alt)"
+					elif colorKey == '.d': description += 'NTSC data & shared textures' # e.g. "PlCa.dat"
+					elif colorKey == '.p': description += 'PAL data & shared textures'
+					elif colorKey == '.s': description += 'SDR data & shared textures'
+					elif colorKey == 'AJ': description += 'animation data'
+					elif colorKey == 'Cp': # Kirb's copy abilities
+						copyChar = globalData.charNameLookup.get( self.filename[6:8], '' )
+						if ']' in copyChar: copyChar = copyChar.split( ']' )[1]
+						description += "copy power textures (" + copyChar + ")"
+					elif colorKey == 'DV': description += 'idle animation data'
+
+					# Ensure the first word is capitalized
+					if description and inConvenienceFolder:
+						description = description[0].upper() + description[1:]
+
+			self.description = description.encode( 'utf-8' )
+
+		except Exception as err:
+			self.description = ''
+			print 'Error in getting a description for {}; {}'.format( self.filename, err )
+
+		return self.description
 
 	def setDescription( self, description, gameId='' ):
 
