@@ -67,7 +67,7 @@ class CodeManagerTab( ttk.Frame ):
 		overwriteOptionsBtn.pack( side='right', padx=6 )
 		overwriteOptionsTooltip = 'Edit Code-Space Options'
 		ToolTip( overwriteOptionsBtn, delay=900, justify='center', location='w', text=overwriteOptionsTooltip, wraplength=600, offset=-10 )
-		buttonBar.pack( fill='x', pady=(5, 10) )
+		buttonBar.pack( fill='x', pady=(5, 20) )
 
 		# Begin adding primary buttons
 		ttk.Button( self.controlPanel, text='Open this File', command=self.openLibraryFile ).pack( pady=4, padx=6, ipadx=8 )
@@ -129,14 +129,23 @@ class CodeManagerTab( ttk.Frame ):
 		if globalData.gui.root.nametowidget( globalData.gui.mainTabFrame.select() ) != self:
 			return
 
-		self.emptyModsPanels( self.codeLibraryNotebook )
+		# Prevent focus on the tabs themselves (prevents appearance of selection box)
+		# currentTab = globalData.gui.root.nametowidget( self.codeLibraryNotebook.select() )
+		# currentTab.focus()
+
+		self.emptyModsPanels()
 		self.createModModules()
 		self.alignControlPanel()
 		self.updateInstalledModsTabLabel()
 
-	def emptyModsPanels( self, notebook ):
+	def emptyModsPanels( self, notebook=None ):
+
+		""" Destroys all GUI elements (ModModules) for all Mod Library tabs. """
 
 		root = globalData.gui.root
+
+		if not notebook:
+			notebook = self.codeLibraryNotebook
 		
 		for tabName in notebook.tabs():
 			tabWidget = root.nametowidget( tabName )
@@ -149,6 +158,8 @@ class CodeManagerTab( ttk.Frame ):
 				self.emptyModsPanels( tabWidget )
 
 	def createModModules( self ):
+
+		""" Creates GUI elements (ModModules) and populates them in the Mod Library tab currently in-view. """
 
 		currentTab = self.getCurrentLibraryTab()
 		if not currentTab: return
@@ -251,6 +262,50 @@ class CodeManagerTab( ttk.Frame ):
 			selectedTab = root.nametowidget( selectedTab.select() )
 			
 		return selectedTab
+
+	def autoSelectCodeRegions( self ):
+
+		""" If 20XX is loaded, attempts to recognize its version and select the appropriate custom code regions. """
+
+		# Check if the loaded DOL is 20XX and get its version
+		dol = globalData.disc.dol
+		if not dol.is20XX:
+			return
+		v20XX = dol.is20XX.replace( '+', '' ) # Strip from 4.07+/4.07++
+
+		# Get the version as major.minor and construct the code regions name
+		majorMinor = '.'.join( v20XX.split('.')[:2] ) # Excludes version.patch if present (e.g. 5.0.0)
+		customRegions = '20XXHP {} Regions'.format( majorMinor )
+
+		# Check if the current overwrite options match up with the version of 20XX loaded
+		foundTargetRegions = False
+		regions = []
+		for name, boolVar in globalData.overwriteOptions.iteritems():
+			if boolVar.get(): regions.append( name )
+			if name == customRegions: foundTargetRegions = True
+
+		if not foundTargetRegions:
+			print( 'Unable to auto-select custom code regions; unsupported 20XX version: {}'.format(v20XX) )
+			return
+
+		#if v20XX in ( '4.07', '4.07+', '4.07++' ) and regions == ['20XXHP 4.07 Regions']: pass
+		if regions == [customRegions]: pass # Only the one target region is selected
+		else:
+			reselectRegions = tkMessageBox.askyesno( 'Enable Dedicated Region?', 'The game being loaded appears to be for the 20XX Hack Pack, v{}. '
+													'Would you like to enable the custom code regions specifically for this mod ({})?'
+													"\n\nIf you're unsure, click yes.".format(v20XX, customRegions) )
+			if reselectRegions:
+				# Disable all regions
+				for boolVar in globalData.overwriteOptions.itervalues():
+					boolVar.set( False )
+
+				# Enable the appropriate region
+				boolVar = globalData.overwriteOptions.get( customRegions )
+				if boolVar:
+					boolVar.set( True )
+				else:
+					msg( 'Unable to enable custom code regions for {}; that region could not be '
+						 'found among the configurations in the codeRegionSettings.py file.', 'Custom Code Regions Load Error', error=True )
 
 	def scanCodeLibrary( self, playAudio=True ):
 
@@ -456,8 +511,6 @@ class CodeManagerTab( ttk.Frame ):
 
 		# Scan the library for mods to be installed or uninstalled
 		for mod in globalData.codeMods:
-			#if mod.state == 'unavailable': continue
-
 			if mod.state == 'pendingDisable':
 				modsToUninstall.append( mod )
 			
@@ -496,6 +549,9 @@ class CodeManagerTab( ttk.Frame ):
 		# 	modUninstallCount = modUninstallCount - len( modsNotUninstalled )
 		# else:
 		# 	modUninstallCount = 0
+		
+		# Make sure the DOL has been initialized (header parsed and properties determined)
+		globalData.disc.dol.load()
 
 		if modsToInstall:
 			globalData.disc.restoreDol()

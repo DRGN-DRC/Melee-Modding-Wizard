@@ -57,7 +57,7 @@ customCodeRegions = OrderedDict([
 										( 0x1508, 0x1598 ), ( 0x15CC, 0x1698 ), ( 0x18CC, 0x1998 ),	    #       |
 										( 0x1ECC, 0x1F98 ), ( 0x20CC, 0x2198 ),					#______________|
 										( 0x18DCC0, 0x197B30 ), 				# Tournament Mode Region 	(0x9E70)
-										#( 0x2254C0, 0x225644 ),				# Not much space
+										#( 0x2254C0, 0x225644 ),				# 0x184
 										#( 0x329584, 0x329640 ),				# Not much space
 										#( 0x32A8E8, 0x32A9A0 ),				# Not much space
 										#( 0x32B96C, 0x32C208 ),				# Area 4 of USB/MCC 		(0x89C)		< Can be included if you remove the PAL FSM List (which is currently empty)
