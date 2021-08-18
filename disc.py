@@ -915,11 +915,18 @@ class Disc( object ):
 
 		# Update this file's entry size if it's changed, and check if the disc will need to be rebuilt
 		if newFileObj.size != origFileObj.size:
-			# Check if it's the last file, in which case size it doesn't matter (also, the following loop would encounter an error if that's the case)
-			if origFileObj.offset == self.fstEntries[-1][2]:
+			
+			if newFileObj.filename == 'Start.dol':
+				self.rebuildReason = 'to import a larger DOL'
+
+			elif newFileObj.filename in self.systemFiles:
+				self.rebuildReason = 'to import system files larger than their original' # probably should make this illegal
+
+			# Check if it's the last file, in which case size its doesn't matter (also, the following loop would encounter an error if that's the case)
+			elif origFileObj.offset == self.fstEntries[-1][2]:
 				self.fstEntries[-1][3] = newFileObj.size
-			else:
-				# Not the last file; check if the file following it needs to be moved
+
+			else: # Not the last file; check if the file following it needs to be moved
 				for i, entry in enumerate( self.fstEntries ): # Entries are of the form [ folderFlag, stringOffset, entryOffset, entrySize, entryName, isoPath ]
 					if entry[2] == origFileObj.offset:
 						self.fstEntries[i][3] = newFileObj.size
@@ -927,7 +934,7 @@ class Disc( object ):
 						# Check if there is enough space for the new file
 						nextFileOffset = self.fstEntries[i+1][2]
 						if nextFileOffset < newFileObj.offset + newFileObj.size:
-							self.rebuildReason = 'to replace files larger than their original'
+							self.rebuildReason = 'to import files larger than their original'
 							#self.rebuildRequired = True
 						break
 
@@ -1066,7 +1073,8 @@ class Disc( object ):
 		""" Creates data for a new FST/TOC (File System Table/Table of Contents), by analyzing the 
 			self.files dict and building a list of entries for files and folders. Each entry will be a 
 			list of the form [ folderFlag, stringOffset, entryOffset, entrySize, entryName, isoPath ]. 
-								  ^bool			^int		^int		^int		^string		^string	"""
+								  ^bool			^int		^int		^int		^string		^string	
+			The entries will not have a proper entryOffset yet; that is TBD upon building the disc. """
 		
 		entryIndex = 1
 		dirEndIndexes = {}
@@ -1168,24 +1176,10 @@ class Disc( object ):
 		toc.source = 'self' # Still need to set this in case the file already existed
 		toc.size = fstSize
 
-	# def replaceDiscFile( self, change, isoBinary, newFileSize ):
-
-	# 	""" Overwrites a specific file's data in an already-open disc file object (the second arg) 
-	# 		with new data. First argument is an unsaved disc change object. """
-
-	# 	updatedFile = change.file
-
-	# 	# Navigate to the location of the file in the disc and write the new data
-	# 	isoBinary.seek( updatedFile.offset )
-	# 	isoBinary.write( updatedFile.getData() )
-
-	# 	# Check if padding should be added after the file (i.e. the new file is smaller, and it's not the DOL.
-	# 	# If it's the DOL, the FST should be moved/placed right after it, without padding.)
-	# 	if newFileSize < updatedFile.originalFileSize and not updatedFile.filename.lower() == 'start.dol':
-	# 		paddingLength = updatedFile.origFileSize - newFileSize
-	# 		isoBinary.write( bytearray(paddingLength) )
-
 	def updateProgressDisplay( self, operation, dataCopiedSinceLastUpdate, progressAmount, finalAmount ):
+
+		""" Displays/updates progress of an operation in the program's status bar, 
+			or in the console if the GUI is not being used. """
 		
 		guiUpdateInterval = 8388608 # 8 MB. Once this many bytes or more have been copied to the new disc, the gui should update the progress display
 		percentDone = ( float(progressAmount) / finalAmount ) * 100
@@ -1208,6 +1202,7 @@ class Disc( object ):
 			sys.stdout.write( '\r' + line ) # Write directly to the output buffer
 			sys.stdout.flush() # Write the output buffer to console to see the change
 
+		# Reset how much data has been written if exceeding the update interval
 		if dataCopiedSinceLastUpdate >= guiUpdateInterval:
 			return 0
 		else:
@@ -1673,7 +1668,7 @@ class Disc( object ):
 
 	def getGeckoData( self ):
 
-		""" Checks the disc for Gecko codes (the codehandler and codelist). """
+		""" Checks the disc for Gecko codes (a file containing the codehandler and codelist). """
 
 		geckoCodesFile = self.files.get( self.gameId + '/gecko.bin' )
 		if not geckoCodesFile: return ()
@@ -1702,9 +1697,6 @@ class Disc( object ):
 			#vanillaDisc = None
 			globalData.gui.updateProgramStatus( 'Unable to validate mod uninstallation', warning=True )
 			return codeMods
-		
-		# Make sure the DOL has been initialized (header parsed and properties determined)
-		#self.dol.load()
 
 		problematicMods = []
 
@@ -1875,9 +1867,6 @@ class Disc( object ):
 	def installCodeMods( self, codeMods ):
 
 		""" Installs static overwrites and injection mods to the game. Gecko codes are handled separately. """
-		
-		# Make sure the DOL has been initialized (header parsed and properties determined)
-		#self.dol.load()
 
 		# Check for conflicts among the code regions selected for use
 		allCodeRegions = self.dol.getCustomCodeRegions( useRamAddresses=False )
@@ -1901,7 +1890,7 @@ class Disc( object ):
 		totalModsToInstall = len( codeMods )
 		totalModsInstalled = 0
 		codesNotInstalled = []
-				
+		
 		# Save the selected Gecko codes to the DOL, and determine the adjusted code regions to use for injection/standalone code.
 		# if geckoCodes:
 		# 	# Ensure that the codelist length will be a multiple of 4 bytes (so that injection code after it doesn't crash from bad branches).
@@ -2386,15 +2375,13 @@ class Disc( object ):
 		# 			if widgetSettingID == 'stageToggleSetting' and root.stageSelectionsWindow: root.stageSelectionsWindow.updateStates( selectedValue, True, False )
 		# 			elif widgetSettingID == 'itemToggleSetting' and root.itemSelectionsWindow: root.itemSelectionsWindow.updateStates( selectedValue, True, False )
 
-		# If the injection code file was used, add the codes to the game to load it on boot
+		# If the injection code file was used, add codes to the game required to load it on boot
 		if self.injectionsCodeFile and self.injectionsCodeFile.data:
 			returnCode = self.installMallocCodes()
 
 			if returnCode == 0:
 				self.injectionsCodeFile.unsavedChanges = [ 'New codes saved' ]
 				totalModsInstalled += 2
-
-		#saveSuccessStatus = saveDolToFile()
 
 		# Update or add to the DOL's list of unsaved changes
 		for i, change in enumerate( self.dol.unsavedChanges ):
@@ -2406,7 +2393,7 @@ class Disc( object ):
 		else:
 			self.dol.unsavedChanges.append( '{} code mods installed'.format(totalModsInstalled) )
 		self.dol.writeMetaData() # Writes the DOL's revision (region+version) and this program's version to the DOL
-		self.files[self.gameId + '/Start.dol'] = self.dol
+		#self.files[self.gameId + '/Start.dol'] = self.dol
 
 		if codesNotInstalled:
 			msg( '{} code mods installed. However, these mods could not be installed:\n\n{}'.format(totalModsInstalled, '\n'.join(codesNotInstalled)) )
