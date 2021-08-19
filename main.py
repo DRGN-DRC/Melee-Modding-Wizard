@@ -765,7 +765,7 @@ class MainGui( Tk.Frame, object ):
 			self.fileHandler( [rootPath] ) # Will handle validation of the filepath and opening of the file.
 
 	def onProgramClose( self ):
-		self.root.destroy() # Stops the GUI's mainloop and destroys all widgets: https://stackoverflow.com/a/42928131/8481154
+		self.root.destroy() # Stops the GUI's mainloop and destroys all widgets. https://stackoverflow.com/a/42928131/8481154
 
 	def saveDiscAs( self ):
 
@@ -993,8 +993,10 @@ def parseArguments(): # Parses command line arguments
 
 		# Set up sub-parsers for operation groups
 		subparsers = parser.add_subparsers( title='operations', dest='opsParser',
-											description='You may access features through various operation groups, combined with options within that group. ' \
-														'To see the options within a specific operation group, type "{} [operationGroupName] -h"'.format(parser.prog) )
+											description=('Most command-line features are available within various operation groups. '
+														 'To see the features available within a specific operation group, enter '
+														 '"{} [operationGroupName] -h". The following are the current option '
+														 'groups available:').format(parser.prog) )
 
 		# Define "disc" options
 		discOpsParser = subparsers.add_parser( 'disc', help='Perform operations on ISO/GCM files, such as adding or getting files.' )

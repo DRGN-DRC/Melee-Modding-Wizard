@@ -17,7 +17,7 @@ programVersion = '0.8.7'
 # External Dependencies
 import os
 import csv
-import enum
+#import enum
 import ConfigParser
 import tkMessageBox
 import Tkinter as Tk
@@ -544,10 +544,10 @@ charNameLookup = {
 # }
 
 
-class IntCharId( enum.IntEnum ): # Internal Character ID
-	Mario = 0
-	Fox = 1
-	Falcon = 2
+# class IntCharId( enum.IntEnum ): # Internal Character ID
+# 	Mario = 0
+# 	Fox = 1
+# 	Falcon = 2
 
 
 charColorLookup = { # 12 Unique color slots
