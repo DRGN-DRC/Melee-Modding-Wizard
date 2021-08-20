@@ -307,6 +307,9 @@ class CodeManagerTab( ttk.Frame ):
 					msg( 'Unable to enable custom code regions for {}; that region could not be '
 						 'found among the configurations in the codeRegionSettings.py file.', 'Custom Code Regions Load Error', error=True )
 
+				# Remember these settings
+				globalData.saveProgramSettings()
+
 	def scanCodeLibrary( self, playAudio=True ):
 
 		""" The main method to scan (parse) a code library, and then call the methods to scan the DOL and 
