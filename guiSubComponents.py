@@ -337,6 +337,77 @@ class BasicWindow( object ):
 		self.window.destroy()
 
 
+class CharacterChooser( BasicWindow ):
+
+	""" Prompts the user to choose a character. This references 
+		internal character ID, which will be stored to "self.charId". 
+		This window will block the main interface until a selection is made. """
+
+	def __init__( self, message='' ):
+
+		BasicWindow.__init__( self, globalData.gui.root, 'Select a Character', offsets=(300, 300) )
+		self.emptySelection = '---'
+		self.charId = -1
+		self.costumeId = -1
+
+		if message: # Optional user message
+			ttk.Label( self.window, text=message, wraplength=500 ).pack( padx=14, pady=(6, 0) )
+			
+		stageChoice = Tk.StringVar()
+		stageIdChooser = ttk.OptionMenu( self.window, stageChoice, self.emptySelection, *globalData.charList, command=self.characterSelected )
+		stageIdChooser.pack( padx=14, pady=(4, 0) )
+		
+		colorChoice = Tk.StringVar()
+		self.colorIdChooser = ttk.OptionMenu( self.window, colorChoice, self.emptySelection, self.emptySelection, command=self.colorSelected )
+		self.colorIdChooser.pack( padx=14, pady=(4, 0) )
+		
+		buttonFrame = ttk.Frame( self.window )
+		ttk.Button( buttonFrame, text='Confirm', command=self.close ).grid( column=0, row=0, padx=6 )
+		ttk.Button( buttonFrame, text='Cancel', command=self.cancel ).grid( column=1, row=0, padx=6 )
+		buttonFrame.pack( pady=(4, 6) )
+
+		# Make this window modal (will not allow the user to interact with main GUI until this is closed)
+		self.window.grab_set()
+		globalData.gui.root.wait_window( self.window )
+
+	def characterSelected( self, selectedOption ):
+
+		""" Called when the user changes the current selection. Sets the currently 
+			selected character ID, and populates the costume color drop-down. """
+
+		self.charId = globalData.charList.index( selectedOption )
+
+		# Get the character and costume color abbreviations for the chosen character
+		charAbbreviation = globalData.charAbbrList[self.charId]
+		costumeOptions = globalData.costumeSlots[charAbbreviation]
+
+		# Format the color options with human-readable names
+		costumeOptions = [ '{}  ({})'.format(abbr, globalData.charColorLookup.get(abbr)) for abbr in costumeOptions ]
+
+		# Populate the costume color chooser, and set a default option
+		self.colorIdChooser['state'] = 'normal'
+		self.colorIdChooser.set_menu( costumeOptions[0], *costumeOptions ) # Using * to expand the list into the arguments input
+		self.costumeId = 0 # For Neutral/Nr
+
+	def colorSelected( self, selectedOption ):
+
+		""" Called when the user changes the current selection. Sets the currently 
+			selected character ID, and populates the costume color drop-down. """
+
+		if self.charId == -1: return # No character selected
+
+		# Get the character and costume color abbreviations for the chosen character
+		charAbbreviation = globalData.charAbbrList[self.charId]
+		costumeOptions = globalData.costumeSlots[charAbbreviation]
+
+		self.costumeId = costumeOptions.index( selectedOption.split()[0] )
+
+	def cancel( self ):
+		self.charId = -1
+		self.costumeId = -1
+		self.close()
+
+
 def cmsg( *args, **kwargs ):
 
 	""" Simple helper function to display a small, windowed message to the user, with text that can be selected/copied. 
@@ -949,81 +1020,6 @@ class CodeSpaceOptionsWindow( BasicWindow ):
 	# 		"""\n\nIf Gecko codes are used, you may notice that the "Total Space Available" shown here will be higher than what's reported by the Codes Free Space indicators in the """
 	# 		'main program window. That is because the free space indicators do not count space that will be assigned for the Gecko codehandler (' + uHex(gecko.codehandlerLength) + ' bytes), '
 	# 		'the codelist wrapper (0x10 bytes), or the codelist.', '', self.window )
-
-
-class ImageDataLengthCalculator( BasicWindow ):
-
-	def __init__( self, root ):
-		BasicWindow.__init__( self, root, 'Image Data Length Calculator' )
-
-		# Set up the input elements
-		# Width
-		ttk.Label( self.window, text='Width:' ).grid( column=0, row=0, padx=5, pady=2, sticky='e' )
-		self.widthEntry = ttk.Entry( self.window, width=5, justify='center' )
-		self.widthEntry.grid( column=1, row=0, padx=5, pady=2 )
-		# Height
-		ttk.Label( self.window, text='Height:' ).grid( column=0, row=1, padx=5, pady=2, sticky='e' )
-		self.heightEntry = ttk.Entry( self.window, width=5, justify='center' )
-		self.heightEntry.grid( column=1, row=1, padx=5, pady=2 )
-		# Input Type
-		ttk.Label( self.window, text='Image Type:' ).grid( column=0, row=2, padx=5, pady=2, sticky='e' )
-		self.typeEntry = ttk.Entry( self.window, width=5, justify='center' )
-		self.typeEntry.grid( column=1, row=2, padx=5, pady=2 )
-		# Result Multiplier
-		ttk.Label( self.window, text='Result Multiplier:' ).grid( column=0, row=3, padx=5, pady=2, sticky='e' )
-		self.multiplierEntry = ttk.Entry( self.window, width=5, justify='center' )
-		self.multiplierEntry.insert( 0, '1' ) # Default
-		self.multiplierEntry.grid( column=1, row=3, padx=5, pady=2 )
-
-		# Bind the event listeners for calculating the result
-		for inputWidget in [ self.widthEntry, self.heightEntry, self.typeEntry, self.multiplierEntry ]:
-			inputWidget.bind( '<KeyRelease>', self.calculateResult )
-
-		# Set the output elements
-		ttk.Label( self.window, text='Required File or RAM space:' ).grid( column=0, row=4, columnspan=2, padx=20, pady=5 )
-		# In hex bytes
-		self.resultEntryHex = ttk.Entry( self.window, width=20, justify='center' )
-		self.resultEntryHex.grid( column=0, row=5, padx=5, pady=5 )
-		ttk.Label( self.window, text='bytes (hex)' ).grid( column=1, row=5, padx=5, pady=5 )
-		# In decimal bytes
-		self.resultEntryDec = ttk.Entry( self.window, width=20, justify='center' )
-		self.resultEntryDec.grid( column=0, row=6, padx=5, pady=5 )
-		ttk.Label( self.window, text='(decimal)' ).grid( column=1, row=6, padx=5, pady=5 )
-
-	def calculateResult( self, event ):
-		try: 
-			widthValue = self.widthEntry.get()
-			if not widthValue: return
-			elif '0x' in widthValue: width = int( widthValue, 16 )
-			else: width = int( widthValue )
-
-			heightValue = self.heightEntry.get()
-			if not heightValue: return
-			elif '0x' in heightValue: height = int( heightValue, 16 )
-			else: height = int( heightValue )
-
-			typeValue = self.typeEntry.get()
-			if not typeValue: return
-			elif '0x' in typeValue: _type = int( typeValue, 16 )
-			else: _type = int( typeValue )
-
-			multiplierValue = self.multiplierEntry.get()
-			if not multiplierValue: return
-			elif '0x' in multiplierValue: multiplier = int( multiplierValue, 16 )
-			else: multiplier = float( multiplierValue )
-
-			# Calculate the final amount of space required.
-			imageDataLength = hsdStructures.ImageDataBlock.getDataLength( width, height, _type )
-			finalSize = int( math.ceil(imageDataLength * multiplier) ) # Can't have fractional bytes, so we're rounding up
-
-			self.resultEntryHex.delete( 0, 'end' )
-			self.resultEntryHex.insert( 0, uHex(finalSize) )
-			self.resultEntryDec.delete( 0, 'end' )
-			self.resultEntryDec.insert( 0, humansize(finalSize) )
-		except:
-			self.resultEntryHex.delete( 0, 'end' )
-			self.resultEntryHex.insert( 0, 'Invalid Input' )
-			self.resultEntryDec.delete( 0, 'end' )
 
 
 class DisguisedEntry( Tk.Entry ):

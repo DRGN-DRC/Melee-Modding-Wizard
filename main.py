@@ -39,7 +39,7 @@ from basicFunctions import (
 	)
 from guiSubComponents import (
 		importGameFiles, DisguisedEntry, VerticalScrolledFrame,
-		HexEditEntry, ImageDataLengthCalculator
+		HexEditEntry, ImageDataLengthCalculator, CharacterChooser
 	)
 from guiDisc import DiscTab, DiscDetailsTab
 from codesManager import CodeManagerTab
@@ -172,9 +172,9 @@ class SettingsMenu( Tk.Menu, object ):
 											variable=globalData.boolSettings['backupOnRebuild'], command=globalData.saveProgramSettings )
 		# self.add_checkbutton( label='Auto-Generate CSP Trim Colors', underline=5, 												# G
 		# 									variable=globalData.boolSettings['autoGenerateCSPTrimColors'], command=globalData.saveProgramSettings )
-		self.add_checkbutton( label='Always Enable Crash Reports', underline=0, 												# B
+		self.add_checkbutton( label='Always Enable Crash Reports', underline=20, 												# R
 											variable=globalData.boolSettings['alwaysEnableCrashReports'], command=globalData.saveProgramSettings )
-		self.add_checkbutton( label='Always Add Files Alphabetically', underline=0, 												# B
+		self.add_checkbutton( label='Always Add Files Alphabetically', underline=11, 												# F
 											variable=globalData.boolSettings['alwaysAddFilesAlphabetically'], command=globalData.saveProgramSettings )
 		
 		# Image-editing related options
@@ -200,19 +200,21 @@ class ToolsMenu( Tk.Menu, object ):
 		super( ToolsMenu, self ).__init__( parent, tearoff=tearoff, *args, **kwargs )
 		self.open = False
 																								# Key shortcut (holding alt)
-		self.add_cascade( label="Test External Stage File", command=self.testStage )					# S
-		self.add_cascade( label="Test External Character File", command=self.testCharacter )			# C
+		self.add_cascade( label="Test External Stage File", command=self.testStage, underline=14 )					# S
+		self.add_cascade( label="Test External Character File", command=self.testCharacter, underline=14 )			# C
 		self.add_separator()
-		self.add_cascade( label="Build xDelta Patch", command=self.notDone )					# S
-		self.add_cascade( label="Build from Patch", command=self.notDone )			# C
+		self.add_cascade( label="Build xDelta Patch", command=self.notDone, underline=6 )							# X
+		self.add_cascade( label="Build from Patch", command=self.notDone, underline=11 )							# P
+		self.add_separator()
+		self.add_cascade( label="Create Tri-CSP", command=self.createTriCsp, underline=1 )							# T
 
 	def notDone( self ):
 		print( 'not yet supported' )
 
 	def testStage( self ):
 
-		""" Prompts the user to choose an external stage file, initializes it, fetches the 
-			Micro Melee disc build, and then sends the stage file to it for testing. """
+		""" Asset Test feature. Prompts the user to choose an external stage file, initializes it, 
+			fetches the Micro Melee disc build, and then sends the stage file to it for testing (booting). """
 
 		# Prompt the user to choose a file, and get its filepath
 		fileTypeOptions = [ ('Stage files', '*.dat *.usd *.0at *.1at *.2at *.3at *.4at *.5at *.6at *.7at *.8at *.9at *.aat *.bat *.cat *.dat *.eat'),
@@ -225,14 +227,6 @@ class ToolsMenu( Tk.Menu, object ):
 		try:
 			newFileObj = StageFile( None, -1, -1, '', extPath=stageFilePath, source='file' )
 			newFileObj.validate()
-
-			# Validation
-			# for entry in newFileObj.rootNodes: # Each entry is a ( structOffset, string ) tuple pair
-			# 	if entry[1] == 'map_head': break
-			# else: # Above loop didn't break; this doesn't appear to be a stage file
-			# 	msg( 'This does not appear to be a valid stage file! This is according to the root nodes table, which has no "map_head" entry.', 'Invalid file' )
-			# 	globalData.gui.updateProgramStatus( 'Invalid input file, "{}"'.format(newFileObj.filename), error=True )
-			# 	return
 
 		except Exception as err:
 			if ';' in str( err ):
@@ -250,6 +244,10 @@ class ToolsMenu( Tk.Menu, object ):
 		microMelee.testStage( newFileObj )
 
 	def testCharacter( self ):
+
+		""" Asset Test feature. Prompts the user to choose an external character file, initializes it, 
+			fetches the Micro Melee disc build, and then sends the character file to it for testing (booting). """
+
 		# Prompt the user to choose a file, and get its filepath
 		fileTypeOptions = [ ('Character files', '*.dat *.usd *.lat *.rat'), ('All files', '*.*') ]
 		charFilePath = importGameFiles( title='Choose your character', fileTypeOptions=fileTypeOptions )
@@ -275,6 +273,42 @@ class ToolsMenu( Tk.Menu, object ):
 		microMelee = globalData.getMicroMelee()
 		if not microMelee: return # User may have canceled the vanilla melee disc prompt
 		microMelee.testCharacter( newFileObj )
+
+	def createTriCsp( self ):
+
+		""" Creates a standard, single-image Character Select Portrait (CSP) or a Tri-CSP for the CSS. """
+
+		if not globalData.disc:
+			msg( 'No disc has been loaded!' )
+			return
+
+		# Prompt the user to choose a character to update
+		selectionWindow = CharacterChooser( "Select a character and costume color for CSP creation:" )
+		if selectionWindow.charId == -1: return # User may have canceled selection
+
+		print( selectionWindow.charId )
+		print( selectionWindow.costumeId )
+
+		# Parse the Core Codes library for the codes needed for booting to match and setting up a pose
+		parser = CodeLibraryParser()
+		modsFilePath = globalData.paths['coreCodes']
+		parser.includePaths = [ os.path.join(modsFilePath, '.include'), os.path.join(globalData.scriptHomeFolder, '.include') ]
+		parser.processDirectory( modsFilePath )
+
+		# Customize the Asset Test mod to load the chosen character/costume
+		codesToInstall = []
+		assetTest = parser.getModByName( 'Asset Test' )
+		if not assetTest:
+			printStatus( 'Unable to find the Asset Test mod in the Core Codes library!', warning=True )
+			return
+		assetTest.customize( "Player 1 Character", selectionWindow.charId )
+		assetTest.customize( "P1 Costume ID", selectionWindow.costumeId )
+		if selectionWindow.charId == 0x13: # Special case for Sheik (for different lighting direction)
+			assetTest.customize( "Stage", 3 ) # Selecting Pokemon Stadium
+		else:
+			assetTest.customize( "Stage", 32 ) # Selecting FD
+		codesToInstall.append( assetTest )
+
 
 
 class MainMenuCanvas( Tk.Canvas ):
@@ -524,13 +558,8 @@ class MainGui( Tk.Frame, object ):
 
 	def updateProgramStatus( self, newStatus, warning=False, error=False, success=False ):
 
-		#if newStatus == '' or newStatus.split()[0] != 'dontUpdate':
-			# Determine the color to use for the status message, based on current pending changes
-			# if unsavedDiscChanges: 
-			# 	statusColor = '#a34343' # red; some change(s) not yet saved.
-			# elif globalDatFile and globalDatFile.unsavedChanges:
-			# 	statusColor = '#a34343' # red; some change(s) not yet saved.
-			# elif globalBannerFile and globalBannerFile.unsavedChanges:
+		""" Updates the status bar at the very bottom of the interface. """
+
 		if warning:
 			statusColor = '#992' # yellow
 		elif error:
@@ -540,7 +569,7 @@ class MainGui( Tk.Frame, object ):
 		else:
 			statusColor = 'black'
 
-		# Update the program status' color and message
+		# Update the label widget's color and message
 		self.statusLabel['foreground'] = statusColor
 		self.statusLabel['text'] = newStatus
 

@@ -12,7 +12,7 @@
 """ Container for global data that all scripts may access. 
 	Contains settings, settings-related load/save functions, and look-up tables. """
 
-programVersion = '0.8.7'
+programVersion = '0.8.8'
 
 # External Dependencies
 import os
@@ -550,6 +550,80 @@ charNameLookup = {
 # 	Falcon = 2
 
 
+charList = [ # By External Character ID
+	"Captain Falcon",	# 0x0
+	"DK",
+	"Fox",
+	"Game & Watch",
+	"Kirby",
+	"Bowser",
+	"Link",
+	"Luigi",
+	"Mario",			# 0x8
+	"Marth",
+	"Mewtwo",
+	"Ness",
+	"Peach",
+	"Pikachu",
+	"Ice Climbers",
+	"Jigglypuff",
+	"Samus",			# 0x10
+	"Yoshi",
+	"Zelda",
+	"Sheik",
+	"Falco",
+	"Young Link",
+	"Doc",
+	"Roy",
+	"Pichu",			# 0x18
+	"Ganondorf",
+	"Master Hand",
+	"Male Wireframe",
+	"Female Wireframe",
+	"Giga Bowser",
+	"Crazy Hand",
+	"Sandbag",
+	"Solo Popo"			# 0x20
+]
+
+
+charAbbrList = [ # By External Character ID
+	'Ca',	# 0x0
+	'Dk',
+	'Fx',
+	'Gw',
+	'Kb',
+	'Kp',
+	'Lk',
+	'Lg',
+	'Mr',	# 0x8
+	'Ms',
+	'Mt',
+	'Ns',
+	'Pe',
+	'Pk',
+	'Pp',	# Both ICies
+	'Pr',
+	'Ss',	# 0x10
+	'Ys',
+	'Zd',
+	'Sk',
+	'Fc',
+	'Cl',
+	'Dr',
+	'Fe',
+	'Pc',	# 0x18
+	'Gn',
+	'Mh',
+	'Bo',
+	'Gl',
+	'Gk',
+	'Ch',
+	'Sb',
+	'Pp'	# Sopo; 0x20
+]
+
+
 charColorLookup = { # 12 Unique color slots
 	'Aq': 'aqua',
 	'Bk': 'black',
@@ -586,6 +660,7 @@ costumeSlots = { # Character Costuems indexed by Costume ID, for each character
 	'Pe': ( 'Nr', 'Ye', 'Wh', 'Bu', 'Gr' ),
 	'Pk': ( 'Nr', 'Re', 'Bu', 'Gr' ),
 	'Pp': ( 'Nr', 'Gr', 'Or', 'Re' ),
+	'Nn': ( 'Nr', 'Ye', 'Aq', 'Wh' ),
 	'Pr': ( 'Nr', 'Re', 'Bu', 'Gr', 'Ye' ),
 	'Ss': ( 'Nr', 'Pi', 'Bk', 'Gr', 'La' ),
 	'Ys': ( 'Nr', 'Re', 'Bu', 'Ye', 'Pi', 'Aq' ),
@@ -603,24 +678,21 @@ costumeSlots = { # Character Costuems indexed by Costume ID, for each character
 	'Gk': ( 'Nr', ),
 	'Ch': ( 'Nr', ),
 	'Sb': ( 'Nr', ),
-	'Nn': ( 'Nr', 'Ye', 'Aq', 'Wh' ),
 }
 
 
-
-
-onePlayerStages = ( 
-	'EF1', 		# Goomba Trophy Stage
-	'EF2', 		# Entei Trophy Stage
-	'EF3', 		# Majora Trophy Stage
-	'He.', 		# All-Star Rest Area
-	'Hr.', 		# Homerun Contest
-	'NBr', 		# F-Zero Grand Prix
-	'NFg', 		# Trophy Collector (Figure Get)
-	'NKr', 		# Mushroom Kingdom Adventure
+onePlayerStages = (
+	'EF1',		# Goomba Trophy Stage
+	'EF2',		# Entei Trophy Stage
+	'EF3',		# Majora Trophy Stage
+	'He.',		# All-Star Rest Area
+	'Hr.',		# Homerun Contest
+	'NBr',		# F-Zero Grand Prix
+	'NFg',		# Trophy Collector (Figure Get)
+	'NKr',		# Mushroom Kingdom Adventure
 	'NPo',		# Race to the Finish (Pushon)
-	'NSr', 		# Underground Maze
-	'NZr', 		# Brinstar Escape Shaft
+	'NSr',		# Underground Maze
+	'NZr',		# Brinstar Escape Shaft
 	'Te.'		# TEST (Coffee Shop)
 )
 
@@ -1322,5 +1394,5 @@ menuTextDictionary = {
 	'41f4': '慄'
 
 	}
-	# Info on editing the images used to display these characters in-game can be found here:
+	# Info on finding/editing the in-game textures for these characters can be found here:
 	# 	https://smashboards.com/threads/changing-menu-text.368452/page-2#post-21591476

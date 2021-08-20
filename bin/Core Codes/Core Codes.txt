@@ -9,3 +9,26 @@ NTSC 1.02 --- 0x80397878 ---- 801E0000 -> 4800020C
 NTSC 1.01 --- 0x80396B98 ---- 801E0000 -> 4800020C
 NTSC 1.00 --- 0x803959B4 ---- 801E0000 -> 4800020C
 PAL 1.00 ---- 0x803977A0 ---- 801E0000 -> 4800020C
+
+
+	-==-
+
+
+Action State Freeze
+Freezes any character in-place once they've reached a specific frame of a specific action state. Note that the Frame ID is the first 4 digits of a frame number after converting it to a float.
+Customizations:
+    uint16 Action State ID = 0; 0-0x10000
+    uint16 Frame ID = 0; 0-0x10000
+[Achilles]
+Revision ---- DOL Offset ---- Hex to Replace ---------- ASM Code -
+NTSC 1.02 --- 0x8016CDA0 ---- 9421FFD0 -> Branch
+
+81EDC18C 81EF0020
+81EF002C 820F0010
+2C10[[Action State ID]] 40820018
+A20F0894 2C10[[Frame ID]]
+4082000C 3A000007
+9A0F2219 81EF0000
+81EF0008 2C0F0000
+40A2FFD0 9421FFD0
+48000000
