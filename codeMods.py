@@ -3319,9 +3319,9 @@ class CommandProcessor( object ):
 					if ']]' in chunk:
 						varName, theRest = chunk.split( ']]' )
 
-						if requiresAssembly: # Can use the raw value
+						if requiresAssembly: # No need to pad the value
 							value = optionData.pop( 0 )[-1]
-							sectionChunks[j] = chunk.replace( varName+']]', value )
+							sectionChunks[j] = chunk.replace( varName+']]', str(value) )
 						else: # Needs to be packed to the appropriate length for the data type
 							optionType, value = optionData.pop( 0 )
 							if '0x' in value:
