@@ -9,6 +9,7 @@
 
 # Ignore program temporary files
 bin/tempFiles/
+bin/Micro Melee.iso
 
 # Visual Studio Code project folder
 .vscode

@@ -289,7 +289,6 @@ GrOp.rat: Return to Dream Land
 GrOy.hat: Yoshi's Island (N64) Milun Hack
 GrOy.wat: WarioWare Inc.
 GrPb.usd: "Pok\xE9mon Stadium (Blue No transforms)" # Old 20XX
-GrPg.usd: Indigo Stadium                 # 20XXHP 5.0+
 GrPn.usd: "Pok\xE9mon Stadium (Blue No transforms)" # 20XXHP 5.0+
 GrSh.sat: Skyrule (Redux)
 GrSh.0at: Dark Temple                    # 20XXHP 5.0+
@@ -329,3 +328,4 @@ GrTCa.sat: Icicle Mountain Smashville
 GrTSk.cat: Castle Siege
 GrGd.0at: Jungle Japes [Garden]
 GrFs.0at: Fourside
+GrTSk.iat: SSB64 Intro Stage             # 20XXHP 5.0+

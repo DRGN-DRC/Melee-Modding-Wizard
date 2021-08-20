@@ -950,10 +950,6 @@ class Disc( object ):
 		""" Looks for an iid/isoPath, i.e. .files() dictionary key, that should 
 			alphanumerically follow the given isoPath. """
 
-		# if not self.fstEntries:
-		# 	self.buildFstEntries()
-		# 	self.fstRebuildRequired = True
-
 		newIsoPath = newIsoPath.lower()
 
 		for fileObj in self.files.itervalues():
@@ -963,7 +959,8 @@ class Disc( object ):
 			# Compare characters in this isoPath to the target path
 			for newChar, char in zip( newIsoPath, isoPath ):
 				if newChar == char: continue
-				elif newChar < char: return fileObj.isoPath # Found the index
+				elif newChar < char: # Found the index
+					return fileObj.isoPath
 				else: break # Move on to the next isoPath
 			else: # The loop above didn't break or return; the two paths are the same up until the last character of the shorter path
 				if len( newIsoPath ) == len( isoPath ):
@@ -973,19 +970,18 @@ class Disc( object ):
 				else:
 					return 'end'
 
-	def addFiles( self, fileObjects, insertAfter=False ):
+	def addFiles( self, newFileObjects, insertAfter=False ):
 
-		""" Adds one or more file objects to the disc's file system. The disc will need to be rebuilt 
-			after this operation. New FST Entries will be created when the disc is rebuilt. A file's 
-			insertion key (may be an attribute of the given file) should be the iid/isoPath of 
-			an existing file in the .files dict. Each file will be added before that iid. """
+		""" Adds one or more file objects to the disc's file system. The disc will need to be rebuilt after 
+			this operation. A file's insertion key (may be an attribute of the given file) should be the 
+			iid/isoPath of an existing file in the .files dict. Each file will be added before that iid. """
 
-		for fileObj in fileObjects:
+		for fileObj in newFileObjects:
 			# Make sure this file has an isoPath
 			if not fileObj.isoPath:
 				fileObj.isoPath = self.gameId + '/' + fileObj.filename
 
-			# Check for a property which may dictate where this file goes
+			# Check for a property which may dictate where this file is placed relative to the rest
 			insertionKey = getattr( fileObj, 'insertionKey', None )
 			if not insertionKey:
 				insertionKey = self.determineInsertionKey( fileObj.isoPath )
@@ -1004,8 +1000,9 @@ class Disc( object ):
 			else:
 				print 'inserting file just before', insertionKey
 				self.files.insert_before( insertionKey, (fileObj.isoPath, fileObj) )
+			
 			fileObj.disc = self
-			fileObj.unsavedChanges.append( 'New disc file, "{}"'.format(fileObj.isoPath) )
+			fileObj.unsavedChanges.append( 'Newly added to disc' )
 
 			# Ensure the file size values have been set and data retrieved
 			if fileObj.size == -1:
