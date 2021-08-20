@@ -169,12 +169,12 @@ class DiscTab( ttk.Frame ):
 
 		""" Clears and repopulates the Disc File Tree. Generally, population of the Disc Details Tab is also called by this.
 
-				- updateStatus: 		Allows the program status to be updated after this method runs. 
-				- preserveTreeState:	Restores the current state of the treeview after reload, 
-										including open folders, file/folder selections and focus, and scroll position 
+				- updateStatus: 		Allows or prevents the program status to be updated after this method runs. 
+				- preserveTreeState:	Restores the current state of the treeview after reload, including 
+										open folders, file/folder selections and focus, and scroll position.
 				- switchTab:			
 				- updatedFiles:			If provided, this will be a list of iids (isoPaths) that were updated during a save operation.
-										These files (and their parent folders) will be highlighted green to show the update. """
+										These files (and their parent folders) will be highlighted green to indicate changes. """
 
 		if preserveTreeState:
 			# Get the iids of all open folders

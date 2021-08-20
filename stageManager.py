@@ -898,7 +898,7 @@ class StageManager( ttk.Frame ):
 			# Use the internal ID to get the new stage name and file name
 			stageName = globalData.internalStageIds.get( newIntStageId, 'Unknown' )
 			#filename = globalData.stageFileNames.get( newIntStageId, 'Unknown' )
-			filename = self.dol.getStageFileName( self.selectedStageId )[1]
+			filename = self.dol.getStageFileName( newIntStageId )[1]
 			if stageName == 'Unknown':
 				print 'Unable to find a stage name for internal stage ID', hex(newIntStageId)
 			elif filename == 'Unknown':
@@ -1342,7 +1342,7 @@ class StageManager( ttk.Frame ):
 		# Check for 20XX random neutrals
 		if page == 1 and stageIdToLoad in ( 0xC, 0x24, 0x25, 0x1C, 0x10, 0xA ): # FoD, Battlefield, FD, DreamLand, Stadium, Yoshi's Story
 			filenames = []
-			for char in '0123456789abcde':
+			for char in '0123456789abcde': # F reserved for random stage
 				if stageIdToLoad == 0x10: # Pokemon Stadium; use .usd file extension
 					filenames.append( 'GrP{}.usd'.format(char) )
 				else:
@@ -1393,32 +1393,11 @@ class StageManager( ttk.Frame ):
 		return displayName
 
 	def clickedVanillaIcon( self, canvas ):
-		# Make sure the ID is recognized
-		# vanillaStageFileName = globalData.stageFileNames.get( self.selectedStageId )
-		# if not vanillaStageFileName:
-		# 	print 'Unable to find a stage filename for internal stage ID', hex( self.selectedStageId )
-		# 	return
-
-		# # Get the vanilla stage file name for this stage slot, and get the offset for its string in the DOL
-		# # if vanillaStageFileName == 'GrPs.usd': # Special case for Stadium, which numbers for random neutrals differently
-		# # 	searchString = '/GrP0'
-		# # else:
-		# searchString = '/' + vanillaStageFileName.split( '.' )[0]
-		# dolFilenameOffset = self.dol.data.find( searchString ) + 1 # Luckily there will only be one match
-		# # todo: potential big perf gain by using https://inspirated.com/2010/06/19/using-boyer-moore-horspool-algorithm-on-file-streams-in-python
-		# assert dolFilenameOffset != -1, 'Unable to find the stage file name for "{}" in the DOL!'.format( searchString )
-		# #dolStageFilename = self.dol.data[dolFilenameOffset:dolFilenameOffset+10].split( '\x00' )[0]
-
+		# Find the stage file string in the DOL for the selected stage
 		dolFilenameOffset, dolStageFilename = self.dol.getStageFileName( self.selectedStageId )
 		if dolFilenameOffset == -1:
 			print 'Unable to determine a stage file name for stage ID', hex( self.selectedStageId )
 			return
-
-		# if not '.' in dolStageFilename:
-		# 	if globalData.disc.countryCode == 1: # Banner file encoding = latin_1
-		# 		dolStageFilename += '.usd'
-		# 	else: # Banner file encoding = shift_jis
-		# 		dolStageFilename += '.dat'
 
 		#print 'clicked', dolStageFilename, 'at', uHex( dolFilenameOffset )
 		
@@ -1520,10 +1499,10 @@ class StageManager( ttk.Frame ):
 
 		# Disable the controls for stages until a stage is selected
 		for widget in self.controlsFrame.winfo_children():
-			# if widget['text'] == 'Import':
-			# 	widget['state'] = 'normal'
-			# else:
-			widget['state'] = 'disabled'
+			if widget['text'] == 'Add Variation':
+				widget['state'] = 'normal'
+			else:
+				widget['state'] = 'disabled'
 
 	def stageVariationSelected( self, event ):
 
@@ -1558,18 +1537,18 @@ class StageManager( ttk.Frame ):
 
 			for widget in self.controlsFrame.winfo_children():
 				# Disable the Add Variation button if this stage is maxed out on slots; all else enabled
-				if widget['text'] == 'Add Variation':
-					if stageFile.isRandomNeutral():
-						if self.variationsTreeview.tag_has( 'fileNotFound' ):
-							widget['state'] = 'normal'
-						else:
-							widget['state'] = 'disabled'
-					elif canvas.pageNumber == 1: # Random byte value replacements (mode 0xFF) not supported on first page
-						widget['state'] = 'disabled'
-					elif len( self.variationsTreeview.get_children() ) == 4: # For other pages, only up to 4 variations supported
-						widget['state'] = 'disabled'
-					else:
-						widget['state'] = 'normal'
+				if widget['text'] == 'Add Variation' and not self.allowAddingVariations( stageFile, canvas ):
+					# if stageFile.isRandomNeutral():
+					# 	if self.variationsTreeview.tag_has( 'fileNotFound' ):
+					# 		widget['state'] = 'normal'
+					# 	else:
+					# 		widget['state'] = 'disabled'
+					# elif canvas.pageNumber == 1: # Random byte value replacements (mode 0xFF) not supported on first page
+					# 	widget['state'] = 'disabled'
+					# elif len( self.variationsTreeview.get_children() ) == 4: # For other pages, only up to 4 variations supported
+					widget['state'] = 'disabled'
+					# else:
+					# 	widget['state'] = 'normal'
 				else:
 					widget['state'] = 'normal'
 
@@ -1973,14 +1952,21 @@ class StageManager( ttk.Frame ):
 				success = importSingleFileWithGui( stageObj )
 
 			else: # No file by this name in the disc; it's probably a random neutral stage slot selected. User probably wants to add a new file to disc
-				success = self.chooseStageFileToAddToDisc( isoPath )
-				stageObj = globalData.disc.files.get( isoPath )
+				stageObj = self.getStageFileToAddToDisc( isoPath )
+				if stageObj:
+					success = True
 
-		if not success:
-			return
+		if success:
+			self.updateGuiForNewlyAddedStage( stageObj, selection )
+
+	def updateGuiForNewlyAddedStage( self, stageObj, selection=None ):
+
+		""" Handles updating elements in each tab in the program (if present) to accomodate 
+			a new stage being added to the disc (also works for imports/replacements). """
 
 		# Update the name shown in the Variations treeview
-		self.variationsTreeview.item( selection[0], text=self.getVariationDisplayName(stageObj), tags=() )
+		if selection:
+			self.variationsTreeview.item( selection[0], text=self.getVariationDisplayName(stageObj), tags=() )
 
 		# Show the new file in the Disc File Tree
 		if globalData.gui.discTab:
@@ -2004,10 +1990,10 @@ class StageManager( ttk.Frame ):
 		if returnCode == 0:
 			globalData.gui.updateProgramStatus( 'Stage added successfully' )
 
-	def chooseStageFileToAddToDisc( self, newIsoPath ):
+	def getStageFileToAddToDisc( self, newIsoPath ):
 
 		""" Prompts the user for a new file to add to the disc, initilizes it, and adds it to the disc filesystem. 
-			Returns True/False on success. """
+			Returns the new stage object if successful, or None otherwise. """
 
 		print 'attempting to add', newIsoPath
 
@@ -2018,7 +2004,7 @@ class StageManager( ttk.Frame ):
 		newFilePath = importGameFiles( title='Choose a stage file to add to the disc.', fileTypeOptions=fileTypeOptions )
 						
 		# The above will return an empty string if the user canceled
-		if not newFilePath: return False
+		if not newFilePath: return None
 
 		# Initialize the new file
 		try:
@@ -2027,17 +2013,34 @@ class StageManager( ttk.Frame ):
 		except Exception as err:
 			print 'Exception during file load;', err
 			globalData.gui.updateProgramStatus( 'Unable to load file; ' + str(err), error=True )
-			return False
+			return None
 
 		globalData.disc.addFiles( [newFileObj] )
 
-		return True
+		return newFileObj
+
+	def allowAddingVariations( self, stageFile, canvas ):
+
+		""" Used to determine whether the 'Add Variation' button should be enabled/disabled. """
+
+		if stageFile.isRandomNeutral():
+			if self.variationsTreeview.tag_has( 'fileNotFound' ):
+				return True
+			else:
+				return False
+		elif canvas.pageNumber == 1: # Random byte value replacements (mode 0xFF) not supported on first page
+			return False
+		elif len( self.variationsTreeview.get_children() ) == 4: # For other pages, only up to 4 variations supported
+			return False
+		else:
+			return True
 
 	def addStageVariation( self ):
 
 		""" Called by the main control button. Adds a new stage variation for the currently selected stage slot/icon.
 			Will add to the first empty slot (if there is one). """
 
+		# Get the potential isoPaths for this stage slot
 		variationIids = self.variationsTreeview.get_children()
 		if not variationIids: # Failsafe; not possible?
 			msg( 'No variations for this stage are available!' )
@@ -2051,8 +2054,6 @@ class StageManager( ttk.Frame ):
 				print 'unused isoPath (first unused variation slot):', isoPath
 				break
 		else: # Loop above didn't break; all slots are filled
-			print 'all slots filled'
-
 			if stageObj.isRandomNeutral():
 				msg( 'There are no open random neutral slots for this stage. You will need to import over, or delete, an existing variation.', 'No open stage slots' )
 			else:
@@ -2061,7 +2062,11 @@ class StageManager( ttk.Frame ):
 			globalData.gui.updateProgramStatus( "No empty slots available.", warning=True )
 			return
 
-		self.chooseStageFileToAddToDisc( isoPath )
+		# Prompt the user to choose a new stage file, and add it to the disc
+		newStage = self.getStageFileToAddToDisc( isoPath )
+
+		if newStage:
+			self.updateGuiForNewlyAddedStage( newStage, self.variationsTreeview.selection() )
 
 	def renameStage( self, useDefaultText=True, updateProgramStatus=True ):
 

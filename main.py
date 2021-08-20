@@ -863,9 +863,10 @@ class MainGui( Tk.Frame, object ):
 		# Add/initialize the Disc File Tree tab
 		if not self.discTab:
 			self.discTab = DiscTab( self.mainTabFrame, self )
-			self.mainTabFrame.update_idletasks()
+			#self.mainTabFrame.update_idletasks()
 			#self.mainTabFrame.update()
 		self.discTab.loadDisc( updateStatus=updateStatus, preserveTreeState=preserveTreeState, switchTab=switchTab, updatedFiles=updatedFiles )
+		self.mainTabFrame.update_idletasks()
 
 		# Add/initialize the Disc Details tab, and load the disc's info into it
 		if not self.discDetailsTab:
