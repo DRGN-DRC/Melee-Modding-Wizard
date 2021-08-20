@@ -24,7 +24,7 @@ import ConfigParser
 
 from sys import argv as programArgs
 from string import hexdigits 				# For checking that a string only consists of hexadecimal characters
-from collections import OrderedDict
+#from collections import OrderedDict
 from binascii import hexlify, unhexlify 	# Convert from bytearrays to strings (and vice verca via unhexlify)
 
 # Internal Dependencies
@@ -33,7 +33,6 @@ import globalData
 from dol import Dol
 from codeMods import regionsOverlap, CodeLibraryParser
 from hsdFiles import FileBase, fileFactory
-#from globalData import isExtractedDirectory, charNameLookup, charColorLookup
 from basicFunctions import roundTo32, uHex, toHex, toInt, toBytes, humansize, grammarfyList, createFolders, msg, printStatus, ListDict
 
 
@@ -1412,7 +1411,7 @@ class Disc( object ):
 					originalIsoBinary.seek( fileObj.offset )
 					fileData = originalIsoBinary.read( fileObj.size )
 				else:
-					print 'updating', fileObj.filename, '| source:', fileObj.source, '| unsaved changes:', len(fileObj.unsavedChanges)
+					#print 'updating', fileObj.filename, '| source:', fileObj.source, '| unsaved changes:', len(fileObj.unsavedChanges)
 					fileData = fileObj.getData()
 					filesUpdated.add( fileObj.isoPath )
 				newIsoBinary.write( fileData )
@@ -2714,14 +2713,14 @@ class MicroMelee( Disc ):
 		parser.includePaths = [ os.path.join(modsFilePath, '.include'), os.path.join(globalData.scriptHomeFolder, '.include') ]
 		parser.processDirectory( modsFilePath )
 
-		# Customize the code mod to load the given stage
+		# Customize the Asset Test mod to load the given stage
 		codesToInstall = []
 		assetTest = parser.getModByName( 'Asset Test' )
-		if assetTest:
-			codesToInstall.append( assetTest )
-		else:
+		if not assetTest:
 			printStatus( 'Unable to find the Asset Test mod in the Core Codes library!', warning=True )
+			return
 		assetTest.customize( "Stage", externalStageId )
+		codesToInstall.append( assetTest )
 		
 		# Add Enable OSReport Print on Crash, if enabled
 		if globalData.checkSetting( 'alwaysEnableCrashReports' ):
@@ -2771,15 +2770,15 @@ class MicroMelee( Disc ):
 		parser.includePaths = [ os.path.join(modsFilePath, '.include'), os.path.join(globalData.scriptHomeFolder, '.include') ]
 		parser.processDirectory( modsFilePath )
 
-		# Customize the code mod to load the given stage
+		# Customize the Asset Test mod to load the given character
 		codesToInstall = []
 		assetTest = parser.getModByName( 'Asset Test' )
-		if assetTest:
-			codesToInstall.append( assetTest )
-		else:
+		if not assetTest:
 			printStatus( 'Unable to find the Asset Test mod in the Core Codes library!', warning=True )
+			return
 		assetTest.customize( "Player 1 Character", charObj.extCharId )
 		assetTest.customize( "P1 Costume ID", charObj.getCostumeId() )
+		codesToInstall.append( assetTest )
 
 		# Restore the DOL's data to vanilla and then install the necessary codes
 		self.restoreDol()

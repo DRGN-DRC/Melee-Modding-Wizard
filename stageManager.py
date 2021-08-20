@@ -2681,7 +2681,7 @@ class StageSwapEditor( BasicWindow ):
 
 		selectionWindow = ExternalStageIdChooser()
 
-		if not selectionWindow.stageId: # User canceled
+		if selectionWindow.stageId == -1: # User canceled
 			return
 
 		self.updateWithNewExtStageId( selectionWindow.stageId )
@@ -2765,13 +2765,15 @@ class StageSwapEditor( BasicWindow ):
 
 class ExternalStageIdChooser( BasicWindow ):
 
-	""" Prompts the user with several categorized drop-down lists, to select a stage via external stage ID. """
+	""" Prompts the user with several categorized drop-down lists for selecting a stage.
+		This references external stage ID, which will be stored to "self.stageId". 
+		This window will block the main interface until a selection is made. """
 
 	def __init__( self ):
 
 		BasicWindow.__init__( self, globalData.gui.root, 'Select a Stage', offsets=(300, 300) )
 		self.emptySelection = '---'
-		self.stageId = None
+		self.stageId = -1
 
 		# Separate the external stage ID dictionary into more manageable chunks
 		idList = globalData.externalStageIds.items() # Creates a list of key/value pairs, which will be (externalStageId, stageName)
@@ -2781,7 +2783,7 @@ class ExternalStageIdChooser( BasicWindow ):
 			( 'Adventure Mode', [ item for item in idList if item[0] > 0x3A and item[0] <= 0x51 ] ),
 			( 'Classic Mode', [ item for item in idList if item[0] > 0x55 and item[0] <= 0x7C ] )
 		]
-		self.stageLists[0][1][0] = ( 0, 'No change' )
+		self.stageLists[0][1][0] = ( 0, 'N/A' )
 
 		mainFrame = ttk.Frame( self.window )
 		ttk.Label( mainFrame, text='Stage Name / External Stage ID:' ).grid( column=1, row=0, padx=6, pady=4 )
@@ -2792,7 +2794,7 @@ class ExternalStageIdChooser( BasicWindow ):
 			ttk.Label( mainFrame, text=listName ).grid( column=0, row=row, padx=14, pady=4 )
 
 			# Add the dropdown menu
-			options = [ '{} / 0x{:X}'.format(stageName, stageId) if stageId != 0 else 'N/A (No swap)' for stageId, stageName in stageList ]
+			options = [ '{} / 0x{:X}'.format(stageName, stageId) if stageId != 0 else 'N/A (No swap) / 0x0' for stageId, stageName in stageList ]
 			stageChoice = Tk.StringVar()
 			stageIdChooser = ttk.OptionMenu( mainFrame, stageChoice, self.emptySelection, *options, command=self.optionSelected )
 			stageIdChooser.grid( column=1, row=row, padx=14, pady=4 )
@@ -2812,6 +2814,11 @@ class ExternalStageIdChooser( BasicWindow ):
 		globalData.gui.root.wait_window( self.window )
 
 	def optionSelected( self, selectedOption ):
+
+		""" Called when the user changes the current selection in any of the
+			drop-down lists. Sets the currently selected stage ID, and clears 
+			(un-sets) the other drop-down lists. """
+
 		# Get the stage ID by itself
 		stageId = selectedOption.split( '/' )[1]
 		self.stageId = int( stageId.strip(), 16 )
@@ -2820,22 +2827,16 @@ class ExternalStageIdChooser( BasicWindow ):
 		for widget in self.listWidgets:
 			if self.stageId < widget.stageList[0][0] or self.stageId > widget.stageList[-1][0]:
 				widget.var.set( self.emptySelection )
-		# else: # Loop above didn't break; unable to find the list!
-		# 	self.stageId = None
-		# 	return
-
-		#self.stageId = stageId
-		print 'stage ID set to', self.stageId
 
 	def cancel( self ):
-		self.stageId = None
+		self.stageId = -1
 		self.close()
 
 
 class MusicBehaviorEditor( BasicWindow ):
 
-	""" Prompts the user with several options for stage music behavior, 
-		for the currently selected music table entry. """
+	""" Prompts the user with several options for stage music 
+		behavior for the currently selected music table entry. """
 
 	def __init__( self, initialValue ):
 

@@ -343,12 +343,12 @@ class FileBase( object ):
 			if self.filename.startswith( 'Ef' ): # Effects files
 				if not inConvenienceFolder: description = 'Effects file for '
 				if self.filename == 'EfFxData.dat': description += 'Fox & Falco'
-				else: description += globalData.charNameLookup[ self.filename[2:4] ]
+				else: description += globalData.charNameLookup.get( self.filename[2:4], '' )
 			elif self.filename.startswith( 'GmRegend' ): # Congratulations screens
 				if not inConvenienceFolder: description = 'Congratulations screen'
 			elif self.filename.startswith( 'GmRstM' ): # Results screen animations
-				if inConvenienceFolder: description = globalData.charNameLookup[ self.filename[6:8] ]
-				else: description = 'Results screen animations for ' + globalData.charNameLookup[ self.filename[6:8] ]
+				if inConvenienceFolder: description = globalData.charNameLookup.get( self.filename[6:8], '' )
+				else: description = 'Results screen animations for ' + globalData.charNameLookup.get( self.filename[6:8], '' )
 			elif self.filename.startswith( 'MvEnd' ): # 1-P Ending Movies
 				if not inConvenienceFolder: description = '1-P Ending Movie'
 			elif self.filename.startswith( 'Pl' ):
