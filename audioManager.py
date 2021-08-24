@@ -318,10 +318,10 @@ class AudioManager( ttk.Frame ):
 		self.trackInfoLabel['text'] = '\n'.join( [musicId, fileSizeString, '{:,}'.format(musicFile.sampleRate), str(musicFile.channels), durationString, loopPointString] )
 
 		# Update the Play/Pause button
-		if self.audioEngine.isPlayingAudio() and self.audioEngine.audioThread.name == self.controlModule.audioFile.filename: # i.e. this is the file currently playing audio
-			self.controlModule.showPauseBtn()
-		else:
-			self.controlModule.showPlayBtn()
+		# if self.audioEngine.isPlayingAudio() and self.audio self.audioEngine.audioThread.name == self.controlModule.audioFile.filename: # i.e. this is the file currently playing audio
+		# 	self.controlModule.showPauseBtn()
+		# else:
+		# 	self.controlModule.showPlayBtn()
 
 	def exportTrack( self ):
 
@@ -913,15 +913,16 @@ class TrackAdder( BasicWindow ):
 
 
 class AudioEngine:
+
+	""" Orchestrates audio start/stop/pause functionality within a separate audio-dedicated thread. """
 	
 	def __init__( self ):
-		#self.audioFile = None
 		self.audioThread = None
 		self.readPos = -1 # Read position for the currently playing audio file
 		self.playbackAllowed = Event()
 		self.exitAudioThread = Event()
 		self.playRepeat = Event()
-		self.volume = .28
+		self.volume = .35
 
 	def checkForDotNetFramework( self ): #todo
 
@@ -935,9 +936,12 @@ class AudioEngine:
 		# if not playConcurrently:
 		self.stop()
 
-		# Start a new audio thread
+		# Convert the track to WAV format
 		assert fileObj.getAsWav, 'Error; fileObj given to AudioEngine has no getAsWav method.'
 		wavFilePath = fileObj.getAsWav()
+		if not wavFilePath: return # Indicates an error (should have been conveyed in some way by now)
+
+		# Reset flags to allow playback
 		self.playbackAllowed.set()
 		self.exitAudioThread.clear()
 
@@ -1068,12 +1072,10 @@ class AudioEngine:
 		return struct.pack( chunkFormat, *unpackedData )
 
 
-class AudioControlModule( ttk.Frame ):
+class AudioControlModule( object, ttk.Frame ):
 
 	def __init__( self, parent, audioEngine, audioFile=None, *args, **kwargs ):
 		ttk.Frame.__init__( self, parent, *args, **kwargs )
-		self.audioEngine = audioEngine
-		self.audioFile = audioFile
 
 		# Add the primary buttons
 		self.playBtn = ttk.Button( self, text='Pla', width=4, command=self.playAudio )
@@ -1084,6 +1086,30 @@ class AudioControlModule( ttk.Frame ):
 		self.resetBtn.grid( column=2, row=0 )
 		self.repeatModeVar = Tk.IntVar()
 		ttk.Checkbutton( self, text='Repeat', variable=self.repeatModeVar, command=self.toggleRepeatMode ).grid( column=3, row=0 )
+
+		self.audioEngine = audioEngine
+		self.audioFile = audioFile
+
+	@property
+	def audioFile( self ):
+		return self._audioFile
+
+	@audioFile.setter
+	def audioFile( self, audioFile ):
+
+		""" Updates the status of the play/pause button when the target file to play is changed. """
+
+		self._audioFile = audioFile
+
+		if not audioFile: # Make no change to the play/pause button
+			return
+
+		if self.audioEngine.isPlayingAudio():
+			# Check if this is a different song than the one that's currently playing
+			if self.audioEngine.audioThread.name != self.audioFile.filename:
+				self.showPlayBtn()
+			else: # Must be the same file that's already playing
+				self.showPauseBtn()
 
 	def showPlayBtn( self ):
 		self.playBtn['text'] = 'Pla'
@@ -1117,14 +1143,13 @@ class AudioControlModule( ttk.Frame ):
 				self.showPauseBtn()
 				return
 
-		#else:
 		self.audioEngine.start( self.audioFile, self.showPlayBtn )
 		self.showPauseBtn()
 
 	def toggleRepeatMode( self ):
 
-		""" Wrapper for the "Repeat" checkbox in the GUI. Using a variable such as an IntVar, which is 
-			tied to the GUI, can cause severe problems, so this method instead uses the IntVar variable 
+		""" Wrapper for the "Repeat" checkbox in the GUI. Using a variable such as an IntVar (which is tied to 
+			the GUI) in another thread can cause severe problems, so this method instead uses the IntVar variable 
 			to control an event object, which is then used to control looping in the thread playing audio. """
 
 		if self.repeatModeVar.get():
