@@ -29,9 +29,9 @@ from PIL import Image, ImageTk, ImageDraw, ImageFilter, ImageChops
 # Internal dependencies
 import globalData
 
+from tools import TriCspCreator
 from disc import Disc, isExtractedDirectory
 from hsdFiles import StageFile, CharCostumeFile
-#from globalData import isExtractedDirectory
 from basicFunctions import (
 		msg, uHex,
 		humansize, openFolder,
@@ -39,7 +39,7 @@ from basicFunctions import (
 	)
 from guiSubComponents import (
 		importGameFiles, DisguisedEntry, VerticalScrolledFrame,
-		HexEditEntry, ImageDataLengthCalculator, CharacterChooser
+		HexEditEntry, CharacterChooser
 	)
 from guiDisc import DiscTab, DiscDetailsTab
 from codesManager import CodeManagerTab
@@ -278,6 +278,10 @@ class ToolsMenu( Tk.Menu, object ):
 
 		""" Creates a standard, single-image Character Select Portrait (CSP) or a Tri-CSP for the CSS. """
 
+		cspCreator = TriCspCreator()
+
+		return
+
 		if not globalData.disc:
 			msg( 'No disc has been loaded!' )
 			return
@@ -308,7 +312,6 @@ class ToolsMenu( Tk.Menu, object ):
 		else:
 			assetTest.customize( "Stage", 32 ) # Selecting FD
 		codesToInstall.append( assetTest )
-
 
 
 class MainMenuCanvas( Tk.Canvas ):

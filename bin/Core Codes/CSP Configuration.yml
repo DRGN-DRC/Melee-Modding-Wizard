@@ -1,0 +1,314 @@
+Bowser:
+  threshold: 40
+  centerImageXOffset: -34
+  centerImageYOffset: 186
+  centerImageScaling: .683
+  sideImagesXOffset: -315
+  sideImagesYOffset: -62
+  sideImagesScaling: .48
+  reverseSides: False
+  camX: 4172526c
+  camY: c00727ed
+  camZ: 426f382b
+
+Captain Falcon: 
+  threshold: 40
+  centerImageXOffset: 0
+  centerImageYOffset: 124
+  centerImageScaling: .87
+  sideImagesXOffset: -300
+  sideImagesYOffset: -64
+  sideImagesScaling: .46
+  reverseSides: False
+  camX: 42004ae7
+  camY: 40c80aff
+  camZ: 4197e801
+
+DK:
+  threshold: 40
+  centerImageXOffset: -307
+  centerImageYOffset: 169
+  centerImageScaling: .62
+  sideImagesXOffset: -328
+  sideImagesYOffset: -134
+  sideImagesScaling: .5
+  reverseSides: False
+  camX: 42726fbe
+  camY: c17a10f1
+  camZ: 420dc295
+
+Doctor Mario: 
+  threshold: 40
+  centerImageXOffset: 23
+  centerImageYOffset: 207
+  centerImageScaling: .8
+  sideImagesXOffset: -280
+  sideImagesYOffset: -55
+  sideImagesScaling: .47
+  reverseSides: False
+  camX: 41058c79
+  camY: 40a05ed7
+  camZ: 41f53181
+
+Falco:
+  threshold: 40
+  centerImageXOffset: 102
+  centerImageYOffset: 166
+  centerImageScaling: .85
+  sideImagesXOffset: -270
+  sideImagesYOffset: -40
+  sideImagesScaling: .42
+  reverseSides: False
+  camX: 41ab0f1b
+  camY: 3ebe90dd
+  camZ: 4215f34b
+
+Fox:
+  threshold: 40
+  centerImageXOffset: 72
+  centerImageYOffset: 164
+  centerImageScaling: .87
+  sideImagesXOffset: -270
+  sideImagesYOffset: -40
+  sideImagesScaling: .42
+  reverseSides: False
+  camX: 4182015e
+  camY: 3eb3cc4a
+  camZ: 42152d9b
+
+Game and Watch:
+  threshold: 40
+  centerImageXOffset: -266
+  centerImageYOffset: 48
+  centerImageScaling: .55
+  sideImagesXOffset: -280
+  sideImagesYOffset: -31
+  sideImagesScaling: .42
+  reverseSides: False
+  camX: 00000000
+  camY: c09eee2b
+  camZ: 423ef62b
+
+Ganon:
+  threshold: 40
+  centerImageXOffset: -10
+  centerImageYOffset: 167
+  centerImageScaling: .90
+  sideImagesXOffset: -450
+  sideImagesYOffset: -89
+  sideImagesScaling: .56
+  reverseSides: False
+  camX: 41363c41
+  camY: 41009923
+  camZ: 4242322f
+
+Ice Climbers:
+  threshold: 30
+  centerImageXOffset: 0
+  centerImageYOffset: 208
+  centerImageScaling: .9
+  sideImagesXOffset: -170
+  sideImagesYOffset: 0
+  sideImagesScaling: .3
+  reverseSides: False
+  camX: 41d68b54
+  camY: 3e2d1618
+  camZ: 41efe201
+
+Jigglypuff:
+  threshold: 40
+  centerImageXOffset: 47
+  centerImageYOffset: 165
+  centerImageScaling: .927
+  sideImagesXOffset: -340
+  sideImagesYOffset: -96
+  sideImagesScaling: .523
+  reverseSides: True
+  camX: 40596c6d
+  camY: 3fd2f553
+  camZ: 4209696b
+
+Kirby:
+  threshold: 40
+  centerImageXOffset: 32
+  centerImageYOffset: 204
+  centerImageScaling: .48
+  sideImagesXOffset: -141
+  sideImagesYOffset: -24
+  sideImagesScaling: .29
+  reverseSides: False
+  camX: 3fde0e18
+  camY: 4068dce3
+  camZ: 41ea3184
+
+Link:
+  threshold: 0
+  centerImageXOffset: 38
+  centerImageYOffset: 159
+  centerImageScaling: 1.17
+  sideImagesXOffset: -500
+  sideImagesYOffset: -122
+  sideImagesScaling: .65
+  reverseSides: False
+  camX: c218dcf5
+  camY: 40a0c470
+  camZ: 420321bd
+
+Luigi:
+  threshold: 0
+  centerImageXOffset: 64
+  centerImageYOffset: 191
+  centerImageScaling: .88
+  sideImagesXOffset: -276
+  sideImagesYOffset: -66
+  sideImagesScaling: .47
+  reverseSides: False
+  camX: 416a6406
+  camY: 4092702e
+  camZ: 420f905a
+
+Mario:
+  threshold: 0
+  centerImageXOffset: 148
+  centerImageYOffset: 191
+  centerImageScaling: .88
+  sideImagesXOffset: -236
+  sideImagesYOffset: -50
+  sideImagesScaling: .435
+  reverseSides: False
+  camX: 410ef8c5
+  camY: 3fcee488
+  camZ: 420cd983
+
+Marth: 
+  threshold: 40
+  centerImageXOffset: -324
+  centerImageYOffset: 140
+  centerImageScaling: 1.2
+  sideImagesXOffset: -340
+  sideImagesYOffset: -70
+  sideImagesScaling: .49
+  reverseSides: True
+  camX: c134fc98
+  camY: c05ec8b4
+  camZ: 42250ad6
+
+Mewtwo:
+  threshold: 40
+  centerImageXOffset: 17
+  centerImageYOffset: 170
+  centerImageScaling: .77
+  sideImagesXOffset: -160
+  sideImagesYOffset: -14
+  sideImagesScaling: .35
+  reverseSides: True
+  camX: c1a22fd1
+  camY: 407e0820
+  camZ: 420e4f45
+
+Ness:
+  threshold: 40
+  centerImageXOffset: 70
+  centerImageYOffset: 152
+  centerImageScaling: .6
+  sideImagesXOffset: -310
+  sideImagesYOffset: -50
+  sideImagesScaling: .44
+  reverseSides: False
+  camX: 41702ee6
+  camY: bf2987c7
+  camZ: 41ed8c18
+
+Peach:
+  threshold: 40
+  centerImageXOffset: 30
+  centerImageYOffset: 140
+  centerImageScaling: .75
+  sideImagesXOffset: -445
+  sideImagesYOffset: -130
+  sideImagesScaling: .55
+  reverseSides: True
+  camX: c04b69b1
+  camY: c035324b
+  camZ: 423828df
+
+Pichu:
+  threshold: 40
+  centerImageXOffset: -174
+  centerImageYOffset: 220
+  centerImageScaling: .47
+  sideImagesXOffset: -291
+  sideImagesYOffset: -58
+  sideImagesScaling: .45
+  reverseSides: False
+  camX: c20b37a2
+  camY: c02de0e6
+  camZ: 402557b0
+
+Pikachu:
+  threshold: 40
+  centerImageXOffset: -38
+  centerImageYOffset: 42
+  centerImageScaling: .88
+  sideImagesXOffset: -166
+  sideImagesYOffset: -5
+  sideImagesScaling: .369
+  reverseSides: False
+  camX: c0361ee5
+  camY: 40b85b80
+  camZ: 41fd2549
+
+Roy:
+  threshold: 30
+  centerImageXOffset: -4
+  centerImageYOffset: 185
+  centerImageScaling: .94
+  sideImagesXOffset: -204
+  sideImagesYOffset: -28
+  sideImagesScaling: .42
+  reverseSides: False
+  camX: 418510f7
+  camY: 400e6b44
+  camZ: 41f61733
+
+Samus:
+
+Sheik:
+  threshold: 40
+  centerImageXOffset: 13
+  centerImageYOffset: 124
+  centerImageScaling: 1
+  sideImagesXOffset: -230
+  sideImagesYOffset: -16
+  sideImagesScaling: .40
+  reverseSides: True
+  camX: c1fa8fcb
+  camY: c0436685
+  camZ: 3fcd739a
+
+Yoshi:
+  threshold: 40
+  centerImageXOffset: 20
+  centerImageYOffset: 164
+  centerImageScaling: .706
+  sideImagesXOffset: -134
+  sideImagesYOffset: -17
+  sideImagesScaling: .35
+  reverseSides: True
+  camX: c04b69b1
+  camY: 40905a28
+  camZ: 42320264
+
+Young Link:
+  threshold: 30
+  centerImageXOffset: 64
+  centerImageYOffset: 160
+  centerImageScaling: 1
+  sideImagesXOffset: -494
+  sideImagesYOffset: -164
+  sideImagesScaling: .65
+  reverseSides: False
+  camX: c218dcf5
+  camY: 40a0c470
+  camZ: 420321bd
+
