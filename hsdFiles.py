@@ -12,7 +12,6 @@
 # DTW's Structural Analysis tab or the following thread/post are useful for more details on structures:
 # 		https://smashboards.com/threads/melee-dat-format.292603/post-21913374
 
-#import yaml
 import struct
 import codecs
 import os, sys
@@ -2719,8 +2718,7 @@ class MusicFile( FileBase ):
 		self.duration = -1			# In milliseconds
 		self.loopPoint = -1			# Point in the song (in ms) where the track should restart after reaching the end
 
-		#self.musicId = -1			# ID used by the game to reference this file
-		self._musicId = -1			# Shortcut for the musicId method, once it has been determined
+		self.musicId = -1			# ID used by the game to reference this file
 		self.isHexTrack = False		# Songs in 20XX such as '00.hps', '01.hps', etc.
 		self.trackNumber = -1		# Number from the file name, if this is a 20XX hex track
 
@@ -2969,8 +2967,7 @@ class MusicFile( FileBase ):
 		# Convert the file
 		returnCode, output = cmdChannel( [meleeMediaExe, tempInputFilepath, outputPath] )
 		if returnCode != 0:
-			print 'Unable to convert', self.filename
-			print output
+			print 'Unable to convert', self.filename, 'to wav format.'
 			return ''
 
 		# Delete the temporary HPS file

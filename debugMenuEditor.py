@@ -91,7 +91,7 @@ class DebugMenuEditor( ttk.Frame ):
 		leftColumn.grid( column=0, row=0, sticky='ew', padx=(26, 18) )
 		
 		menuDisplayBorder = Tk.Frame( self, background='black' ) # Adds space between top and left side of the text lines and the edge (via padx/pady below)
-		self.menuDisplay = Tk.Text( menuDisplayBorder, background='black', foreground='white', borderwidth=0, width=44, height=25 )
+		self.menuDisplay = Tk.Text( menuDisplayBorder, background='black', foreground='white', borderwidth=0, width=50, height=25 )
 		self.menuDisplay.tag_configure( 'itemType0', foreground='green' )
 		self.menuDisplay.tag_configure( 'selected', background='#334033' )
 		self.menuDisplay.tag_bind( 'menuItem', '<Button-1>', self.menuDisplayClicked )
@@ -113,21 +113,20 @@ class DebugMenuEditor( ttk.Frame ):
 
 		self.menuDisplay.delete( '1.0', 'end' )
 		
+		# Menu Item Info
 		self.lineVar.set( ' '*self.defaultWidth )
 		self.offsetVar.set( '' )
 		self.typeVar.set( '' )
-
-		# Column 2
+		self.targetFunctionVar.set( '' )
+		self.textPointer.set( '' )
 		self.parentMenuVar.set( '' )
 		self.submenuVar.set( '' )
-		self.targetFunctionVar.set( '' )
 
-		# Bottom Row
+		# Left/Right Menu Item Options
 		self.optionsCountVar.set( '' )
 		self.optionsIncreaseVar.set( '' )
 		self.optionsCurItemVar.set( '' )
 		self.optionsListPointerVar.set( '' )
-		self.textPointer.set( '' )
 		self.optionsTexts.set( '' )
 
 	def formatPointer( self, ramAddress ):
@@ -211,7 +210,7 @@ class DebugMenuEditor( ttk.Frame ):
 
 	def menuDisplayClicked( self, event ):
 
-		""" Highlights the selected line, and shows info on it in the information panel below the menu display. """
+		""" Highlights the selected line, and shows info on it in the information panel. """
 
 		# Translate the current mouse coodinates into a text index
 		index = event.widget.index( "@%s,%s" % (event.x, event.y) )

@@ -184,7 +184,7 @@ class DebugMenuItem( StandaloneStruct ):
 		return targetFile.getData( dataOffset, dataLength )
 
 	def getString( self, ramAddress ):
-		return self.getExternalData( ramAddress, 0x29 ).split( '\x00' )[0].decode( 'utf-8' )
+		return self.getExternalData( ramAddress, 0x40 ).split( '\x00' )[0].decode( 'utf-8' )
 
 	def buildStringList( self ):
 

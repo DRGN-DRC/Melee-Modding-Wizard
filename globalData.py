@@ -48,15 +48,13 @@ def init( programArgs ):
 		'meleeMedia': os.path.join( scriptHomeFolder, 'bin', 'MeleeMedia', 'MeleeMedia.exe' ),
 		'microMelee': os.path.join( scriptHomeFolder, 'bin', 'Micro Melee.iso' ),
 		'eabi': os.path.join( scriptHomeFolder, 'bin', 'eabi' ),
-		#'coreCodes': os.path.join( scriptHomeFolder, 'bin', 'Core Codes.txt' ),
 		'coreCodes': os.path.join( scriptHomeFolder, 'bin', 'Core Codes' ),
 	}
 
 	# These are default settings if they are not defined in the user's settings.ini file
 	defaultSettings = {
-		'defaultSearchDirectory': os.path.expanduser( '~' ),
+		#'defaultSearchDirectory': os.path.expanduser( '~' ),
 		'codeLibraryPath': os.path.join( scriptHomeFolder, 'Code Library' ),
-		#'codeLibraryPath20XX': r"D:\Games\GameCube\- - SSB Melee - -\Hacks\20XX Hack Pack\20XXHP 5.0\20XXHP 5.0 MCM Library",
 		'codeLibraryIndex': '0',
 		'vanillaDiscPath': '',
 		'hexEditorPath': '',
@@ -177,12 +175,18 @@ def loadProgramSettings( useBooleanVars=False ):
 	if not settings.has_section( 'General Settings' ):
 		settings.add_section( 'General Settings' )
 
-	# Set default [hardcoded] settings only if their values don't exist in the settings file; don't want to modify them if they're already set.
+	# Add the 'Default Search Directories' section if it's not already present
+	if not settings.has_section( 'Default Search Directories' ):
+		settings.add_section( 'Default Search Directories' )
+		settings.set( 'Default Search Directories', 'default', os.path.expanduser('~') )
+		settings.set( 'Default Search Directories', 'lastCategory', 'default' )
+
+	# Set default [hardcoded] settings only if their values don't exist in the settings file
 	for settingName, initialDefault in defaultSettings.items():
 		if not settings.has_option( 'General Settings', settingName ):
 			settings.set( 'General Settings', settingName, initialDefault )
 
-	# Booleans are handled a little differently, so they may easily be kept in sync with the GUI (when booleanVars are used)
+	# Booleans are handled a little differently, so that they may easily be kept in sync with the GUI (when booleanVars are used)
 	for settingName in defaultBoolSettings:
 		if not settings.has_option( 'General Settings', settingName ):
 			settings.set( 'General Settings', settingName, defaultBoolSettings[settingName] )
@@ -307,27 +311,68 @@ def getRecentFilesLists():
 	return ISOs, DATs
 
 
-def saveLastUsedDirectory( savePath ):
+def setLastUsedDir( savePath, category='default', saveSettings=True ):
 	
 	""" Normalizes the give path (and converts to a folder path if a file path was given) 
-		and sets it as the default program directory. """
+		and sets it as the default program directory. This can be used on a per-file-type 
+		basis; for example, a last used dir for discs, or a last used dir for music files. 
+		If category is not given, "default" will be used. However, this should be avoided. """
 
-	# Change this to a folder path if this is a path to a file
+	# Get the folder path if this is a path to a file
 	if not os.path.isdir( savePath ):
-		savePath = os.path.split( savePath )[0]
+		# Try to determine the category by the file extension
+		if category == 'auto':
+			fileExt = os.path.splitext( savePath )[1].replace( '.', '' )
 
-	savePath = os.path.normpath( savePath )
-	saveDir = os.path.split( savePath )[0].encode( 'utf-8' ).strip()
-	settings.set( 'General Settings', 'defaultSearchDirectory', saveDir )
+			if fileExt in ( 'hps', 'wav', 'dsp', 'mp3', 'aiff', 'wma', 'm4a' ):
+				category = 'hps'
+			elif fileExt in ( 'iso', 'gcm' ):
+				category = 'iso'
+			elif fileExt.endswith( 'at' ) or fileExt.endswith( 'sd' ): # To match .dat/.usd as well as .0at/etc variants
+				category = 'dat'
+			elif fileExt in ( 'mth', 'thp' ): # Video files
+				category = 'mth'
+			else:
+				category = 'default'
 
-	saveProgramSettings()
+		savePath = os.path.dirname( savePath )
+
+	# Normalize the path and make sure it's composed of legal characters
+	savePath = os.path.normpath( savePath ).encode( 'utf-8' ).strip()
+
+	# Save a default directory location for this specific kind of file
+	category = category.replace( '.', '' ).lower()
+	settings.set( 'Default Search Directories', category, savePath )
+	settings.set( 'Default Search Directories', 'lastCategory', category )
+
+	if saveSettings: # Should be avoided in some cases where it's redundant
+		saveProgramSettings()
+
+
+def getLastUsedDir( category='default' ):
+
+	""" Fetches the default directory to start in for file/folder operations. 
+		Can use the "category" argument to retrieve for a specific type or 
+		class of files; e.g. for "dat" or "disc". """
+
+	# If no category is specified, use the last saved directory out of all of them
+	if category == 'default':
+		category = settings.get( 'Default Search Directories', 'lastCategory' )
+
+	# Get a default directory location for this specific type of file
+	try:
+		directoryPath = settings.get( 'Default Search Directories', category.replace( '.', '' ).lower() )
+	except ConfigParser.NoOptionError:
+		directoryPath = settings.get( 'Default Search Directories', 'default' )
+
+	return directoryPath
 
 
 def rememberFile( filepath, updateDefaultDirectory=True ):
 
 	""" Adds a filepath to the settings object's "Recent Files" section, so it can be recalled later 
-		from the 'Open Recent' menu option (removing the oldest file if the max files to remember had 
-		already been reached). The settings are then saved to the settings file. """
+		from the 'Open Recent' menu option (removing the oldest file if the max files to remember has 
+		been reached). The settings are then saved to the settings file. """
 
 	 # Normalize input (collapse redundant separators, and ensure consistent slash direction)
 	filepath = os.path.normpath( filepath )
@@ -352,9 +397,12 @@ def rememberFile( filepath, updateDefaultDirectory=True ):
 
 	# Update the default search directory.
 	if updateDefaultDirectory:
-		directoryPath = os.path.dirname( filepath )
-		settings.set( 'General Settings', 'defaultSearchDirectory', directoryPath )
+		if extension == '.iso' or extension == '.gcm':
+			setLastUsedDir( filepath, 'iso', False )
+		else:
+			setLastUsedDir( filepath, 'dat', False )
 
+	# Save this filepath with a timestamp
 	timeStamp = str( datetime.today() )
 	settings.set( 'Recent Files', filepath.replace(':', '|'), timeStamp ) # Colon is replaced because it confuses the settings parser.
 

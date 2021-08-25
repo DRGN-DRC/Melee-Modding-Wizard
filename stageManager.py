@@ -448,8 +448,6 @@ class MusicToolTip( ToolTip ):
 
 class SongChooser( BasicWindow ):
 
-	#songsToInclude = ( 'howto_s.hps', 'opening.hps' )
-
 	def __init__( self, stageTab, valueIndex, initialSelection=-1 ):
 
 		BasicWindow.__init__( self, globalData.gui.root, "Song Chooser", resizable=True )
@@ -471,17 +469,13 @@ class SongChooser( BasicWindow ):
 			musicFile = globalData.disc.getMusicFile( musicId )
 			if not musicFile: continue
 			
-			# Exclude fanfare (victory) audio clips and other short tracks most likely not wanted for songs
+			# Exclude fanfare (victory) audio clips and other short tracks most likely not wanted for music
 			elif musicFile.size < 0xF0000 or musicFile.filename == 'howto.hps':
-				if musicFile.filename in ( '10.hps', 'inis2_02.hps' ): # Allow this track through (both are for MK2 Finale)
-					pass
-				else:
+				if musicFile.filename not in ( '10.hps', 'inis2_02.hps' ): # Allow this track through (both are for MK2 Finale)
 					#print ' - skipping', hex(musicId), '|', musicFile.filename, '-', musicFile.description
 					continue
 
-			#musicFile.musicId = musicId
 			musicFiles.append( musicFile )
-			# print hex(musicId), '|', musicFile.filename, '-', musicFile.description
 			
 		# Add Hex Tracks if this is 20XX
 		if stageTab.stageSwapTable:
@@ -489,11 +483,7 @@ class SongChooser( BasicWindow ):
 			for musicId in range( 0x10030, 0x10100 ):
 				musicFile = globalData.disc.getMusicFile( musicId )
 				if musicFile:
-					#musicFile.trackId = musicId # Corresponds to a hex track file name
-					#musicFile.musicId = 0x10000 | musicId
 					musicFiles.append( musicFile )
-				# else:
-				# 	print '\t', 'no file for id', hex(musicId)
 
 		# Populate the listbox
 		self.listbox.insert( 'end', 'None' )
@@ -523,8 +513,8 @@ class SongChooser( BasicWindow ):
 			self.acm.audioFile = self.lineDict[lineToSelect]
 
 		buttonsCell = ttk.Frame( self.window )
-		ttk.Button( buttonsCell, text='Select', command=self.selectSong ).grid( column=0, row=1, padx=4 )
-		ttk.Button( buttonsCell, text='Cancel', command=self.close ).grid( column=1, row=1, padx=4 )
+		ttk.Button( buttonsCell, text='Select', command=self.selectSong ).grid( column=0, row=1, padx=10 )
+		ttk.Button( buttonsCell, text='Cancel', command=self.close ).grid( column=1, row=1, padx=10 )
 		buttonsCell.grid( column=0, columnspan=2, row=2, pady=4 )
 
 		self.window.columnconfigure( 0, weight=1 )
@@ -536,10 +526,6 @@ class SongChooser( BasicWindow ):
 		""" Changes the file currently assigned to the ACM. """
 
 		lineNumber = self.listbox.curselection()[0]
-		#filename = self.lineDict[lineNumber][1] # todo: just store/get the file object
-		#print 'selected', self.lineDict[lineNumber]
-
-		#self.acm.audioFile = globalData.disc.files.get( globalData.disc.gameId + '/audio/' + filename )
 		self.acm.audioFile = self.lineDict[lineNumber]
 
 	def selectSong( self ):
@@ -1147,7 +1133,7 @@ class StageManager( ttk.Frame ):
 		savePath = tkFileDialog.asksaveasfilename(
 			title="Where would you like to export the file?",
 			parent=globalData.gui.root,
-			initialdir=globalData.settings.get( 'General Settings', 'defaultSearchDirectory' ),
+			initialdir=globalData.getLastUsedDir( 'dat' ),
 			initialfile=filename,
 			filetypes=[( "PNG files", '*.png' ), ("TPL files", '*.tpl' ), ( "All files", "*.*" )] )
 
@@ -1188,9 +1174,7 @@ class StageManager( ttk.Frame ):
 				returnCode = -1
 
 		# Update the default directory to start in when opening or exporting files.
-		globalData.settings.set( 'General Settings', 'defaultSearchDirectory', directoryPath )
-		with open( globalData.paths['settingsFile'], 'w' ) as theSettingsFile:
-			globalData.settings.write( theSettingsFile )
+		globalData.setLastUsedDir( directoryPath, 'dat' )
 
 		# Check status of the export, and give user feedback in the program's status bar
 		if returnCode == 0:
@@ -1821,7 +1805,7 @@ class StageManager( ttk.Frame ):
 		savePath = tkFileDialog.asksaveasfilename(
 			title="Where would you like to export the file?",
 			parent=globalData.gui.root,
-			initialdir=globalData.settings.get( 'General Settings', 'defaultSearchDirectory' ),
+			initialdir=globalData.getLastUsedDir( 'dat' ),
 			initialfile="Stage preview text.png",
 			filetypes=[( "PNG files", '*.png' ), ("TPL files", '*.tpl' ), ( "All files", "*.*" )] )
 
@@ -1856,9 +1840,7 @@ class StageManager( ttk.Frame ):
 				returnCode = -1
 
 		# Update the default directory to start in when opening or exporting files.
-		globalData.settings.set( 'General Settings', 'defaultSearchDirectory', directoryPath )
-		with open( globalData.paths['settingsFile'], 'w' ) as theSettingsFile:
-			globalData.settings.write( theSettingsFile )
+		globalData.setLastUsedDir( directoryPath, 'dat' )
 
 		# Check status of the export, and give user feedback in the program's status bar
 		if returnCode == 0:
@@ -1883,16 +1865,8 @@ class StageManager( ttk.Frame ):
 		if not self.selectedStage:
 			msg( 'No stage file is selected!' )
 			return
-		
-		# # Prompt to select the file to import
-		# imagePath = tkFileDialog.askopenfilename( # Will return a unicode string (if one file selected), or a tuple
-		# 	title="Choose an icon texture of 224x56 to import:",
-		# 	parent=globalData.gui.root,
-		# 	initialdir=globalData.settings.get( 'General Settings', 'defaultSearchDirectory' ),
-		# 	filetypes=[ ('PNG files', '*.png'), ('TPL files', '*.tpl'), ('All files', '*.*') ],
-		# 	multiple=False
-		# 	)
 
+		# Prompt the user for an image file to import
 		imagePath = importSingleTexture( "Choose an icon texture of 224x56 to import" )
 
 		# The above will return an empty string if the user canceled

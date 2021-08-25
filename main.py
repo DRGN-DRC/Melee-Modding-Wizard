@@ -117,7 +117,7 @@ class FileMenu( Tk.Menu, object ):
 			self.recentFilesMenu.add_command( label=parentDirPlusFilename, command=lambda pathToLoad=filepath: self.loadRecentFile(pathToLoad) )
 
 	def openLastUsedDir( self ):
-		openFolder( globalData.settings.get( 'General Settings', 'defaultSearchDirectory' ) )
+		openFolder( globalData.getLastUsedDir() )
 
 	def save( self ):			globalData.gui.save()
 	def saveDiscAs( self ):		globalData.gui.saveDiscAs()
@@ -219,9 +219,9 @@ class ToolsMenu( Tk.Menu, object ):
 		# Prompt the user to choose a file, and get its filepath
 		fileTypeOptions = [ ('Stage files', '*.dat *.usd *.0at *.1at *.2at *.3at *.4at *.5at *.6at *.7at *.8at *.9at *.aat *.bat *.cat *.dat *.eat'),
 							('All files', '*.*') ]
-		stageFilePath = importGameFiles( title='Choose a stage', fileTypeOptions=fileTypeOptions )
+		stageFilePath = importGameFiles( title='Choose a stage', fileTypeOptions=fileTypeOptions, category='dat' )
 		if not stageFilePath: return # User canceled
-		globalData.saveLastUsedDirectory( stageFilePath )
+		globalData.setLastUsedDir( stageFilePath, 'dat' )
 
 		# Initialize the file and verify it's a stage
 		try:
@@ -250,9 +250,9 @@ class ToolsMenu( Tk.Menu, object ):
 
 		# Prompt the user to choose a file, and get its filepath
 		fileTypeOptions = [ ('Character files', '*.dat *.usd *.lat *.rat'), ('All files', '*.*') ]
-		charFilePath = importGameFiles( title='Choose your character', fileTypeOptions=fileTypeOptions )
+		charFilePath = importGameFiles( title='Choose your character', fileTypeOptions=fileTypeOptions, category='dat' )
 		if not charFilePath: return # User canceled
-		globalData.saveLastUsedDirectory( charFilePath )
+		globalData.setLastUsedDir( charFilePath, 'dat' )
 
 		# Initialize the file and verify it's a character
 		try:
@@ -770,14 +770,16 @@ class MainGui( Tk.Frame, object ):
 		if typeToOpen == 'iso':
 			titleString = "Choose an ISO or GCM file to open."
 			filetypes = [('Disc image files', '*.iso *.gcm'), ('All files', '*.*')]
+			initDir = globalData.getLastUsedDir( 'iso' )
 		else:
 			titleString = "Choose a texture data file to open."
 			filetypes = [('Texture data files', '*.dat *.usd *.lat *.rat'), ('All files', '*.*')]
+			initDir = globalData.getLastUsedDir( 'dat' )
 
 		filepath = tkFileDialog.askopenfilename(
 			title=titleString,
 			parent=self.root,
-			initialdir=globalData.settings.get( 'General Settings', 'defaultSearchDirectory' ),
+			initialdir=initDir,
 			filetypes=filetypes
 			)
 		
@@ -789,7 +791,7 @@ class MainGui( Tk.Frame, object ):
 		rootPath = tkFileDialog.askdirectory(
 			title='Choose a root directory (folder of disc files).',
 			parent=self.root,
-			initialdir=globalData.settings.get( 'General Settings', 'defaultSearchDirectory' ),
+			initialdir=globalData.getLastUsedDir(),
 			mustexist=True )
 
 		# Check if a path was chosen above and it's a disc root directory
@@ -811,7 +813,7 @@ class MainGui( Tk.Frame, object ):
 		# Prompt the user for a save directory and filename
 		newPath = tkFileDialog.asksaveasfilename(
 			title="Where would you like to save the new disc?",
-			initialdir=globalData.checkSetting( 'defaultSearchDirectory' ),
+			initialdir=globalData.getLastUsedDir( 'iso' ),
 			initialfile=newFilenameSuggestion,
 			defaultextension=ext[1:],
 			filetypes=[('Standard disc image', '*.iso'), ('GameCube disc image', '*.gcm'), ("All files", "*.*")]
@@ -820,7 +822,7 @@ class MainGui( Tk.Frame, object ):
 			return
 
 		# Normalize the path, and set the default program directory
-		globalData.saveLastUsedDirectory( newPath )
+		globalData.setLastUsedDir( newPath, 'iso' )
 
 		# Save the disc to a new path
 		self.save( newPath )

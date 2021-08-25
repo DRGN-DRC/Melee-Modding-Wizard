@@ -288,9 +288,8 @@ class CodeManagerTab( ttk.Frame ):
 			print( 'Unable to auto-select custom code regions; unsupported 20XX version: {}'.format(v20XX) )
 			return
 
-		#if v20XX in ( '4.07', '4.07+', '4.07++' ) and regions == ['20XXHP 4.07 Regions']: pass
-		if regions == [customRegions]: pass # Only the one target region is selected
-		else:
+		# Check that only the one target region is selected
+		if not regions == [customRegions]:
 			reselectRegions = tkMessageBox.askyesno( 'Enable Dedicated Region?', 'The game being loaded appears to be for the 20XX Hack Pack, v{}. '
 													'Would you like to enable the custom code regions specifically for this mod ({})?'
 													"\n\nIf you're unsure, click yes.".format(v20XX, customRegions) )

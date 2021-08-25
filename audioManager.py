@@ -44,12 +44,11 @@ def getHpsFile( windowParent=None ):
 		windowParent = globalData.gui.root
 
 	# Prompt the user to choose a file to import
-	defaultDir = globalData.settings.get( 'General Settings', 'defaultSearchDirectory' )
 	newFilePath = tkFileDialog.askopenfilename(
 		title="Choose a file to import; use the filetype dropdown to convert on import",
 		parent=windowParent,
 		multiple=False,
-		initialdir=defaultDir,
+		initialdir=globalData.getLastUsedDir( 'hps' ),
 		filetypes=fileTypeOptions )
 
 	if not newFilePath: # The above will return an empty string if the user canceled
@@ -346,7 +345,7 @@ class AudioManager( ttk.Frame ):
 		savePath = tkFileDialog.asksaveasfilename(
 			title="Where would you like to export the file?",
 			parent=globalData.gui.root,
-			initialdir=globalData.checkSetting( 'defaultSearchDirectory' ),
+			initialdir=globalData.getLastUsedDir( 'hps' ),
 			initialfile=defaultName,
 			defaultextension=self.lastExportFormat,
 			filetypes=fileTypeOptions )
@@ -377,8 +376,7 @@ class AudioManager( ttk.Frame ):
 			successful = musicFile.export( savePath )
 
 		# Update the default directory to start in when opening or exporting files.
-		globalData.settings.set( 'General Settings', 'defaultSearchDirectory', directoryPath )
-		globalData.saveProgramSettings()
+		globalData.setLastUsedDir( directoryPath, 'hps' )
 
 		if successful:
 			globalData.gui.updateProgramStatus( 'File exported successfully.', success=True )
@@ -415,7 +413,7 @@ class AudioManager( ttk.Frame ):
 				msg( "Unable to update CSS with song name; the CSS file (MnSlChr.0sd) could not be found in the disc." )
 				globalData.gui.updateProgramStatus( "Unable to update CSS with song name; couldn't find the CSS file in the disc", error=True )
 				return
-			charLimit = cssFile.checkMaxHexTrackNameLen( musicFile.trackId )
+			charLimit = cssFile.checkMaxHexTrackNameLen( musicFile.musicId )
 			if charLimit == -1:
 				msg( "Unable to update CSS with song name; a character limit could not be determined from the CSS song names table." )
 				globalData.gui.updateProgramStatus( "Unable to update CSS with song name; a character limit could not be determined", error=True )
@@ -539,32 +537,34 @@ class AudioManager( ttk.Frame ):
 			insertionKey = globalData.disc.gameId + '/audio/zs.ssm' # Auto-generated would be 'GALE01/audio/us/1padv.ssm'
 			insertAfter = True
 
+		# Spawn a new window/interface to get the new file and other details for a new track
 		adderWindow = TrackAdder( 'example.hps', unusedHexTrackName )
 		newTrack = adderWindow.hpsFile
+		if not newTrack:
+			return
 
-		if newTrack:
-			newTrack.insertionKey = insertionKey
-			globalData.disc.addFiles( [newTrack], insertAfter )
+		newTrack.insertionKey = insertionKey
+		globalData.disc.addFiles( [newTrack], insertAfter )
 
-			# Add the file to the internal file list and GUI for this tab, and update General Info
-			if newTrack.isHexTrack:
-				parent = 'hextracks'
-			else:
-				parent = ''
-			self.songs.append( newTrack )
-			self.fileTree.insert( parent, 'end', iid=newTrack.isoPath, text=newTrack.description, values=(newTrack.filename, 'file') )
-			self.updateGeneralInfo()
+		# Add the file to the internal file list and GUI for this tab, and update General Info
+		if newTrack.isHexTrack:
+			parent = 'hextracks'
+		else:
+			parent = ''
+		self.songs.append( newTrack )
+		self.fileTree.insert( parent, 'end', iid=newTrack.isoPath, text=newTrack.description, values=(newTrack.filename, 'file') )
+		self.updateGeneralInfo()
 
-			# Reload the Disc File Tree to show the new file
-			if globalData.gui.discTab:
-				globalData.gui.discTab.loadDisc( updateStatus=False, preserveTreeState=True )
-				globalData.gui.discTab.isoFileTree.item( newTrack.isoPath, tags='changed' )
+		# Reload the Disc File Tree to show the new file
+		if globalData.gui.discTab:
+			globalData.gui.discTab.loadDisc( updateStatus=False, preserveTreeState=True )
+			globalData.gui.discTab.isoFileTree.item( newTrack.isoPath, tags='changed' )
 
-			# Update the Disc Details Tab
-			detailsTab = globalData.gui.discDetailsTab
-			if detailsTab:
-				detailsTab.isoFileCountText.set( "{:,}".format(len(globalData.disc.files)) )
-				#detailsTab # todo: disc size as well
+		# Update the Disc Details Tab
+		detailsTab = globalData.gui.discDetailsTab
+		if detailsTab:
+			detailsTab.isoFileCountText.set( "{:,}".format(len(globalData.disc.files)) )
+			#detailsTab # todo: disc size as well
 
 
 class TrackAdder( BasicWindow ):
@@ -581,7 +581,6 @@ class TrackAdder( BasicWindow ):
 		self.hpsFile = None
 		self.loopTrack = Tk.IntVar( value=1 )
 		self.hexTrackMaxNickLen = -1
-		#self.nickLengthText = None
 
 		# File chooser
 		ttk.Button( self.window, text='Choose file', command=self.chooseTrackFile ).grid( column=0, columnspan=2, row=0, padx=6, pady=(14, 4) )
@@ -597,21 +596,12 @@ class TrackAdder( BasicWindow ):
 			ttk.Radiobutton( hexTrackDecisionFrame, text='Yes', variable=self.addAsHexTrack, value=True, command=self.populateNameInputFrame ).grid( column=1, row=0, padx=6 )
 			ttk.Radiobutton( hexTrackDecisionFrame, text='No', variable=self.addAsHexTrack, value=False, command=self.populateNameInputFrame ).grid( column=2, row=0, padx=6 )
 			hexTrackDecisionFrame.grid( column=0, columnspan=2, row=3, pady=4 )
-
-			# Check the track number and determine how long the song description/nickname may be
-			# trackNumber = int( os.path.splitext(defaultHexTrackName)[0], 16 )
-			# cssFile = globalData.disc.files.get( globalData.disc.gameId + '/MnSlChr.0sd' )
-			# self.nickMaxLength = cssFile.checkMaxHexTrackNameLen( trackNumber )
-			# self.hexTrackMaxNickLen = self.nickMaxLength
 		else:
 			self.addAsHexTrack = Tk.BooleanVar( value=False )
-			# self.nickMaxLength = 42
-			# self.nickMaxLength = -1
 
 		# Disc filename entry
 		self.nameInputFrame = ttk.Frame( self.window )
 		self.nameInputFrame.grid( column=0, columnspan=2, row=4, padx=6, pady=4 )
-		#self.populateNameInputFrame()
 		ttk.Separator( self.window, orient='horizontal' ).grid( column=0, columnspan=2, row=5, sticky='ew', padx=50, pady=4 )
 
 		# Set loop point
@@ -778,15 +768,15 @@ class TrackAdder( BasicWindow ):
 							('AIFF files', '*.aiff'), ('WMA files', '*.wma'), ('M4A files', '*.m4a'), ("All files", "*.*") ]
 
 		# Prompt the user to choose a file to import
-		defaultDir = globalData.settings.get( 'General Settings', 'defaultSearchDirectory' )
 		newFilePath = tkFileDialog.askopenfilename(
-			title="Choose a file to import; use the filetype dropdown to convert on import",
+			title="Choose a file to import; non-HPS files will be converted on import",
 			parent=self.window,
 			multiple=False,
-			initialdir=defaultDir,
+			initialdir=globalData.getLastUsedDir( 'hps' ),
 			filetypes=fileTypeOptions )
 
 		if newFilePath: # The above will return an empty string if the user canceled
+			globalData.setLastUsedDir( newFilePath, 'hps' )
 			self.filenameDisplay['text'] = newFilePath
 
 			# Disable setting of loop point if this is an HPS file
@@ -874,7 +864,7 @@ class TrackAdder( BasicWindow ):
 			self.hpsFile = None
 			return
 
-		# Parse the hex track name
+		# Parse the hex track name to check whether it's a hex track, and get its track number
 		if self.addAsHexTrack.get():
 			try:
 				filename = self.filenameLabel['text']
@@ -903,7 +893,7 @@ class TrackAdder( BasicWindow ):
 
 	def helpBtnClicked( self, event ):
 		msg( 'A "Normal" loop starts the track back at the very beginning once it reaches the end, '
-			 'whereas a "Custom" loop re-starts the track at the specified point after the first playthrough.'
+			 'whereas a "Custom" loop re-starts the track at the specified point after the first playthrough.\n\n'
 			 'Minutes should be an integer value between 0 and 60. Seconds may be a float value between 0 and 60, '
 			 'which may include decimal places for milliseconds. e.g. 10 or 32.123', 'Loop Time Input Formats', self.window )
 

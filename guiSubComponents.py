@@ -74,7 +74,7 @@ def exportSingleFileWithGui( fileObj ):
 	savePath = tkFileDialog.asksaveasfilename(
 		title="Where would you like to export the file?", 
 		parent=globalData.gui.root,
-		initialdir=globalData.checkSetting( 'defaultSearchDirectory' ),
+		initialdir=globalData.getLastUsedDir(),
 		initialfile=fileObj.filename,
 		defaultextension=fileExt,
 		filetypes=[( fileExt.upper() + " files", '*.' + fileExt.lower() ), ( "All files", "*.*" )] )
@@ -88,9 +88,12 @@ def exportSingleFileWithGui( fileObj ):
 	successful = fileObj.export( savePath )
 
 	# Update the default directory to start in when opening or exporting files.
-	directoryPath = os.path.dirname( savePath ) # Used at the end of this function
-	globalData.settings.set( 'General Settings', 'defaultSearchDirectory', directoryPath )
-	globalData.saveProgramSettings()
+	# if fileExt in ( 'hps', 'wav', 'dsp', 'mp3', 'aiff', 'wma', 'm4a' ):
+	# 	globalData.setLastUsedDir( savePath, 'hps' )
+	# elif fileExt.endswith( 'at' ):
+	# 	globalData.setLastUsedDir( savePath, 'dat' )
+	# else:
+	globalData.setLastUsedDir( savePath, 'auto' )
 
 	if successful:
 		globalData.gui.updateProgramStatus( 'File exported successfully.', success=True )
@@ -100,7 +103,7 @@ def exportSingleFileWithGui( fileObj ):
 		return ''
 
 
-def importGameFiles( fileExt='', multiple=False, title='', fileTypeOptions=None ):
+def importGameFiles( fileExt='', multiple=False, title='', fileTypeOptions=None, category='' ):
 
 	""" Prompts the user to choose one or more external/standalone files to import. 
 		If fileExt is provided, it should be a 3 character file type string (with "." included); 
@@ -140,7 +143,7 @@ def importGameFiles( fileExt='', multiple=False, title='', fileTypeOptions=None 
 			title = "Choose a game file to import"
 
 	# Prompt the user to choose a file to import
-	defaultDir = globalData.settings.get( 'General Settings', 'defaultSearchDirectory' )
+	defaultDir = globalData.getLastUsedDir( category )
 	filePaths = tkFileDialog.askopenfilename(
 		title=title,
 		multiple=multiple,
@@ -155,8 +158,7 @@ def importGameFiles( fileExt='', multiple=False, title='', fileTypeOptions=None 
 			newDir = os.path.dirname( filePaths )
 
 		if newDir != defaultDir: # Update and save the new directory if it's different
-			globalData.settings.set( 'General Settings', 'defaultSearchDirectory', newDir )
-			with open( globalData.paths['settingsFile'], 'w' ) as theSettingsFile: globalData.settings.write( theSettingsFile )
+			globalData.setLastUsedDir( newDir, category )
 
 	else: # The above will return an empty string if the user canceled
 		globalData.gui.updateProgramStatus( 'Operation canceled' )
@@ -204,18 +206,15 @@ def importSingleTexture( title='Choose a texture file to import' ):
 	imagePath = tkFileDialog.askopenfilename( # Will return a unicode string (if one file selected), or a tuple
 		title=title,
 		parent=globalData.gui.root,
-		initialdir=globalData.settings.get( 'General Settings', 'defaultSearchDirectory' ),
+		initialdir=globalData.getLastUsedDir( 'dat' ), # Going to assume these files are with a DAT recently worked with
 		filetypes=[ ('PNG files', '*.png'), ('TPL files', '*.tpl'), ('All files', '*.*') ],
 		multiple=False
 		)
 
 	# The above will return an empty string if the user canceled
 	if not imagePath:
-		return ''
-
-	# Update the default directory to start in when opening or exporting files.
-	globalData.settings.set( 'General Settings', 'defaultSearchDirectory', os.path.dirname(imagePath) )
-	with open( globalData.paths['settingsFile'], 'w' ) as theSettingsFile: globalData.settings.write( theSettingsFile )
+		# Update the default directory to start in when opening or exporting files
+		globalData.setLastUsedDir( imagePath, 'dat' )
 
 	return imagePath
 
@@ -723,7 +722,7 @@ class CodeLibrarySelector( BasicWindow ):
 			parent=self.window,
 			title=( 'Choose a folder from which to load your Mods Library.\n\n'
 					'All mods you intend to save should be in the same library.' ),
-			initialdir=globalData.settings.get( 'General Settings', 'defaultSearchDirectory' ),
+			initialdir=globalData.getLastUsedDir(),
 			mustexist=True )
 
 		if newSelection: # Could be an empty string if the user canceled the operation

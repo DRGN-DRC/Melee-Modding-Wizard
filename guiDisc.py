@@ -34,8 +34,7 @@ from guiSubComponents import (
 		importSingleFileWithGui,
 		getNewNameFromUser,
 		DisguisedEntry, VerticalScrolledFrame,
-		ToolTip, HexEditEntry,
-		ImageDataLengthCalculator
+		ToolTip, HexEditEntry
 	)
 
 
@@ -707,7 +706,7 @@ class DiscTab( ttk.Frame ):
 			directoryPath = tkFileDialog.askdirectory(
 				title='Where would you like to save these files?',
 				parent=globalData.gui.root,
-				initialdir=globalData.settings.get( 'General Settings', 'defaultSearchDirectory' ),
+				initialdir=globalData.getLastUsedDir(),
 				mustexist=True )
 
 			# The above will return an empty string if the user canceled
@@ -728,9 +727,7 @@ class DiscTab( ttk.Frame ):
 				globalData.gui.updateProgramStatus( 'Unable to export.', error=True )
 
 			# Update the default directory to start in when opening or exporting files.
-			globalData.settings.set( 'General Settings', 'defaultSearchDirectory', directoryPath )
-			with open( globalData.paths['settingsFile'], 'w' ) as theSettingsFile:
-				globalData.settings.write( theSettingsFile )
+			globalData.setLastUsedDir( directoryPath )
 	
 	def importSingleIsoFile( self ):
 
@@ -1503,12 +1500,13 @@ class DiscMenu( Tk.Menu, object ):
 
 	def addFilesToIso( self ):
 
-		""" Prompts the user for one or more files to add to the disc, and then adds those files to both the disc and the GUI. """
+		""" Prompts the user for one or more files to add to the disc, and then 
+			adds those files to both the internal disc object and the GUI. """
 
 		# Prompt for one or more files to add.
 		filepaths = tkFileDialog.askopenfilename(
 			title='Choose one or more files (of any format) to add to the disc image.', 
-			initialdir=globalData.checkSetting( 'defaultSearchDirectory' ),
+			initialdir=globalData.getLastUsedDir(),
 			multiple=True,
 			filetypes=[ ('All files', '*.*'), ('Model/Texture data files', '*.dat *.usd *.lat *.rat'), ('Audio files', '*.hps *.ssm'),
 						('System files', '*.bin *.ldr *.dol *.toc'), ('Video files', '*.mth *.thp') ]
