@@ -2480,7 +2480,7 @@ class StageFile( DatFile ):
 
 	def identifyTextures( self ):
 
-		""" Returns a list of tuples containing texture info. Each tuple is of the following form: 
+		""" Returns a list of tuples containing texture information. Each tuple is of the following form: 
 				( imageDataOffset, imageHeaderOffset, paletteDataOffset, paletteHeaderOffset, width, height, imageType, mipmapCount ) """
 
 		#imageDataOffsetsFound = set()
@@ -2494,34 +2494,37 @@ class StageFile( DatFile ):
 				if string == 'map_texg':
 					structStart = offset
 					break
+			else: # The above loop didn't break; no effects structure found
+				structStart = -1
 
-			# Get the entry count of the table (number of table pointers it contains), and the entries themselves
-			mainTableEntryCount = toInt( self.data[structStart:structStart+4] )
-			headerTableData = self.data[structStart+4:structStart+4+(mainTableEntryCount*4)]
-			headerTablePointers = struct.unpack( '>' + str(mainTableEntryCount) + 'I', headerTableData )
+			if structStart != -1:
+				# Get the entry count of the table (number of table pointers it contains), and the entries themselves
+				mainTableEntryCount = toInt( self.data[structStart:structStart+4] )
+				headerTableData = self.data[structStart+4:structStart+4+(mainTableEntryCount*4)]
+				headerTablePointers = struct.unpack( '>' + str(mainTableEntryCount) + 'I', headerTableData )
 
-			for pointer in headerTablePointers: # These are all relative to the start of this structure
-				# Process the E2E header
-				e2eHeaderOffset = structStart + pointer
+				for pointer in headerTablePointers: # These are all relative to the start of this structure
+					# Process the E2E header
+					e2eHeaderOffset = structStart + pointer
 
-				textureCount, imageType, _, width, height = struct.unpack( '>5I', self.data[e2eHeaderOffset:e2eHeaderOffset+0x14] )
-				imageDataPointersStart = e2eHeaderOffset + 0x18
-				imageDataPointersEnd = imageDataPointersStart + ( 4 * textureCount )
-				imageDataPointerValues = struct.unpack( '>' + textureCount * 'I', self.data[imageDataPointersStart:imageDataPointersEnd] )
-
-				if imageType == 9:
-					paletteDataPointersEnd = imageDataPointersEnd + ( 4 * textureCount )
-					paletteDataPointerValues = struct.unpack( '>' + textureCount * 'I', self.data[imageDataPointersEnd:paletteDataPointersEnd] )
-
-				for i, offset in enumerate( imageDataPointerValues ):
-					imageDataOffset = structStart + offset
+					textureCount, imageType, _, width, height = struct.unpack( '>5I', self.data[e2eHeaderOffset:e2eHeaderOffset+0x14] )
+					imageDataPointersStart = e2eHeaderOffset + 0x18
+					imageDataPointersEnd = imageDataPointersStart + ( 4 * textureCount )
+					imageDataPointerValues = struct.unpack( '>' + textureCount * 'I', self.data[imageDataPointersStart:imageDataPointersEnd] )
 
 					if imageType == 9:
-						# Need to get the palette data's offset too. Its pointer is within a list following the image data pointer list
-						paletteDataOffset = structStart + paletteDataPointerValues[i]
-						texturesInfo.append( (imageDataOffset, e2eHeaderOffset, paletteDataOffset, e2eHeaderOffset, width, height, imageType, 0) )
-					else:
-						texturesInfo.append( (imageDataOffset, e2eHeaderOffset, -1, -1, width, height, imageType, 0) )
+						paletteDataPointersEnd = imageDataPointersEnd + ( 4 * textureCount )
+						paletteDataPointerValues = struct.unpack( '>' + textureCount * 'I', self.data[imageDataPointersEnd:paletteDataPointersEnd] )
+
+					for i, offset in enumerate( imageDataPointerValues ):
+						imageDataOffset = structStart + offset
+
+						if imageType == 9:
+							# Need to get the palette data's offset too. Its pointer is within a list following the image data pointer list
+							paletteDataOffset = structStart + paletteDataPointerValues[i]
+							texturesInfo.append( (imageDataOffset, e2eHeaderOffset, paletteDataOffset, e2eHeaderOffset, width, height, imageType, 0) )
+						else:
+							texturesInfo.append( (imageDataOffset, e2eHeaderOffset, -1, -1, width, height, imageType, 0) )
 
 			# Call the original DatFile method to check for the usual texture headers
 			texturesInfo.extend( super(StageFile, self).identifyTextures() )
@@ -2723,7 +2726,8 @@ class MusicFile( FileBase ):
 		self.trackNumber = -1		# Number from the file name, if this is a 20XX hex track
 
 		if self.disc and self.disc.is20XX:
-			if len( self.filename ) == 6 and self.isoPath.split( '/' )[1] == 'audio': # Filename includes ".hps"
+			# If a file is being initialized as this MusicFile class, it can be assumed that the filename includes the .hps extension
+			if len( self.filename ) == 6 and self.isoPath.split( '/' )[1] == 'audio': # Thus, the filename excluding extension is only 2 characters
 				if self.filename[0] in hexdigits and self.filename[1] in hexdigits:
 					self.isHexTrack = True
 					self.trackNumber = int( self.filename[:2], 16 )
@@ -2977,5 +2981,5 @@ class MusicFile( FileBase ):
 		# print 'time to get as wav:', toc-tic
 
 		self.externalWavFile = outputPath
-		
+
 		return outputPath

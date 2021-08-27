@@ -32,7 +32,7 @@ import globalData
 from dol import Dol
 from stageManager import StageSwapTable
 from codeMods import regionsOverlap, CodeLibraryParser
-from hsdFiles import FileBase, fileFactory
+from hsdFiles import FileBase, fileFactory, MusicFile
 from basicFunctions import roundTo32, uHex, toHex, toInt, toBytes, humansize, grammarfyList, createFolders, msg, printStatus, ListDict
 
 
@@ -912,6 +912,12 @@ class Disc( object ):
 		newFileObj.isoPath = origFileObj.isoPath
 		newFileObj.unsavedChanges.append( 'New file' )
 
+		# If this is a MusicFile, copy over extra properties
+		if newFileObj.__class__ == MusicFile:
+			newFileObj.musicId = origFileObj.musicId
+			newFileObj.isHexTrack = origFileObj.isHexTrack
+			newFileObj.trackNumber = origFileObj.trackNumber
+
 		# Update this file's entry size if it's changed, and check if the disc will need to be rebuilt
 		if newFileObj.size != origFileObj.size:
 			
@@ -1016,13 +1022,14 @@ class Disc( object ):
 		""" Removes one or more file objects from the disc's file system. The disc will need to be rebuilt 
 			after this operation. New FST Entries will be created when the disc is rebuilt. """
 
-		hexTracksRemoved = False
+		hexTracksRemoved = False # For 20XX
 
 		for fileObj in fileObjects:
 			if self.is20XX and fileObj.filename.endswith( '.hps' ) and fileObj.isHexTrack:
 				hexTracksRemoved = True
 			del self.files[fileObj.isoPath]
 
+		# Make sure the Music Name Pointer Table in 20XX is updated
 		if hexTracksRemoved:
 			cssFile = self.disc.files.get( self.disc.gameId + '/MnSlChr.0sd' )
 			cssFile.validateHexTrackNameTable()

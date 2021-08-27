@@ -322,7 +322,13 @@ class BasicWindow( object ):
 		if minsize[0] != -1:
 			self.window.minsize( width=minsize[0], height=minsize[1] )
 
-		self.window.protocol( 'WM_DELETE_WINDOW', self.close ) # Overrides the 'X' close button.
+		# Override the 'X' close button functionality (cancel methods should also call close when they're done)
+		cancelMethod = getattr( self, "cancel", None )
+		if cancelMethod and callable( cancelMethod ):
+			self.window.protocol( 'WM_DELETE_WINDOW', self.cancel )
+		else:
+			self.window.protocol( 'WM_DELETE_WINDOW', self.close )
+		
 		if unique:
 			topLevel.uniqueWindows[self.uniqueWindowName] = self
 

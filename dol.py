@@ -574,7 +574,7 @@ class Dol( FileBase ):
 				return self._musicFilePointers.index( pointer )
 
 		else: # The loop above didn't break; filename not found
-			print 'Unable to determine musicId for', filename
+			print 'Dol.getMusicId() unable to look up musicId for "{}"'.format( filename )
 			return -1
 
 	def getStageFileName( self, internalStageId, forceExtension=True, defaultToDat=False ):
