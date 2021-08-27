@@ -30,11 +30,11 @@ from basicFunctions import uHex, humansize, createFolders, msg, cmdChannel
 from guiSubComponents import importSingleFileWithGui, getNewNameFromUser, BasicWindow
 
 
-def getHpsFile( windowParent=None ):
+def getHpsFile( windowParent=None, isoPath='' ):
 
 	""" Prompts the user to select an audio file, converts it to HPS format if it is not 
 		one already, initializes it as an HPS audio file object, and returns that object. 
-		Returns None if the user cancels or the file object cannot be created. """
+		Returns None if the user cancels or the MusicFile object cannot be created. """
 	
 	# Define formats suitable for MeleeMedia input
 	fileTypeOptions = [ ( "HPS files", '*.hps' ), ('DSP files', '*.dsp'), ('WAV files', '*.wav'), ('MP3 files', '*.mp3'), 
@@ -57,13 +57,19 @@ def getHpsFile( windowParent=None ):
 
 	# Convert the file to HPS format, if needed
 	if os.path.splitext( newFilePath )[1].lower() != '.hps':
+		# Prompt the user to specify a loop point
+		loopEditorWindow = LoopEditorWindow( 'Loop Configuration' )
+		if loopEditorWindow.loopArg == 'cancel': # User may have canceled the operation
+			globalData.gui.updateProgramStatus( 'The operation was canceled.' )
+			return None
+
 		# Get the path to the converter executable and construct the output hps filepath
 		meleeMediaExe = globalData.paths['meleeMedia']
 		newFilename = os.path.basename( newFilePath ).rsplit( '.', 1 )[0] + '.hps'
 		outputPath = os.path.join( globalData.paths['tempFolder'], newFilename )
 		
 		# Convert the file
-		returnCode, output = cmdChannel( [meleeMediaExe, newFilePath, outputPath] )
+		returnCode, output = cmdChannel( [meleeMediaExe, newFilePath, outputPath, loopEditorWindow.loopArg] )
 
 		if returnCode != 0:
 			globalData.gui.updateProgramStatus( 'Conversion failed; {}'.format(output) )
@@ -74,7 +80,7 @@ def getHpsFile( windowParent=None ):
 
 	# Initialize the new file
 	try:
-		newFileObj = MusicFile( None, -1, -1, '', extPath=newFilePath, source='file' )
+		newFileObj = MusicFile( None, -1, -1, isoPath, extPath=newFilePath, source='file' )
 		newFileObj.getData()
 		return newFileObj
 	except Exception as err:
@@ -260,7 +266,7 @@ class AudioManager( ttk.Frame ):
 		
 		self.generalInfoLabel['text'] = '\n'.join( [str(len(self.songs)), humansize(totalFilesize) ] )
 
-	def onFileTreeSelect( self, event ):
+	def onFileTreeSelect( self, event=None ):
 
 		""" Called when an item (file or folder) in the Disc File Tree is selected. Iterates over 
 			the selected items, calculates total file(s) size, and displays it in the GUI. """
@@ -403,14 +409,26 @@ class AudioManager( ttk.Frame ):
 		musicFile = self.getSelectedFile()
 		if not musicFile: return
 
-		newMusicFile = getHpsFile()
+		# Prompt the user to select a new external file to import (and convert/initialize it)
+		newMusicFile = getHpsFile( isoPath=musicFile.isoPath )
 
 		if newMusicFile:
-			# Replace the selected file
+			# Replace the selected file in the disc
 			globalData.disc.replaceFile( musicFile, newMusicFile )
 
+			# Reload information displayed in the GUI
+			self.onFileTreeSelect()
+			#self.loadFileList()
+			for i, fileObj in enumerate( self.songs ):
+				if fileObj.isoPath == musicFile.isoPath:
+					fileObj = newMusicFile
+					break
+			self.updateGeneralInfo()
+
+			# Prompt the user to enter a new name for this track
 			self.rename()
 			
+			# Update program status
 			globalData.gui.updateProgramStatus( 'File Replaced. Awaiting Save', success=True )
 
 	def rename( self ):
@@ -641,6 +659,151 @@ class AudioManager( ttk.Frame ):
 				self.referencesList['text'] += '      Secondary references:\n\n' + ', '.join( secondaryReferences )
 
 
+class LoopEditorWindow( BasicWindow ):
+
+	def __init__( self, title='Loop Editor' ):
+
+		BasicWindow.__init__( self, globalData.gui.root, title )
+		self.loopArg = ''
+
+		# Loop configuration entry
+		self.loopEditor = LoopEditor( self.window )
+		self.loopEditor.grid( column=0, columnspan=2, row=0, pady=4 )
+
+		# Ok / Cancel buttons
+		ttk.Button( self.window, text='Ok', command=self.submit ).grid( column=0, row=1, ipadx=0, padx=6, pady=(4, 14) )
+		ttk.Button( self.window, text='Cancel', command=self.cancel ).grid( column=1, row=1, padx=6, pady=(4, 14) )
+
+		# Move focus to this window (for keyboard control), and pause execution of the calling function until this window is closed.
+		self.window.grab_set()
+		globalData.gui.root.wait_window( self.window ) # Freezes the GUI until this window is closed.
+
+	def submit( self ):
+
+		""" Attempts to build a MeleeMedia argument with the loop editor's given input. This
+			will give the user a message and leave this window open if the input is invalid. """
+
+		try:
+			self.loopArg = self.loopEditor.loopArg
+		except Exception as err:
+			msg( 'Invalid input for a custom loop; {}'.format(err), 'Invalid Loop Input', self.window, error=True )
+			return
+		
+		self.close()
+
+	def cancel( self ):
+		self.loopArg = 'cancel' # Can't use an empty string or raise an exception to convey this
+		self.close()
+
+
+class LoopEditor( ttk.Frame ):
+
+	""" A Frame widget to display controls for setting/editing a song's loop point. """
+
+	def __init__( self, *args, **kwargs ):
+
+		ttk.Frame.__init__( self, *args, **kwargs )
+
+		self.loopTrack = Tk.IntVar( value=1 )
+	
+		ttk.Label( self, text='Loop:' ).grid( column=0, row=0, padx=6, pady=4 )
+		ttk.Radiobutton( self, text='None', variable=self.loopTrack, value=0, command=self.toggleTrackLooping ).grid( column=1, row=0, padx=6, pady=4 )
+		ttk.Radiobutton( self, text='Normal', variable=self.loopTrack, value=1, command=self.toggleTrackLooping ).grid( column=2, row=0, padx=6, pady=4 )
+		ttk.Radiobutton( self, text='Custom', variable=self.loopTrack, value=2, command=self.toggleTrackLooping ).grid( column=3, row=0, padx=6, pady=4 )
+
+		ttk.Label( self, text='Minute:' ).grid( column=0, row=1, padx=6, pady=4 )
+		self.minutesEntry = ttk.Entry( self, width=4, state='disabled' )
+		self.minutesEntry.grid( column=1, row=1, padx=(18, 6), pady=4 )
+		ttk.Label( self, text='Second:' ).grid( column=2, row=1, padx=6, pady=4 )
+		self.secondsEntry = ttk.Entry( self, width=8, state='disabled' )
+		self.secondsEntry.grid( column=3, row=1, padx=6, pady=4 )
+		helpBtn = ttk.Label( self, text='?', foreground='#445', cursor='hand2' )
+		helpBtn.grid( column=4, row=1, padx=(6, 18), pady=4 )
+		helpBtn.bind( '<1>', self.helpBtnClicked )
+		
+	def helpBtnClicked( self, event ):
+		msg( 'A "Normal" loop starts the track back at the very beginning once it reaches the end, '
+			 'whereas a "Custom" loop re-starts the track at the specified point after the first playthrough.\n\n'
+			 'Minutes should be an integer value between 0 and 60. Seconds may be a float value between 0 and 60, '
+			 'which may include decimal places for milliseconds. e.g. 10 or 32.123', 'Loop Time Input Formats', self.master )
+
+	def toggleTrackLooping( self, includeRadioBtn=False ):
+
+		""" Toggles state of the minutes/seconds entries in the window. """
+
+		if self.loopTrack.get() == 2: # For 'Custom' Loops
+			state = 'normal'
+		else:
+			state = 'disabled'
+		
+		for widget in self.winfo_children():
+			if widget.winfo_class() == 'TEntry' or ( includeRadioBtn and widget.winfo_class() == 'TRadiobutton' ):
+				widget['state'] = state
+
+	# @property
+	# def loopType( self ):
+	# 	""" May be:
+	# 			0 (No loop)
+	# 			1 (normal loop, from end to start)
+	# 			2 (custom loop to specific minute/second). 
+	# 	"""
+	# 	return self.loopTrack.get()
+
+	@property
+	def minute( self ):
+		""" Get and validate the loop point minute entry. """
+		# try:
+		minuteText = self.minutesEntry.get()
+		if minuteText:
+			minute = int( minuteText )
+			if minute < 0 or minute > 60:
+				raise Exception( 'minute data entry is out of bounds. Should be between 0 and 60.' )
+		else:
+			minute = 0
+		# except Exception as err:
+		# 	msg( 'Invalid input to the Minute value input; {}'.format(err) )
+		# 	raise
+		
+		return minute
+
+	@property
+	def second( self ):
+		""" Get and validate the loop point second entry. """
+		# try:
+		secondString = self.secondsEntry.get()
+		if secondString:
+			second = float( secondString )
+			if second < 0 or second > 60:
+				raise Exception( 'second data entry is out of bounds. Should be a float between 0 and 60.' )
+		else:
+			second = 0.0
+		# except Exception as err:
+		# 	msg( 'Invalid input to the Second value input; {}'.format(err) )
+		# 	raise
+		
+		return second
+
+	@property
+	def loopArg( self ):
+		""" Format an argument string for MeleeMedia. """
+		loopType = self.loopTrack.get()
+
+		if loopType == 2: # Custom loop (to a specific minute/second)
+			# minute = self.minute
+			# second = self.second
+			# if minute == -1 or second == -1: # Invalid input
+			# 	loopArg = ''
+			loopArg = ' -loop 00:{:02}:{:09.6f}'.format( self.minute, self.second ) # {:09.6f} pads left up to 9 characters, with last 6 for decimal places
+
+		elif loopType == 1: # Normal loop (from song end to very beginning)
+			loopArg = ' -loop 00:00:00'
+
+		else: # No loop
+			loopArg = ''
+
+		return loopArg
+
+
 class TrackAdder( BasicWindow ):
 
 	def __init__( self, defaultFilename, defaultHexTrackName ):
@@ -653,7 +816,7 @@ class TrackAdder( BasicWindow ):
 		self.defaultName = defaultFilename
 		self.defaultHexTrackName = defaultHexTrackName
 		self.hpsFile = None
-		self.loopTrack = Tk.IntVar( value=1 )
+		#self.loopTrack = Tk.IntVar( value=1 )
 		self.hexTrackMaxNickLen = -1
 
 		# File chooser
@@ -679,21 +842,23 @@ class TrackAdder( BasicWindow ):
 		ttk.Separator( self.window, orient='horizontal' ).grid( column=0, columnspan=2, row=5, sticky='ew', padx=50, pady=4 )
 
 		# Set loop point options (radio buttons and custom time entries)
-		self.loopPointFrame = ttk.Frame( self.window )
-		ttk.Label( self.loopPointFrame, text='Loop:' ).grid( column=0, row=0, padx=6, pady=4 )
-		ttk.Radiobutton( self.loopPointFrame, text='None', variable=self.loopTrack, value=0, command=self.toggleTrackLooping ).grid( column=1, row=0, padx=6, pady=4 )
-		ttk.Radiobutton( self.loopPointFrame, text='Normal', variable=self.loopTrack, value=1, command=self.toggleTrackLooping ).grid( column=2, row=0, padx=6, pady=4 )
-		ttk.Radiobutton( self.loopPointFrame, text='Custom', variable=self.loopTrack, value=2, command=self.toggleTrackLooping ).grid( column=3, row=0, padx=6, pady=4 )
-		ttk.Label( self.loopPointFrame, text='Minute:' ).grid( column=0, row=1, padx=6, pady=4 )
-		self.minutesEntry = ttk.Entry( self.loopPointFrame, width=4, state='disabled' )
-		self.minutesEntry.grid( column=1, row=1, padx=6, pady=4 )
-		ttk.Label( self.loopPointFrame, text='Second:' ).grid( column=2, row=1, padx=6, pady=4 )
-		self.secondsEntry = ttk.Entry( self.loopPointFrame, width=8, state='disabled' )
-		self.secondsEntry.grid( column=3, row=1, padx=6, pady=4 )
-		helpBtn = ttk.Label( self.loopPointFrame, text='?', foreground='#445', cursor='hand2' )
-		helpBtn.grid( column=4, row=1, padx=6, pady=4 )
-		helpBtn.bind( '<1>', self.helpBtnClicked )
-		self.loopPointFrame.grid( column=0, columnspan=2, row=6, padx=6, pady=20 )
+		# self.loopPointFrame = ttk.Frame( self.window )
+		# ttk.Label( self.loopPointFrame, text='Loop:' ).grid( column=0, row=0, padx=6, pady=4 )
+		# ttk.Radiobutton( self.loopPointFrame, text='None', variable=self.loopTrack, value=0, command=self.toggleTrackLooping ).grid( column=1, row=0, padx=6, pady=4 )
+		# ttk.Radiobutton( self.loopPointFrame, text='Normal', variable=self.loopTrack, value=1, command=self.toggleTrackLooping ).grid( column=2, row=0, padx=6, pady=4 )
+		# ttk.Radiobutton( self.loopPointFrame, text='Custom', variable=self.loopTrack, value=2, command=self.toggleTrackLooping ).grid( column=3, row=0, padx=6, pady=4 )
+		# ttk.Label( self.loopPointFrame, text='Minute:' ).grid( column=0, row=1, padx=6, pady=4 )
+		# self.minutesEntry = ttk.Entry( self.loopPointFrame, width=4, state='disabled' )
+		# self.minutesEntry.grid( column=1, row=1, padx=6, pady=4 )
+		# ttk.Label( self.loopPointFrame, text='Second:' ).grid( column=2, row=1, padx=6, pady=4 )
+		# self.secondsEntry = ttk.Entry( self.loopPointFrame, width=8, state='disabled' )
+		# self.secondsEntry.grid( column=3, row=1, padx=6, pady=4 )
+		# helpBtn = ttk.Label( self.loopPointFrame, text='?', foreground='#445', cursor='hand2' )
+		# helpBtn.grid( column=4, row=1, padx=6, pady=4 )
+		# helpBtn.bind( '<1>', self.helpBtnClicked )
+		# self.loopPointFrame.grid( column=0, columnspan=2, row=6, padx=6, pady=20 )
+		self.loopEditor = LoopEditor( self.window )
+		self.loopEditor.grid( column=0, columnspan=2, row=6, padx=6, pady=20 )
 		ttk.Separator( self.window, orient='horizontal' ).grid( column=0, columnspan=2, row=7, sticky='ew', padx=50, pady=4 )
 
 		# Track name (nickname) entry
@@ -771,19 +936,19 @@ class TrackAdder( BasicWindow ):
 
 		self.determineMaxNickLength()
 
-	def toggleTrackLooping( self, includeRadioBtn=False ):
+	# def toggleTrackLooping( self, includeRadioBtn=False ):
 
-		""" Toggles state of the minutes/seconds entries in the window. 
-			Called by the 'Loop' Yes/No radio buttons. """
+	# 	""" Toggles state of the minutes/seconds entries in the window. 
+	# 		Called by the 'Loop' Yes/No radio buttons. """
 
-		if self.loopTrack.get() == 2: # For 'Custom' Loops
-			state = 'normal'
-		else:
-			state = 'disabled'
+	# 	if self.loopTrack.get() == 2: # For 'Custom' Loops
+	# 		state = 'normal'
+	# 	else:
+	# 		state = 'disabled'
 		
-		for widget in self.loopPointFrame.winfo_children():
-			if widget.winfo_class() == 'TEntry' or ( includeRadioBtn and widget.winfo_class() == 'TRadiobutton' ):
-				widget['state'] = state
+	# 	for widget in self.loopPointFrame.winfo_children():
+	# 		if widget.winfo_class() == 'TEntry' or ( includeRadioBtn and widget.winfo_class() == 'TRadiobutton' ):
+	# 			widget['state'] = state
 
 	def promptForDiscFilename( self ):
 
@@ -848,8 +1013,10 @@ class TrackAdder( BasicWindow ):
 
 			# Disable setting of loop point if this is an HPS file
 			if os.path.splitext( newFilePath )[1].lower() == '.hps':
-				self.loopTrack.set( 0 )
-				self.toggleTrackLooping( True )
+				#self.loopTrack.set( 0 )
+				#self.toggleTrackLooping( True )
+				self.loopEditor.loopTrack.set( 0 )
+				self.loopEditor.toggleTrackLooping( True )
 
 			else: # Make sure the Loop radio buttons are enabled
 				for widget in self.loopPointFrame.winfo_children():
@@ -881,34 +1048,39 @@ class TrackAdder( BasicWindow ):
 			newFilename = os.path.basename( filePath ).rsplit( '.', 1 )[0] + '.hps'
 			outputPath = os.path.join( globalData.paths['tempFolder'], newFilename )
 
-			if self.loopTrack.get() == 2: # Custom loop; get values from entry fields
-				try:
-					# Get and validate the loop point minute entry
-					minuteText = self.minutesEntry.get()
-					if minuteText:
-						minute = int( minuteText )
-						if minute < 0 or minute > 60:
-							raise Exception( 'minute data entry is out of bounds. Should be between 0 and 60.' )
-					else:
-						minute = 0
+			# if self.loopEditor.loopType == 2: # Custom loop; get values from entry fields
+			# 	try:
+			# 		# Get and validate the loop point minute entry
+			# 		minuteText = self.minutesEntry.get()
+			# 		if minuteText:
+			# 			minute = int( minuteText )
+			# 			if minute < 0 or minute > 60:
+			# 				raise Exception( 'minute data entry is out of bounds. Should be between 0 and 60.' )
+			# 		else:
+			# 			minute = 0
 					
-					# Get and validate the loop point second entry
-					secondString = self.secondsEntry.get()
-					if secondString:
-						second = float( secondString )
-						if second < 0 or second > 60:
-							raise Exception( 'second data entry is out of bounds. Should be a float between 0 and 60.' )
-					else:
-						second = 0.0
-				except Exception as err:
-					msg( 'Invalid input to the Loop value inputs; {}'.format(err) )
-					return
-				loopArg = ' -loop 00:{:02}:{:09.6f}'.format( minute, second ) # {:09.6f} pads left up to 9 characters, with last 6 for decimal places
+			# 		# Get and validate the loop point second entry
+			# 		secondString = self.secondsEntry.get()
+			# 		if secondString:
+			# 			second = float( secondString )
+			# 			if second < 0 or second > 60:
+			# 				raise Exception( 'second data entry is out of bounds. Should be a float between 0 and 60.' )
+			# 		else:
+			# 			second = 0.0
+			# 	except Exception as err:
+			# 		msg( 'Invalid input to the Loop value inputs; {}'.format(err) )
+			# 		return
+			# 	loopArg = ' -loop 00:{:02}:{:09.6f}'.format( minute, second ) # {:09.6f} pads left up to 9 characters, with last 6 for decimal places
 			
-			elif self.loopTrack.get() == 1: # Normal loop (from song end to very beginning)
-				loopArg = ' -loop 00:00:00'
-			else: # No loop
-				loopArg = ''
+			# elif self.loopEditor.loopType == 1: # Normal loop (from song end to very beginning)
+			# 	loopArg = ' -loop 00:00:00'
+			# else: # No loop
+			# 	loopArg = ''
+			try:
+				loopArg = self.loopEditor.loopArg
+			except Exception as err:
+				msg( 'Invalid input for a custom loop; {}'.format(err) )
+				return
 
 			# Convert the file
 			command = '"{}" "{}" "{}"{}'.format( meleeMediaExe, filePath, outputPath, loopArg )
@@ -958,11 +1130,11 @@ class TrackAdder( BasicWindow ):
 
 		self.close()
 
-	def helpBtnClicked( self, event ):
-		msg( 'A "Normal" loop starts the track back at the very beginning once it reaches the end, '
-			 'whereas a "Custom" loop re-starts the track at the specified point after the first playthrough.\n\n'
-			 'Minutes should be an integer value between 0 and 60. Seconds may be a float value between 0 and 60, '
-			 'which may include decimal places for milliseconds. e.g. 10 or 32.123', 'Loop Time Input Formats', self.window )
+	# def helpBtnClicked( self, event ):
+	# 	msg( 'A "Normal" loop starts the track back at the very beginning once it reaches the end, '
+	# 		 'whereas a "Custom" loop re-starts the track at the specified point after the first playthrough.\n\n'
+	# 		 'Minutes should be an integer value between 0 and 60. Seconds may be a float value between 0 and 60, '
+	# 		 'which may include decimal places for milliseconds. e.g. 10 or 32.123', 'Loop Time Input Formats', self.window )
 
 	def cancel( self ):
 		self.hpsFile = None
