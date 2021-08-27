@@ -24,13 +24,13 @@ import ConfigParser
 
 from sys import argv as programArgs
 from string import hexdigits 				# For checking that a string only consists of hexadecimal characters
-#from collections import OrderedDict
 from binascii import hexlify, unhexlify 	# Convert from bytearrays to strings (and vice verca via unhexlify)
 
 # Internal Dependencies
 import globalData
 
 from dol import Dol
+from stageManager import StageSwapTable
 from codeMods import regionsOverlap, CodeLibraryParser
 from hsdFiles import FileBase, fileFactory
 from basicFunctions import roundTo32, uHex, toHex, toInt, toBytes, humansize, grammarfyList, createFolders, msg, printStatus, ListDict
@@ -1679,6 +1679,40 @@ class Disc( object ):
 		if not injectionsCodeFile: return ()
 
 		return injectionsCodeFile.getData()
+
+	def checkReferencedStageFiles( self ):
+
+		""" Checks for files referenced by the DOL (and 20XX Stage Swap Table if 
+			it's 20XX) to determine what file names are referenced by the game. """
+		
+		referencedFiles = set()
+		swapTable = StageSwapTable()
+
+		# Check for stage file names referenced in the DOL and/or Stage Swap Table
+		for stageId in range( 0x1, 0x47 ): # Iterating via Internal Stage ID
+			# Ignore Akaneia and other unused stage slots
+			if stageId in ( 0x17, 0x1A, 0x22, 0x23, 0x26 ):
+				continue
+
+			# Check if the Stage Swap Table defines this stage
+			elif stageId in StageSwapTable.stageOffsets:
+				for page in range( 1, 5 ):
+					# Get stage swap information on this stage slot for this SSS
+					newExtStageId, _, byteReplacePointer, byteReplacement, randomByteValues = swapTable.getEntryInfo( stageId, page )
+
+					# Determine the NEW internal stage ID to switch to for this slot
+					if newExtStageId == 0:
+						newIntStageId = stageId
+					else:
+						newIntStageId = self.dol.getIntStageIdFromExt( newExtStageId )
+
+					# Determine what files may be loaded from this stage slot from this SSS page
+					filenames = swapTable.determineStageFiles( newIntStageId, page, byteReplacePointer, byteReplacement, randomByteValues )[1]
+					referencedFiles.update( filenames )
+			else:
+				referencedFiles.add( self.dol.getStageFileName(stageId)[1] )
+
+		return referencedFiles
 
 	def uninstallCodeMods( self, codeMods ):
 

@@ -114,7 +114,7 @@ class AudioManager( ttk.Frame ):
 		ttk.Label( generalLabelFrame, text=('Total Tracks:\nTotal Filespace:') ).pack( side='left' )
 		self.generalInfoLabel = ttk.Label( generalLabelFrame )
 		self.generalInfoLabel.pack( side='right', padx=6 )
-		generalLabelFrame.pack( pady=6 )
+		generalLabelFrame.pack( pady=(12, 6) )
 		
 		trackInfoLabelFrame = ttk.LabelFrame( infoPane, text='  Track Info  ', labelanchor='n', padding=(20, 0, 20, 4) )
 		ttk.Label( trackInfoLabelFrame, text=('Music ID:\nFile Size:\nSample Rate:\nChannels:\nDuration:\nLoop Point:') ).pack( side='left' )
@@ -132,9 +132,13 @@ class AudioManager( ttk.Frame ):
 		ttk.Button( self.controlsFrame, text='Edit Loop', command=self.editLoop, state='disabled' ).grid( column=1, row=1, padx=5, pady=5 )
 		ttk.Button( self.controlsFrame, text='Delete', command=self.delete, state='disabled' ).grid( column=0, row=2, padx=5, pady=5 )
 		ttk.Button( self.controlsFrame, text='Add Track', command=self.addTrack ).grid( column=1, row=2, padx=5, pady=5 )
+		ttk.Button( self.controlsFrame, text='Look for References', command=self.findReferences ).grid( column=0, row=3, columnspan=2, ipadx=10, padx=5, pady=5 )
 		self.controlModule = AudioControlModule( self.controlsFrame, self.audioEngine )
-		self.controlModule.grid( column=0, columnspan=2, row=3, padx=5, pady=5 )
+		self.controlModule.grid( column=0, columnspan=2, row=4, padx=5, pady=5 )
 		self.controlsFrame.pack( pady=6 )
+
+		self.referencesList = ttk.Label( infoPane, wraplength=400 )
+		self.referencesList.pack( pady=6 )
 
 		# Add treeview event handlers
 		self.fileTree.bind( '<<TreeviewSelect>>', self.onFileTreeSelect )
@@ -163,6 +167,7 @@ class AudioManager( ttk.Frame ):
 
 		self.generalInfoLabel['text'] = ''
 		self.trackInfoLabel['text'] = ''
+		self.referencesList['text'] = ''
 
 		# Update the main control buttons (to a state of no item is selected)
 		for widget in self.controlsFrame.winfo_children():
@@ -189,8 +194,7 @@ class AudioManager( ttk.Frame ):
 			self.songs.append( musicFile )
 			totalFilesize += musicFile.size
 		
-		# Add labels along the left for the songs found above
-		#for musicFile in self.songs:
+			# Add labels along the left for the songs found above
 			if musicFile.isHexTrack: # These are 20XX's added custom tracks, e.g. 01.hps, 02.hps, etc.
 				if not self.fileTree.exists( 'hextracks' ):
 					self.fileTree.insert( '', 'end', iid='hextracks', text=' Hex Tracks  (20XX Custom Music)', values=('', 'cFolder'), image=globalData.gui.imageBank('musicIcon') )
@@ -204,6 +208,7 @@ class AudioManager( ttk.Frame ):
 
 			# Add the musicFile to the treeview
 			self.fileTree.insert( parent, 'end', iid=musicFile.isoPath, text=musicFile.description, values=(musicFile.filename, 'file') )
+			print humansize(musicFile.size), '  \t', musicFile.description
 
 		self.updateGeneralInfo( totalFilesize )
 
@@ -313,8 +318,9 @@ class AudioManager( ttk.Frame ):
 			minutes, seconds = divmod( seconds, 60 )
 			loopPointString = '{:02}:{:02}.{:03}'.format( int(minutes), int(seconds), int(milliseconds) ) # Will pad minutes/seconds to 2 characters, and milliseconds to 3
 
-		# Update the Track Info label
+		# Update the Track Info label and clear the references list
 		self.trackInfoLabel['text'] = '\n'.join( [musicId, fileSizeString, '{:,}'.format(musicFile.sampleRate), str(musicFile.channels), durationString, loopPointString] )
+		self.referencesList['text'] = ''
 
 		# Update the Play/Pause button
 		# if self.audioEngine.isPlayingAudio() and self.audio self.audioEngine.audioThread.name == self.controlModule.audioFile.filename: # i.e. this is the file currently playing audio
@@ -365,8 +371,14 @@ class AudioManager( ttk.Frame ):
 				wavFilePath = musicFile.getAsWav()
 				if wavFilePath:
 					# Move the newly exported WAV file (in the temp folder) to the user's target location
-					shutil.move( wavFilePath, savePath )
+					#shutil.move( wavFilePath, savePath )
+					shutil.copy2( wavFilePath, savePath )
 					successful = True
+			# except WindowsError as err:
+			# 	if err.winerror == 32: # Unable to delete the file upon move; may be because it's being used to play audio
+			# 		successful = True
+			# 	else:
+			# 		successful = False
 			except Exception as err:
 				print err
 		else:
@@ -406,6 +418,7 @@ class AudioManager( ttk.Frame ):
 		""" Prompts the user to enter a new name for the selected file, and updates it in the CSS or yaml file. """
 
 		musicFile = self.getSelectedFile()
+		if not musicFile: return
 
 		if musicFile.isHexTrack:
 			cssFile = globalData.disc.files.get( globalData.disc.gameId + '/MnSlChr.0sd' )
@@ -413,15 +426,13 @@ class AudioManager( ttk.Frame ):
 				msg( "Unable to update CSS with song name; the CSS file (MnSlChr.0sd) could not be found in the disc." )
 				globalData.gui.updateProgramStatus( "Unable to update CSS with song name; couldn't find the CSS file in the disc", error=True )
 				return
-			charLimit = cssFile.checkMaxHexTrackNameLen( musicFile.musicId )
+			charLimit = cssFile.checkMaxHexTrackNameLen( musicFile.trackNumber )
 			if charLimit == -1:
 				msg( "Unable to update CSS with song name; a character limit could not be determined from the CSS song names table." )
 				globalData.gui.updateProgramStatus( "Unable to update CSS with song name; a character limit could not be determined", error=True )
 				return
 		else:
 			charLimit = 42 # Arbitrary; don't want it too long though, for readability
-
-		print 'track name length limit:', uHex(charLimit)
 
 		# Prompt the user to enter a new name
 		newName = getNewNameFromUser( charLimit, message='Enter a new name:', defaultText=musicFile.description )
@@ -547,13 +558,14 @@ class AudioManager( ttk.Frame ):
 		globalData.disc.addFiles( [newTrack], insertAfter )
 
 		# Add the file to the internal file list and GUI for this tab, and update General Info
-		if newTrack.isHexTrack:
-			parent = 'hextracks'
-		else:
-			parent = ''
-		self.songs.append( newTrack )
-		self.fileTree.insert( parent, 'end', iid=newTrack.isoPath, text=newTrack.description, values=(newTrack.filename, 'file') )
-		self.updateGeneralInfo()
+		# if newTrack.isHexTrack:
+		# 	parent = 'hextracks'
+		# else:
+		# 	parent = ''
+		# self.songs.append( newTrack )
+		# self.fileTree.insert( parent, 'end', iid=newTrack.isoPath, text=newTrack.description, values=(newTrack.filename, 'file') )
+		# self.updateGeneralInfo()
+		self.loadFileList()
 
 		# Reload the Disc File Tree to show the new file
 		if globalData.gui.discTab:
@@ -565,6 +577,68 @@ class AudioManager( ttk.Frame ):
 		if detailsTab:
 			detailsTab.isoFileCountText.set( "{:,}".format(len(globalData.disc.files)) )
 			#detailsTab # todo: disc size as well
+
+	def findReferences( self ):
+
+		""" Scans all stage files to find references to the currently selected music file. """
+		
+		musicFile = self.getSelectedFile()
+		if not musicFile: return
+
+		# Get a set of stage files referenced by the game
+		#referecedFiles = globalData.disc.checkReferencedStageFiles()
+		gameId = globalData.disc.gameId
+		gameFiles = globalData.disc.files
+		primaryReferences = []
+		secondaryReferences = []
+
+		#for filename in referecedFiles: # This will just be a set of filenames, not file objects
+		for fileObj in gameFiles.itervalues():
+			# Ignore non music files
+			if not fileObj.__class__.__name__ == 'StageFile':
+				continue
+
+			# Get values from the music table
+			fileObj.initialize()
+			musicTableStruct = fileObj.getMusicTableStruct()
+			values = musicTableStruct.getValues()
+			valuesPerEntry = len( values ) / musicTableStruct.entryCount
+			
+			# Check for primary references; check music IDs in the first table entry
+			if musicFile.musicId in values[1:5]:
+				primaryReferences.append( fileObj )
+				continue # Exclude from secondaries list
+
+			# Check for secondary references; get all song IDs from the music table values beyond the first table entry
+			secondaryRefs = []
+			for i in range( 1, musicTableStruct.entryCount ):
+				# Pick out the external stage ID names to get the names for each entry
+				secondaryRefs.extend( values[i*valuesPerEntry+1:i*valuesPerEntry+5] ) # Getting values 1 through 4 of the entry
+
+			# Check if any of the above songs match the currently selected song
+			if musicFile.musicId in secondaryRefs:
+				secondaryReferences.append( fileObj )
+
+		# Reformat the lists of files to descriptive strings
+		primaryReferences = [ '{} ({})'.format(fileObj.filename, fileObj.getDescription(False, False)) for fileObj in primaryReferences ]
+		secondaryReferences = [ '{} ({})'.format(fileObj.filename, fileObj.getDescription(False, False)) for fileObj in secondaryReferences ]
+
+		# Display the result in the info pane
+		if not primaryReferences and not secondaryReferences:
+			self.referencesList['text'] = 'Not referenced by any stage files.'
+		elif len( primaryReferences ) + len( secondaryReferences ) == 1:
+			if primaryReferences:
+				self.referencesList['text'] = 'Only found as a primary reference with ' + primaryReferences[0]
+			else:
+				self.referencesList['text'] = 'Only found as a secondary reference with ' + secondaryReferences[0]
+		else:
+			self.referencesList['text'] = ''
+			if primaryReferences:
+				self.referencesList['text'] = '      Primary references:\n\n' + ', '.join( primaryReferences )
+			if secondaryReferences:
+				if primaryReferences:
+					self.referencesList['text'] += '\n\n'
+				self.referencesList['text'] += '      Secondary references:\n\n' + ', '.join( secondaryReferences )
 
 
 class TrackAdder( BasicWindow ):
@@ -604,7 +678,7 @@ class TrackAdder( BasicWindow ):
 		self.nameInputFrame.grid( column=0, columnspan=2, row=4, padx=6, pady=4 )
 		ttk.Separator( self.window, orient='horizontal' ).grid( column=0, columnspan=2, row=5, sticky='ew', padx=50, pady=4 )
 
-		# Set loop point
+		# Set loop point options (radio buttons and custom time entries)
 		self.loopPointFrame = ttk.Frame( self.window )
 		ttk.Label( self.loopPointFrame, text='Loop:' ).grid( column=0, row=0, padx=6, pady=4 )
 		ttk.Radiobutton( self.loopPointFrame, text='None', variable=self.loopTrack, value=0, command=self.toggleTrackLooping ).grid( column=1, row=0, padx=6, pady=4 )
@@ -620,9 +694,7 @@ class TrackAdder( BasicWindow ):
 		helpBtn.grid( column=4, row=1, padx=6, pady=4 )
 		helpBtn.bind( '<1>', self.helpBtnClicked )
 		self.loopPointFrame.grid( column=0, columnspan=2, row=6, padx=6, pady=20 )
-		#self.loopPointFrame.pack( fill='x', pady=4 )
 		ttk.Separator( self.window, orient='horizontal' ).grid( column=0, columnspan=2, row=7, sticky='ew', padx=50, pady=4 )
-		#ttk.Separator( self.window, orient='horizontal' ).pack( fill='x', padx=50, pady=4 )
 
 		# Track name (nickname) entry
 		nicknameEntryFrame = ttk.Frame( self.window )
@@ -633,17 +705,12 @@ class TrackAdder( BasicWindow ):
 		self.nickLengthText = ttk.Label( nicknameEntryFrame )
 		self.nickLengthText.grid( column=2, row=0, padx=6, pady=4 )
 		nicknameEntryFrame.grid( column=0, columnspan=2, row=8, padx=6, pady=8 )
-		#self.determineMaxNickLength()
-		#nicknameEntryFrame.pack( fill='x', pady=4 )
-		#ttk.Separator( self.window, orient='horizontal' ).grid( column=0, columnspan=2, row=9, sticky='ew', padx=50, pady=4 )
 
 		self.populateNameInputFrame()
 
 		# Confirm / Cancel buttons
-		#buttonsFrame = ttk.Frame( self.window )
 		ttk.Button( self.window, text='Confirm', command=self.submitFile ).grid( column=0, row=9, ipadx=0, padx=6, pady=(4, 14) )
 		ttk.Button( self.window, text='Cancel', command=self.cancel ).grid( column=1, row=9, padx=6, pady=(4, 14) )
-		#buttonsFrame.pack( fill='x', pady=4 )
 
 		# Move focus to this window (for keyboard control), and pause execution of the calling function until this window is closed.
 		self.window.grab_set()

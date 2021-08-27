@@ -33,9 +33,8 @@ from tools import TriCspCreator
 from disc import Disc, isExtractedDirectory
 from hsdFiles import StageFile, CharCostumeFile
 from basicFunctions import (
-		msg, uHex,
-		humansize, openFolder,
-		createFolders
+		msg, uHex, humansize,
+		openFolder, createFolders
 	)
 from guiSubComponents import (
 		importGameFiles, DisguisedEntry, VerticalScrolledFrame,
@@ -207,6 +206,7 @@ class ToolsMenu( Tk.Menu, object ):
 		self.add_cascade( label="Build from Patch", command=self.notDone, underline=11 )							# P
 		self.add_separator()
 		self.add_cascade( label="Create Tri-CSP", command=self.createTriCsp, underline=1 )							# T
+		self.add_cascade( label="Find Unused Stage Files", command=self.findUnusedStages, underline=0 )				# F
 
 	def notDone( self ):
 		print( 'not yet supported' )
@@ -313,6 +313,36 @@ class ToolsMenu( Tk.Menu, object ):
 			assetTest.customize( "Stage", 32 ) # Selecting FD
 		codesToInstall.append( assetTest )
 
+	def findUnusedStages( self ):
+
+		""" Searches a disc or root directory for stage files that won't be used by the game.
+			This is done by checking for files referenced by the DOL (and 20XX Stage Swap Table 
+			if it's 20XX) to determine what file names are referenced, and checking if those stage 
+			files are present. """
+
+		if not globalData.disc:
+			msg( 'No disc has been loaded!' )
+			return
+		elif not globalData.disc.is20XX:
+			msg( 'This is a 20XX-only feature ATM' )
+			return
+
+		# Check for files referenced by the game
+		referecedFiles = globalData.disc.checkReferencedStageFiles()
+
+		# Check for stages in the disc
+		discFiles = set()
+		for fileObj in globalData.disc.files:
+			if fileObj.__class__.__name__ == 'StageFile':
+				discFiles.add( fileObj.filename )
+
+		# Cross reference stages defined in the DOL and SST with those found in the disc
+		nonReferencedFiles = discFiles.difference( referecedFiles )
+		print('files not referenced:', nonReferencedFiles )
+		if nonReferencedFiles:
+			msg( 'These stage files are in the disc, but do not appear to be referenced by the game:\n\n' + ', '.join(nonReferencedFiles), 'Non-Referenced Stage Files' )
+		else:
+			msg( 'No files were found in the disc that do not appear to be referenced by the game.', 'Non-Referenced Stage Files' )
 
 class MainMenuCanvas( Tk.Canvas ):
 

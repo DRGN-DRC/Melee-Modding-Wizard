@@ -22,7 +22,7 @@ from PIL import Image, ImageTk, ImageDraw, ImageFont
 
 # Internal dependencies
 import globalData
-from disc import MicroMelee
+
 from tplCodec import TplEncoder
 from hsdFiles import StageFile
 from hsdStructures import MapMusicTableEntry
@@ -93,10 +93,9 @@ class StageSwapTable( object ):
 		0x25:	0x5A0	# Final Destination
 	}
 
-	def __init__( self, dolFile ):
-		self.dol = dolFile
-
-		# Check for a file in the disc filesystem specifically for the stage swap table
+	def __init__( self ):
+		# Get the DOL, and check for a file in the disc filesystem specifically for the stage swap table
+		self.dol = globalData.disc.dol
 		self.sstFile = globalData.disc.files.get( globalData.disc.gameId + '/StageSwapTable.bin' )
 
 		if self.sstFile:
@@ -123,7 +122,7 @@ class StageSwapTable( object ):
 	def getEntryInfo( self, internalStageId, page ):
 
 		""" Retrieves the values for a given stage, for a given page. 
-			The provided page value is expected to be a 1-indexed string. """
+			The provided page value is expected to be a 1-indexed int. """
 
 		# Get the offset, data, and values for this entry
 		values = self.getEntryValues( internalStageId )
@@ -146,7 +145,7 @@ class StageSwapTable( object ):
 	def setEntryInfo( self, internalStageId, page, newStageId, stageFlags, byteReplacePointer, byteReplacement, randomByteValues ):
 
 		""" Sets the values for a given stage, for a given page. 
-			The provided page value is expected to be a 1-indexed string. """
+			The provided page value is expected to be a 1-indexed int. """
 		
 		# Get the values for this entry
 		values = self.getEntryValues( internalStageId )
@@ -189,6 +188,51 @@ class StageSwapTable( object ):
 			if updateMsg not in fileToModify.unsavedChanges:
 				fileToModify.unsavedChanges.append( updateMsg )
 			globalData.gui.updateProgramStatus( updateMsg )
+
+	def determineStageFiles( self, internalStageId, page, byteReplacePointer, byteReplacement, randomByteValues ):
+
+		""" Determines the stage filenames that are expected to be loaded for a given stage icon on the Stage Select Screen. 
+			Used to determine the filenames to search for in the disc, to populate the Variations treeview and other GUI elements. 
+
+			Returns two values:
+				- An int; DOL offset of the filename string that will be used for stage file loading
+				- A list; of all filenames that may be loaded by the currently selected icon. """
+
+		# Get the filename and its offset
+		dolFilenameOffset, dolStageFilename = self.dol.getStageFileName( internalStageId )
+		if dolFilenameOffset == -1:
+			return -1, ()
+
+		# Check for 20XX random neutrals
+		if page == 1 and internalStageId in ( 0xC, 0x24, 0x25, 0x1C, 0x10, 0xA ): # FoD, Battlefield, FD, DreamLand, Stadium, Yoshi's Story
+			filenames = []
+			for char in '0123456789abcde': # F reserved for random stage
+				if internalStageId == 0x10: # Pokemon Stadium; use .usd file extension
+					filenames.append( 'GrP{}.usd'.format(char) )
+				else:
+					filenames.append( '{}.{}at'.format(dolStageFilename[:-4], char) )
+
+		# One variation; no byte replacements
+		elif byteReplacePointer == 0:
+			filenames = [dolStageFilename]
+
+		# Multiple variations; byte(s) will be replaced in the stage filename
+		else:
+			# Get the DOL offset of the byte to be replaced
+			dolByteReplaceOffset = self.dol.offsetInDOL( byteReplacePointer ) # Convert from a RAM address to a DOL offset
+			relativeOffset = dolByteReplaceOffset - dolFilenameOffset
+
+			if byteReplacement == 0xFF:
+				filenames = []
+				for byte in randomByteValues:
+					if byte == 0: continue
+					newFilename = dolStageFilename[:relativeOffset] + chr( byte ) + dolStageFilename[relativeOffset+1:]
+					filenames.append( newFilename )
+			else:
+				newFilename = dolStageFilename[:relativeOffset] + chr( byteReplacement ) + dolStageFilename[relativeOffset+1:]
+				filenames = [newFilename]
+
+		return dolFilenameOffset, filenames
 
 
 class ScrollArrows( object ):
@@ -252,18 +296,6 @@ class ScrollArrows( object ):
 		self.canvas['cursor'] = ''
 		self.canvas.itemconfigure( self.upArrowId, image=self.upArrowImage )
 
-	# def arrowClicked( self, event ):
-	# 	canvas = event.widget
-	# 	itemId = canvas.find_closest( event.x, event.y )[0]
-
-	# 	if itemId == self.downArrowId:
-	# 		self.scrollItems( -self.scrollAmount )
-	# 	else:
-	# 		self.scrollItems( self.scrollAmount )
-
-	# def placeOrRemoveArrows( self, event ):
-	# 	print 'configuring canvas'
-
 	def scrollItems( self, distance ):
 
 		""" Negative scrollPosition means the icons are moving up. """
@@ -298,7 +330,10 @@ class MusicToolTip( ToolTip ):
 	""" Subclass of the ToolTip class in order to provide an ACM (Audio Control Module), 
 		for controlling or editing music selections, which behaves like a hoverable tooltip. 
 		Also, unlike with the tooltip class, this module will wait a second before 
-		disappearing, and will not disappear if the user's mouse is over it."""
+		disappearing, and will not disappear if the user's mouse is over it. 
+		
+		Note that the ACM used here shares the same Audio Engine as the main program GUI, 
+		meaning that music played from these tooltip modules will first stop other music. """
 
 	def __init__( self, master, valueIndex, mainTab, *args, **kwargs ):
 		ToolTip.__init__( self, master, *args, **kwargs )
@@ -352,7 +387,7 @@ class MusicToolTip( ToolTip ):
 		return False
 
 	def create_contents( self ):
-		print 'creating tooltip for index', self.valueIndex
+		# print 'creating tooltip for index', self.valueIndex
 		# # Hide any other tooltips currently shown
 		# for toolTip in self.mainTab.toolTips.values():
 		# 	if toolTip._tipwindow and toolTip != self:
@@ -1107,7 +1142,7 @@ class StageManager( ttk.Frame ):
 
 		# Get the DOL file
 		self.dol = globalData.disc.dol
-		self.stageSwapTable = StageSwapTable( self.dol )
+		self.stageSwapTable = StageSwapTable()
 
 	def iconRightClicked( self, event ):
 
@@ -1298,71 +1333,6 @@ class StageManager( ttk.Frame ):
 		else:
 			self.clickedVanillaIcon( canvas )
 
-	def determineStageFiles( self, page, newIntStageId, byteReplacePointer, byteReplacement, randomByteValues ):
-
-		""" Determines the stage filenames that are expected to be loaded for a given stage icon on the Stage Select Screen. 
-			Used to determine the filenames to search for in the disc, to populate the Variations treeview and other GUI elements. 
-
-			Returns two values:
-				- An int; DOL offset of the filename string that will be used for stage file loading
-				- A list; of all filenames that may be loaded by the currently selected icon. """
-
-		if newIntStageId == 0:
-			stageIdToLoad = self.selectedStageId
-		# elif newIntStageId == 0x1A: # i.e. external stage ID 0x15, Akaneia (a deleted stage)
-		# 	newIntStageId = 'Akaneia (deleted stage)'
-		elif newIntStageId == 0x16: # i.e. external stage ID 0x1A, Icicle Mountain (anticipating no hacked stages of this); switch to current Target Test stage
-			#newIntStageId = 'Current Target Test stage'
-			print 'Unsupported; target test stage filename undetermined'
-			return -1, ()
-		else:
-			stageIdToLoad = newIntStageId
-
-		# Get the filename and its offset
-		dolFilenameOffset, dolStageFilename = self.dol.getStageFileName( stageIdToLoad )
-		if dolFilenameOffset == -1:
-			return -1, ()
-
-		# Check for 20XX random neutrals
-		if page == 1 and stageIdToLoad in ( 0xC, 0x24, 0x25, 0x1C, 0x10, 0xA ): # FoD, Battlefield, FD, DreamLand, Stadium, Yoshi's Story
-			filenames = []
-			for char in '0123456789abcde': # F reserved for random stage
-				if stageIdToLoad == 0x10: # Pokemon Stadium; use .usd file extension
-					filenames.append( 'GrP{}.usd'.format(char) )
-				else:
-					filenames.append( '{}.{}at'.format(dolStageFilename[:-4], char) )
-
-		# One variation; no byte replacements
-		elif byteReplacePointer == 0:
-			filenames = [dolStageFilename]
-
-		# Multiple variations; byte(s) will be replaced in the stage filename
-		else:
-			# Get the DOL offset of the byte to be replaced
-			dolByteReplaceOffset = self.dol.offsetInDOL( byteReplacePointer ) # Convert from a RAM address to a DOL offset
-			relativeOffset = dolByteReplaceOffset - dolFilenameOffset
-
-			if byteReplacement == 0xFF:
-				filenames = []
-				for byte in randomByteValues:
-					if byte == 0: continue
-					newFilename = dolStageFilename[:relativeOffset] + chr( byte ) + dolStageFilename[relativeOffset+1:]
-					filenames.append( newFilename )
-			else:
-				newFilename = dolStageFilename[:relativeOffset] + chr( byteReplacement ) + dolStageFilename[relativeOffset+1:]
-				filenames = [newFilename]
-
-		# Add .dat/.usd file extensions if needed; check country code to determine which to use
-		# countryCode = globalData.disc.countryCode
-		# for i, name in enumerate( filenames ):
-		# 	if not '.' in name:
-		# 		if countryCode == 1: # Banner file encoding = latin_1
-		# 			filenames[i] = name + '.usd'
-		# 		else: # Banner file encoding = shift_jis
-		# 			filenames[i] = name + '.dat'
-
-		return dolFilenameOffset, filenames
-
 	def getVariationDisplayName( self, stageFile ):
 
 		if stageFile.isRandomNeutral():
@@ -1413,14 +1383,23 @@ class StageManager( ttk.Frame ):
 
 		# Get information from the Stage Swap Table on what file(s) this icon/stage slot should load
 		newExtStageId, stageFlags, byteReplacePointer, byteReplacement, randomByteValues = self.stageSwapTable.getEntryInfo( self.selectedStageId, canvas.pageNumber )
-		newIntStageId = self.dol.getIntStageIdFromExt( newExtStageId )
+		#newIntStageId = self.dol.getIntStageIdFromExt( newExtStageId )
 		#print 'new external id:', hex(newExtStageId), '  new internal id:', hex(newIntStageId)
 
-		dolFilenameOffset, filenames = self.determineStageFiles( canvas.pageNumber, newIntStageId, byteReplacePointer, byteReplacement, randomByteValues )
+		# Get the Internal Stage ID of the stage to be loaded
+		if newExtStageId == 0: # No change; this will be the currently selected stage slot
+			newIntStageId = self.selectedStageId
+		else:
+			newIntStageId = self.dol.getIntStageIdFromExt( newExtStageId )
+			if newIntStageId == 0x16: # i.e. external stage ID 0x1A, Icicle Mountain (anticipating no hacked stages of this); switch to current Target Test stage
+				print 'Unsupported; target test stage filename undetermined'
+				return -1, ()
+
+		dolFilenameOffset, filenames = self.stageSwapTable.determineStageFiles( newIntStageId, canvas.pageNumber, byteReplacePointer, byteReplacement, randomByteValues )
 
 		# Populate the variations treeview with the file names (and descriptions) determined above
 		gameId = globalData.disc.gameId
-		pathsAdded = set()
+		pathsAdded = set() # Watches for duplicates
 		for filename in filenames:
 			isoPath = gameId + '/' + filename
 			stageFile = globalData.disc.files.get( isoPath )
@@ -1549,9 +1528,7 @@ class StageManager( ttk.Frame ):
 			calls the method to populate the song labels, and updates their ACM tooltips. """
 
 		# Get song info from the music table struct
-		grGroundParamStruct = stageFile.getStructByLabel( 'grGroundParam' )
-		musicTableOffset = grGroundParamStruct.getValues( 'Music_Table_Pointer' )
-		self.musicTableStruct = stageFile.getStruct( musicTableOffset )
+		self.musicTableStruct = stageFile.getMusicTableStruct()
 		values = self.musicTableStruct.getValues()
 		valuesPerEntry = len( values ) / self.musicTableStruct.entryCount
 
@@ -2255,7 +2232,7 @@ class StageSwapEditor( BasicWindow ):
 
 		# Get the current values for this SSS and stage
 		newExtStageId, stageFlags, byteReplacePointer, byteReplacement, randomByteValues = self.stageManagerTab.stageSwapTable.getEntryInfo( internalStageId, canvas.pageNumber )
-		newIntStageId = self.stageManagerTab.dol.getIntStageIdFromExt( newExtStageId )
+		#newIntStageId = self.stageManagerTab.dol.getIntStageIdFromExt( newExtStageId )
 		newStageName = globalData.externalStageIds.get( newExtStageId, 'Unknown' )
 		self.newExtStageId = newExtStageId
 
@@ -2267,6 +2244,15 @@ class StageSwapEditor( BasicWindow ):
 		# Display the NEW stage info (internal stage ID and name), and a dropdown to change it
 		ttk.Label( self.mainFrame, text='New - Stage Name / Internal ID / External ID:' ).grid( column=0, row=1, padx=6, pady=4 )
 
+		# Get the Internal Stage ID of the stage to be loaded
+		if newExtStageId == 0: # No change; this will be the currently selected stage slot
+			newIntStageId = internalStageId
+		else:
+			newIntStageId = self.stageManagerTab.dol.getIntStageIdFromExt( newExtStageId )
+			if newIntStageId == 0x16: # i.e. external stage ID 0x1A, Icicle Mountain (anticipating no hacked stages of this); switch to current Target Test stage
+				print 'Unsupported; target test stage filename undetermined'
+				return -1, ()
+
 		if newExtStageId == 0:
 			defaultOption = 'N/A (No swap)'
 		else:
@@ -2277,7 +2263,7 @@ class StageSwapEditor( BasicWindow ):
 		ttk.Button( self.mainFrame, text='Reset (No Stage Change)', command=lambda: self.updateWithNewExtStageId(0) ).grid( column=1, row=2, padx=6, pady=4, ipadx=7 )
 
 		# Get the original stage file name for this stage slot from the DOL, and check other files that may be loaded by this slot
-		dolFilenameOffset, _ = self.stageManagerTab.determineStageFiles( canvas.pageNumber, newIntStageId, byteReplacePointer, byteReplacement, randomByteValues )
+		dolFilenameOffset, _ = self.stageManagerTab.stageSwapTable.determineStageFiles( newIntStageId, canvas.pageNumber, byteReplacePointer, byteReplacement, randomByteValues )
 		self.dolStageFilename = dolStageFilename = self.stageManagerTab.dol.data[dolFilenameOffset:dolFilenameOffset+10].split( '\x00' )[0].decode( 'ascii' )
 		
 		# Add .dat/.usd file extensions if needed; check country code to determine which to use
@@ -2664,8 +2650,17 @@ class StageSwapEditor( BasicWindow ):
 
 		""" Updates the GUI with a new external stage ID, setting all labels and entry fields with new default values. """
 
+		# Get the Internal Stage ID of the stage to be loaded
+		if extStageId == 0: # No change; this will be the currently selected stage slot
+			newIntStageId = self.internalStageId
+		else:
+			newIntStageId = self.stageManagerTab.dol.getIntStageIdFromExt( newExtStageId )
+			if newIntStageId == 0x16: # i.e. external stage ID 0x1A, Icicle Mountain (anticipating no hacked stages of this); switch to current Target Test stage
+				print 'Unsupported; target test stage filename undetermined'
+				return
+
 		# Update the text displaying the new stage to load
-		newIntStageId = self.stageManagerTab.dol.getIntStageIdFromExt( extStageId )
+		#newIntStageId = self.stageManagerTab.dol.getIntStageIdFromExt( extStageId )
 		if extStageId == 0:
 			descriptiveText = 'N/A (No swap)'
 		else:
@@ -2680,7 +2675,7 @@ class StageSwapEditor( BasicWindow ):
 		randomByteValues = ( 0, 0, 0, 0 )
 
 		# Update the original (DOL) stage name and offset (and internal ram address)
-		dolFilenameOffset, _ = self.stageManagerTab.determineStageFiles( self.canvas.pageNumber, newIntStageId, byteReplacePointer, byteReplacement, randomByteValues )
+		dolFilenameOffset, _ = self.stageManagerTab.stageSwapTable.determineStageFiles( newIntStageId, self.canvas.pageNumber, byteReplacePointer, byteReplacement, randomByteValues )
 		self.dolStageFilename = self.stageManagerTab.dol.data[dolFilenameOffset:dolFilenameOffset+10].split( '\x00' )[0].decode( 'ascii' )
 		displayedStageFilename = self.dolStageFilename
 		if '.' in displayedStageFilename:
