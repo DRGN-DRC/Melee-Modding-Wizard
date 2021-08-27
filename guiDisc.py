@@ -24,7 +24,7 @@ import Tkinter as Tk
 import globalData
 from hsdFiles import fileFactory
 from basicFunctions import (
-		msg, copyToClipboard, uHex, 
+		msg, copyToClipboard, uHex,
 		humansize, 
 		createFolders,
 		saveAndShowTempFileData
@@ -33,8 +33,8 @@ from guiSubComponents import (
 		exportSingleFileWithGui,
 		importSingleFileWithGui,
 		getNewNameFromUser,
-		DisguisedEntry, VerticalScrolledFrame,
-		ToolTip, HexEditEntry
+		DisguisedEntry,
+		ToolTip
 	)
 
 

@@ -324,69 +324,62 @@ class FileBase( object ):
 		try:
 			# Check if there's a file explicitly defined in the file descriptions config file
 			description = self.yamlDescriptions.get( self.filename, '' )
-			if description:
-				self.description = description.encode( 'utf-8' )
-				return description
 
 			# If this is a usd file, check if there's a dat equivalent description
-			if self.ext == '.usd' and not self.filename.startswith( 'PlCa' ): # Excluding Falcon's red costume
+			if not description and self.ext == '.usd' and not self.filename.startswith( 'PlCa' ): # Excluding Falcon's red costume
 				filenameOnly = os.path.splitext( self.filename )[0]
 				description = self.yamlDescriptions.get( filenameOnly + '.dat', '' )
 				if description:
 					description += ' (English)'
 
-					self.description = description.encode( 'utf-8' )
-					return description
+			if not description: # Let's see if we can dynamically build one
+				if self.filename.startswith( 'Ef' ): # Effects files
+					if not inConvenienceFolder: description = 'Effects file for '
+					if self.filename == 'EfFxData.dat': description += 'Fox & Falco'
+					else: description += globalData.charNameLookup.get( self.filename[2:4], '' )
+				elif self.filename.startswith( 'GmRegend' ): # Congratulations screens
+					if not inConvenienceFolder: description = 'Congratulations screen'
+				elif self.filename.startswith( 'GmRstM' ): # Results screen animations
+					if inConvenienceFolder: description = globalData.charNameLookup.get( self.filename[6:8], '' )
+					else: description = 'Results screen animations for ' + globalData.charNameLookup.get( self.filename[6:8], '' )
+				elif self.filename.startswith( 'MvEnd' ): # 1-P Ending Movies
+					if not inConvenienceFolder: description = '1-P Ending Movie'
+				elif self.filename.startswith( 'Pl' ):
+					character = globalData.charNameLookup.get( self.filename[2:4], '' )
 
-			# Let's see if we can dynamically build a name
-			if self.filename.startswith( 'Ef' ): # Effects files
-				if not inConvenienceFolder: description = 'Effects file for '
-				if self.filename == 'EfFxData.dat': description += 'Fox & Falco'
-				else: description += globalData.charNameLookup.get( self.filename[2:4], '' )
-			elif self.filename.startswith( 'GmRegend' ): # Congratulations screens
-				if not inConvenienceFolder: description = 'Congratulations screen'
-			elif self.filename.startswith( 'GmRstM' ): # Results screen animations
-				if inConvenienceFolder: description = globalData.charNameLookup.get( self.filename[6:8], '' )
-				else: description = 'Results screen animations for ' + globalData.charNameLookup.get( self.filename[6:8], '' )
-			elif self.filename.startswith( 'MvEnd' ): # 1-P Ending Movies
-				if not inConvenienceFolder: description = '1-P Ending Movie'
-			elif self.filename.startswith( 'Pl' ):
-				character = globalData.charNameLookup.get( self.filename[2:4], '' )
+					if character:
+						colorKey = self.filename[4:6]
+						color = globalData.charColorLookup.get( colorKey, '' )
 
-				if character:
-					colorKey = self.filename[4:6]
-					color = globalData.charColorLookup.get( colorKey, '' )
+						if inConvenienceFolder: # No need to show the name, since it's already displayed
+							description = ''
+						elif character.endswith('s'):
+							description = character + "' "
+						else:
+							description = character + "'s "
 
-					if inConvenienceFolder: # No need to show the name, since it's already displayed
-						description = ''
-					elif character.endswith('s'):
-						description = character + "' "
-					else:
-						description = character + "'s "
+						if color: # It's a character costume (model & textures) file
+							description += color + ' costume'
+							if self.ext == '.lat' or colorKey == 'Rl': description += " ('L' alt)" # For 20XX
+							elif self.ext == '.rat' or colorKey == 'Rr': description += " ('R' alt)"
+						elif colorKey == '.d': description += 'NTSC data & shared textures' # e.g. "PlCa.dat"
+						elif colorKey == '.p': description += 'PAL data & shared textures'
+						elif colorKey == '.s': description += 'SDR data & shared textures'
+						elif colorKey == 'AJ': description += 'animation data'
+						elif colorKey == 'Cp': # Kirb's copy abilities
+							copyChar = globalData.charNameLookup.get( self.filename[6:8], '' )
+							if ']' in copyChar: copyChar = copyChar.split( ']' )[1]
+							description += "copy power textures (" + copyChar + ")"
+						elif colorKey == 'DV': description += 'idle animation data'
 
-					if color: # It's a character costume (model & textures) file
-						description += color + ' costume'
-						if self.ext == '.lat' or colorKey == 'Rl': description += " ('L' alt)" # For 20XX
-						elif self.ext == '.rat' or colorKey == 'Rr': description += " ('R' alt)"
-					elif colorKey == '.d': description += 'NTSC data & shared textures' # e.g. "PlCa.dat"
-					elif colorKey == '.p': description += 'PAL data & shared textures'
-					elif colorKey == '.s': description += 'SDR data & shared textures'
-					elif colorKey == 'AJ': description += 'animation data'
-					elif colorKey == 'Cp': # Kirb's copy abilities
-						copyChar = globalData.charNameLookup.get( self.filename[6:8], '' )
-						if ']' in copyChar: copyChar = copyChar.split( ']' )[1]
-						description += "copy power textures (" + copyChar + ")"
-					elif colorKey == 'DV': description += 'idle animation data'
-
-					# Ensure the first word is capitalized
-					if description and inConvenienceFolder:
-						description = description[0].upper() + description[1:]
-
-			self.description = description.encode( 'utf-8' )
-
+						# Ensure the first word is capitalized
+						if description and inConvenienceFolder:
+							description = description[0].upper() + description[1:]
 		except Exception as err:
-			self.description = ''
+			description = ''
 			print 'Error in getting a description for {}; {}'.format( self.filename, err )
+			
+		self.description = description.encode( 'utf-8' )
 
 		return self.description
 
@@ -2144,6 +2137,7 @@ class CssFile( DatFile ):
 
 		""" Checks how much space is available for custom names for 20XX hex tracks. 
 			Note that these are title names, as seen in the Debug Menu, not file names. 
+			These names are the same ones used for music files' "description" property. 
 			Pointers to these strings are in the CSS tail data, in a table at 0x3EDDA8. 
 			Songs up to hex track 48 are vanilla songs, and their strings are end-to-end, 
 			with no extra space for longer names. However, songs beyond that are custom 
@@ -2275,19 +2269,14 @@ class StageFile( DatFile ):
 
 		""" Gets the stage's external ID from the first entry in its Music Table struct. """
 
-		if self._externalId != -1:
-			return self._externalId
+		if self._externalId == -1:
+			# Make sure file data has been retrieved, and contents sufficiently parsed
+			self.initialize()
 
-		# Make sure file data has been retrieved, and contents sufficiently parsed
-		self.initialize()
+			# Get and return the first value in the music table struct
+			musicTableStruct = self.getMusicTableStruct()
+			self._externalId = musicTableStruct.getValues()[0]
 
-		# Get the music table struct
-		grGroundParamStruct = self.getStructByLabel( 'grGroundParam' )
-		musicTableOffset = grGroundParamStruct.getValues( 'Music_Table_Pointer' )
-		musicTableStruct = self.getStruct( musicTableOffset )
-
-		# Get and return the first value in the music table struct
-		self._externalId = musicTableStruct.getValues()[0]
 		return self._externalId
 
 	@property
@@ -2306,7 +2295,24 @@ class StageFile( DatFile ):
 
 		self.initialize()
 
-		if not 'map_head' in self.stringDict.values():
+		if 'map_head' not in self.stringDict.values():
+			raise Exception( 'Invalid stage file; no "map_head" symbol node found.' )
+
+	def hintRootClasses( self ):
+
+		validated = False
+
+		# Add class hints for structures with known root/reference node labels
+		for offset, string in self.rootStructNodes:
+			if string == 'map_head':
+				validated = True
+				self.structs[offset] = 'MapHeadObjDesc'
+			elif string == 'coll_data':
+				self.structs[offset] = 'MapCollisionData'
+			elif string == 'grGroundParam':
+				self.structs[offset] = 'MapGroundParameters'
+
+		if not validated:
 			raise Exception( 'Invalid stage file; no "map_head" symbol node found.' )
 
 	def getStageInfoStruct( self ):
@@ -2330,22 +2336,16 @@ class StageFile( DatFile ):
 			# Init and store the stage info structure
 			self._stageInfoStruct = standaloneStructs.StageInfoTable( dol, structOffset )
 
-	def hintRootClasses( self ):
+		return self._stageInfoStruct
 
-		validated = False
+	def getMusicTableStruct( self ):
 
-		# Add class hints for structures with known root/reference node labels
-		for offset, string in self.rootStructNodes:
-			if string == 'map_head':
-				validated = True
-				self.structs[offset] = 'MapHeadObjDesc'
-			elif string == 'coll_data':
-				self.structs[offset] = 'MapCollisionData'
-			elif string == 'grGroundParam':
-				self.structs[offset] = 'MapGroundParameters'
+		""" Initializes a structure in this file containing info on this stage's music options. """
 
-		if not validated:
-			raise Exception( 'Invalid stage file; no "map_head" symbol node found.' )
+		grGroundParamStruct = self.getStructByLabel( 'grGroundParam' )
+		musicTableOffset = grGroundParamStruct.getValues( 'Music_Table_Pointer' )
+
+		return self.getStruct( musicTableOffset )
 
 	def isRandomNeutral( self ):
 
@@ -2714,7 +2714,7 @@ class MusicFile( FileBase ):
 		self.externalWavFile = ''
 		self.sampleRate = -1
 		self.channels = -1
-		self.channelMetaData = [] # A list of metadata values for each channel
+		self.channelMetaData = [] 	# A list of metadata values for each channel
 		self.duration = -1			# In milliseconds
 		self.loopPoint = -1			# Point in the song (in ms) where the track should restart after reaching the end
 
@@ -2783,26 +2783,26 @@ class MusicFile( FileBase ):
 			offset = 0x10 + ( channel * 0x38 )
 			values = list( struct.unpack('>HHIII', self.getData( offset, 0x10 )) )
 			values.extend( struct.unpack('>HHHH', self.getData( offset+0x30, 0x8 )) )
-			print 'loop flag :', values[0]
-			print 'format    :', values[1]
-			print 'StartAddr :', values[2]
-			print 'EndAddr   :', hex(values[3])
-			print 'CurrentAdr:', values[4]
-			print 'gain      :', values[5]
-			print 'pScale    :', values[6]
-			print 'initSH1   :', values[7]
-			print 'initSH1   :', values[8]
-			print 'byteCount :', hex(( values[3] - values[4] ) / 2)
-			print 'loopStart :', values[2] - values[4], hex(values[2] - values[4])
-			print ''
+			# print 'loop flag :', values[0]
+			# print 'format    :', values[1]
+			# print 'StartAddr :', values[2]
+			# print 'EndAddr   :', hex(values[3])
+			# print 'CurrentAdr:', values[4]
+			# print 'gain      :', values[5]
+			# print 'pScale    :', values[6]
+			# print 'initSH1   :', values[7]
+			# print 'initSH1   :', values[8]
+			# print 'byteCount :', hex(( values[3] - values[4] ) / 2)
+			# print 'loopStart :', values[2] - values[4], hex(values[2] - values[4])
+			# print ''
 			self.channelMetaData.append( values )
 
 		# Compare like values (not needed; just looking for descrepencies)
 		#valueNames = 
-		for likeValues in zip( *self.channelMetaData ):
-			if not allAreEqual( likeValues ):
-				print 'Found differing channel metadata!'
-				print likeValues
+		# for likeValues in zip( *self.channelMetaData ):
+		# 	if not allAreEqual( likeValues ):
+		# 		print 'Found differing channel metadata!'
+		# 		print likeValues
 
 	def readBlocks( self ):
 
@@ -2856,13 +2856,13 @@ class MusicFile( FileBase ):
 				#print 'next block offset:', hex(nextBlockOffset)
 				blockOffset = nextBlockOffset
 
-		print '\n', len( blockOffsets ), 'total blocks'
+		#print '\n', len( blockOffsets ), 'total blocks'
 		# print 'block offsets:', [ hex(o) for o in blockOffsets ]
 		# print 'block lengths:', [ hex(o) for o in blockLengths ]
 		# print 'data lengths:', [ hex(o) for o in dataLengths ]
 		#print 'total block length:', sum( blockLengths )
-		print 'total data length :', sum( dataLengths )
-		print 'final block offset:', hex(blockOffsets[-1])
+		# print 'total data length :', sum( dataLengths )
+		# print 'final block offset:', hex(blockOffsets[-1])
 
 		totalDataBytes = sum( dataLengths ) / 2 # For one channel
 		self.duration = math.ceil( totalDataBytes / float(self.sampleRate) * 1.75 * 1000 )
@@ -2952,7 +2952,7 @@ class MusicFile( FileBase ):
 		""" Dumps this file to the temp folder as an HPS, uses MeleeMedia to convert it 
 			to a WAV file, and then returns the filepath to the WAV. """
 
-		tic = time.clock()
+		#tic = time.clock()
 
 		# Export this file in its current HPS form to the temp folder
 		tempInputFilepath = os.path.join( globalData.paths['tempFolder'], self.filename )
@@ -2973,8 +2973,9 @@ class MusicFile( FileBase ):
 		# Delete the temporary HPS file
 		os.remove( tempInputFilepath )
 
-		toc = time.clock()
-		print 'time to get as wav:', toc-tic
+		# toc = time.clock()
+		# print 'time to get as wav:', toc-tic
 
 		self.externalWavFile = outputPath
+		
 		return outputPath

@@ -229,7 +229,7 @@ def getNewNameFromUser( charLimit, excludeChars=None, message='Enter a new name:
 		excludeChars = ( '\n', '\t', ':' )
 
 	while not nameChecksOut:
-		popupWindow = PopupEntryWindow( globalData.gui.root, message=message, defaultText=defaultText, width=width )
+		popupWindow = PopupEntryWindow( globalData.gui.root, message=message, defaultText=defaultText, width=width, charLimit=charLimit )
 		newName = popupWindow.entryText.replace( '"', '' ).strip()
 
 		if newName == '': break
@@ -469,20 +469,32 @@ class PopupEntryWindow( BasicWindow ):
 		The 'validatePath' option, if True, will warn the user if they've entered 
 		an invalid file or folder path, and give them a chance to re-enter it. """
 
-	def __init__( self, master, message='', defaultText='', title='', width=100, wraplength=470, makeModal=True, validatePath=False ):
+	def __init__( self, master, message='', defaultText='', title='', width=100, wraplength=470, makeModal=True, validatePath=False, charLimit=-1 ):
 		BasicWindow.__init__( self, master, title )
 
 		self.entryText = ''
 		self.wraplength = wraplength
 		self.resultLabel = None
 		self.validatePath = validatePath
+		self.charLimit = charLimit
 
-		# Add the Entry widget for user input
+		# Display a user message
 		self.label = ttk.Label( self.window, text=message, wraplength=wraplength )
 		self.label.pack( pady=8 )
-		self.entry = ttk.Entry( self.window, width=width, justify='center' )
+
+		# Add the Entry widget for user input
+		if charLimit == -1:
+			self.entry = ttk.Entry( self.window, width=width, justify='center' )
+			self.entry.pack( padx=8 )
+		else: # Also add a label widget to display number of characters entered/remaining
+			entryFrame = ttk.Frame( self.window )
+			validationCommand = globalData.gui.root.register( self.entryModified )
+			self.entry = ttk.Entry( entryFrame, width=width, justify='center', validate='key', validatecommand=(validationCommand, '%P') )
+			self.entry.grid( column=1, row=0, padx=(6, 0), pady=4 )
+			self.charLimitLabel = ttk.Label( entryFrame )
+			self.charLimitLabel.grid( column=2, row=0, padx=6, pady=4 )
+			entryFrame.pack( pady=8 )
 		self.entry.insert( 'end', defaultText )
-		self.entry.pack( padx=8 )
 		self.entry.bind( '<Return>', self.cleanup )
 
 		# Add the buttons
@@ -508,6 +520,21 @@ class PopupEntryWindow( BasicWindow ):
 			self.resultLabel.pack( pady=(0, 8) )
 		else:
 			self.resultLabel.configure( text=resultText, foreground=fontColor )
+
+	def entryModified( self, newString ):
+
+		""" Updates the character count for the string in the entry field. 
+			Must return True to validate the entered text and allow it to be displayed. """
+
+		newStrLen = len( newString.strip() )
+		self.charLimitLabel['text'] = '{}/{}'.format( newStrLen, self.charLimit )
+
+		if newStrLen > self.charLimit:
+			self.charLimitLabel['foreground'] = '#a34343' # red
+		else:
+			self.charLimitLabel['foreground'] = '#292' # green
+
+		return True
 
 	def cleanup( self, event='' ):
 		self.entryText = self.entry.get()
@@ -589,6 +616,8 @@ class VanillaDiscEntry( PopupEntryWindow ):
 			self.showResult( 'Invalid revision; this appears to be an NTSC 1.00 disc.', 'red' )
 		elif md5Hash == self.pal100:
 			self.showResult( 'Invalid revision; this appears to be a PAL 1.00 disc.', 'red' )
+		else:
+			self.showResult( "Invalid disc; the hash is not recognized as an NTSC 1.02 disc.", 'red' )
 		
 		self.entry['state'] = 'normal'
 		self.entry.bind( '<Return>', self.validate )
