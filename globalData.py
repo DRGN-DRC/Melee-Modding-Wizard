@@ -69,6 +69,7 @@ def init( programArgs ):
 		'backupOnRebuild': '1',
 		'alwaysEnableCrashReports': '1',
 		'alwaysAddFilesAlphabetically': '0',
+		'exportDescriptionsInFilename': '1',
 	}
 	# regionOverwriteDefaults = {
 	# 	'Common Code Regions': True,

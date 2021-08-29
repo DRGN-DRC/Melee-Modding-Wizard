@@ -17,6 +17,7 @@ import time
 import wave
 import struct
 import shutil
+import tkFont
 import pyaudio
 import tkFileDialog
 import tkMessageBox
@@ -27,7 +28,7 @@ from threading import Thread, Event
 import globalData
 from hsdFiles import MusicFile
 from basicFunctions import uHex, humansize, createFolders, msg, cmdChannel
-from guiSubComponents import importSingleFileWithGui, getNewNameFromUser, BasicWindow
+from guiSubComponents import importSingleFileWithGui, getNewNameFromUser, BasicWindow, NeoTreeview
 
 
 def getHpsFile( windowParent=None, isoPath='' ):
@@ -45,7 +46,7 @@ def getHpsFile( windowParent=None, isoPath='' ):
 
 	# Prompt the user to choose a file to import
 	newFilePath = tkFileDialog.askopenfilename(
-		title="Choose a file to import; use the filetype dropdown to convert on import",
+		title="Choose an audio file to import; use the filetype dropdown to convert on import",
 		parent=windowParent,
 		multiple=False,
 		initialdir=globalData.getLastUsedDir( 'hps' ),
@@ -54,6 +55,8 @@ def getHpsFile( windowParent=None, isoPath='' ):
 	if not newFilePath: # The above will return an empty string if the user canceled
 		globalData.gui.updateProgramStatus( 'Operation canceled' )
 		return None
+
+	globalData.setLastUsedDir( newFilePath, 'hps' )
 
 	# Convert the file to HPS format, if needed
 	if os.path.splitext( newFilePath )[1].lower() != '.hps':
@@ -69,7 +72,8 @@ def getHpsFile( windowParent=None, isoPath='' ):
 		outputPath = os.path.join( globalData.paths['tempFolder'], newFilename )
 		
 		# Convert the file
-		returnCode, output = cmdChannel( [meleeMediaExe, newFilePath, outputPath, loopEditorWindow.loopArg] )
+		command = '"{}" "{}" "{}"{}'.format( meleeMediaExe, newFilePath, outputPath, loopEditorWindow.loopArg )
+		returnCode, output = cmdChannel( command )
 
 		if returnCode != 0:
 			globalData.gui.updateProgramStatus( 'Conversion failed; {}'.format(output) )
@@ -95,20 +99,25 @@ class AudioManager( ttk.Frame ):
 
 	def __init__( self, parent, mainGui ):
 
-		ttk.Frame.__init__( self, parent ) #, padding="11 0 0 11" ) # Padding order: Left, Top, Right, Bottom.
+		ttk.Frame.__init__( self, parent )
 
 		# Add this tab to the main GUI
 		mainGui.mainTabFrame.add( self, text=' Audio Manager ' )
 		self.audioEngine = mainGui.audioEngine
 		self.lastExportFormat = 'hps'
-		self.songs = []
+		#self.songs = []
 		#self.selectedFile = None
+		self.boldFont = tkFont.Font( weight='bold', size=mainGui.defaultFontSize )
+		self.normalFont = tkFont.Font( weight='normal' )
 
 		# Construct the left-hand side of the interface, the file list
 		treeScroller = Tk.Scrollbar( self )
-		self.fileTree = ttk.Treeview( self, columns=('filename'), show='tree', yscrollcommand=treeScroller.set )
+		self.fileTree = NeoTreeview( self, columns=('filename'), show='tree', yscrollcommand=treeScroller.set )
 		self.fileTree.column( '#0', width=300 )
 		self.fileTree.column( 'filename', width=140 )
+		self.fileTree.tag_configure( 'playing', foreground='#6040ff', font=self.boldFont ) # Dark blue/Purple
+		self.fileTree.tag_configure( 'changed', foreground='red' )
+		self.fileTree.tag_configure( 'changesSaved', foreground='#292' ) # The 'save' green color
 		self.fileTree.grid( column=0, row=0, sticky='ns' )
 		treeScroller.config( command=self.fileTree.yview )
 		treeScroller.grid( column=1, row=0, sticky='ns' )
@@ -183,21 +192,26 @@ class AudioManager( ttk.Frame ):
 				else:
 					widget['state'] = 'disabled'
 
-	def loadFileList( self ):
+	def loadFileList( self, restoreState=True ):
 
 		""" Load music files from the currently loaded disc into this tab. """
+
+		if restoreState:
+			self.fileTree.saveState()
 
 		self.clear()
 
 		# Get the list of songs from the disc
-		self.songs = []
+		#self.songs = []
+		filecount = 0
 		totalFilesize = 0
 		for musicFile in globalData.disc.files.itervalues():
 			# Ignore non music files
 			if not musicFile.__class__.__name__ == 'MusicFile':
 				continue
 
-			self.songs.append( musicFile )
+			#self.songs.append( musicFile )
+			filecount += 1
 			totalFilesize += musicFile.size
 		
 			# Add labels along the left for the songs found above
@@ -214,9 +228,13 @@ class AudioManager( ttk.Frame ):
 
 			# Add the musicFile to the treeview
 			self.fileTree.insert( parent, 'end', iid=musicFile.isoPath, text=musicFile.description, values=(musicFile.filename, 'file') )
-			print humansize(musicFile.size), '  \t', musicFile.description
+			if musicFile.isHexTrack:
+				print humansize(musicFile.size), '  \t', musicFile.description
 
-		self.updateGeneralInfo( totalFilesize )
+		if restoreState:
+			self.fileTree.restoreState()
+
+		self.updateGeneralInfo( filecount, totalFilesize )
 
 	def getItemsInSelection( self, selectionTuple, recursive=True ):
 
@@ -258,13 +276,21 @@ class AudioManager( ttk.Frame ):
 		
 		return musicFile
 
-	def updateGeneralInfo( self, totalFilesize=0 ):
+	def updateGeneralInfo( self, filecount=0, totalFilesize=0 ):
 
-		if not totalFilesize:
-			for fileObj in self.songs:
+		if not filecount:
+			# for fileObj in self.songs:
+			# 	totalFilesize += fileObj.size
+			
+			for musicFile in globalData.disc.files.itervalues():
+				# Ignore non music files
+				if not musicFile.__class__.__name__ == 'MusicFile':
+					continue
+				
+				filecount += 1
 				totalFilesize += fileObj.size
 		
-		self.generalInfoLabel['text'] = '\n'.join( [str(len(self.songs)), humansize(totalFilesize) ] )
+		self.generalInfoLabel['text'] = '\n'.join( [str(filecount), humansize(totalFilesize) ] )
 
 	def onFileTreeSelect( self, event=None ):
 
@@ -352,7 +378,12 @@ class AudioManager( ttk.Frame ):
 		else:
 			defaultName = musicFile.filename[:-3] + 'wav'
 			fileTypeOptions = [('WAV files', '*.wav'), ( "HPS files", '*.hps' ), ( "All files", "*.*" )]
-				
+		
+		# Add the file description to the filename if that option is turned on
+		if globalData.checkSetting( 'exportDescriptionsInFilename' ) and musicFile.description:
+			name, ext = os.path.splitext( defaultName )
+			defaultName = '{} ({}){}'.format( name, musicFile.description, ext )
+
 		# Prompt for a place to save the file (will also ask to overwrite an existing file)
 		savePath = tkFileDialog.asksaveasfilename(
 			title="Where would you like to export the file?",
@@ -377,14 +408,12 @@ class AudioManager( ttk.Frame ):
 				wavFilePath = musicFile.getAsWav()
 				if wavFilePath:
 					# Move the newly exported WAV file (in the temp folder) to the user's target location
-					#shutil.move( wavFilePath, savePath )
-					shutil.copy2( wavFilePath, savePath )
+					shutil.move( wavFilePath, savePath ) # Will attempt to delete the file after the move
+					#shutil.copy2( wavFilePath, savePath )
 					successful = True
-			# except WindowsError as err:
-			# 	if err.winerror == 32: # Unable to delete the file upon move; may be because it's being used to play audio
-			# 		successful = True
-			# 	else:
-			# 		successful = False
+			except WindowsError as err:
+				if err.winerror == 32: # Unable to delete the file upon move; may be because it's being used to play audio
+					successful = True
 			except Exception as err:
 				print err
 		else:
@@ -417,16 +446,26 @@ class AudioManager( ttk.Frame ):
 			globalData.disc.replaceFile( musicFile, newMusicFile )
 
 			# Reload information displayed in the GUI
-			self.onFileTreeSelect()
-			#self.loadFileList()
-			for i, fileObj in enumerate( self.songs ):
-				if fileObj.isoPath == musicFile.isoPath:
-					fileObj = newMusicFile
-					break
-			self.updateGeneralInfo()
+			self.loadFileList()
+			# for i, fileObj in enumerate( self.songs ):
+			# 	if fileObj.isoPath == musicFile.isoPath:
+			# 		self.songs[i] = newMusicFile
+			# 		break
+			# self.onFileTreeSelect()
+			#self.updateGeneralInfo()
 
 			# Prompt the user to enter a new name for this track
 			self.rename()
+
+			# Reload the Disc File Tree to show the new file
+			if globalData.gui.discTab:
+				globalData.gui.discTab.isoFileTree.item( musicFile.isoPath, tags='changed' )
+
+			# Update the Disc Details Tab
+			# detailsTab = globalData.gui.discDetailsTab
+			# if detailsTab:
+			# 	detailsTab.isoFileCountText.set( "{:,}".format(len(globalData.disc.files)) )
+				#detailsTab # todo: disc size as well
 			
 			# Update program status
 			globalData.gui.updateProgramStatus( 'File Replaced. Awaiting Save', success=True )
@@ -494,6 +533,7 @@ class AudioManager( ttk.Frame ):
 		if not iidSelectionsTuple: # Failsafe; not possible?
 			return
 
+		# Get all folder and file iids currently selected (the file iids will be isoPaths)
 		folderIids, fileIids = self.getItemsInSelection( iidSelectionsTuple )
 		print 'folderIids:', folderIids
 		print 'fileIids:', fileIids
@@ -1159,7 +1199,8 @@ class AudioEngine:
 
 	def start( self, fileObj, callback=None, playConcurrently=False ):
 
-		""" This method should return immediately, however a callback may be provided, 
+		""" Stops any currently playing audio, and starts new playback in a new thread. 
+			This method should return immediately, however a callback may be provided, 
 			which will be run when the audio thread is done playing. """
 
 		# if not playConcurrently:
@@ -1173,6 +1214,18 @@ class AudioEngine:
 		# Reset flags to allow playback
 		self.playbackAllowed.set()
 		self.exitAudioThread.clear()
+
+		# Highlight this song in the Audio Manager, if it's open
+		#if globalData.gui.audioManagerTab:
+		try:
+			# Remove any existing tags, and add the new one
+			fileTree = globalData.gui.audioManagerTab.fileTree
+			tracksPlaying = fileTree.tag_has( 'playing' )
+			for iid in tracksPlaying:
+				fileTree.removeTag( iid, 'playing' )
+			isoPath = '{}/audio/{}'.format( globalData.disc.gameId, fileObj.filename )
+			fileTree.addTag( isoPath, 'playing' )
+		except: pass
 
 		# Play the audio clip in a separate thread so that it's non-blocking
 		# (Yes, pyaudio has a "non-blocking" way for playback already, but that 
@@ -1258,7 +1311,7 @@ class AudioEngine:
 
 				# Check if playing should start over (repeat is turned on)
 				if self.playRepeat.isSet() and not len( data ) > 0:
-					wf.setpos( 0 )
+					wf.setpos( 0 ) # Setting read position to the start of the file
 					data = wf.readframes( framesPerIter )
 
 		except Exception as err:
@@ -1287,6 +1340,14 @@ class AudioEngine:
 			try:
 				callback()
 			except: pass
+
+		# Remove 'now playing' highlighting in the Audio Manager, if it's open (todo: relocate this to main gui thread! need a real callback system)
+		try:
+			fileTree = globalData.gui.audioManagerTab.fileTree
+			tracksPlaying = fileTree.tag_has( 'playing' )
+			for iid in tracksPlaying:
+				fileTree.removeTag( iid, 'playing' )
+		except: pass
 
 	def _adjustVolume( self, dataframes ):
 
@@ -1373,7 +1434,7 @@ class AudioControlModule( object, ttk.Frame ):
 				return
 
 		self.audioEngine.start( self.audioFile, self.showPlayBtn )
-		self.showPauseBtn()
+		self.showPauseBtn() # The above will return immediately; show the pause button while playback happens
 
 	def toggleRepeatMode( self ):
 

@@ -17,6 +17,7 @@ from __future__ import print_function # Use print with (); preparation for movin
 # External dependencies
 import time
 import random
+import tkFont
 import os, sys
 import argparse
 import Tkinter as Tk
@@ -522,6 +523,13 @@ class MainGui( Tk.Frame, object ):
 		self.defaultWindowWidth = 1000
 		self.defaultWindowHeight = 750
 		self.defaultSystemBgColor = self.root.cget( 'background' )
+
+		# Font control/adjustments
+		default_font = tkFont.nametofont( "TkDefaultFont" )
+		#print(default_font.actual())
+		self.defaultFontSize = default_font.actual()['size']
+		#default_font.configure( size=30 ) # Use negative values to specify in pixel height
+		#self.root.option_add( "*Font", default_font ) # Use this to apply the default font to be used everywhere
 		
 		# Build the main program window
 		self.root.tk.call( 'wm', 'iconphoto', self.root._w, self.imageBank('appIcon') )
@@ -540,12 +548,14 @@ class MainGui( Tk.Frame, object ):
 
 		self.mainTabFrame = ttk.Notebook( self.root )
 		self.dnd.bindtarget( self.mainTabFrame, self.dndHandler, 'text/uri-list' )
+
 		self.discTab = None
 		self.discDetailsTab = None
 		self.codeManagerTab = None
 		self.menuEditorTab = None
 		self.stageManagerTab = None
 		self.audioManagerTab = None
+
 		#self.mainTabFrame.pack( fill='both', expand=1 )
 		self.mainTabFrame.grid( column=0, row=0, sticky='nsew' )
 		self.mainTabFrame.bind( '<<NotebookTabChanged>>', self.onMainTabChanged )

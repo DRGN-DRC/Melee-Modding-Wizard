@@ -918,6 +918,9 @@ class Disc( object ):
 			newFileObj.isHexTrack = origFileObj.isHexTrack
 			newFileObj.trackNumber = origFileObj.trackNumber
 
+		# Refresh the description (may not have been retrievable during file initialization without a disc reference)
+		newFileObj.getDescription()
+
 		# Update this file's entry size if it's changed, and check if the disc will need to be rebuilt
 		if newFileObj.size != origFileObj.size:
 			

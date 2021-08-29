@@ -34,7 +34,7 @@ from guiSubComponents import (
 		importSingleFileWithGui,
 		getNewNameFromUser,
 		DisguisedEntry,
-		ToolTip
+		ToolTip, NeoTreeview
 	)
 
 
@@ -66,7 +66,7 @@ class DiscTab( ttk.Frame ):
 		# File Tree start
 		isoFileTreeWrapper = Tk.Frame( fileTreeColumn ) # Contains just the ISO treeview and its scroller (since they need a different packing than the above links).
 		self.isoFileScroller = Tk.Scrollbar( isoFileTreeWrapper )
-		self.isoFileTree = ttk.Treeview( isoFileTreeWrapper, columns=('description'), yscrollcommand=self.isoFileScroller.set )
+		self.isoFileTree = NeoTreeview( isoFileTreeWrapper, columns=('description'), yscrollcommand=self.isoFileScroller.set )
 		self.isoFileTree.heading( '#0', anchor='center', text='File     (Sorted by FST)' ) # , command=lambda: treeview_sort_column(self.isoFileTree, 'file', False)
 		self.isoFileTree.column( '#0', anchor='center', minwidth=180, stretch=1, width=230 ) # "#0" is implicit in the columns definition above.
 		self.isoFileTree.heading( 'description', anchor='center', text='Description' )
@@ -176,21 +176,27 @@ class DiscTab( ttk.Frame ):
 										These files (and their parent folders) will be highlighted green to indicate changes. """
 
 		if preserveTreeState:
-			# Get the iids of all open folders
-			openIids = []
-			def getOpenFolders( openIids, parentIid='' ):
-				for iid in self.isoFileTree.get_children( parentIid ):
-					if self.isoFileTree.item( iid, 'open' ):
-						openIids.append( iid )
-					openIids = getOpenFolders( openIids, iid )
-				return openIids
-			openFolders = getOpenFolders( openIids )
+			self.isoFileTree.saveState()
 
-			# Remember the selection, focus, and current scroll position of the treeview
-			originalGameId = self.isoFileTree.get_children()[0] # The gameId might have been modified. If so, the iids collected below will need to be updated before restoration.
-			originalTreeSelection = self.isoFileTree.selection()
-			originalTreeFocus = self.isoFileTree.focus()
-			originalTreeScrollPosition = self.isoFileScroller.get()[0] # .get() returns e.g. (0.49505277044854884, 0.6767810026385225)
+			# Get the iids of all open folders
+			# openIids = []
+			# def getOpenFolders( openIids, parentIid='' ):
+			# 	for iid in self.isoFileTree.get_children( parentIid ):
+			# 		if self.isoFileTree.item( iid, 'open' ):
+			# 			openIids.append( iid )
+			# 		openIids = getOpenFolders( openIids, iid )
+			# 	return openIids
+			# openFolders = getOpenFolders( openIids )
+
+			# # Remember the selection, focus, and current scroll position of the treeview
+		rootItems = self.isoFileTree.get_children()
+		if rootItems:
+			originalGameId = rootItems[0] # The gameId might have been modified. If so, the iids collected below will need to be updated before restoration.
+		else:
+			originalGameId = globalData.disc.gameId
+			# originalTreeSelection = self.isoFileTree.selection()
+			# originalTreeFocus = self.isoFileTree.focus()
+			# originalTreeScrollPosition = self.isoFileScroller.get()[0] # .get() returns e.g. (0.49505277044854884, 0.6767810026385225)
 			
 		self.clear()
 
@@ -227,20 +233,21 @@ class DiscTab( ttk.Frame ):
 		if preserveTreeState:
 			# Update the file/folder selections and focus iids with the new game Id if it has changed.
 			if originalGameId != disc.gameId:
-				openFolders = updateIids( openFolders )
-				originalTreeSelection = updateIids( originalTreeSelection )
-				if '/' in originalTreeFocus:
-					originalTreeFocus = disc.gameId + '/' + '/'.join(originalTreeFocus.split('/')[1:])
+				self.isoFileTree.openFolders = updateIids( self.isoFileTree.openFolders )
+				self.isoFileTree.selectionState = updateIids( self.isoFileTree.selectionState )
+				if '/' in focusState:
+					focusState = disc.gameId + '/' + '/'.join(focusState.split('/')[1:])
 
-			# Open all folders that were previously open.
-			for folderIid in openFolders:
-				if self.isoFileTree.exists( folderIid ): # Checking in case it was deleted
-					self.isoFileTree.item( folderIid, open=True )
+			# # Open all folders that were previously open.
+			# for folderIid in openFolders:
+			# 	if self.isoFileTree.exists( folderIid ): # Checking in case it was deleted
+			# 		self.isoFileTree.item( folderIid, open=True )
 
-			# Set the current selections and scroll position back to what it was.
-			self.isoFileTree.selection_set( originalTreeSelection )
-			self.isoFileTree.focus( originalTreeFocus )
-			self.isoFileTree.yview_moveto( originalTreeScrollPosition )
+			# # Set the current selections and scroll position back to what it was.
+			# self.isoFileTree.selection_set( originalTreeSelection )
+			# self.isoFileTree.focus( originalTreeFocus )
+			# self.isoFileTree.yview_moveto( originalTreeScrollPosition )
+			self.isoFileTree.restoreState()
 
 		# Highlight recently updated files in green
 		if updatedFiles:

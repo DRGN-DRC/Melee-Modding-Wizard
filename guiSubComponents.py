@@ -1110,6 +1110,46 @@ class DisguisedEntry( Tk.Entry ):
 		if self['state'] == 'normal': self.focus()
 
 
+class LabelButton( Tk.Label ):
+
+	""" Basically a label that acts as a button, using an image and mouse click/hover events. 
+		Used for the edit button and web links. """
+
+	def __init__( self, parent, imageName, callback, hovertext='' ):
+		# Get the images needed
+		self.nonHoverImage = globalData.gui.imageBank( imageName + 'Gray', False )
+		self.hoverImage = globalData.gui.imageBank( imageName )
+		# assert self.nonHoverImage, 'Unable to get the {} web link image.'.format( imageName )
+		# assert self.hoverImage, 'Unable to get the {}Gray web link image.'.format( imageName )
+
+		# Initialize the label with one of the above images
+		Tk.Label.__init__( self, parent, image=self.nonHoverImage, borderwidth=0, highlightthickness=0, cursor='hand2' )
+
+		# Bind click and mouse hover events
+		self.bind( '<1>', callback )
+		self.bind( '<Enter>', self.darken )
+		self.bind( '<Leave>', self.lighten )
+
+		if hovertext:
+			ToolTip( self, hovertext, delay=700, wraplength=800, justify='center' )
+		
+	def darken( self, event ): self['image'] = self.hoverImage
+	def lighten( self, event ): self['image'] = self.nonHoverImage
+
+
+class ColoredLabelButton( LabelButton ):
+
+	""" Like the LabelButton, but uses a single source image which is then color shifted. """
+
+	def __init__( self, parent, imageName, callback, hovertext='', color='#0099f0' ):
+
+		LabelButton.__init__( self, parent, imageName, callback, hovertext )
+
+		self.nonHoverImage = getColoredShape( imageName, 'black' )
+		self.hoverImage = getColoredShape( imageName, color )
+		self['image'] = self.nonHoverImage
+
+
 class VerticalScrolledFrame( Tk.Frame ):
 
 	""" Provides a simple vertical scrollable area, for space for other widgets. 
@@ -1182,44 +1222,87 @@ class VerticalScrolledFrame( Tk.Frame ):
 		self.canvas.yview_moveto( 0 )
 
 
-class LabelButton( Tk.Label ):
+class NeoTreeview( ttk.Treeview, object ):
 
-	""" Basically a label that acts as a button, using an image and mouse click/hover events. 
-		Used for the edit button and web links. """
+	def __init__( self, *args, **kwargs ):
 
-	def __init__( self, parent, imageName, callback, hovertext='' ):
-		# Get the images needed
-		self.nonHoverImage = globalData.gui.imageBank( imageName + 'Gray', False )
-		self.hoverImage = globalData.gui.imageBank( imageName )
-		# assert self.nonHoverImage, 'Unable to get the {} web link image.'.format( imageName )
-		# assert self.hoverImage, 'Unable to get the {}Gray web link image.'.format( imageName )
+		super( NeoTreeview, self ).__init__( *args, **kwargs )
 
-		# Initialize the label with one of the above images
-		Tk.Label.__init__( self, parent, image=self.nonHoverImage, borderwidth=0, highlightthickness=0, cursor='hand2' )
+		self.openFolders = []
+		self.selectionState = ()
+		self.focusState = ''
+		self.scrollState = 0.0
 
-		# Bind click and mouse hover events
-		self.bind( '<1>', callback )
-		self.bind( '<Enter>', self.darken )
-		self.bind( '<Leave>', self.lighten )
+		if 'yscrollcommand' in kwargs: # This is a method being passed; get the widget that owns this
+			self.scrollbar = kwargs['yscrollcommand'].im_self # Will need to update this in update to Python3
+		else:
+			self.scrollbar = None
 
-		if hovertext:
-			ToolTip( self, hovertext, delay=700, wraplength=800, justify='center' )
+	def getOpenFolders( self, openIids=[], parentIid='' ):
+
+		""" Gets the iids of all open folders. """
 		
-	def darken( self, event ): self['image'] = self.hoverImage
-	def lighten( self, event ): self['image'] = self.nonHoverImage
+		if not parentIid: # Initial call; iterate over root items
+			openIids = []
 
+		# Iterate over children of the given iid. No iteration if not a folder and not root
+		for iid in self.get_children( parentIid ):
+			if self.item( iid, 'open' ):
+				openIids.append( iid )
+			openIids = self.getOpenFolders( openIids, iid )
 
-class ColoredLabelButton( LabelButton ):
+		return openIids
 
-	""" Like the LabelButton, but uses a single source image which is then color shifted. """
+	def saveState( self ):
 
-	def __init__( self, parent, imageName, callback, hovertext='', color='#0099f0' ):
+		""" Store the current state of the treeview, including current 
+			open folders, selections, and scroll position. """
 
-		LabelButton.__init__( self, parent, imageName, callback, hovertext )
+		self.openFolders = self.getOpenFolders()
+		print 'open folders:', self.openFolders
 
-		self.nonHoverImage = getColoredShape( imageName, 'black' )
-		self.hoverImage = getColoredShape( imageName, color )
-		self['image'] = self.nonHoverImage
+		# Remember the selection, focus, and current scroll position of the treeview
+		self.selectionState = self.selection()
+		self.focusState = self.focus()
+		if self.scrollbar:
+			self.scrollState = self.scrollbar.get()[0] # .get() returns e.g. (0.49505277044854884, 0.6767810026385225)
+
+	def restoreState( self ):
+
+		""" Restore a previously stored state of the treeview, including 
+			open folders, selections, and scroll position. """
+		
+		# Open all folders that were previously open
+		for folderIid in self.openFolders:
+			#if self.exists( folderIid ): # Checking in case it was deleted
+			try:
+				self.item( folderIid, open=True )
+			except: pass # The item may have been deleted, which is fine
+
+		# Set the current selections and scroll position back to what it was
+		self.selection_set( self.selectionState )
+		self.focus( self.focusState )
+		if self.scrollbar:
+			self.yview_moveto( self.scrollState )
+
+	def addTag( self, iid, tagToAdd ):
+
+		""" Adds the given tag from the given item, while preserving other tags it may have. """
+		
+		targetFileTags = self.item( iid, 'tags' ) # Returns a tuple
+		targetFileTags = list( targetFileTags )
+		targetFileTags.append( tagToAdd )
+
+		self.item( iid, tags=targetFileTags )
+
+	def removeTag( self, iid, tagToRemove ):
+
+		""" Removes the given tag from the given item, while preserving other tags it may have. """
+
+		currentTags = list( self.item( iid, 'tags' ) )
+		if tagToRemove in currentTags:
+			currentTags.remove( tagToRemove )
+			self.item( iid, tags=currentTags )
 
 
 class ToolTip( object ):
