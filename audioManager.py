@@ -115,7 +115,7 @@ class AudioManager( ttk.Frame ):
 		self.fileTree = NeoTreeview( self, columns=('filename'), show='tree', yscrollcommand=treeScroller.set )
 		self.fileTree.column( '#0', width=300 )
 		self.fileTree.column( 'filename', width=140 )
-		self.fileTree.tag_configure( 'playing', foreground='#6040ff', font=self.boldFont ) # Dark blue/Purple
+		self.fileTree.tag_configure( 'playing', foreground='#4030ec', font=self.boldFont ) # Dark blue/Purple
 		self.fileTree.tag_configure( 'changed', foreground='red' )
 		self.fileTree.tag_configure( 'changesSaved', foreground='#292' ) # The 'save' green color
 		self.fileTree.grid( column=0, row=0, sticky='ns' )
@@ -351,7 +351,7 @@ class AudioManager( ttk.Frame ):
 			loopPointString = '{:02}:{:02}.{:03}'.format( int(minutes), int(seconds), int(milliseconds) ) # Will pad minutes/seconds to 2 characters, and milliseconds to 3
 
 		# Update the Track Info label and clear the references list
-		self.trackInfoLabel['text'] = '\n'.join( [musicId, fileSizeString, '{:,}'.format(musicFile.sampleRate), str(musicFile.channels), durationString, loopPointString] )
+		self.trackInfoLabel['text'] = '\n'.join( [musicId, fileSizeString, '{:,} Hz'.format(musicFile.sampleRate), str(musicFile.channels), durationString, loopPointString] )
 		self.referencesList['text'] = ''
 
 		# Update the Play/Pause button
@@ -382,7 +382,14 @@ class AudioManager( ttk.Frame ):
 		# Add the file description to the filename if that option is turned on
 		if globalData.checkSetting( 'exportDescriptionsInFilename' ) and musicFile.description:
 			name, ext = os.path.splitext( defaultName )
-			defaultName = '{} ({}){}'.format( name, musicFile.description, ext )
+
+			# Remove illegal characters
+			description = musicFile.description
+			for char in description:
+				if char in ( '\\', '/', ':', '*', '?', '"', '<', '>', '|' ):
+					description.replace( char, '-' )
+
+			defaultName = '{} ({}){}'.format( name, description, ext )
 
 		# Prompt for a place to save the file (will also ask to overwrite an existing file)
 		savePath = tkFileDialog.asksaveasfilename(
@@ -556,6 +563,8 @@ class AudioManager( ttk.Frame ):
 		# Remove the files from the disc
 		globalData.disc.removeFiles( fileObjects )
 
+		self.updateGeneralInfo()
+
 		# Reload the Disc File Tree tab
 		discTab = globalData.gui.discTab
 		if discTab:
@@ -692,11 +701,11 @@ class AudioManager( ttk.Frame ):
 		else:
 			self.referencesList['text'] = ''
 			if primaryReferences:
-				self.referencesList['text'] = '      Primary references:\n\n' + ', '.join( primaryReferences )
+				self.referencesList['text'] = '      Primary references:\n\n' + ', '.join( primaryReferences ).encode( 'utf-8' )
 			if secondaryReferences:
 				if primaryReferences:
 					self.referencesList['text'] += '\n\n'
-				self.referencesList['text'] += '      Secondary references:\n\n' + ', '.join( secondaryReferences )
+				self.referencesList['text'] += '      Secondary references:\n\n' + ', '.join( secondaryReferences ).encode( 'utf-8' )
 
 
 class LoopEditorWindow( BasicWindow ):
@@ -780,19 +789,9 @@ class LoopEditor( ttk.Frame ):
 			if widget.winfo_class() == 'TEntry' or ( includeRadioBtn and widget.winfo_class() == 'TRadiobutton' ):
 				widget['state'] = state
 
-	# @property
-	# def loopType( self ):
-	# 	""" May be:
-	# 			0 (No loop)
-	# 			1 (normal loop, from end to start)
-	# 			2 (custom loop to specific minute/second). 
-	# 	"""
-	# 	return self.loopTrack.get()
-
 	@property
 	def minute( self ):
 		""" Get and validate the loop point minute entry. """
-		# try:
 		minuteText = self.minutesEntry.get()
 		if minuteText:
 			minute = int( minuteText )
@@ -800,16 +799,12 @@ class LoopEditor( ttk.Frame ):
 				raise Exception( 'minute data entry is out of bounds. Should be between 0 and 60.' )
 		else:
 			minute = 0
-		# except Exception as err:
-		# 	msg( 'Invalid input to the Minute value input; {}'.format(err) )
-		# 	raise
 		
 		return minute
 
 	@property
 	def second( self ):
 		""" Get and validate the loop point second entry. """
-		# try:
 		secondString = self.secondsEntry.get()
 		if secondString:
 			second = float( secondString )
@@ -817,9 +812,6 @@ class LoopEditor( ttk.Frame ):
 				raise Exception( 'second data entry is out of bounds. Should be a float between 0 and 60.' )
 		else:
 			second = 0.0
-		# except Exception as err:
-		# 	msg( 'Invalid input to the Second value input; {}'.format(err) )
-		# 	raise
 		
 		return second
 
@@ -829,10 +821,6 @@ class LoopEditor( ttk.Frame ):
 		loopType = self.loopTrack.get()
 
 		if loopType == 2: # Custom loop (to a specific minute/second)
-			# minute = self.minute
-			# second = self.second
-			# if minute == -1 or second == -1: # Invalid input
-			# 	loopArg = ''
 			loopArg = ' -loop 00:{:02}:{:09.6f}'.format( self.minute, self.second ) # {:09.6f} pads left up to 9 characters, with last 6 for decimal places
 
 		elif loopType == 1: # Normal loop (from song end to very beginning)
@@ -1332,7 +1320,9 @@ class AudioEngine:
 		if wf:
 			wf.close()
 			if deleteWav:
-				os.remove( soundFilePath )
+				try:
+					os.remove( soundFilePath )
+				except: pass
 
 		self.audioThread = None
 
@@ -1396,10 +1386,12 @@ class AudioControlModule( object, ttk.Frame ):
 
 		if self.audioEngine.isPlayingAudio():
 			# Check if this is a different song than the one that's currently playing
-			if self.audioEngine.audioThread.name != self.audioFile.filename:
-				self.showPlayBtn()
-			else: # Must be the same file that's already playing
-				self.showPauseBtn()
+			try:
+				if self.audioEngine.audioThread.name != self.audioFile.filename:
+					self.showPlayBtn()
+				else: # Must be the same file that's already playing
+					self.showPauseBtn()
+			except: pass # The button may not exist yet
 
 	def showPlayBtn( self ):
 		self.playBtn['text'] = 'Pla'
