@@ -25,8 +25,8 @@ from basicFunctions import toHex, validHex, msg
 from guiSubComponents import cmsg
 
 
-
 CustomizationTypes = { 'int8': '>b', 'uint8': '>B', 'int16': '>h', 'uint16': '>H', 'int32': '>i', 'uint32': '>I', 'float': '>f' }
+
 
 # def getCustomCodeLength( customCode, preProcess=False, includePaths=None, customizations=None ):
 
@@ -107,7 +107,7 @@ def regionsOverlap( regionList ):
 	return overlapDetected
 
 
-class CodeChange:
+class CodeChange( object ):
 
 	def __init__( self, mod, changeType, offset, origCode, rawCustomCode, preProcessedCode, returnCode=-1 ):
 
@@ -250,8 +250,8 @@ class CodeMod( object ):
 		self.type = 'static'
 		self.state = 'disabled'
 		self.stateDesc = ''				# Describes reason for the state. Shows as a text status on the mod in the GUI
-		self.customizations = []		# Will be a list of option dictionaries			required keys: name, type, value
-																					# optional keys: default, members, 
+		self.customizations = {}		# Will be a dict of option dictionaries			required keys: name, type, value
+																						# optional keys: default, members, 
 		self.isAmfs = isAmfs
 		self.webLinks = []
 		self.fileIndex = -1				# Used only with MCM formatted mods (non-AMFS)
@@ -481,33 +481,38 @@ class CodeMod( object ):
 
 		""" Changes a given customization option to the given value. """
 
-		for option in self.customizations:
-			if option['name'] == name:
-				option['value'] = value
-				break
-		else:
-			raise Exception( '{} not found in customization options.'.format(name) )
+		# for option in self.customizations:
+		# 	if option['name'] == name:
+		# 		option['value'] = value
+		# 		break
+		# else:
+		# 	raise Exception( '{} not found in customization options.'.format(name) )
+
+		self.customizations[name]['value'] = value
 
 	def getCustomization( self, name ):
 
 		""" Gets the currently-set customization option for a given option name. """
 
-		for option in self.customizations:
-			if option['name'] == name:
-				return option['value']
-		else:
-			raise Exception( '{} not found in customization options.'.format(name) )
+		# for option in self.customizations:
+		# 	if option['name'] == name:
+		# 		return option['value']
+		# else:
+		# 	raise Exception( '{} not found in customization options.'.format(name) )
+
+		return self.customizations[name]['value']
 
 
 class CodeLibraryParser():
 
-	""" The primary component for processing the Code Library. Will identify and parse the standard .txt file mod format, 
+	""" The primary component for loading a Code Library. Will identify and parse the standard .txt file mod format, 
 		as well as the AMFS structure. The primary .include paths for import statements are also set here. 
-			Include Path Priority:
-				1) The current working directory (usually the MCM root folder)
-				2) Directory of the mod's code file (or the code's root folder with AMFS)
-				3) The current Mods Library's ".include" directory
-				4) The MCM root folder's ".include" directory """
+
+		Include Path Priority:
+			1) The current working directory (usually the MCM root folder)
+			2) Directory of the mod's code file (or the code's root folder with AMFS)
+			3) The current Mods Library's ".include" directory
+			4) The MCM root folder's ".include" directory """
 
 	def __init__( self ):
 
@@ -542,19 +547,8 @@ class CodeLibraryParser():
 		# Check if there are any items in this folder to be processed exclusively (item starting with '+')
 		for item in itemsInDir:
 			if item.startswith( '+' ):
-				# processItemInDir( folderPath, parentNotebook, item )
-				# if totalCreated != len( self.codeMods ):
-				# 	somethingCreated = True
-				# itemPath = os.path.normpath( os.path.join(folderPath, item) )
-
-				# if os.path.isdir( itemPath ):
-				# 	self.processDirectory( itemPath )
-				# else:
-				# 	# Add all mod definitions from this file to the GUI
-				# 	parseModsLibraryFile( itemPath  )
 				itemsInDir = [item]
 				break
-		#else: # Loop above didn't break; no item with '+' found, so process everything in this folder
 
 		for item in itemsInDir:
 			if self.stopToRescan:
@@ -584,79 +578,6 @@ class CodeLibraryParser():
 		# 	# Nothing to be pulled from this folder. Add a label to convey this.
 		# 	Label( parentNotebook, text='No text files found here.', bg='white' ).place( relx=.5, rely=.5, anchor='center' )
 		# 	ttk.Label( parentNotebook, image=imageBank['randall'], background='white' ).place( relx=0.5, rely=0.5, anchor='n', y=15 )
-		
-	# def processItemInDir( self, parentDirectory, parentNotebook, fileOrFolderItem ):
-
-	# 	""" Processes all files and folders in a given directory, to parse code mods. """
-
-	# 	itemPath = os.path.normpath( os.path.join(parentDirectory, fileOrFolderItem) )
-
-	# 	# Create a new tab for the parent notebook for this item (folder or text file).
-	# 	newTab = Frame( parentNotebook )
-
-	# 	if os.path.isdir( itemPath ):
-	# 		# Scan this folder to determine if it's of the new ASM Mod Folder Structure (AMFS) Amphis/Amfis?
-	# 		folderItems = os.listdir( itemPath )
-
-	# 		if 'codes.json' in folderItems:
-	# 			# Open the json file and get its file contents (need to do this early so we can check for a mod category)
-	# 			with open( os.path.join(itemPath, 'codes.json'), 'r') as jsonFile:
-	# 				jsonContents = json.load( jsonFile )
-
-	# 			# Check for a mod category
-	# 			category = jsonContents.get( 'category', 'Uncategorized' )
-	# 			if category in parentFrames:
-	# 				ModsLibraryParser( parentFrames[category], [itemPath] + includePaths ).parseAmfs( fileOrFolderItem, itemPath, jsonContents )
-
-	# 			else: # Need to create a new parent frame and notebook
-	# 				parentNotebook.add( newTab, text=category )
-					
-	# 				# Create a space for new modules, and then parse the file to populate it.
-	# 				frameForBorder = Frame( newTab, borderwidth=2, relief='groove' )
-	# 				modsPanel = VerticalScrolledFrame( frameForBorder )
-	# 					# Code modules will go here, as children of a modsPanel.
-	# 				modsPanel.pack( side='left', fill='both', expand=1 )
-	# 				frameForBorder.place( x=0, y=0, relwidth=.65, relheight=1.0 )
-
-	# 				ModsLibraryParser( modsPanel.interior, [itemPath] + includePaths ).parseAmfs( fileOrFolderItem, itemPath, jsonContents )
-	# 				parentFrames[category] = modsPanel.interior
-
-	# 				# If this tab was selected before this scan, reselect it and restore the previous scroll position.
-	# 				if itemPath == lastSelectedTabFileSource:
-	# 					if selectModLibraryTab( newTab ): # Ensures all tabs leading to this tab are all selected (multiple may be nested)
-	# 						modsPanel.canvas.yview_moveto( sliderYPos )
-	# 		else:
-	# 			parentNotebook.add( newTab, image=imageBank['folderIcon'], text=fileOrFolderItem, compound='left' )
-
-	# 			# Create a new Notebook object (tab group) for this directory.
-	# 			newNotebook = ttk.Notebook( newTab )
-	# 			newNotebook.pack( fill='both', expand=1 )
-	# 			newNotebook.bind( '<<NotebookTabChanged>>', onTabChange )
-
-	# 			processDirectory( itemPath, newNotebook ) # Recursive fun!
-
-	# 	elif itemPath.lower().endswith('.txt'): # This tab will be for a file.
-	# 		tabName = fileOrFolderItem[:-4] # Removes '.txt'/'.TXT' from the string.
-	# 		parentNotebook.add( newTab, text=tabName )
-
-	# 		# Create a space for new modules, and then parse the file to populate it.
-	# 		frameForBorder = Frame( newTab, borderwidth=2, relief='groove' )
-	# 		modsPanel = VerticalScrolledFrame( frameForBorder )
-	# 			# Code modules will go here, as children of a modsPanel.
-	# 		modsPanel.pack( side='left', fill='both', expand=1 )
-	# 		frameForBorder.place( x=0, y=0, relwidth=.65, relheight=1.0 )
-
-	# 		# Add all mod definitions from this file to the GUI
-	# 		parseModsLibraryFile( itemPath, modsPanel.interior, [parentDirectory] + includePaths )
-	# 		parentFrames[tabName] = modsPanel.interior
-
-	# 		# Update the GUI
-	# 		modsLibraryNotebook.update()
-
-	# 		# If this tab was selected before this scan, reselect it and restore the previous scroll position.
-	# 		if itemPath == lastSelectedTabFileSource:
-	# 			if selectModLibraryTab( newTab ): # Ensures all tabs leading to this tab are all selected (multiple may be nested)
-	# 				modsPanel.canvas.yview_moveto( sliderYPos )
 
 	def getModByName( self, name ):
 
@@ -808,7 +729,7 @@ class CodeLibraryParser():
 
 			# Iterate over the text/code lines for this mod
 			for rawLine in modString.splitlines():
-				# Separate out "hard" comments. These are totally ignored (not collected) by the parser.
+				# Filter out "hard" comments; these will be completely ignored (not collected) by the parser
 				if '##' in rawLine:
 					rawLine = rawLine.split( '##' )[0].strip()
 
@@ -899,8 +820,8 @@ class CodeLibraryParser():
 
 						except Exception as err:
 							mod.parsingError = True
-							mod.stateDesc = 'Parsing error; {}'.format(err)
-							mod.errors.append( 'Parsing error; {}'.format(err) )
+							mod.stateDesc = 'Customizations parsing error; {}'.format(err)
+							mod.errors.append( 'Customizations parsing error; {}'.format(err) )
 							continue
 
 					else: # Assume all other lines are more description text
@@ -1304,7 +1225,7 @@ class CodeLibraryParser():
 				# Create the mod object
 				mod = CodeMod( codeset['name'], authors, description, folderPath, True )
 				mod.category = codeset.get( 'category', primaryCategory ) # Secondary definition, per-code dict basis
-				mod.customizations = codeset.get( 'customizations', [] )
+				mod.customizations = codeset.get( 'customizations', {} )
 
 				# Set the revision (region/version) this code is for
 				revision = codeset.get( 'revision' )
@@ -1721,26 +1642,15 @@ class CommandProcessor( object ):
 	""" Assembler/disassembler to translate between assembly and bytecode (hex/binary machine code). 
 		Uses the PowerPC Embedded Application Binary Interface (EABI) binary utilities. """
 
-	# Build file paths to the binaries
-	# assemblerPath = scriptHomeFolder + '\\bin\\eabi\\powerpc-eabi-as.exe'
-	# linkerPath = scriptHomeFolder + '\\bin\\eabi\\powerpc-eabi-ld.exe'
-	# objcopyPath = scriptHomeFolder + '\\bin\\eabi\\powerpc-eabi-objcopy.exe'
-	# disassemblerPath = scriptHomeFolder + '\\bin\\eabi\\vdappc.exe'
-	#tempBinFile = ''
-
-
 	def __init__( self ):
-		# Construct paths for temporary files
-		# if not self.tempBinFile:
-		# 	tempFilesFolder = scriptHomeFolder + '\\bin\\tempFiles\\'
-		# 	self.tempBinFile = tempFilesFolder + 'code.bin' # Temp file for decompiling
-
-		# 	if not os.path.exists( tempFilesFolder ): createFolders( tempFilesFolder)
 		executablesFolder = globalData.paths['eabi']
+
+		# Construct paths to the binaries and for temporary files
 		self.assemblerPath = os.path.join( executablesFolder, 'powerpc-eabi-as.exe' )
 		self.linkerPath = os.path.join( executablesFolder, 'powerpc-eabi-ld.exe' )
 		self.objcopyPath = os.path.join( executablesFolder, 'powerpc-eabi-objcopy.exe' )
 		self.disassemblerPath = os.path.join( executablesFolder, 'vdappc.exe' )
+
 		self.tempBinFile = os.path.join( globalData.paths['tempFolder'], 'code.bin' )
 
 		# Validate the EABI file paths
