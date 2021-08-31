@@ -32,3 +32,65 @@ A20F0894 2C10[[Frame ID]]
 81EF0008 2C0F0000
 40A2FFD0 9421FFD0
 48000000
+
+
+	-==-
+
+
+Enter Action State On Match Start
+A rework of Dan Salvato's action state hack using internal player data offsets:
+0x219C - new starting frame (float)
+0x21A0 - new action state ID (int)
+This instance of the code is designed to set the beginning states for P1 & P2.
+Customizations:
+    uint32 Action State ID = 0; 0-0x10000
+    float Start Frame = 0.0; 0-0x10000
+<https://smashboards.com/threads/internal-action-state-hack.440318/>
+[Dan Salvato, Punkline, DRGN]
+Version -- DOL Offset ------ Hex to Replace ---------- ASM Code
+## Treat non-pointer values in player data offsets as 0
+1.02 ----- 0x8006b7f8 --- 280C0000 -> 2C0C0000
+1.02 ----- 0x8006b7fc --- 41820010 -> 40800010
+1.02 ----- 0x8006ab64 --- 280C0000 -> 2C0C0000
+
+1.02 ----- 0x8006ab74 --- 4E800021 -> Branch
+
+# Handle Action State ID at 0x21A0
+41A00014 7D846378
+3D808008 618CCFAC
+7D8803A6 4E800021
+00000000
+
+1.02 ----- 0x800693cc --- FFA00890 -> Branch
+
+# Handle start frame at 0x219C
+80E3002C 800721A0
+54000029 40820014
+8007219C 2C000000
+40810008 C027219C
+FFA00890 00000000
+
+---------- 0x8016e9a8 --- 887F0000 -> Branch
+
+# Set code values on match start
+# Injecting into SceneLoad_Melee
+lis r3, 0x80453130@h		# Load pointer to P1 Player Entity Struct
+ori r3, r3, 0x80453130@l
+lwz r3, 0x2C(r3)		# Load pointer to P1 Player Character Data (at 0x2C of P1 Player Entity Struct) to r3
+lis r30, [[Start Frame]]@h	# Load the frame to start on
+ori r30, r30, [[Start Frame]]@l
+stw r30, 0x219C(r3)		# Store start frame to 0x219C of P1 Player Character Data
+li r30, [[Action State ID]]	# Load the action state ID
+stw r30, 0x21A0(r3)		# Store action state ID to 0x21A0 of P1 Player Character Data
+
+lis r3, 0x80453FC0@h		# Load pointer to P2 Player Entity Struct
+ori r3, r3, 0x80453FC0@l
+lwz r3, 0x2C(r3)		# Load pointer to P2 Player Character Data (at 0x2C of P2 Player Entity Struct) to r3
+lis r30, [[Start Frame]]@h	# Load the frame to start on
+ori r30, r30, [[Start Frame]]@l
+stw r30, 0x219C(r3)		# Store start frame to 0x219C of P2 Player Character Data
+li r30, [[Action State ID]]	# Load the action state ID
+stw r30, 0x21A0(r3)		# Store action state ID to 0x21A0 of P2 Player Character Data
+
+lbz r3, 0(r31)	# Original code line
+b 0		# Placeholder for branch back

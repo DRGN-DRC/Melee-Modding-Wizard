@@ -1,0 +1,41 @@
+
+8016e730 00000204 8016e730 0 StartMelee
+
+8016e934 00000094 8016e934 0 SceneLoad_InGame
+8016e9a4 00000024 8016e9a4 0 SceneLoad_Melee
+
+801a583c 000002b4 801a583c 0 Match_InitMinorData(r3=,r4,r5,r6=StartMeleeCallback)
+
+
+801c57a4 00000024 801c57a4 0 PlayerBlock_LoadP1DataOffsetStart
+
+800693ac 00000e10 800693ac 0 ActionStateChange		(r3=pointer to Player Entity Struct, r4=action state ID, r31=Player Character Data address)
+
+
+
+
+Call order:
+
+Match_InitMinorData
+SceneLoad_InGame
+StartMelee
+SceneLoad_Melee (player entity structs now exist)
+
+
+
+											+0xB0 = Pointer to Player Entity Struct
+80453080	= P1 Static Player Block		80453130
+80453F10	= P2 Static Player Block		80453FC0
+
+
+From Player Entity Struct, +0x2C = Pointer to Player Character Data
+
+
+From Player Character Data, +0x10 = Action State ID
+
+
+
+Player Entity Struct
+	|
+	V		+0x2C
+80C70180	->		80C701AC	Pointer = 80C701E0
