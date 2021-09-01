@@ -33,6 +33,8 @@ DK:
   sideImagesYOffset: -134
   sideImagesScaling: .5
   reverseSides: False
+  actionState: 0x1B
+  targetFrame: 10
   camX: 42726fbe
   camY: c17a10f1
   camZ: 420dc295

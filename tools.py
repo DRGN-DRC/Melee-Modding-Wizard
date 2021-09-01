@@ -12,13 +12,19 @@
 
 # External dependencies
 import os
+import time
 import codecs
+#import psutil
+import subprocess
 from ruamel import yaml
 
 # Internal dependencies
 import globalData
-from basicFunctions import msg, cmdChannel
+from basicFunctions import msg, cmdChannel, printStatus
 from guiSubComponents import BasicWindow
+
+
+#class NumberConverter( BasicWindow ):
 
 
 class ImageDataLengthCalculator( BasicWindow ):
@@ -102,6 +108,7 @@ class TriCspCreator( object ):
 
 		self.gimpDir = ''
 		self.gimpExe = ''
+		self.cspConfig = {}
 
 		# Analyze the version of GIMP installed, and check for needed plugins
 		self.determineGimpPath()
@@ -133,8 +140,6 @@ class TriCspCreator( object ):
 		except Exception as err: # Problem parsing the file
 			msg( 'There was an error while parsing the yaml config file:\n\n{}'.format(err) )
 
-		print self.cspConfig
-
 	def determineGimpPath( self ):
 
 		""" Determines the absolute file path to the GIMP console executable 
@@ -143,7 +148,7 @@ class TriCspCreator( object ):
 		# Check for the expected program folder
 		directory = "C:\\Program Files\\GIMP 2\\bin"
 		if not os.path.exists( directory ):
-			print 'GIMP does not appear to be installed; unable to find the GIMP program directory.'
+			msg( 'GIMP does not appear to be installed; unable to find the GIMP program directory at "{}".'.format(directory) )
 			self.gimpDir = ''
 			self.gimpExe = ''
 			return
@@ -156,7 +161,7 @@ class TriCspCreator( object ):
 				return
 
 		else: # The loop above didn't break; unable to find the exe
-			print 'Unable to find the GIMP console executable.'
+			msg( 'Unable to find the GIMP console executable in "{}".'.format(directory) )
 			self.gimpDir = ''
 			self.gimpExe = ''
 			return
@@ -204,3 +209,110 @@ class TriCspCreator( object ):
 						return line.split( '=' )[-1].strip()
 			
 		return '-1'
+
+
+class DolphinController( object ):
+
+	""" Wrapper the Dolphin emulator, to handle starting/stopping 
+		the game, file I/O, and option configuration. """
+
+	def __init__( self ):
+		self._exePath = ''
+		self.rootFolder = ''
+		self.userFolder = ''
+		self.process = None
+
+	@property
+	def exePath( self ):
+
+		""" Set up initial filepaths. This should be done just once, on the first path request. 
+			This is not done in the init method because program settings were not loaded then. """
+
+		if self._exePath:
+			return self._exePath
+		
+		self._exePath = globalData.getEmulatorPath()
+		self.rootFolder = os.path.dirname( self._exePath )
+		self.userFolder = os.path.join( self.rootFolder, 'User' )
+
+		# Make sure that Dolphin is in 'portable' mode
+		portableFile = os.path.join( self.rootFolder, 'portable.txt' )
+		if not os.path.exists( portableFile ):
+			print 'Dolphin is not in portable mode! Attempting to create portable.txt'
+			try:
+				with open( portableFile, 'w' ) as newFile:
+					pass
+			except:
+				msg( "Dolphin is not in portable mode, and 'portable.txt' could not be created. Be sure that this program "
+					 "has write permissions in the Dolphin root directory.", 'Non-portable Dolphin', globalData.gui.root, warning=True )
+				return
+
+		if not os.path.exists( self.userFolder ):
+			self.start( '' ) # Will open, create the user folder, and close? todo: needs testing
+			# time.sleep( 4 )
+			# self.stop()
+
+		return self._exePath
+
+	@property
+	def isRunning( self ):
+		# Check for a running instances of Dolphin
+		# for process in psutil.process_iter():
+		# 	if process.name() == 'Dolphin.exe':
+		# 		process.terminate()
+		# 		printStatus( 'Stopped Dolphin process' )
+		# 		time.sleep( 3 )
+		# 		return True
+
+		# return False
+		if not self.process: # Hasn't been started
+			return False
+
+		return ( self.process.poll() == None ) # None means the process is still running; anything else is an exit code
+
+	def getVersion( self ):
+		
+		if not self.exePath:
+			return '' # User may have canceled the prompt
+
+		returnCode, output = cmdChannel( '{} --version'.format(self.exePath) )
+
+		if returnCode == 0:
+			return output
+		else:
+			return 'N/A'
+	
+	def start( self, discObj ):
+		
+		# Get the path to the user's emulator of choice
+		#emulatorPath = globalData.getEmulatorPath() # Will also validate the path
+
+		#print 'is running:', self.isRunning
+		if not self.exePath:
+			return # User may have canceled the prompt
+
+		# Make sure there are no prior instances of Dolphin running
+		if self.isRunning:
+			self.stop()
+
+		# print 'Booting', discObj.filePath
+		# print 'In', self.exePath
+		
+		# Send the disc filepath to Dolphin
+		# '--exec' loads the specified file. (Using '--exec' because '/e' is incompatible with Dolphin 5+, while '-e' is incompatible with Dolphin 4.x)
+		# '--batch' will prevent dolphin from unnecessarily scanning game/ISO directories, and will shut down Dolphin when the game is stopped.
+		printStatus( 'Booting in emulator....' )
+		if globalData.checkSetting( 'runDolphinInDebugMode' ):
+			command = '"{}" --debugger --exec="{}"'.format( self.exePath, discObj.filePath )
+		else:
+			command = '"{}" --batch --exec="{}"'.format( self.exePath, self.filePath )
+		self.process = subprocess.Popen( command, stderr=subprocess.STDOUT, creationflags=0x08000000 )
+
+		#print 'is running:', self.isRunning
+
+	def stop( self ):
+
+		""" Stop an existing Dolphin process that was spawned from this controller. """
+
+		self.process.terminate()
+		time.sleep( 3 )

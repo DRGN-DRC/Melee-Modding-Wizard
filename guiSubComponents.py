@@ -345,10 +345,11 @@ class BasicWindow( object ):
 class CharacterChooser( BasicWindow ):
 
 	""" Prompts the user to choose a character. This references 
-		internal character ID, which will be stored to "self.charId". 
+		internal character ID and costume ID, which will be stored 
+		to "self.charId" and "self.costumeId", respectively. 
 		This window will block the main interface until a selection is made. """
 
-	def __init__( self, message='' ):
+	def __init__( self, message='', includeSpecialCharacters=False ):
 
 		BasicWindow.__init__( self, globalData.gui.root, 'Select a Character', offsets=(300, 300) )
 		self.emptySelection = '---'
@@ -357,14 +358,19 @@ class CharacterChooser( BasicWindow ):
 
 		if message: # Optional user message
 			ttk.Label( self.window, text=message, wraplength=500 ).pack( padx=14, pady=(6, 0) )
-			
+
+		if includeSpecialCharacters:
+			charList = globalData.charList
+		else:
+			charList = globalData.charList[:0x1A]
+		
 		stageChoice = Tk.StringVar()
-		stageIdChooser = ttk.OptionMenu( self.window, stageChoice, self.emptySelection, *globalData.charList, command=self.characterSelected )
-		stageIdChooser.pack( padx=14, pady=(4, 0) )
+		charDropdown = ttk.OptionMenu( self.window, stageChoice, self.emptySelection, *charList, command=self.characterSelected )
+		charDropdown.pack( padx=14, pady=(4, 0) )
 		
 		colorChoice = Tk.StringVar()
-		self.colorIdChooser = ttk.OptionMenu( self.window, colorChoice, self.emptySelection, self.emptySelection, command=self.colorSelected )
-		self.colorIdChooser.pack( padx=14, pady=(4, 0) )
+		self.colorDropdown = ttk.OptionMenu( self.window, colorChoice, self.emptySelection, self.emptySelection, command=self.colorSelected )
+		self.colorDropdown.pack( padx=14, pady=(4, 0) )
 		
 		buttonFrame = ttk.Frame( self.window )
 		ttk.Button( buttonFrame, text='Confirm', command=self.close ).grid( column=0, row=0, padx=6 )
@@ -390,8 +396,8 @@ class CharacterChooser( BasicWindow ):
 		costumeOptions = [ '{}  ({})'.format(abbr, globalData.charColorLookup.get(abbr)) for abbr in costumeOptions ]
 
 		# Populate the costume color chooser, and set a default option
-		self.colorIdChooser['state'] = 'normal'
-		self.colorIdChooser.set_menu( costumeOptions[0], *costumeOptions ) # Using * to expand the list into the arguments input
+		self.colorDropdown['state'] = 'normal'
+		self.colorDropdown.set_menu( costumeOptions[0], *costumeOptions ) # Using * to expand the list into the arguments input
 		self.costumeId = 0 # For Neutral/Nr
 
 	def colorSelected( self, selectedOption ):

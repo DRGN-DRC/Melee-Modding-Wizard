@@ -26,19 +26,19 @@ from datetime import datetime
 from collections import OrderedDict
 
 # Internal Dependencies
-import disc
 import codeRegionSettings
 
-#from disc import MicroMelee, isExtractedDirectory
+from disc import MicroMelee, isExtractedDirectory
 from codeMods import CommandProcessor
 from basicFunctions import msg, printStatus
 from guiSubComponents import PopupEntryWindow, VanillaDiscEntry
+from tools import DolphinController
 
 
 def init( programArgs ):
 
 	global scriptHomeFolder, paths, defaultSettings, defaultBoolSettings, settings, boolSettings
-	global overwriteOptions, codeProcessor, gui, disc, codeMods, standaloneFunctions, programEnding
+	global overwriteOptions, codeProcessor, dolphinController, gui, disc, codeMods, standaloneFunctions, programEnding
 
 	scriptHomeFolder = os.path.abspath( os.path.dirname(programArgs[0]) ) # Can't use __file__; incompatible with cx_freeze process
 
@@ -70,6 +70,7 @@ def init( programArgs ):
 		'alwaysEnableCrashReports': '1',
 		'alwaysAddFilesAlphabetically': '0',
 		'exportDescriptionsInFilename': '1',
+		'runDolphinInDebugMode': '0',
 	}
 	# regionOverwriteDefaults = {
 	# 	'Common Code Regions': True,
@@ -84,6 +85,7 @@ def init( programArgs ):
 	overwriteOptions = OrderedDict() # For code-based mods. Populates with key=customCodeRegionName, value=BooleanVar (to describe whether the regions should be used.)
 	
 	codeProcessor = CommandProcessor() # Must be initialized after gettings general settings, so the base include paths are set correctly
+	dolphinController = DolphinController()
 
 	gui = None
 	disc = None
@@ -299,7 +301,7 @@ def getRecentFilesLists():
 
 			# Add the file to the list for discs or dats
 			ext = os.path.splitext( filepath )[1].lower()
-			if ext == '.iso' or ext == '.gcm' or disc.isExtractedDirectory( filepath.replace('|', ':'), showError=False ): 
+			if ext == '.iso' or ext == '.gcm' or isExtractedDirectory( filepath.replace('|', ':'), showError=False ): 
 				ISOs.append( optionTuple )
 			else: DATs.append( optionTuple )
 		except:
@@ -387,7 +389,7 @@ def rememberFile( filepath, updateDefaultDirectory=True ):
 
 		# For the current filetype, arrange the list so that the oldest file is first, and then remove it from the settings file.
 		extension = os.path.splitext( filepath )[1].lower()
-		if extension == '.iso' or extension == '.gcm' or disc.isExtractedDirectory( filepath, showError=False ): targetList = ISOs
+		if extension == '.iso' or extension == '.gcm' or isExtractedDirectory( filepath, showError=False ): targetList = ISOs
 		else: targetList = DATs
 		targetList.sort( key=lambda recentInfo: recentInfo[1] )
 
@@ -506,7 +508,7 @@ def getMicroMelee():
 	# Check if a Micro Melee disc already exists
 	if os.path.exists( microMeleePath ):
 		print 'using existing MM'
-		microMelee = disc.MicroMelee( microMeleePath )
+		microMelee = MicroMelee( microMeleePath )
 		microMelee.loadGameCubeMediaFile()
 
 	else: # Need to make a new MM build
@@ -516,7 +518,7 @@ def getMicroMelee():
 			printStatus( 'Unable to build the Micro Melee test disc without a vanilla reference disc.' )
 			return
 
-		microMelee = disc.MicroMelee( microMeleePath )
+		microMelee = MicroMelee( microMeleePath )
 		microMelee.buildFromVanilla( vanillaDiscPath )
 
 	return microMelee
@@ -601,7 +603,7 @@ charNameLookup = {
 # 	Falcon = 2
 
 
-charList = [ # By External Character ID
+charList = [ # In order of External Character ID
 	"Captain Falcon",	# 0x0
 	"DK",
 	"Fox",

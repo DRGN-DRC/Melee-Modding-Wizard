@@ -91,14 +91,14 @@ def toInt( input ):
 
 def toBytes( input, byteLength=4, cType='' ):
 	
-	""" Converts an int to a bytes object. """
+	""" Converts an int to a bytes object of customizable size (byte/halfword/word). """
 
 	if not cType: # Assume a big-endian unsigned value of some byte length
 		if byteLength == 1: cType = '>B'		# big-endian unsigned char (1 byte)
 		elif byteLength == 2: cType = '>H'		# big-endian unsigned short (2 bytes)
 		elif byteLength == 4: cType = '>I'		# big-endian unsigned int (4 bytes)
 		else:
-			raise Exception( '\ntoBytes was not able to convert the ' + str(type(input))+' type' )
+			raise Exception( 'toBytes was not able to convert the ' + str(type(input)) + ' type' )
 
 	return struct.pack( cType, input )
 
@@ -109,7 +109,19 @@ def validHex( offset ):
 
 	offset = offset.replace( '0x', '' )
 	if offset == '': return False
+
 	return all( char in hexdigits for char in offset )
+
+
+def floatToHex( input ):
+
+	""" Converts a float value to a hexadecimal string. """
+	
+	#dec = Decimal( input )
+	floatBytes = struct.pack( '<f', input )
+	intValue = struct.unpack( '<I', floatBytes )[0]
+
+	return '0x' + hex( intValue )[2:].upper()
 
 
 def humansize( nbytes ):

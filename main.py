@@ -16,6 +16,7 @@ from __future__ import print_function # Use print with (); preparation for movin
 
 # External dependencies
 import time
+import struct
 import random
 import tkFont
 import os, sys
@@ -34,7 +35,7 @@ from tools import TriCspCreator
 from disc import Disc, isExtractedDirectory
 from hsdFiles import StageFile, CharCostumeFile
 from basicFunctions import (
-		msg, uHex, humansize,
+		floatToHex, msg, uHex, humansize,
 		openFolder, createFolders
 	)
 from guiSubComponents import (
@@ -42,6 +43,7 @@ from guiSubComponents import (
 		HexEditEntry, CharacterChooser
 	)
 from guiDisc import DiscTab, DiscDetailsTab
+from codeMods import CodeLibraryParser
 from codesManager import CodeManagerTab
 from debugMenuEditor import DebugMenuEditor
 from stageManager import StageManager
@@ -176,6 +178,8 @@ class SettingsMenu( Tk.Menu, object ):
 											variable=globalData.boolSettings['alwaysEnableCrashReports'], command=globalData.saveProgramSettings )
 		self.add_checkbutton( label='Always Add Files Alphabetically', underline=11, 												# F
 											variable=globalData.boolSettings['alwaysAddFilesAlphabetically'], command=globalData.saveProgramSettings )
+		self.add_checkbutton( label='Run Dolphin in Debug Mode', underline=15, 												# D
+											variable=globalData.boolSettings['runDolphinInDebugMode'], command=globalData.saveProgramSettings )
 		
 		# Image-editing related options
 		#self.add_separator()
@@ -277,42 +281,82 @@ class ToolsMenu( Tk.Menu, object ):
 
 	def createTriCsp( self ):
 
-		""" Creates a standard, single-image Character Select Portrait (CSP) or a Tri-CSP for the CSS. """
-
-		cspCreator = TriCspCreator()
-
-		return
+		""" Creates a Tri-CSP (Character Select Portrait) for the CSS. """
 
 		if not globalData.disc:
 			msg( 'No disc has been loaded!' )
 			return
 
+		cspCreator = TriCspCreator()
+		if not cspCreator.gimpExe or not cspCreator.cspConfig:
+			return # Unable to find GIMP, or unable to load the CSP configuration file
+			
+		# Get the micro melee disc object
+		microMelee = globalData.getMicroMelee()
+		if not microMelee: return # User may have canceled the vanilla melee disc prompt
+
+		# Get target action states and frames for the screenshots
+		actionState = 0x1B
+		targetFrame = 10.0
+
+		# Convert the target frame to Frame ID (for the Action State Freeze code) and the raw value for a float
+		#targetFrameId = hex( floatToHex( targetFrame ).replace( '0x', '' )[:4], 16 ) # Just the first 4 characters of a float string
+		floatBytes = struct.pack( '<f', targetFrame )
+		targetFrameFloat = struct.unpack( '<I', floatBytes )[0]
+		targetFrameId = struct.unpack( '<H', floatBytes[2:] )[0] # Only want two bytes from this
+
 		# Prompt the user to choose a character to update
 		selectionWindow = CharacterChooser( "Select a character and costume color for CSP creation:" )
 		if selectionWindow.charId == -1: return # User may have canceled selection
 
-		print( selectionWindow.charId )
-		print( selectionWindow.costumeId )
-
 		# Parse the Core Codes library for the codes needed for booting to match and setting up a pose
 		parser = CodeLibraryParser()
-		modsFilePath = globalData.paths['coreCodes']
-		parser.includePaths = [ os.path.join(modsFilePath, '.include'), os.path.join(globalData.scriptHomeFolder, '.include') ]
-		parser.processDirectory( modsFilePath )
-
-		# Customize the Asset Test mod to load the chosen character/costume
+		coreCodesFolder = globalData.paths['coreCodes']
+		parser.includePaths = [ os.path.join(coreCodesFolder, '.include'), os.path.join(globalData.scriptHomeFolder, '.include') ]
+		parser.processDirectory( coreCodesFolder )
 		codesToInstall = []
+
+		# Customize the Asset Test mod to load the chosen characters/costumes
 		assetTest = parser.getModByName( 'Asset Test' )
 		if not assetTest:
-			printStatus( 'Unable to find the Asset Test mod in the Core Codes library!', warning=True )
+			msg( 'Unable to find the Asset Test mod in the Core Codes library!', warning=True )
 			return
 		assetTest.customize( "Player 1 Character", selectionWindow.charId )
 		assetTest.customize( "P1 Costume ID", selectionWindow.costumeId )
+		# assetTest.customize( "Player 2 Character", selectionWindow.charId )
+		# assetTest.customize( "P2 Costume ID", selectionWindow.costumeId )
 		if selectionWindow.charId == 0x13: # Special case for Sheik (for different lighting direction)
 			assetTest.customize( "Stage", 3 ) # Selecting Pokemon Stadium
 		else:
 			assetTest.customize( "Stage", 32 ) # Selecting FD
 		codesToInstall.append( assetTest )
+
+		# Customize Enter Action State On Match Start
+		actionStateStart = parser.getModByName( 'Enter Action State On Match Start' )
+		if not actionStateStart:
+			msg( 'Unable to find the Enter Action State On Match Start mod in the Core Codes library!', warning=True )
+			return
+		actionStateStart.customize( 'Action State ID', actionState )
+		actionStateStart.customize( 'Start Frame', targetFrameFloat )
+		codesToInstall.append( actionStateStart )
+		
+		# Customize Action State Freeze
+		actionStateFreeze = parser.getModByName( 'Action State Freeze' )
+		if not actionStateFreeze:
+			msg( 'Unable to find the Action State Freeze mod in the Core Codes library!', warning=True )
+			return
+		actionStateFreeze.customize( 'Action State ID', actionState )
+		actionStateFreeze.customize( 'Frame ID', targetFrameId )
+		codesToInstall.append( actionStateFreeze )
+
+		# Restore the disc's DOL data to vanilla and then install the necessary codes
+		microMelee.restoreDol()
+		microMelee.installCodeMods( codesToInstall )
+		microMelee.save()
+
+		# Engage emulation
+		#self.runInEmulator()
+		globalData.dolphinController.start( microMelee )
 
 	def findUnusedStages( self ):
 
@@ -339,11 +383,12 @@ class ToolsMenu( Tk.Menu, object ):
 
 		# Cross reference stages defined in the DOL and SST with those found in the disc
 		nonReferencedFiles = discFiles.difference( referecedFiles )
-		print('files not referenced:', nonReferencedFiles )
+		print( 'files not referenced:', nonReferencedFiles )
 		if nonReferencedFiles:
 			msg( 'These stage files are in the disc, but do not appear to be referenced by the game:\n\n' + ', '.join(nonReferencedFiles), 'Non-Referenced Stage Files' )
 		else:
 			msg( 'No files were found in the disc that do not appear to be referenced by the game.', 'Non-Referenced Stage Files' )
+
 
 class MainMenuCanvas( Tk.Canvas ):
 
@@ -516,7 +561,9 @@ class MainGui( Tk.Frame, object ):
 
 		self.root = Tk.Tk()
 		self.root.withdraw() # Keeps the GUI minimized until it is fully generated
+
 		globalData.loadProgramSettings( True ) # Load using BooleanVars. Must be done after creating Tk.root
+
 		self._imageBank = {} # Repository for all GUI related images
 		self.audioEngine = AudioEngine()
 
@@ -983,14 +1030,18 @@ class MainGui( Tk.Frame, object ):
 
 	def runInEmulator( self, event ):
 
-		print( 'newPath: ' + str(event) )
-
 		""" Runs the currently loaded disc or root folder structure in Dolphin. """
 
-		if globalData.disc:
-			globalData.disc.runInEmulator()
-		else:
+		# if globalData.disc:
+		# 	globalData.disc.runInEmulator()
+		# else:
+		# 	msg( 'No disc has been loaded!' )
+
+		if not globalData.disc:
 			msg( 'No disc has been loaded!' )
+			return
+
+		globalData.dolphinController.start( globalData.disc )
 
 
 #																		|---------------------------------\

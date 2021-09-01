@@ -5,16 +5,18 @@
 			"name": "Static ArenaHi Malloc",
 			"authors": [ "Punkline" ],
 			"description": [ "Creates a permanent allocation from the top of the arena of a custom size." ],
-			"customizations": {
-				"Reservation Size": {
+			"customizations": [
+				{
+					"name": "Reservation Size",
 					"type": "int32",
 					"value": 0
 				},
-				"Reservation Location": {
+				{
+					"name": "Reservation Location",
 					"type": "int32",
 					"value": 0
 				}
-			},
+			],
 			"build": [
 				{
 					"type": "inject",
