@@ -228,8 +228,8 @@ class AudioManager( ttk.Frame ):
 
 			# Add the musicFile to the treeview
 			self.fileTree.insert( parent, 'end', iid=musicFile.isoPath, text=musicFile.description, values=(musicFile.filename, 'file') )
-			if musicFile.isHexTrack:
-				print humansize(musicFile.size), '  \t', musicFile.description
+			# if musicFile.isHexTrack:
+			# 	print humansize(musicFile.size), '  \t', musicFile.description
 
 		if restoreState:
 			self.fileTree.restoreState()

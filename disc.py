@@ -16,7 +16,7 @@ import math
 import time
 import copy
 import struct
-import psutil
+#import psutil
 import tempfile
 import subprocess
 import tkMessageBox
@@ -1834,6 +1834,7 @@ class Disc( object ):
 									'\n\nThese cannot both be enabled. "' + modName + '" will not be enabled. "' + \
 									modPurpose + '" may need to be reinstalled.' )
 				msg( warningMsg, 'Conflicting Changes Detected' )
+		
 		else: # No problems; save the code change to the DOL and remember this change
 			dolOffset = self.dol.offsetInDOL( address )
 
@@ -1852,6 +1853,7 @@ class Disc( object ):
 				# else:
 			else:
 				self.dol.setData( dolOffset, bytearray.fromhex(code) )
+			
 			self.modifiedRegions.append( (address, newCodeLength, modName) )
 		
 		return conflictDetected
@@ -2168,18 +2170,7 @@ class Disc( object ):
 						#functionAddress, functionCustomCode, functionPreProcessedCustomCode = standaloneFunctions[functionName]
 						functionAddress, codeChange = standaloneFunctions[functionName]
 
-						# Process the function code to remove comments/whitespace, assemble it into bytecode if necessary, and replace custom syntaxes
-						# returnCode, finishedCode = customCodeProcessor.resolveCustomSyntaxes( functionAddress, functionCustomCode, functionPreProcessedCustomCode, mod.includePaths )
-
-						# if returnCode != 0 and returnCode != 100:
-						# 	codeResolveErrorMsg = 'An error occurred while processing this custom code:\n\n' + functionCustomCode
-						# 	cmsg( codeResolveErrorMsg + '\n\n' + finishedCode, 'Error 01 Resolving Custom Syntaxes' )
-						# elif finishedCode == '' or not validHex( finishedCode ):
-						# 	problemWithMod = True
-						# 	msg( 'There was an error while processing the standalone function "' + functionName + '" for "' + mod.name + '" (missing '
-						# 			'standalone function code, or invalid hex after processing). This mod will not be installed.\n\n' + finishedCode )
-						# else: 
-						#returnCode, finishedCode = mod.finalCodeProcessing( functionAddress, codeChange, codeChange )
+						# Replace custom syntax, and perform any final processing on the code
 						returnCode, finishedCode = codeChange.finalizeCode( functionAddress )
 						if returnCode != 0 and returnCode != 100:
 							problemWithMod = True
@@ -2191,10 +2182,7 @@ class Disc( object ):
 			
 			# Add this mod's code changes & custom code (non-SFs) to the dol.
 			if not problemWithMod:
-				#for changeType, customCodeLength, offsetString, _, customCode, preProcessedCustomCode, _ in mod.getCodeChanges():
 				for codeChange in mod.getCodeChanges():
-					# if customCodeLength == -1:
-					# 	customCodeLength = getCustomCodeLength( codeChange.preProcessedCode )
 					customCodeLength = codeChange.getLength()
 
 					if codeChange.type == 'static':
@@ -2205,21 +2193,13 @@ class Disc( object ):
 							msg( userMsg + '\n\nThis code will be omitted from saving.' )
 							problemWithMod = True
 							break
-						# returnCode, finishedCode = customCodeProcessor.resolveCustomSyntaxes( ramAddress, customCode, codeChange.preProcessedCode, mod.includePaths )
 
-						# if returnCode != 0 and returnCode != 100:
-						# 	codeResolveErrorMsg = 'An error occurred while processing this custom code:\n\n' + customCode
-						# 	cmsg( codeResolveErrorMsg + '\n\n' + finishedCode, 'Error 02 Resolving Custom Syntaxes' )
-						# elif not finishedCode or not validHex( finishedCode ):
-						# 	msg( 'There was an error while processing code for "' + mod.name + '".' )
-						# 	problemWithMod = True
-						# 	break
-						#returnCode, finishedCode = mod.finalCodeProcessing( ramAddress, codeChange )
+						# Replace custom syntax, and perform any final processing on the code
 						returnCode, finishedCode = codeChange.finalizeCode( ramAddress )
 						if returnCode != 0 and returnCode != 100:
 							problemWithMod = True
 						else:
-							problemWithMod = self.storeCodeChange( ramAddress, finishedCode, mod.name )
+							problemWithMod = self.storeCodeChange( ramAddress, finishedCode, mod.name + ' static overwrite' )
 
 						if problemWithMod: break
 						else: summaryReport.append( ('Code overwrite', codeChange.type, ramAddress, customCodeLength) )
@@ -2272,16 +2252,7 @@ class Disc( object ):
 						if problemWithMod: break
 						else: summaryReport.append( ('Branch', 'static', injectionSite, 4) ) # changeName, changeType, dolOffset, customCodeLength
 
-						# returnCode, finishedInjectionCode = customCodeProcessor.resolveCustomSyntaxes( customCodeAddress, codeChange.rawCode, codeChange.preProcessedCode, mod.includePaths )
-
-						# if returnCode != 0 and returnCode != 100:
-						# 	codeResolveErrorMsg = 'An error occurred while processing this custom code:\n\n' + codeChange.rawCode
-						# 	cmsg( codeResolveErrorMsg + '\n\n' + finishedInjectionCode, 'Error 03 Resolving Custom Syntaxes' )
-						# elif finishedInjectionCode == '' or not validHex( finishedInjectionCode ):
-						# 	msg( 'There was an error while replacing custom branch syntaxes in an injection code for "' + mod.name + '".' )
-						# 	problemWithMod = True
-						# 	break
-						#returnCode, finishedCode = mod.finalCodeProcessing( customCodeAddress, codeChange )
+						# Replace custom syntax, and perform any final processing on the code
 						returnCode, finishedCode = codeChange.finalizeCode( customCodeAddress )
 						if returnCode != 0 and returnCode != 100:
 							problemWithMod = True
@@ -2583,31 +2554,33 @@ class Disc( object ):
 		vanillaDisc.load()
 		self.files[self.gameId + '/Start.dol'] = copy.deepcopy( vanillaDisc.dol )
 
-	def runInEmulator( self ): #todo: add support for root folders
+	# def runInEmulator( self ): #todo: add support for root folders
 		
-		# Get the path to the user's emulator of choice
-		emulatorPath = globalData.getEmulatorPath() # Will also validate the path
-		if not emulatorPath: return # User may have canceled the prompt
+	# 	# Get the path to the user's emulator of choice
+	# 	# emulatorPath = globalData.getEmulatorPath() # Will also validate the path
+	# 	# if not emulatorPath: return # User may have canceled the prompt
 
-		# Make sure there are no prior instances of Dolphin running
-		for process in psutil.process_iter():
-			if process.name() == 'Dolphin.exe':
-				process.terminate()
-				printStatus( 'Stopped Dolphin process' )
-				time.sleep( 3 )
-				break
+	# 	# # Make sure there are no prior instances of Dolphin running
+	# 	# for process in psutil.process_iter():
+	# 	# 	if process.name() == 'Dolphin.exe':
+	# 	# 		process.terminate()
+	# 	# 		printStatus( 'Stopped Dolphin process' )
+	# 	# 		time.sleep( 3 )
+	# 	# 		break
 
-		printStatus( 'Booting in emulator....' )
-		print 'Booting', self.filePath
-		print 'In', emulatorPath
+	# 	# printStatus( 'Booting in emulator....' )
+	# 	# print 'Booting', self.filePath
+	# 	# print 'In', emulatorPath
 		
-		# Send the disc filepath to Dolphin
-		# Using '--exec' because '/e' is incompatible with Dolphin 5+, while '-e' is incompatible with Dolphin 4.x
-		# '--batch' will prevent dolphin from unnecessarily scanning game/ISO directories, and will shut down Dolphin when the game is stopped.
-		command = '"{}" --batch --exec="{}"'.format( emulatorPath, self.filePath )
-		subprocess.Popen( command, stderr=subprocess.STDOUT, creationflags=0x08000000 )
+	# 	# # Send the disc filepath to Dolphin
+	# 	# # '--exec' loads the specified file. (Using '--exec' because '/e' is incompatible with Dolphin 5+, while '-e' is incompatible with Dolphin 4.x)
+	# 	# # '--batch' will prevent dolphin from unnecessarily scanning game/ISO directories, and will shut down Dolphin when the game is stopped.
+	# 	# #command = '"{}" --batch --exec="{}"'.format( emulatorPath, self.filePath )
+	# 	# command = '"{}" --batch --debugger --exec="{}"'.format( emulatorPath, self.filePath )
+	# 	# subprocess.Popen( command, stderr=subprocess.STDOUT, creationflags=0x08000000 )
 
-		print 'Returned from emulator call'
+	# 	dolphin = Dolphin()
+	# 	dolphin.start( self )
 
 
 class MicroMelee( Disc ):
@@ -2761,7 +2734,7 @@ class MicroMelee( Disc ):
 		codesToInstall = []
 		assetTest = parser.getModByName( 'Asset Test' )
 		if not assetTest:
-			printStatus( 'Unable to find the Asset Test mod in the Core Codes library!', warning=True )
+			msg( 'Unable to find the Asset Test mod in the Core Codes library!', warning=True )
 			return
 		assetTest.customize( "Stage", externalStageId )
 		codesToInstall.append( assetTest )
@@ -2775,9 +2748,10 @@ class MicroMelee( Disc ):
 				printStatus( 'Unable to find the Enable OSReport Print on Crash mod in the Core Codes library!', warning=True )
 		
 		# Get the music table struct and the default song ID
-		grGroundParamStruct = stageObj.getStructByLabel( 'grGroundParam' )
-		musicTableOffset = grGroundParamStruct.getValues( 'Music_Table_Pointer' )
-		musicTableStruct = stageObj.getStruct( musicTableOffset )
+		# grGroundParamStruct = stageObj.getStructByLabel( 'grGroundParam' )
+		# musicTableOffset = grGroundParamStruct.getValues( 'Music_Table_Pointer' )
+		# musicTableStruct = stageObj.getStruct( musicTableOffset )
+		musicTableStruct = stageObj.getMusicTableStruct()
 		songId = musicTableStruct.getValues()[1]
 
 		# Check if we can enable audio (if the music file is present)
@@ -2791,7 +2765,8 @@ class MicroMelee( Disc ):
 		self.save()
 
 		# Engage emulation
-		self.runInEmulator()
+		#self.runInEmulator()
+		globalData.dolphinController.start( self )
 
 	def testCharacter( self, charObj ):
 		
@@ -2818,7 +2793,7 @@ class MicroMelee( Disc ):
 		codesToInstall = []
 		assetTest = parser.getModByName( 'Asset Test' )
 		if not assetTest:
-			printStatus( 'Unable to find the Asset Test mod in the Core Codes library!', warning=True )
+			msg( 'Unable to find the Asset Test mod in the Core Codes library!', warning=True )
 			return
 		assetTest.customize( "Player 1 Character", charObj.extCharId )
 		assetTest.customize( "P1 Costume ID", charObj.getCostumeId() )
@@ -2830,4 +2805,5 @@ class MicroMelee( Disc ):
 		self.save()
 
 		# Engage emulation
-		self.runInEmulator()
+		#self.runInEmulator()
+		globalData.dolphinController.start( self )

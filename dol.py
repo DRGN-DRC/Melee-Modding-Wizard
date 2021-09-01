@@ -593,10 +593,7 @@ class Dol( FileBase ):
 			print 'Invalid index to stage file name look-up: ' + hex(internalStageId)
 			return -1, ''
 
-		# Get the file offset for the stage structure
-		#entryOffset = 0x3DCEDC + ( internalStageId * 4 )
-		# structAddress = toInt( self.getData(entryOffset, 4) )
-		# structOffset = self.offsetInDOL( structAddress )
+		# Unpack all of the pointers to the stage table structs
 		if not self._stageInfoStructPointers:
 			tic = time.clock()
 			pointerTableData = self.getData( 0x3DCEDC, 0x6F*4 )
