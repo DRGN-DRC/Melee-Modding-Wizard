@@ -19,7 +19,7 @@ A rework of Dan Salvato's action state hack using internal player data offsets:
 0x219C - new starting frame (float)
 0x21A0 - new action state ID (int)
 This instance of the code is designed to set the beginning states for P1 & P2.
-Customizations:
+Configurations:
     uint32 Action State ID = 0; 0-0x10000
     float Start Frame = 0.0; 0-0x10000
 <https://smashboards.com/threads/internal-action-state-hack.440318/>
@@ -78,7 +78,7 @@ b 0		# Placeholder for branch back
 
 Action State Freeze
 Freezes any character in-place once they've reached a specific frame of a specific action state. Note that the Frame ID is the first 4 digits of a frame number after converting it to a float.
-Customizations:
+Configurations:
     uint16 Action State ID = 0; 0-0x10000
     uint16 Frame ID = 0; 0-0x10000
 [Achilles]

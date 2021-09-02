@@ -656,6 +656,14 @@ class HexEditEntry( Tk.Entry ):
 		self.updateName = updateName
 
 
+class SliderAndEntry( ttk.Frame ):
+
+	def __init__( self, parent, *args, **kwargs ):
+		ttk.Frame.__init__( self, parent, *args, **kwargs )
+
+		
+
+
 class HexEditDropdown( ttk.OptionMenu ):
 
 	""" Used for struct data display and editing, using a predefined set of choices. Similar to the 
@@ -1085,7 +1093,7 @@ class DisguisedEntry( Tk.Entry ):
 			self.bind( '<Leave>', self.onMouseLeave, '+' )
 			#self['state'] = 'normal' # State of the Entry widget
 
-			if self.respectiveLabel: 
+			if self.respectiveLabel:
 				self.respectiveLabel.bind( '<Enter>', self.onMouseEnter, '+' )
 				self.respectiveLabel.bind( '<Leave>', self.onMouseLeave, '+' )
 				self.respectiveLabel.bind( '<1>', self.focusThisWid, '+' )
@@ -1112,7 +1120,7 @@ class DisguisedEntry( Tk.Entry ):
 		self.config( relief='flat' )
 		if not self['background'] == '#faa': # Don't change the background color if it indicates pending change saves
 			self.config( background=self.initialBgColor )
-	def focusThisWid( self, event ): 
+	def focusThisWid( self, event ):
 		if self['state'] == 'normal': self.focus()
 
 

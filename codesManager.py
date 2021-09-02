@@ -24,7 +24,10 @@ import globalData
 from disc import Disc
 from basicFunctions import msg
 from codeMods import regionsOverlap, CodeLibraryParser
-from guiSubComponents import VerticalScrolledFrame, LabelButton, ToolTip, CodeLibrarySelector, CodeSpaceOptionsWindow, ColoredLabelButton
+from guiSubComponents import (
+	VerticalScrolledFrame, LabelButton, ToolTip, CodeLibrarySelector, 
+	CodeSpaceOptionsWindow, ColoredLabelButton, BasicWindow, DisguisedEntry
+)
 
 
 class CodeManagerTab( ttk.Frame ):
@@ -45,8 +48,6 @@ class CodeManagerTab( ttk.Frame ):
 
 		self.parser = CodeLibraryParser()
 		self.libraryFolder = ''
-		#self.codeModModules = []
-		#self.modNames = set()
 		self.isScanning = False
 		self.stopToRescan = False
 
@@ -62,7 +63,7 @@ class CodeManagerTab( ttk.Frame ):
 		self.libraryToolTipText.set( 'Click to select Code Library.\n\nCurrent library:\n' + globalData.getModsFolderPath() )
 		ToolTip( librarySelectionBtn, delay=900, justify='center', location='w', textvariable=self.libraryToolTipText, wraplength=600, offset=-10 )
 
-		# Add the Code Library Selection button
+		# Add the Settings button
 		overwriteOptionsBtn = ColoredLabelButton( buttonBar, 'gear', lambda event: CodeSpaceOptionsWindow(globalData.gui.root) )
 		overwriteOptionsBtn.pack( side='right', padx=6 )
 		overwriteOptionsTooltip = 'Edit Code-Space Options'
@@ -75,13 +76,6 @@ class CodeManagerTab( ttk.Frame ):
 
 		ttk.Separator( self.controlPanel, orient='horizontal' ).pack( pady=7, ipadx=120 )
 
-		# saveButtonsContainer = ttk.Frame( self.controlPanel, padding="0 0 0 0" )
-		# saveChangesBtn = ttk.Button( saveButtonsContainer, text='Save', command=saveCodeChanges, state='disabled', width=12 )
-		# saveChangesBtn.pack( side='left', padx=6 )
-		# saveChangesAsBtn = ttk.Button( saveButtonsContainer, text='Save As...', command=saveAs, state='disabled', width=12 )
-		# saveChangesAsBtn.pack( side='left', padx=6 )
-		# saveButtonsContainer.pack( pady=4 )
-
 		createFileContainer = ttk.Frame( self.controlPanel, padding="0 0 0 0" )
 		ttk.Button( createFileContainer, text='Create INI', command=self.saveIniFile ).pack( side='left', padx=6 )
 		ttk.Button( createFileContainer, text='Create GCT', command=self.saveGctFile ).pack( side='left', padx=6 )
@@ -89,12 +83,8 @@ class CodeManagerTab( ttk.Frame ):
 
 		ttk.Separator( self.controlPanel, orient='horizontal' ).pack( pady=7, ipadx=140 )
 
-		restoreDolBtn = ttk.Button( self.controlPanel, text='Restore Original DOL', state='disabled', command=globalData.disc.restoreDol, width=23 )
-		restoreDolBtn.pack( pady=4 )
-		# importFileBtn = ttk.Button( self.controlPanel, text='Import into ISO', state='disabled', command=importIntoISO, width=23 )
-		# importFileBtn.pack( pady=4 )
-		exportFileBtn = ttk.Button( self.controlPanel, text='Export DOL', state='disabled', command=self.exportDOL, width=23 )
-		exportFileBtn.pack( pady=4 )
+		ttk.Button( self.controlPanel, text='Restore Original DOL', state='disabled', command=self.askRestoreDol, width=23 ).pack( pady=4 )
+		ttk.Button( self.controlPanel, text='Export DOL', state='disabled', command=self.exportDOL, width=23 ).pack( pady=4 )
 
 		ttk.Separator( self.controlPanel, orient='horizontal' ).pack( pady=7, ipadx=120 )
 
@@ -113,9 +103,6 @@ class CodeManagerTab( ttk.Frame ):
 
 		ttk.Button( self.controlPanel, text=' Rescan for Mods ', command=self.scanCodeLibrary ).pack( pady=4 )
 
-		# showRegionOptionsBtn = ttk.Button( self.controlPanel, text=' Code-Space Options ', state='disabled', command=ShowOptionsWindow )
-		# showRegionOptionsBtn.pack( side='bottom' )
-
 		# Add a label that shows how many code modes are selected on the current tab
 		self.installTotalLabel = Tk.StringVar()
 		self.installTotalLabel.set( '' )
@@ -132,6 +119,8 @@ class CodeManagerTab( ttk.Frame ):
 		# Prevent focus on the tabs themselves (prevents appearance of selection box)
 		# currentTab = globalData.gui.root.nametowidget( self.codeLibraryNotebook.select() )
 		# currentTab.focus()
+		print 'tab changed'
+		#time.sleep(2)
 
 		self.emptyModsPanels()
 		self.createModModules()
@@ -392,8 +381,8 @@ class CodeManagerTab( ttk.Frame ):
 
 	def populateModLibraryTabs( self ):
 
-		""" Populates the Code Manager library tabs in the GUI, and checks for installed mods. 
-			Creates all needed notebooks and vertical scroll frames, and populates them with code mod modules. """
+		""" Creates ModModule objects for the GUI, as well as vertical scroll frames/Notebook 
+			widgets needed to house them, and checks for installed mods to set module states. """
 
 		notebookWidgets = { '': self.codeLibraryNotebook }
 		modsPanels = {}
@@ -407,7 +396,6 @@ class CodeManagerTab( ttk.Frame ):
 
 		# If a disc is loaded, check if the parsed mods are installed in it
 		if globalData.disc:
-			#dol = globalData.disc.files[globalData.disc.gameId + '/Start.dol']
 			globalData.disc.dol.checkForEnabledCodes( globalData.codeMods )
 
 		#print '\tThese mods detected as installed:'
@@ -596,62 +584,59 @@ class CodeManagerTab( ttk.Frame ):
 
 		return 0
 
+	def askRestoreDol( self ):
 
-class ModModule( Tk.Frame ):
+		""" Prompts the user to ensure they know what they're doing, and to confirm the action. """
+
+		dol = globalData.disc.dol
+		
+		restoreConfirmed = tkMessageBox.askyesno( 'Restoration Confirmation', 'This will revert the currently loaded DOL to be practically '
+												'identical to a vanilla ' + dol.revision + ' DOL (loaded from your chosen vanilla disc). '
+												'"Free space" regions selected for use will still be zeroed-out. This process does not preserve '
+												'a copy of the current DOL, and any current changes will be lost.\n\nAre you sure you want to do this?' )
+
+		# See if we can get a reference to vanilla DOL code
+		vanillaDiscPath = globalData.getVanillaDiscPath()
+		if not vanillaDiscPath: # User canceled path input
+			printStatus( 'Unable to restore the DOL; no vanilla disc available for reference', warning=True )
+			return
+
+		globalData.disc.restoreDol( vanillaDiscPath )
+
+		globalData.gui.updateProgramStatus( 'Restoration Successful' )
+
+
+class ModModule( Tk.Frame, object ):
 
 	""" GUI element and wrapper for CodeMod objects, and host to various GUI-related features. """
 
-	#def __init__( self, parent, modName, modDesc, modAuth, modData, modType, webLinks, *args, **kw ):
 	def __init__( self, parent, mod, *args, **kw ):
-		Tk.Frame.__init__( self, parent, relief='groove', borderwidth=3, takefocus=True, *args, **kw )
+		super( ModModule, self ).__init__( parent, relief='groove', borderwidth=3, takefocus=True, *args, **kw )
 
 		self.mod = mod
-		self.mod.guiModule = self
+		mod.guiModule = self
+
 		self.valWebLinks = [] # These differentiate from the core mod's webLinks, in that these will be validated
 		self.statusText = Tk.StringVar()
 		self.highlightFadeAnimationId = None # Used for the border highlight fade animation
 
 		moduleWidth = 520 			# Mostly just controls the wraplength of text areas.
 
-		# Set the mod "Length" string
-		# if self.type == 'static':
-		# 	lengthString = ''
-		# else:
-		# 	arbitraryGameVersions = []
-		# 	for revision, codeChanges in modData.items():
-		# 		if revision != 'ALL':
-		# 			arbitraryGameVersions.extend( codeChanges )
-		# 			break
-		# 	if 'ALL' in modData: arbitraryGameVersions.extend( modData['ALL'] )
+		# Row 1: Title and author(s)
+		Tk.Label( self, text=mod.name, font=("Times", 11, "bold"), wraplength=moduleWidth-140, anchor='n' ).pack( side='top', padx=(0,36), pady=2 ) # Right-side horizontal padding added for module type image
+		self.authorLabel = Tk.Label( self, text=' - by ' + mod.auth, font=("Verdana", 8), wraplength=moduleWidth-160, fg='#555' ) #Helvetica
+		self.authorLabel.pack( side='top', padx=(0,36) )
 
-		# 	length = 0
-		# 	for codeChange in arbitraryGameVersions:
-		# 		if codeChange[0] != 'static': length += codeChange[1]
-		# 	lengthString = '                 Space' + unichr(160) + 'required:' + unichr(160) + uHex(length) # unichr(160) = no-break space
-
-		# Construct the GUI framework.
-		#self.config( relief='groove', borderwidth=3, takefocus=True )
-
-		# Row 1: Title, author(s), type, and codelength.
-		row1 = Tk.Frame( self )
-		Tk.Label( row1, text=mod.name, font=("Times", 11, "bold"), wraplength=moduleWidth-140, anchor='n' ).pack( side='top', padx=(0,36), pady=2 ) # Right-side horizontal padding added for module type image
-		#Label( row1, text=' - by ' + modAuth + lengthString, font=("Verdana", 8), wraplength=moduleWidth-160 ).pack( side='top', padx=(0,36) ) #Helvetica
-		Tk.Label( row1, text=' - by ' + mod.auth, font=("Verdana", 8), wraplength=moduleWidth-160 ).pack( side='top', padx=(0,36) ) #Helvetica
-		row1.pack( side='top', fill='x', expand=1 )
-
-		# Row 2: Description.
-		# row2 = Tk.Frame( self )
-		# Tk.Label( row2, text=mod.desc, wraplength=moduleWidth-110, padx=8, justify='left' ).pack( side='left', pady=0 )
-		# row2.pack( side='top', fill='x', expand=1 )
+		# Row 2: Description
 		Tk.Label( self, text=mod.desc, wraplength=moduleWidth-40, justify='left' ).pack( side='top', fill='x', expand=1, padx=(8, 54) )
 
 		# Row 3: Status text and buttons
 		row3 = Tk.Frame( self )
 
-		Tk.Label( row3, textvariable=self.statusText, wraplength=moduleWidth-90, justify='left' ).pack( side='left', padx=35 )
+		self.statusLabel = Tk.Label( row3, textvariable=self.statusText, wraplength=moduleWidth-90, justify='left' )
+		self.statusLabel.pack( side='left', padx=35 )
 
 		# Set a background image based on the mod type (indicator on the right-hand side of the mod)
-		#typeIndicatorImage = imageBank.get( self.type + 'Indicator' )
 		typeIndicatorImage = globalData.gui.imageBank( mod.type + 'Indicator' )
 		if typeIndicatorImage:
 			bgImage = Tk.Label( self, image=typeIndicatorImage )
@@ -660,15 +645,16 @@ class ModModule( Tk.Frame ):
 			print 'No image found for "' + mod.type + 'Indicator' + '"!'
 
 		# Set up a left-click event to all current parts of this module (to toggle the code on/off), before adding any of the other clickable elements
+		self.bind( '<1>', self.clicked )
 		for each in self.winfo_children():
-			#frame.bindtags( ('moduleClickTag',) + frame.bindtags() )
 			each.bind( '<1>', self.clicked )
-			for each in each.winfo_children():
-				#label.bindtags( ('moduleClickTag',) + label.bindtags() )
-				each.bind( '<1>', self.clicked )
+			for widget in each.winfo_children():
+				widget.bind( '<1>', self.clicked )
 
-		# Add the edit button
-		LabelButton( row3, 'editButton', self.inspectMod, 'Edit or configure this mod' ).pack( side='right', padx=(5, 55), pady=6 )
+		# Add the edit and configure buttons
+		LabelButton( row3, 'editButton', self.inspectMod, 'Edit this mod' ).pack( side='right', padx=(5, 55), pady=6 )
+		if mod.configurations:
+			LabelButton( row3, 'configButton', self.configureMod, 'Configure this mod' ).pack( side='right', padx=(5, 55), pady=6 )
 
 		# Validate web page links and create buttons for them
 		for origUrlString, comments in mod.webLinks: # Items in this list are tuples of (urlString, comments)
@@ -720,77 +706,65 @@ class ModModule( Tk.Frame ):
 		else:
 			print 'Invalid link detected for "{}" (domain not allowed): {}'.format( self.mod.name, potentialLink )
 
-	def setState( self, state, specialStatusText='' ):
+	def setState( self, state, statusText='' ):
 
 		""" Sets the state of the selected module, by adding a label to the module's Row 3 and 
 			changing the background color of all associated widgets. """
 
-		stateColor = 'SystemButtonFace' # The default (disabled) colors.
 		textColor = '#000'
 
 		if state == 'pendingEnable':
-			stateColor = '#aaffaa'
-			self.statusText.set( 'Pending Save' )
+			stateColor = '#b3f2b3' # Light green
+			if not statusText:
+				statusText = 'Pending Save'
 
 		elif state == 'pendingDisable':
-			stateColor = '#ee9999'
-			self.statusText.set( 'Pending Removal' )
+			stateColor = '#f2b3b3' # Light red
+			if not statusText:
+				statusText = 'Pending Removal'
 
 		elif state == 'enabled':
-			stateColor = '#77cc77'
-			self.statusText.set( '' )
+			stateColor = '#89d989' # Green
+
+		elif state == 'disabled':
+			stateColor = 'SystemButtonFace' # The default widget background color
 
 		elif state == 'unavailable':
-			stateColor = '#cccccc'
-			textColor = '#707070'
-			#if self.mod.type == 'gecko':
-				#if not gecko.environmentSupported:
-				# if not 0:
-				# 	self.statusText.set( '(Gecko codes are unavailable)' )
-				# elif 'EnableGeckoCodes' in overwriteOptions and not overwriteOptions[ 'EnableGeckoCodes' ].get():
-				# 	self.statusText.set( '(Gecko codes are disabled)' )
-				# else:
-				#self.statusText.set( '' )
-			if not self.mod.data:
-				self.statusText.set( 'No code change data found!' )
-			else:
-				self.statusText.set( '(Unavailable for your DOL revision)' )
+			stateColor = '#cccccc' # Light Grey
+			textColor = '#707070' # Grey
 
-		elif state != 'disabled':
+		else:
 			self.statusText.set( '' )
 			raise Exception( 'Invalid mod state given! "' + state + '"' )
 
-		if specialStatusText:
+		if statusText:
 			if state == 'unavailable':
-				print self.mod.name, 'made unavailable;', specialStatusText
-			self.statusText.set( specialStatusText )
+				print self.mod.name, 'made unavailable;', statusText
+			self.statusText.set( statusText )
+		else:
+			self.statusText.set( '' )
 
-		# Change the overall background color of the module (adjusting the background color of all associated frames and labels)
+		# Change module background and text colors (adjusting the background color of all associated frames and labels)
 		self['bg'] = stateColor
-		for i, frame in enumerate( self.winfo_children() ):
-			frame['bg'] = stateColor
-			for j, label in enumerate( frame.winfo_children() ):
-				label['bg'] = stateColor
-				if not (i == 2 and j == 0): # This will exclude the status label.
-					label['fg'] = textColor
+		for widget in self.winfo_children():
+			widget['bg'] = stateColor
+
+			if widget.winfo_class() == 'Label' and widget != self.authorLabel:
+				widget['fg'] = textColor
+			else: # Frame
+				for label in widget.winfo_children():
+					label['bg'] = stateColor
+					if label != self.statusLabel:
+						label['fg'] = textColor
 
 		self.mod.state = state
 	
 	def clicked( self, event ):
 
-		""" Handles click events on mod modules, and toggles their install state 
+		""" Handles click events on mod modules to toggle their install state 
 			(i.e. whether or not it should be installed when the user hits save). """
 
-		# Get the widget of the main frame for the module (i.e. the modModule frame, "self")
-		# modState = None
-		# mod = event.widget
-		# failsafe = 0
-		# while not modState:
-		# 	mod = mod.master # Move upward through the GUI heirarchy until the mod module is found
-		# 	modState = getattr( mod, 'state', None )
-		# 	assert failsafe < 3, 'Unable to process click event on modModule; no mod module found.'
-		# 	failsafe += 1
-
+		# Do nothing if this mod is unavailable
 		if self.mod.state == 'unavailable':
 			return
 
@@ -853,3 +827,89 @@ class ModModule( Tk.Frame ):
 
 		# 	# Bring the new tab into view for the user.
 		# 	constructionNotebook.select( newTab )
+
+	def configureMod( self, event ):
+
+		ModCustomizer( self.mod )
+
+
+class ModCustomizer( BasicWindow ):
+
+	def __init__( self, mod ):
+		super( ModCustomizer, self ).__init__( self, globalData.gui.root, mod.name + ' Configuration' )
+
+		# configurations = []
+		# for optionName, optionDict in mod.configurations.items():
+		# 	if 'hidden' in optionDict:
+
+		ttk.Label( self, text='Select an option to configure.' ).pack( pady=(8, 0), padx=12 )
+		
+		ttk.Separator( self, orient='horizontal' ).pack( pady=8, ipadx=120 )
+
+		# Add rows for each option to be displayed
+		validationCommand = globalData.gui.root.register( self.validateEntry )
+		for optionName, optionDict in mod.configurations.items():
+			if 'hidden' in optionDict:
+				continue
+
+			# Check the type and data width
+			optType = optionDict.get( 'type' )
+			optWidth = self.getOptionWidth( optType )
+			members = optionDict.get( 'members' ) # A list of lists
+
+			# Add the mod name
+			optFrame = ttk.Frame( self )
+			optFrame.optDict = optionDict
+			ttk.Label( optFrame, text=mod.name ).pack( side='left' )
+
+			# Add a control widget
+			#if len( members ) == 2 and : # Create an On/Off toggle
+			if members: # Create a dropdown
+				if optType == 'float':
+					dropdownVar = Tk.DoubleVar()
+				else:
+					dropdownVar = Tk.IntVar()
+				dropdown = ttk.OptionMenu( optFrame, dropdownVar, optionDict['value'], *members )
+				dropdown.pack( side='right' )
+
+			elif 'range' in optionDict: # Create a slider and connected value entry
+				start, end = optionDict['range']
+				slider = ttk.Scale( transparencyPane, from_=start, to=end, command=self.rangeOptionUpdated )
+				slider.pack( side='right' )
+
+			elif optType == 'float': # Create float value entry
+				entry = DisguisedEntry( optFrame, width=6, validate='key', validatecommand=(validationCommand, '%P') )
+				entry.pack( side='right' )
+				entry.insert( 0, optionDict['value'] )
+
+			else: # Create a standard value entry (int/uint)
+				entry = DisguisedEntry( optFrame, width=optWidth*2+2, validate='key', validatecommand=(validationCommand, '%P') )
+				entry.pack( side='right' )
+				entry.insert( 0, optionDict['value'] )
+
+			optFrame.pack( pady=(8, 0), padx=12, ipadx=12 )
+
+			ttk.Separator( self, orient='horizontal' ).pack( pady=8, ipadx=120 )
+			
+			
+			# Restore All Defaults
+
+	def getOptionWidth( self, optionType ):
+
+		if optionType.endswith( '32' ) or optionType == 'float':
+			return 4
+		elif optionType.endswith( '16' ):
+			return 2
+		elif optionType.endswith( '8' ):
+			return 1
+		else:
+			return -1
+
+	def validateEntry( self, newString ):
+
+		""" Run some basic validation on the input and color the widget text red if invalid. 
+			Must return True to validate the entered text and allow it to be displayed. """
+
+	def rangeOptionUpdated( self ):
+
+		""" Called when a slider or its associated Entry widget are updated. """

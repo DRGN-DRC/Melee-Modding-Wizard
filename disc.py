@@ -2475,7 +2475,7 @@ class Disc( object ):
 		self.allocationMatrix[-1][-1] += arenaHiMallocLength + fileLoadCodeLength # Just in case anything else also wants to look at this
 		reservationLocation = arenaEnd - reservationSize
 		
-		# Set allocation customizations on the mod
+		# Set allocation configurations on the mod
 		try:
 			mallocMod.customize( 'Reservation Size', reservationSize )
 			mallocMod.customize( 'Reservation Location', reservationLocation )
@@ -2540,15 +2540,16 @@ class Disc( object ):
 		
 		return 0
 
-	def restoreDol( self ):
+	def restoreDol( self, vanillaDiscPath='' ):
 
 		""" Replaces the Start.dol file with a vanilla copy from a vanilla disc. """
 		
-		# See if we can get a reference to vanilla DOL code
-		vanillaDiscPath = globalData.getVanillaDiscPath()
-		if not vanillaDiscPath: # User canceled path input
-			printStatus( 'Unable to restore the DOL; no vanilla disc available for reference', error=True )
-			return
+		if not vanillaDiscPath:
+			# See if we can get a reference to vanilla DOL code
+			vanillaDiscPath = globalData.getVanillaDiscPath()
+			if not vanillaDiscPath: # User canceled path input
+				printStatus( 'Unable to restore the DOL; no vanilla disc available for reference', error=True )
+				return
 		
 		vanillaDisc = Disc( vanillaDiscPath )
 		vanillaDisc.load()

@@ -3,11 +3,11 @@
 		{
 			"name": "Asset Test",
 			"authors": [ "UnclePunch" ],
-			"description": [ "Configures the game to boot strait into a match or menu, with customizable settings." ],
+			"description": [ "Configures the game to boot strait into a match or menu, with configurable settings." ],
 			"category": "Core Codes",
 			"webLinks": [ "https://smashboards.com/threads/boot-to-custom-match.474651/" ],
 
-			"customizations": {
+			"configurations": {
 				"Timer": {
 					"type": "uint8",
 					"value": 0,

@@ -5,7 +5,7 @@
 			"name": "Static ArenaHi Malloc",
 			"authors": [ "Punkline" ],
 			"description": [ "Creates a permanent allocation from the top of the arena of a custom size." ],
-			"customizations": {
+			"configurations": {
 				"Reservation Size": {
 					"type": "int32",
 					"value": 0

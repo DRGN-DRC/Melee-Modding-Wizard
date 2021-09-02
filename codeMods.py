@@ -26,10 +26,10 @@ from basicFunctions import toHex, validHex, msg
 from guiSubComponents import cmsg
 
 
-CustomizationTypes = { 'int8': '>b', 'uint8': '>B', 'int16': '>h', 'uint16': '>H', 'int32': '>i', 'uint32': '>I', 'float': '>f' }
+ConfigurationTypes = { 'int8': '>b', 'uint8': '>B', 'int16': '>h', 'uint16': '>H', 'int32': '>i', 'uint32': '>I', 'float': '>f' }
 
 
-# def getCustomCodeLength( customCode, preProcess=False, includePaths=None, customizations=None ):
+# def getCustomCodeLength( customCode, preProcess=False, includePaths=None, configurations=None ):
 
 # 	""" Returns a byte count for custom code (though it is first calculated here in terms of nibbles. Custom syntaxes may be included.
 # 		Processing is simplest with hex strings (without whitespace), though input can be ASM if preProcess=True.
@@ -65,7 +65,7 @@ CustomizationTypes = { 'int8': '>b', 'uint8': '>B', 'int16': '>h', 'uint16': '>H
 # 	return length / 2
 
 
-def getCustomSectionLength( section ):
+def getCustomSectionLength( section ): # depricating (currently in dol.py)
 
 	""" Similar to the function above for getting code length, but specific to lines with custom syntax. """
 
@@ -201,11 +201,8 @@ class CodeChange( object ):
 			return self.processStatus
 
 		#rawCustomCode = '\n'.join( customCode ).strip() # Collapses the list of collected code lines into one string, removing leading & trailing whitespace
-		self.processStatus, self.length, codeOrErrorNote, self.syntaxInfo = globalData.codeProcessor.evaluateCustomCode( self.rawCode, self.mod.includePaths, self.mod.customizations )
+		self.processStatus, self.length, codeOrErrorNote, self.syntaxInfo = globalData.codeProcessor.evaluateCustomCode( self.rawCode, self.mod.includePaths, self.mod.configurations )
 		
-		# returnCode = 0
-		# preProcessedCustomCode = ''
-		#self.processStatus = returnCode
 		if self.processStatus == 0:
 			self.preProcessedCode = codeOrErrorNote
 
@@ -243,7 +240,7 @@ class CodeChange( object ):
 
 		self.evaluate()
 
-		returnCode, finishedCode = globalData.codeProcessor.resolveCustomSyntaxes( targetAddress, self.rawCode, self.preProcessedCode, self.mod.includePaths, self.mod.customizations )
+		returnCode, finishedCode = globalData.codeProcessor.resolveCustomSyntaxes( targetAddress, self.rawCode, self.preProcessedCode, self.mod.includePaths, self.mod.configurations )
 
 		""" resolveCustomSyntaxes may have these return codes:
 				0: Success (or no processing was needed)
@@ -280,7 +277,7 @@ class CodeMod( object ):
 		self.type = 'static'
 		self.state = 'disabled'
 		self.stateDesc = ''				# Describes reason for the state. Shows as a text status on the mod in the GUI
-		self.customizations = {}		# Will be a dict of option dictionaries			required keys: name, type, value
+		self.configurations = {}		# Will be a dict of option dictionaries			required keys: name, type, value
 																						# optional keys: default, members, 
 		self.isAmfs = isAmfs
 		self.webLinks = []
@@ -453,26 +450,26 @@ class CodeMod( object ):
 
 		""" Changes a given customization option to the given value. """
 
-		# for option in self.customizations:
+		# for option in self.configurations:
 		# 	if option['name'] == name:
 		# 		option['value'] = value
 		# 		break
 		# else:
 		# 	raise Exception( '{} not found in customization options.'.format(name) )
 
-		self.customizations[name]['value'] = value
+		self.configurations[name]['value'] = value
 
 	def getCustomization( self, name ):
 
 		""" Gets the currently-set customization option for a given option name. """
 
-		# for option in self.customizations:
+		# for option in self.configurations:
 		# 	if option['name'] == name:
 		# 		return option['value']
 		# else:
 		# 	raise Exception( '{} not found in customization options.'.format(name) )
 
-		return self.customizations[name]['value']
+		return self.configurations[name]['value']
 
 
 class CodeLibraryParser():
@@ -681,7 +678,7 @@ class CodeLibraryParser():
 			# 	break
 			
 			basicInfoCollected = False
-			collectingCustomizations = False
+			collectingConfigurations = False
 			
 			mod = CodeMod( '', srcPath=filepath )
 			mod.fileIndex = fileIndex
@@ -742,22 +739,22 @@ class CodeLibraryParser():
 					elif line.startswith( '[' ) and line.endswith( ']' ):
 						mod.auth = line.split(']')[0].replace( '[', '' )
 						basicInfoCollected = True
-						collectingCustomizations = False
+						collectingConfigurations = False
 						
 						if customizationOption:
-							#mod.customizations.append( customizationOption )
-							mod.customizations[customizationName] = customizationOption
+							#mod.configurations.append( customizationOption )
+							mod.configurations[customizationName] = customizationOption
 
-					elif line.lower().startswith( 'customizations:' ):
-						collectingCustomizations = True
+					elif line.lower().startswith( 'configurations:' ):
+						collectingConfigurations = True
 
-					elif collectingCustomizations:
+					elif collectingConfigurations:
 						try:
 							if '=' in line: # name/type header for a new option
 								# Store a previously collected option
 								if customizationOption:
-									#mod.customizations.append( customizationOption )
-									mod.customizations[customizationName] = customizationOption
+									#mod.configurations.append( customizationOption )
+									mod.configurations[customizationName] = customizationOption
 
 								# Parse out the option name and type
 								typeName, valueInfo = line.split( '=' )
@@ -768,17 +765,31 @@ class CodeLibraryParser():
 								customizationOption['type'] = typeNameParts[0]
 
 								# Validate the type
-								if customizationOption['type'] not in CustomizationTypes:
+								if customizationOption['type'] not in ConfigurationTypes:
 									raise Exception( 'unsupported option type' )
 
 								# Check for value ranges
 								if ';' in valueInfo:
 									defaultValue, rangeString = valueInfo.split( ';' )
-									customizationOption['range'] = rangeString.strip()
+									if '-' not in rangeString:
+										raise Exception( 'No "-" separator in range string' )
+									start, end = rangeString.split( '-' )
+									if '0x' in start:
+										start = int( start, 16 )
+									else:
+										start = int( start )
+									if '0x' in end:
+										end = int( end, 16 )
+									else:
+										end = int( end )
+									customizationOption['range'] = ( start, end )
+
 								elif valueInfo.strip():
 									defaultValue = valueInfo
+
 								else:
 									defaultValue = '0'
+
 								if '0x' in defaultValue:
 									intValue = int( defaultValue, 16 )
 								else:
@@ -796,7 +807,7 @@ class CodeLibraryParser():
 
 								# Save the name, value, and comment from this line
 								value, name = line.split( ':' )
-								if '0x' in defaultValue:
+								if '0x' in value:
 									value = int( value, 16 )
 								else:
 									value = int( value )
@@ -804,8 +815,8 @@ class CodeLibraryParser():
 
 						except Exception as err:
 							mod.parsingError = True
-							mod.stateDesc = 'Customizations parsing error; {}'.format(err)
-							mod.errors.append( 'Customizations parsing error; {}'.format(err) )
+							mod.stateDesc = 'Configurations parsing error'
+							mod.errors.append( 'Configurations parsing error; {}'.format(err) )
 							continue
 
 					else: # Assume all other lines are more description text
@@ -846,8 +857,8 @@ class CodeLibraryParser():
 					else:
 						mod.parsingError = True
 						#mod.state = 'unavailable'
-						mod.stateDesc = 'Parsing error; improper mod formatting'
-						mod.errors.append( 'Parsing error; improper mod formatting' )
+						mod.stateDesc = 'Improper mod formatting'
+						mod.errors.append( 'Improper mod formatting' )
 
 					# Empty current temporary data containers for code
 					customCode = []
@@ -1011,48 +1022,10 @@ class CodeLibraryParser():
 				else:
 					mod.parsingError = True
 					#mod.state = 'unavailable'
-					mod.stateDesc = 'Parsing error; improper mod formatting'
-					mod.errors.append( 'Parsing error; improper mod formatting' )
-
-			# If codes were found for the current mod, create a gui element for it and populate it with the mod's details.
-			#if not modsLibraryNotebook.stopToRescan: # This might be queued in order to halt and restart the scan
-				# Create a new module in the GUI, both for user interaction and data storage
-				# newModModule = ModModule( modModulesParent, modName, '\n'.join(mod.desc).strip(), mod.auth, modData, modType, webLinks )
-				# newModModule.pack( fill='x', expand=1 )
-				# newModModule.sourceFile = filepath
-				# newModModule.fileIndex = fileIndex
-				# newModModule.includePaths = includePaths
-				# genGlobals['allMods'].append( newModModule )
-
-				# # Set the mod widget's status and add it to the global allModNames list
-				# if modData == {}: newModModule.setState( 'unavailable', specialStatusText='Missing mod data.' )
-				# elif mod.parsingError: newModModule.setState( 'unavailable', specialStatusText='Error detected during parsing.' )
-				# elif assemblyError: newModModule.setState( 'unavailable', specialStatusText='Error during assembly' )
-				# elif missingIncludes: newModModule.setState( 'unavailable', specialStatusText='Missing include file: ' + preProcessedCustomCode )
-				# else:
-				# 	# No problems detected so far. Check if this is a duplicate mod, and add it to the list of all mods if it's not
-				# 	if modName in genGlobals['allModNames']:
-				# 		newModModule.setState( 'unavailable', specialStatusText='Duplicate Mod' )
-				# 	else:
-				# 		genGlobals['allModNames'].add( modName )
-
-				# 	if mod.type == 'gecko' and not geckoCodesAllowed:
-				# 		newModModule.setState( 'unavailable' )
-				# 	elif settingsFile.alwaysEnableCrashReports and modName == "Enable OSReport Print on Crash":
-				# 		newModModule.setState( 'pendingEnable' )
+					mod.stateDesc = 'Improper mod formatting'
+					mod.errors.append( 'Improper mod formatting' )
 
 			mod.desc = '\n'.join( mod.desc )
-
-			# if not mod.data:
-			# 	mod.state = 'unavailable'
-			# 	mod.stateDesc = 'Missing mod data'
-			# elif mod.name in self.modNames:
-			# 	mod.state = 'unavailable'
-			# 	mod.stateDesc = 'Duplicate Mod'
-
-			# globalData.codeMods.append( mod )
-			# # self.modNames.add( mod.name )
-			# self.modNames.add( mod.name )
 
 			self.storeMod( mod )
 
@@ -1209,8 +1182,8 @@ class CodeLibraryParser():
 				# Create the mod object
 				mod = CodeMod( codeset['name'], authors, description, folderPath, True )
 				mod.category = codeset.get( 'category', primaryCategory ) # Secondary definition, per-code dict basis
-				mod.customizations = codeset.get( 'customizations', {} )
-				print 'customizations type:', type( mod.customizations )
+				mod.configurations = codeset.get( 'configurations', {} )
+				print 'configurations type:', type( mod.configurations )
 
 				# Set the revision (region/version) this code is for
 				revision = codeset.get( 'revision' )
@@ -1849,22 +1822,6 @@ class CommandProcessor( object ):
 
 		return ( '\n'.join(code), errors )
 
-	# def checkCodeLength( self, customCode, includePaths=None, suppressWarnings=False ):
-
-	# # 	newLines = []
-
-	# # 	# Filter out special syntaxes and remove comments
-	# # 	for rawLine in customCode.splitlines():
-	# # 		# Start off by filtering out comments
-	# # 		codeLine = rawLine.split( '#' )[0].strip()
-
-	# # 		#if 
-
-		
-	# # 	args = self.buildAssemblyArgs( includePaths, suppressWarnings )
-	# # 	assemblyProcess = Popen( args, stdin=PIPE, stdout=PIPE, stderr=PIPE, creationflags=0x08000000 )
-	# # 	output, errors = assemblyProcess.communicate( input=customCode + '\n' ) # Extra ending linebreak prevents a warning from assembler
-
 	# #def preAssembleRawCode( self, codeLinesList, includePaths=None, discardWhitespace=True, suppressWarnings=False ):
 
 	# 	""" This method takes assembly or hex code, filters out custom MCM syntaxes and comments, and assembles the code 
@@ -2010,17 +1967,17 @@ class CommandProcessor( object ):
 		else:
 			return -1
 
-	def evaluateCustomCode( self, codeLinesList, includePaths=None, customizations=None ):
+	def evaluateCustomCode( self, codeLinesList, includePaths=None, configurations=None ):
 
 		# Convert the input into a list of lines
 		codeLinesList = codeLinesList.splitlines()
 
 		if self.codeIsAssembly( codeLinesList ):
-			return self._evaluateAssembly( codeLinesList, includePaths, customizations )
+			return self._evaluateAssembly( codeLinesList, includePaths, configurations )
 		else:
-			return self._evaluateHexcode( codeLinesList, includePaths, customizations )
+			return self._evaluateHexcode( codeLinesList, includePaths, configurations )
 
-	def _evaluateAssembly( self, codeLinesList, includePaths, customizations ):
+	def _evaluateAssembly( self, codeLinesList, includePaths, configurations ):
 		
 		""" This method takes assembly or hex code, parses out custom MCM syntaxes and comments, and assembles the code 
 			using the PowerPC EABI if it was assembly. Once that is done, the custom syntaxes are added back into the code, 
@@ -2115,7 +2072,7 @@ class CommandProcessor( object ):
 						varName, theRest = chunk.split( ']]' ) # Not expecting multiple ']]' delimiters in this chunk
 
 						# Attempt to get the customization name (and size if the code is already assembled)
-						# for option in customizations:
+						# for option in configurations:
 						# 	optionName = option.get( 'name' )
 						# 	optionType = option.get( 'type' )
 						# 	if optionName == varName:
@@ -2127,7 +2084,7 @@ class CommandProcessor( object ):
 						# 		break
 						# else: # The loop above didn't break; option not found
 						# 	return 3, -1, varName, []
-						option = customizations.get( varName )
+						option = configurations.get( varName )
 						if not option:
 							return 3, -1, varName, []
 						optionType = option.get( 'type' )
@@ -2284,7 +2241,7 @@ class CommandProcessor( object ):
 
 		return 0, length, preProcessedCode, customSyntaxRanges
 
-	def _evaluateHexcode( self, codeLinesList, includePaths=None, customizations=None ):
+	def _evaluateHexcode( self, codeLinesList, includePaths=None, configurations=None ):
 
 		""" This method takes assembly or hex code, parses out custom MCM syntaxes and comments, and assembles the code 
 			using the PowerPC EABI if it was assembly. Once that is done, the custom syntaxes are added back into the code, 
@@ -2381,7 +2338,7 @@ class CommandProcessor( object ):
 						varName, theRest = chunk.split( ']]' ) # Not expecting multiple ']]' delimiters in this chunk
 
 						# Attempt to get the customization name (and size if the code is already assembled)
-						# for option in customizations:
+						# for option in configurations:
 						# 	optionName = option.get( 'name' )
 						# 	optionType = option.get( 'type' )
 						# 	if optionName == varName:
@@ -2393,7 +2350,7 @@ class CommandProcessor( object ):
 						# 		break
 						# else: # The loop above didn't break; option not found
 						# 	return 3, -1, varName, []
-						option = customizations.get( varName )
+						option = configurations.get( varName )
 						if not option:
 							return 3, -1, varName, []
 						optionType = option.get( 'type' )
@@ -2560,7 +2517,7 @@ class CommandProcessor( object ):
 
 		return 0, length, preProcessedCode, customSyntaxRanges
 	
-	def evaluateCustomCode2( self, codeLinesList, includePaths=None, customizations=None ):
+	def evaluateCustomCode2( self, codeLinesList, includePaths=None, configurations=None ):
 
 		""" This method takes assembly or hex code, parses out custom MCM syntaxes and comments, and assembles the code 
 			using the PowerPC EABI if it was assembly. Once that is done, the custom syntaxes are added back into the code, 
@@ -2655,7 +2612,7 @@ class CommandProcessor( object ):
 						varName, theRest = chunk.split( ']]' ) # Not expecting multiple ']]' delimiters in this chunk
 
 						# Attempt to get the customization name (and size if the code is already assembled)
-						# for option in customizations:
+						# for option in configurations:
 						# 	optionName = option.get( 'name' )
 						# 	optionType = option.get( 'type' )
 						# 	if optionName == varName:
@@ -2667,7 +2624,7 @@ class CommandProcessor( object ):
 						# 		break
 						# else: # The loop above didn't break; option not found or it's invalid
 						# 	return 3, -1, varName, []
-						option = customizations.get( varName )
+						option = configurations.get( varName )
 						if not option:
 							return 3, -1, varName, []
 						optionType = option.get( 'type' )
@@ -3078,7 +3035,7 @@ class CommandProcessor( object ):
 
 		return ( 0, newCode.strip() )
 
-	def resolveCustomSyntaxes( self, thisFunctionStartingOffset, rawCustomCode, preProcessedCustomCode, includePaths=None, customizations=None ):
+	def resolveCustomSyntaxes( self, thisFunctionStartingOffset, rawCustomCode, preProcessedCustomCode, includePaths=None, configurations=None ):
 
 		""" Replaces any custom branch syntaxes that don't exist in the assembler with standard 'b_ [intDistance]' branches, 
 			and replaces function symbols with literal RAM addresses, of where that function will end up residing in memory. 
@@ -3217,15 +3174,15 @@ class CommandProcessor( object ):
 					if ']]' in chunk:
 						varName, theRest = chunk.split( ']]' )
 
-						# Seek out the option name and its current value in the customizations list
-						# for customization in customizations:
+						# Seek out the option name and its current value in the configurations list
+						# for customization in configurations:
 						# 	if customization['name'] == varName:
 						# 		#currentValue = str( customization['value'] )
 						# 		optionData.append( (customization['type'], customization['value']) )
 						# 		break
 						# else: # Loop above didn't break; variable name not found!
 						# 	return ( 4, 'Unable to find the customization option "{}" in the mod definition.'.format(varName) )
-						option = customizations.get( varName )
+						option = configurations.get( varName )
 						if not option:
 							return ( 4, 'Unable to find the customization option "{}" in the mod definition.'.format(varName) )
 						optionData.append( (option['type'], option['value']) ) # Existance of type/value already verified
@@ -3254,7 +3211,7 @@ class CommandProcessor( object ):
 							# 	value = int( value, 16 )
 							# else:
 							# 	value = int( value )
-							valueAsBytes = struct.pack( CustomizationTypes[optionType], value )
+							valueAsBytes = struct.pack( ConfigurationTypes[optionType], value )
 							sectionChunks[j] = chunk.replace( varName+']]', hexlify(valueAsBytes) )
 
 				# if not requiresAssembly:
