@@ -576,7 +576,7 @@ class MainGui( Tk.Frame, object ):
 		globalData.loadProgramSettings( True ) # Load using BooleanVars. Must be done after creating Tk.root
 
 		self._imageBank = {} # Repository for all GUI related images
-		self.audioEngine = AudioEngine()
+		self.audioEngine = None
 
 		self.defaultWindowWidth = 1000
 		self.defaultWindowHeight = 750
@@ -969,14 +969,14 @@ class MainGui( Tk.Frame, object ):
 		else:
 			self.updateProgramStatus( 'Unable to save the disc; unrecognized save method return code: ' + str(returnCode) , error=True )
 		
-				# 0: Success; no problems detected
-				# 1: No changes to be saved
-				# 2: Missing system files
-				# 3: Unable to create a new disc file
-				# 4: Unable to open the original disc
-				# 5: Unrecognized error during file writing
-				# 6: Unable to overwrite existing file
-				# 7: Could not rename discs or remove original
+		# 0: Success; no problems detected
+		# 1: No changes to be saved
+		# 2: Missing system files
+		# 3: Unable to create a new disc file
+		# 4: Unable to open the original disc
+		# 5: Unrecognized error during file writing
+		# 6: Unable to overwrite existing file
+		# 7: Could not rename discs or remove original
 
 	def loadRootOrDisc( self, targetPath, updateDefaultDirectory, updateStatus=True, preserveTreeState=False, switchTab=True, updatedFiles=None ):
 		
@@ -1300,6 +1300,7 @@ if __name__ == '__main__':
 	else:
 		# Load the program settings and initialize the GUI
 		globalData.gui = gui = MainGui()
+		gui.audioEngine = AudioEngine()
 
 		# Process any file provided on start-up (drag-and-dropped onto the program's .exe file, or provided via command line)
 		if args.filePath:

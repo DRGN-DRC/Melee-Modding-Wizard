@@ -171,7 +171,7 @@ class AudioManager( ttk.Frame ):
 
 		""" Clears this tab's GUI contents and stops audio playback. """
 
-		if self.audioEngine.audioThread:
+		if self.audioEngine.isPlayingAudio():
 			self.audioEngine.stop()
 
 		self.controlModule.audioFile = None
@@ -870,21 +870,6 @@ class TrackAdder( BasicWindow ):
 		ttk.Separator( self.window, orient='horizontal' ).grid( column=0, columnspan=2, row=5, sticky='ew', padx=50, pady=4 )
 
 		# Set loop point options (radio buttons and custom time entries)
-		# self.loopPointFrame = ttk.Frame( self.window )
-		# ttk.Label( self.loopPointFrame, text='Loop:' ).grid( column=0, row=0, padx=6, pady=4 )
-		# ttk.Radiobutton( self.loopPointFrame, text='None', variable=self.loopTrack, value=0, command=self.toggleTrackLooping ).grid( column=1, row=0, padx=6, pady=4 )
-		# ttk.Radiobutton( self.loopPointFrame, text='Normal', variable=self.loopTrack, value=1, command=self.toggleTrackLooping ).grid( column=2, row=0, padx=6, pady=4 )
-		# ttk.Radiobutton( self.loopPointFrame, text='Custom', variable=self.loopTrack, value=2, command=self.toggleTrackLooping ).grid( column=3, row=0, padx=6, pady=4 )
-		# ttk.Label( self.loopPointFrame, text='Minute:' ).grid( column=0, row=1, padx=6, pady=4 )
-		# self.minutesEntry = ttk.Entry( self.loopPointFrame, width=4, state='disabled' )
-		# self.minutesEntry.grid( column=1, row=1, padx=6, pady=4 )
-		# ttk.Label( self.loopPointFrame, text='Second:' ).grid( column=2, row=1, padx=6, pady=4 )
-		# self.secondsEntry = ttk.Entry( self.loopPointFrame, width=8, state='disabled' )
-		# self.secondsEntry.grid( column=3, row=1, padx=6, pady=4 )
-		# helpBtn = ttk.Label( self.loopPointFrame, text='?', foreground='#445', cursor='hand2' )
-		# helpBtn.grid( column=4, row=1, padx=6, pady=4 )
-		# helpBtn.bind( '<1>', self.helpBtnClicked )
-		# self.loopPointFrame.grid( column=0, columnspan=2, row=6, padx=6, pady=20 )
 		self.loopEditor = LoopEditor( self.window )
 		self.loopEditor.grid( column=0, columnspan=2, row=6, padx=6, pady=20 )
 		ttk.Separator( self.window, orient='horizontal' ).grid( column=0, columnspan=2, row=7, sticky='ew', padx=50, pady=4 )
@@ -923,8 +908,7 @@ class TrackAdder( BasicWindow ):
 		else:
 			self.nickMaxLength = 42
 
-		# Trigger the character count display to update by simulating an event
-		#self.nicknameEntry.event_generate( '<<KeyPress>>' )
+		# Trigger the character count display to update
 		self.nicknameModified( self.nicknameEntry.get().strip() )
 
 	def nicknameModified( self, newString ):
@@ -963,20 +947,6 @@ class TrackAdder( BasicWindow ):
 			ttk.Button( self.nameInputFrame, text='Change', command=self.promptForDiscFilename ).grid( column=1, row=1, padx=6, pady=4 )
 
 		self.determineMaxNickLength()
-
-	# def toggleTrackLooping( self, includeRadioBtn=False ):
-
-	# 	""" Toggles state of the minutes/seconds entries in the window. 
-	# 		Called by the 'Loop' Yes/No radio buttons. """
-
-	# 	if self.loopTrack.get() == 2: # For 'Custom' Loops
-	# 		state = 'normal'
-	# 	else:
-	# 		state = 'disabled'
-		
-	# 	for widget in self.loopPointFrame.winfo_children():
-	# 		if widget.winfo_class() == 'TEntry' or ( includeRadioBtn and widget.winfo_class() == 'TRadiobutton' ):
-	# 			widget['state'] = state
 
 	def promptForDiscFilename( self ):
 
@@ -1041,8 +1011,6 @@ class TrackAdder( BasicWindow ):
 
 			# Disable setting of loop point if this is an HPS file
 			if os.path.splitext( newFilePath )[1].lower() == '.hps':
-				#self.loopTrack.set( 0 )
-				#self.toggleTrackLooping( True )
 				self.loopEditor.loopTrack.set( 0 )
 				self.loopEditor.toggleTrackLooping( True )
 
@@ -1076,34 +1044,7 @@ class TrackAdder( BasicWindow ):
 			newFilename = os.path.basename( filePath ).rsplit( '.', 1 )[0] + '.hps'
 			outputPath = os.path.join( globalData.paths['tempFolder'], newFilename )
 
-			# if self.loopEditor.loopType == 2: # Custom loop; get values from entry fields
-			# 	try:
-			# 		# Get and validate the loop point minute entry
-			# 		minuteText = self.minutesEntry.get()
-			# 		if minuteText:
-			# 			minute = int( minuteText )
-			# 			if minute < 0 or minute > 60:
-			# 				raise Exception( 'minute data entry is out of bounds. Should be between 0 and 60.' )
-			# 		else:
-			# 			minute = 0
-					
-			# 		# Get and validate the loop point second entry
-			# 		secondString = self.secondsEntry.get()
-			# 		if secondString:
-			# 			second = float( secondString )
-			# 			if second < 0 or second > 60:
-			# 				raise Exception( 'second data entry is out of bounds. Should be a float between 0 and 60.' )
-			# 		else:
-			# 			second = 0.0
-			# 	except Exception as err:
-			# 		msg( 'Invalid input to the Loop value inputs; {}'.format(err) )
-			# 		return
-			# 	loopArg = ' -loop 00:{:02}:{:09.6f}'.format( minute, second ) # {:09.6f} pads left up to 9 characters, with last 6 for decimal places
-			
-			# elif self.loopEditor.loopType == 1: # Normal loop (from song end to very beginning)
-			# 	loopArg = ' -loop 00:00:00'
-			# else: # No loop
-			# 	loopArg = ''
+			# Get loop configuration input
 			try:
 				loopArg = self.loopEditor.loopArg
 			except Exception as err:
@@ -1158,18 +1099,12 @@ class TrackAdder( BasicWindow ):
 
 		self.close()
 
-	# def helpBtnClicked( self, event ):
-	# 	msg( 'A "Normal" loop starts the track back at the very beginning once it reaches the end, '
-	# 		 'whereas a "Custom" loop re-starts the track at the specified point after the first playthrough.\n\n'
-	# 		 'Minutes should be an integer value between 0 and 60. Seconds may be a float value between 0 and 60, '
-	# 		 'which may include decimal places for milliseconds. e.g. 10 or 32.123', 'Loop Time Input Formats', self.window )
-
 	def cancel( self ):
 		self.hpsFile = None
 		self.close()
 
 
-class AudioEngine:
+class AudioEngine( object ):
 
 	""" Orchestrates audio start/stop/pause functionality within a separate audio-dedicated thread. """
 	
@@ -1180,6 +1115,9 @@ class AudioEngine:
 		self.exitAudioThread = Event()
 		self.playRepeat = Event()
 		self.volume = .35
+		self.callback = None
+
+		globalData.gui.root.bind( '<<audioDone>>', self.done )
 
 	def checkForDotNetFramework( self ): #todo
 
@@ -1190,6 +1128,8 @@ class AudioEngine:
 		""" Stops any currently playing audio, and starts new playback in a new thread. 
 			This method should return immediately, however a callback may be provided, 
 			which will be run when the audio thread is done playing. """
+
+		self.callback = callback
 
 		# if not playConcurrently:
 		self.stop()
@@ -1204,7 +1144,6 @@ class AudioEngine:
 		self.exitAudioThread.clear()
 
 		# Highlight this song in the Audio Manager, if it's open
-		#if globalData.gui.audioManagerTab:
 		try:
 			# Remove any existing tags, and add the new one
 			fileTree = globalData.gui.audioManagerTab.fileTree
@@ -1218,18 +1157,17 @@ class AudioEngine:
 		# Play the audio clip in a separate thread so that it's non-blocking
 		# (Yes, pyaudio has a "non-blocking" way for playback already, but that 
 		# too needs to block anyway due to waiting for the thread to finish.)
-		self.audioThread = Thread( target=self._playAudioHelper, args=(wavFilePath, callback, True), name=fileObj.filename )
+		self.audioThread = Thread( target=self._playAudioHelper, args=(wavFilePath, True), name=fileObj.filename )
 		self.audioThread.daemon = True # Causes the audio thread to be stopped when the main program stops
 		self.audioThread.start()
 
 	def isPlayingAudio( self ):
 		if self.audioThread:
-			return True
+			return self.audioThread.isAlive()
 		return False
 
 	def pause( self ):
-		""" The following event object must be set for the audio output stream to loop. """
-		self.playbackAllowed.clear()
+		self.playbackAllowed.clear() # Must be SET for the audio output stream to loop
 
 	def unpause( self ):
 		self.playbackAllowed.set()
@@ -1238,14 +1176,35 @@ class AudioEngine:
 		self.exitAudioThread.set()
 		self.playbackAllowed.set() # If paused, make sure the loop can proceed to exit itself
 		
+		if not self.audioThread:
+			return
+
 		# Wait for the thread to end
 		timeout = 0 # Failsafe to prevent possibility of an infinite loop
-		while self.audioThread:
+		while self.audioThread.isAlive():
 			time.sleep( .1 )
 			if timeout > 3:
 				print 'Thread did not exit in time!'
 				return
 			timeout += .1
+
+	def done( self, event ):
+
+		""" Called after the audio thread has completed, but by the GUI's 
+			mainloop (after other idle tasks) and not the audio playback thread. """
+
+		if self.callback:
+			try:
+				self.callback()
+			except: pass
+
+		# Remove 'now playing' highlighting in the Audio Manager, if it's open
+		try:
+			fileTree = globalData.gui.audioManagerTab.fileTree
+			tracksPlaying = fileTree.tag_has( 'playing' )
+			for iid in tracksPlaying:
+				fileTree.removeTag( iid, 'playing' )
+		except: pass
 
 	def reset( self ):
 
@@ -1253,7 +1212,7 @@ class AudioEngine:
 
 		self.readPos = 0
 
-	def _playAudioHelper( self, soundFilePath, callback=None, deleteWav=False ):
+	def _playAudioHelper( self, soundFilePath, deleteWav=False ):
 
 		""" Helper (thread-target) function for playSound(). Runs in a separate 
 			thread to prevent audio playback from blocking main execution. """
@@ -1324,20 +1283,9 @@ class AudioEngine:
 					os.remove( soundFilePath )
 				except: pass
 
-		self.audioThread = None
+		globalData.gui.root.event_generate( '<<audioDone>>', when='tail' )
 
-		if callback:
-			try:
-				callback()
-			except: pass
-
-		# Remove 'now playing' highlighting in the Audio Manager, if it's open (todo: relocate this to main gui thread! need a real callback system)
-		try:
-			fileTree = globalData.gui.audioManagerTab.fileTree
-			tracksPlaying = fileTree.tag_has( 'playing' )
-			for iid in tracksPlaying:
-				fileTree.removeTag( iid, 'playing' )
-		except: pass
+		#self.audioThread = None
 
 	def _adjustVolume( self, dataframes ):
 

@@ -175,15 +175,6 @@ def readableArray( offsetArray ):
 	return [ uHex(0x20+offset) for offset in offsetArray ]
 
 
-# def openFolder( folderPath ):
-# 	normedPath = os.path.abspath( folderPath ) # Turns relative to absolute paths, and normalizes them (switches / for \, etc.)
-
-# 	if os.path.exists( normedPath ):
-# 		os.startfile( normedPath )
-# 	else: 
-# 		msg( 'Could not find this folder: \n\n' + normedPath )
-		
-
 def openFolder( folderPath, fileToSelect='', showWarnings=True ): # Slow function, but cannot select files
 
 	""" Opens a folder for the user. Optionally, can also select/highlight a specific file file in the folder, 
@@ -244,6 +235,7 @@ def msg( message, title='', parent=None, warning=False, error=False ):
 
 	""" Displays a short, windowed message to the user, or prints 
 		out to console if the GUI has not been initialized. 
+		'parent' will default to the global GUI root if not provided.
 		May be decorated with warning/error=True. """
 
 	if globalData.gui: # Display a pop-up message
@@ -263,7 +255,7 @@ def msg( message, title='', parent=None, warning=False, error=False ):
 
 def printStatus( message, warning=False, error=False, success=False ):
 
-	""" Displays a short status message at the bottom of the GUI, 
+	""" Displays a short message at the bottom of the GUI (in the status bar), 
 		or prints out to console if the GUI has not been initialized. 
 		May be decorated with warning/error/success=True. """
 
