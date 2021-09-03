@@ -50,13 +50,13 @@ class CodeManagerTab( ttk.Frame ):
 		self.libraryFolder = ''
 		self.isScanning = False
 		self.stopToRescan = False
+		self.lastTabSelected = None		# Used to prevent redundant onTabChange calls
 
 		# Create the control panel
 		self.controlPanel = ttk.Frame( self, padding="20 8 20 20" ) # Padding: L, T, R, B
 
-		# Add the button bar
+		# Add the button bar and the Code Library Selection button
 		buttonBar = ttk.Frame( self.controlPanel )
-		# Add the Code Library Selection button
 		librarySelectionBtn = ColoredLabelButton( buttonBar, 'books', lambda event: CodeLibrarySelector(globalData.gui.root) )
 		librarySelectionBtn.pack( side='right', padx=6 )
 		self.libraryToolTipText = Tk.StringVar()
@@ -72,7 +72,7 @@ class CodeManagerTab( ttk.Frame ):
 
 		# Begin adding primary buttons
 		ttk.Button( self.controlPanel, text='Open this File', command=self.openLibraryFile ).pack( pady=4, padx=6, ipadx=8 )
-		ttk.Button( self.controlPanel, text='Open Mods Library Folder', command=self.openModsLibrary ).pack( pady=4, padx=6, ipadx=8 )
+		ttk.Button( self.controlPanel, text='Open Mods Library Folder', command=self.openLibraryFolder ).pack( pady=4, padx=6, ipadx=8 )
 
 		ttk.Separator( self.controlPanel, orient='horizontal' ).pack( pady=7, ipadx=120 )
 
@@ -111,21 +111,33 @@ class CodeManagerTab( ttk.Frame ):
 		self.bind( '<Configure>', self.alignControlPanel )
 
 	def onTabChange( self, event=None ):
+
+		""" Called whenever the selected tab in the library changes, or when a new tab is added. """
 		
 		# Check if the Code Manager tab is selected, and thus if any updates are really needed
 		if globalData.gui.root.nametowidget( globalData.gui.mainTabFrame.select() ) != self:
 			return
 
+		currentTab = self.getCurrentTab()
+
+		if self.lastTabSelected == currentTab:
+			print 'already selected'
+			return
+
 		# Prevent focus on the tabs themselves (prevents appearance of selection box)
 		# currentTab = globalData.gui.root.nametowidget( self.codeLibraryNotebook.select() )
 		# currentTab.focus()
-		print 'tab changed'
+		print 'tab changed; called with event:', (event)
 		#time.sleep(2)
 
+		# Remove existing ModModules, and only add those for the currently selected tab
 		self.emptyModsPanels()
-		self.createModModules()
-		self.alignControlPanel()
-		self.updateInstalledModsTabLabel()
+		self.createModModules( currentTab )
+
+		self.alignControlPanel( currentTab=currentTab )
+		self.updateInstalledModsTabLabel( currentTab )
+
+		self.lastTabSelected = currentTab
 
 	def emptyModsPanels( self, notebook=None ):
 
@@ -146,11 +158,11 @@ class CodeManagerTab( ttk.Frame ):
 			else:
 				self.emptyModsPanels( tabWidget )
 
-	def createModModules( self ):
+	def createModModules( self, currentTab ):
 
-		""" Creates GUI elements (ModModules) and populates them in the Mod Library tab currently in-view. """
+		""" Creates GUI elements (ModModules) and populates them in the Code Library tab currently in view. """
 
-		currentTab = self.getCurrentLibraryTab()
+		#currentTab = self.getCurrentTab()
 		if not currentTab: return
 
 		modsPanel = currentTab.winfo_children()[0]
@@ -159,7 +171,7 @@ class CodeManagerTab( ttk.Frame ):
 			newModule = ModModule( modsPanel.interior, mod )
 			newModule.pack( fill='x', expand=1 )
 
-	def alignControlPanel( self, event=None ):
+	def alignControlPanel( self, event=None, currentTab=None ):
 
 		""" Updates the alignment/position of the control panel (to the right of mod lists) and the global scroll target. 
 			Using this alignment technique rather than just dividing the Code Manager tab into two columns allows the 
@@ -170,30 +182,34 @@ class CodeManagerTab( ttk.Frame ):
 			self.controlPanel.place_forget() # Removes the control panel from GUI, without deleting it
 			return
 
-		# Get the VerticalScrolledFrame of the currently selected tab.
-		currentTab = self.getCurrentLibraryTab()
+		#print 'aligning control panel; called with event:', (event)
+
+		if not currentTab:
+			currentTab = self.getCurrentTab()
 
 		if currentTab:
+			# Get the VerticalScrolledFrame of the currently selected tab
 			modsPanel = currentTab.winfo_children()[0]
 
-			# Get the new coordinates for the control panel frame.
+			# Get the new coordinates for the control panel frame
 			globalData.gui.root.update_idletasks() # Force the GUI to update in order to get correct new widget positions & sizes.
 			currentTabWidth = currentTab.winfo_width()
 
 			self.controlPanel.place( in_=currentTab, x=currentTabWidth * .60, width=currentTabWidth * .40, height=modsPanel.winfo_height() )
 		else:
+			# Align and place according to the main library notebook instead
 			notebookWidth = self.codeLibraryNotebook.winfo_width()
 			self.controlPanel.place( in_=self.codeLibraryNotebook, x=notebookWidth * .60, width=notebookWidth * .40, height=self.codeLibraryNotebook.winfo_height() )
 			
-	def updateInstalledModsTabLabel( self ):
+	def updateInstalledModsTabLabel( self, currentTab=None ):
 
 		""" Updates the installed mods count at the bottom of the control panel. """
 
-		currentTab = self.getCurrentLibraryTab()
-
 		if not currentTab:
-			print '.updateInstalledModsTabLabel() unable to get a current tab.'
-			return
+			currentTab = self.getCurrentTab()
+			if not currentTab:
+				print '.updateInstalledModsTabLabel() unable to get a current tab.'
+				return
 
 		# Get the widget providing scrolling functionality (a VerticalScrolledFrame widget), and its children mod widgets
 		scrollingFrame = currentTab.winfo_children()[0]
@@ -217,22 +233,26 @@ class CodeManagerTab( ttk.Frame ):
 		globalData.codeMods = []
 		globalData.standaloneFunctions = {}
 
-		# Remove the Mods Library selection button from the GUI
-		#librarySelectionLabel.place_forget()
-
-		# Delete all mods currently populated in the GUI (by deleting the associated tab),
+		# Delete all mod modules currently populated in the GUI (by deleting the associated tab),
 		# and remove any other current widgets/labels in the main notebook
 		for child in self.codeLibraryNotebook.winfo_children():
 			child.destroy()
 
-		# Remove any description text ('Click this button to....')
-		# for child in modsLibraryTab.mainRow.winfo_children():
-		# 	if child.winfo_class() == 'TLabel' and child != librarySelectionLabel:
-		# 		child.destroy()
-
 		self.installTotalLabel.set( '' )
+
+	def reattachTabChangeHandler( self ):
+
+		""" Even though the onTabChange event handler is unbound in .scanCodeLibrary(), several 
+			events will still be triggered, and will linger until the GUI's thread can get back 
+			to them. When that happens, if the tab change handler has been re-binded, the handler 
+			will be called for each event (even if they occurred while the handler was not binded. 
+			
+			Thus, this method should be called after idle tasks from the main gui (which includes 
+			the tab change events) have finished. """
+
+		self.codeLibraryNotebook.bind( '<<NotebookTabChanged>>', self.onTabChange )
 		
-	def getCurrentLibraryTab( self ):
+	def getCurrentTab( self ):
 		
 		""" Returns the currently selected tab in the Mods Library tab, or None if one is not selected. 
 			The returned widget is the upper-most ttk.Frame in the tab (exists for placement purposes), 
@@ -242,7 +262,7 @@ class CodeManagerTab( ttk.Frame ):
 			return None
 
 		root = globalData.gui.root
-		selectedTab = root.nametowidget( self.codeLibraryNotebook.select() ) # Will be the highest level tab (either a notebook or VerticalScrolledFrame)
+		selectedTab = root.nametowidget( self.codeLibraryNotebook.select() ) # Will be the highest level tab (either a notebook or placementFrame)
 
 		# If the child widget is not a frame, it's a notebook, meaning this represents a directory, and contains more files/tabs within it.
 		while selectedTab.winfo_class() != 'TFrame':
@@ -252,13 +272,44 @@ class CodeManagerTab( ttk.Frame ):
 			
 		return selectedTab
 
+	def selectCodeLibraryTab( self, targetTabWidget, notebook=None ):
+
+		""" Recursively selects all tabs/sub-tabs within the Code Library required to ensure the given target tab is visible. """
+
+		if not notebook: # Initial condition; top-level search start
+			notebook = self.codeLibraryNotebook
+			self.lastTabSelected = None
+
+		root = globalData.gui.root
+		found = False
+
+		for tabName in notebook.tabs():
+			tabWidget = root.nametowidget( tabName ) # This will be the tab's frame widget (placementFrame).
+
+			# Check if this is the target tab, if not, check if the target tab is in a notebook sub-tab of this tab
+			if tabWidget == targetTabWidget: found = True
+			elif tabWidget.winfo_class() == 'TNotebook': # If it's actually a tab full of mods, the class will be "Frame".
+				# Check whether this notebook is empty. If not, scan it.
+				if tabWidget.tabs() == (): continue # Skip this tab.
+				else: found = self.selectCodeLibraryTab( tabWidget )
+
+			if found: # Select the current tab
+				notebook.select( tabWidget )
+
+				# If no 'last tab' is stored, this is the lowest-level tab
+				if not self.lastTabSelected:
+					self.lastTabSelected = tabWidget
+				break
+
+		return found
+
 	def autoSelectCodeRegions( self ):
 
 		""" If 20XX is loaded, attempts to recognize its version and select the appropriate custom code regions. """
 
 		# Check if the loaded DOL is 20XX and get its version
 		dol = globalData.disc.dol
-		if not dol.is20XX:
+		if not dol or not dol.is20XX:
 			return
 		v20XX = dol.is20XX.replace( '+', '' ) # Strip from 4.07+/4.07++
 
@@ -311,16 +362,22 @@ class CodeManagerTab( ttk.Frame ):
 			self.parser.stopToRescan = True
 			return
 
+		self.isScanning = True
+
+		# Minimize calls to onTabChange by unbinding the event handler (which will fire throughout this method; especially in .clear)
+		self.codeLibraryNotebook.unbind( '<<NotebookTabChanged>>' )
+
 		tic = time.clock()
 
 		# Remember the currently selected tab and its scroll position.
-		# currentTab = self.getCurrentLibraryTab()
-		# lastSelectedTabFileSource = ''
-		# if currentTab:
-		# 	frameForBorder = currentTab.winfo_children()[0]
-		# 	modsPanelInterior = frameForBorder.winfo_children()[0].interior # frameForBorder -> modsPanel.interior
-		# 	lastSelectedTabFileSource = modsPanelInterior.winfo_children()[0].sourceFile # Checking the first mod of the mods panel (should all have same source file)
-		# 	sliderYPos = frameForBorder.winfo_children()[0].vscrollbar.get()[0] # .get() returns e.g. (0.49505277044854884, 0.6767810026385225)
+		currentTab = self.getCurrentTab()
+		if currentTab:
+			targetCategory = currentTab.master.tab( currentTab, option='text' )
+			modsPanel = currentTab.winfo_children()[0]
+			sliderYPos = modsPanel.vscrollbar.get()[0] # .get() returns e.g. (0.49505277044854884, 0.6767810026385225)
+		else:
+			targetCategory = ''
+			sliderYPos = 0
 
 		self.libraryFolder = globalData.getModsFolderPath()
 
@@ -332,8 +389,6 @@ class CodeManagerTab( ttk.Frame ):
 			return
 
 		self.clear()
-
-		self.isScanning = True
 		
 		# Always parse the Core Code library
 		# coreCodesLibraryPath = globalData.paths['coreCodes']
@@ -346,7 +401,7 @@ class CodeManagerTab( ttk.Frame ):
 		self.parser.processDirectory( self.libraryFolder )
 		globalData.codeMods = self.parser.codeMods
 
-		self.populateModLibraryTabs()
+		self.populateCodeLibraryTabs( targetCategory, sliderYPos )
 
 		# Check once more if another scan is queued. (e.g. if the scan mods button was pressed again while checking for installed mods)
 		if self.stopToRescan:
@@ -358,16 +413,12 @@ class CodeManagerTab( ttk.Frame ):
 			#totalModsInLibraryLabel.set( 'Total Mods in Library: ' + str(len( self.codeModModules )) ) # todo: refactor code to count mods in the modsPanels instead
 			#totalSFsInLibraryLabel.set( 'Total Standalone Functions in Library: ' + str(len( collectAllStandaloneFunctions(self.codeModModules, forAllRevisions=True) )) )
 
-			# realignControlPanel()
-			# root.bind_class( 'moduleClickTag', '<1>', modModuleClicked )
-
-			# if dol.data:
-			# 	collectAllStandaloneFunctions()
-			# 	checkForEnabledCodes()
-
 			self.isScanning = False
 			self.stopToRescan = False
-			
+
+			# Wait to let tab change events fizzle out before reattaching the onTabChange event handler
+			self.after_idle( self.reattachTabChangeHandler )
+
 			if playAudio:
 				#playSound( 'menuChange' )
 				print 'beep!'
@@ -379,13 +430,14 @@ class CodeManagerTab( ttk.Frame ):
 		self.parser.stopToRescan = False
 		self.scanCodeLibrary( playAudio )
 
-	def populateModLibraryTabs( self ):
+	def populateCodeLibraryTabs( self, targetCategory='', sliderYPos=0 ):
 
 		""" Creates ModModule objects for the GUI, as well as vertical scroll frames/Notebook 
 			widgets needed to house them, and checks for installed mods to set module states. """
 
 		notebookWidgets = { '': self.codeLibraryNotebook }
 		modsPanels = {}
+		modPanelToScroll = None
 
 		# If no mods are present, add a simple message and return
 		if not globalData.codeMods:
@@ -436,23 +488,28 @@ class CodeManagerTab( ttk.Frame ):
 						parent.add( notebook, text=pathItem, image=globalData.gui.imageBank('folderIcon'), compound='left' )
 						# print 'adding notebook', notebook._name, 'to', parent._name, 'for', thisTabPath
 						notebookWidgets[thisTabPath] = notebook
-						#print 'added notebook,', str(notebook) + ', for', pathItem
 
 					parent = notebook
 
 					# Add a vertical scrolled frame to the last notebook
 					if i == len( pathParts ) - 1: # Reached the last part (the category)
-						placementFrame = ttk.Frame( parent ) # This will be the "currentTab" widget returned from .getCurrentLibraryTab()
+						placementFrame = ttk.Frame( parent ) # This will be the "currentTab" widget returned from .getCurrentTab()
 						parent.add( placementFrame, text=mod.category )
+
+						# Create and add the mods panel (placement frame above needed so we can .place() the mods panel)
 						modsPanel = VerticalScrolledFrame( placementFrame )
 						modsPanel.mods = []
 						#print 'adding VSF', modsPanel._name, 'to', placementFrame._name, 'for', thisTabPath + '\\' + mod.category
 						modsPanel.place( x=0, y=0, relwidth=.60, relheight=1.0 )
 						modsPanels[relPath + '\\' + mod.category] = modsPanel
-						#print 'added frame,', mo
 
-			# newModule = ModModule( modsPanel.interior, mod )
-			# newModule.pack( fill='x', expand=1 )
+						# If this is the target panel, Remember it to set its vertical scroll position after all mod modules have been added
+						if targetCategory == mod.category:
+							modPanelToScroll = modsPanel
+
+			# If this tab is going to be immediately visible/selected, add its modules now
+			if targetCategory == mod.category:
+				ModModule( modsPanel.interior, mod ).pack( fill='x', expand=1 )
 
 			# Store the mod for later; actual modules for the GUI will be created on tab selection
 			modsPanel.mods.append( mod )
@@ -464,6 +521,16 @@ class CodeManagerTab( ttk.Frame ):
 			# if mod.state == 'enabled':
 			# 	print mod.name
 
+		# If a previous tab and scroll position are desired, set them here
+		if modPanelToScroll:
+			self.selectCodeLibraryTab( modPanelToScroll.master )
+
+			# Update idle tasks so the modPanel's height and scroll position calculate correctly
+			modPanelToScroll.update_idletasks()
+			modPanelToScroll.canvas.yview_moveto( sliderYPos )
+
+			self.updateInstalledModsTabLabel( modPanelToScroll.master )
+
 		# Add messages to the background of any empty notebooks
 		for notebook in notebookWidgets.values():
 			if not notebook.winfo_children():
@@ -471,17 +538,38 @@ class CodeManagerTab( ttk.Frame ):
 				warningMsg = 'No code mods found in this folder or cetegory.'
 				ttk.Label( notebook, text=warningMsg, background='white', wraplength=600, justify='center' ).place( relx=0.3, rely=0.5, anchor='center' )
 
-	def openLibraryFile( self ): pass
-	def openModsLibrary( self ): pass
+	def openLibraryFile( self ):
+
+		""" Checks if the current tab has a mod written in MCM's format, 
+			and opens it in the user's default text editing program if there is. """
+
+		# Check if the current tab has a mod written in MCM's format
+		currentTab = self.getCurrentTab()
+
+		for mod in currentTab.winfo_children()[0].mods:
+			if not mod.isAmfs:
+				webbrowser.open( mod.path )
+				break
+		else:
+			msg( "No text file mods (those written in MCM's standard format) were found in this tab. "
+				 "These appear to be in AMFS format (ASM Mod Folder Structure), "
+				 "which should open to a folder.", 'No MCM Style Mods Found', globalData.gui.root )
+
+	def openLibraryFolder( self ):
+
+		""" Opens the current Code Library folder. """
+
+		
+
 	def exportDOL( self ): pass
 
 	def saveIniFile( self ): pass
 	def saveGctFile( self ): pass
 
-	def selectAllMods( self ): pass
-	def deselectAllMods( self ): pass
-	def selectWholeLibrary( self ): pass
-	def deselectWholeLibrary( self ): pass
+	def selectAllMods( self, event ): pass
+	def deselectAllMods( self, event ): pass
+	def selectWholeLibrary( self, event ): pass
+	def deselectWholeLibrary( self, event ): pass
 
 	def saveCodeChanges( self ):
 
@@ -652,9 +740,9 @@ class ModModule( Tk.Frame, object ):
 				widget.bind( '<1>', self.clicked )
 
 		# Add the edit and configure buttons
-		LabelButton( row3, 'editButton', self.inspectMod, 'Edit this mod' ).pack( side='right', padx=(5, 55), pady=6 )
+		LabelButton( row3, 'editButton', self.inspectMod, "Edit this mod's code" ).pack( side='right', padx=(5, 55), pady=6 )
 		if mod.configurations:
-			LabelButton( row3, 'configButton', self.configureMod, 'Configure this mod' ).pack( side='right', padx=(5, 55), pady=6 )
+			LabelButton( row3, 'configButton', self.configureMod, "Configure this mod's settings" ).pack( side='right', padx=5, pady=6 )
 
 		# Validate web page links and create buttons for them
 		for origUrlString, comments in mod.webLinks: # Items in this list are tuples of (urlString, comments)
@@ -830,21 +918,23 @@ class ModModule( Tk.Frame, object ):
 
 	def configureMod( self, event ):
 
-		ModCustomizer( self.mod )
+		CodeConfigWindow( self.mod )
 
 
-class ModCustomizer( BasicWindow ):
+class CodeConfigWindow( BasicWindow ):
 
 	def __init__( self, mod ):
-		super( ModCustomizer, self ).__init__( self, globalData.gui.root, mod.name + ' Configuration' )
+		super( CodeConfigWindow, self ).__init__( globalData.gui.root, mod.name + ' - Configuration' )
+
+		self.mod = mod
 
 		# configurations = []
 		# for optionName, optionDict in mod.configurations.items():
 		# 	if 'hidden' in optionDict:
 
-		ttk.Label( self, text='Select an option to configure.' ).pack( pady=(8, 0), padx=12 )
+		ttk.Label( self.window, text='Select an option to configure.' ).pack( pady=(8, 0), padx=12 )
 		
-		ttk.Separator( self, orient='horizontal' ).pack( pady=8, ipadx=120 )
+		ttk.Separator( self.window, orient='horizontal' ).pack( pady=8, ipadx=120 )
 
 		# Add rows for each option to be displayed
 		validationCommand = globalData.gui.root.register( self.validateEntry )
@@ -858,7 +948,7 @@ class ModCustomizer( BasicWindow ):
 			members = optionDict.get( 'members' ) # A list of lists
 
 			# Add the mod name
-			optFrame = ttk.Frame( self )
+			optFrame = ttk.Frame( self.window )
 			optFrame.optDict = optionDict
 			ttk.Label( optFrame, text=mod.name ).pack( side='left' )
 
@@ -889,9 +979,9 @@ class ModCustomizer( BasicWindow ):
 
 			optFrame.pack( pady=(8, 0), padx=12, ipadx=12 )
 
-			ttk.Separator( self, orient='horizontal' ).pack( pady=8, ipadx=120 )
+			ttk.Separator( self.window, orient='horizontal' ).pack( pady=(8, 0), ipadx=120 )
 			
-			
+
 			# Restore All Defaults
 
 	def getOptionWidth( self, optionType ):

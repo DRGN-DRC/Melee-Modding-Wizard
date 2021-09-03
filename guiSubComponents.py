@@ -661,7 +661,7 @@ class SliderAndEntry( ttk.Frame ):
 	def __init__( self, parent, *args, **kwargs ):
 		ttk.Frame.__init__( self, parent, *args, **kwargs )
 
-		
+
 
 
 class HexEditDropdown( ttk.OptionMenu ):
@@ -1127,7 +1127,7 @@ class DisguisedEntry( Tk.Entry ):
 class LabelButton( Tk.Label ):
 
 	""" Basically a label that acts as a button, using an image and mouse click/hover events. 
-		Used for the edit button and web links. """
+		Expects an RGBA image. Used for a mod's edit/config buttons and web links. """
 
 	def __init__( self, parent, imageName, callback, hovertext='' ):
 		# Get the images needed

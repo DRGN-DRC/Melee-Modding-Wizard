@@ -62,8 +62,9 @@ class FileMenu( Tk.Menu, object ):
 		self.add_cascade( label="Open Recent", menu=self.recentFilesMenu )												# Key shortcut (holding alt)
 		self.add_command( label='Open Last Used Directory', underline=5, command=self.openLastUsedDir ) 							# L
 		self.add_command( label='Open Disc (ISO/GCM)', underline=11, command=lambda: globalData.gui.promptToOpenFile('iso') )		# I
-		self.add_command( label='Open Root (Disc Directory)', underline=6, command=lambda: globalData.gui.promptToOpenRoot() )		# O
+		self.add_command( label='Open Root (Disc Directory)', underline=6, command=lambda: globalData.gui.promptToOpenRoot() )		# O		(lambda required)
 		self.add_command( label='Open DAT (or USD, etc.)', underline=5, command=lambda: globalData.gui.promptToOpenFile('dat') )	# D
+		self.add_command( label='Browse Code Library', underline=0, command=self.browseCodeLibrary )								# B
 		self.add_separator()
 		self.add_command( label='View Unsaved Changes', underline=0, command=self.showUnsavedChanges )								# V
 		self.add_command( label='Save  (CTRL-S)', underline=0, command=self.save )													# S
@@ -120,6 +121,16 @@ class FileMenu( Tk.Menu, object ):
 
 	def openLastUsedDir( self ):
 		openFolder( globalData.getLastUsedDir() )
+		
+	def browseCodeLibrary( self ):
+
+		""" Loads the Code Manager tab if it's not already present. """
+
+		mainGui = globalData.gui
+
+		if not mainGui.codeManagerTab:
+			mainGui.codeManagerTab = CodeManagerTab( mainGui.mainTabFrame, mainGui )
+		mainGui.codeManagerTab.scanCodeLibrary()
 
 	def save( self ):			globalData.gui.save()
 	def saveDiscAs( self ):		globalData.gui.saveDiscAs()
@@ -999,7 +1010,7 @@ class MainGui( Tk.Frame, object ):
 			self.codeManagerTab = CodeManagerTab( self.mainTabFrame, self )
 			self.mainTabFrame.update_idletasks()
 		self.codeManagerTab.autoSelectCodeRegions()
-		self.codeManagerTab.scanCodeLibrary( True )
+		self.codeManagerTab.scanCodeLibrary()
 
 		if globalData.disc.isMelee:
 			# If this is 20XX, add/initialize the Debug Menu Editor tab

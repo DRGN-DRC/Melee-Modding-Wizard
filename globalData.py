@@ -91,7 +91,7 @@ def init( programArgs ):
 	disc = None
 
 	codeMods = []
-	standaloneFunctions = {} # Key='functionName', value=( functionRamAddress, functionCustomCode, functionPreProcessedCustomCode )
+	standaloneFunctions = {} # Key='functionName', value=( functionRamAddress, codeChangeObj )
 
 	programEnding = False
 
