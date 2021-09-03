@@ -721,7 +721,7 @@ class MainGui( Tk.Frame, object ):
 			for menuWidget in self.menubar.winfo_children():
 				menuWidget.open = False
 
-	def onMainTabChanged( self, event ): 
+	def onMainTabChanged( self, event ):
 
 		""" This function adjusts the height of rows in the treeview widgets, since the two treeviews can't be individually configured.
 			It also starts DAT file structural analysis or image searching when switching to the SA tab or DAT File Tree tab if a DAT file is loaded. 

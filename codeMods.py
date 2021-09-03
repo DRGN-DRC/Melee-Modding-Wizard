@@ -1183,7 +1183,6 @@ class CodeLibraryParser():
 				mod = CodeMod( codeset['name'], authors, description, folderPath, True )
 				mod.category = codeset.get( 'category', primaryCategory ) # Secondary definition, per-code dict basis
 				mod.configurations = codeset.get( 'configurations', {} )
-				print 'configurations type:', type( mod.configurations )
 
 				# Set the revision (region/version) this code is for
 				revision = codeset.get( 'revision' )

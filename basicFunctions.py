@@ -175,40 +175,51 @@ def readableArray( offsetArray ):
 	return [ uHex(0x20+offset) for offset in offsetArray ]
 
 
-def openFolder( folderPath ):
-	normedPath = os.path.abspath( folderPath ) # Turns relative to absolute paths, and normalizes them (switches / for \, etc.)
+# def openFolder( folderPath ):
+# 	normedPath = os.path.abspath( folderPath ) # Turns relative to absolute paths, and normalizes them (switches / for \, etc.)
 
-	if os.path.exists( normedPath ):
-		os.startfile( normedPath )
-	else: 
-		msg( 'Could not find this folder: \n\n' + normedPath )
+# 	if os.path.exists( normedPath ):
+# 		os.startfile( normedPath )
+# 	else: 
+# 		msg( 'Could not find this folder: \n\n' + normedPath )
 		
 
-# def openFolder( folderPath, fileToSelect='' ): # Slow function, but cannot select files
-# 	folderPath = os.path.abspath( folderPath ) # Turns relative to absolute paths, and normalizes them (switches / for \, etc.)
+def openFolder( folderPath, fileToSelect='', showWarnings=True ): # Slow function, but cannot select files
 
-# 	if os.path.exists( folderPath ):
-# 		if fileToSelect: # Slow method, but can select/highlight items in the folder
-# 			if not os.path.exists( folderPath + '\\' + fileToSelect ):
-# 				print( 'Could not find this file: \n\n' + fileToSelect )
-# 				return
+	""" Opens a folder for the user. Optionally, can also select/highlight a specific file file in the folder, 
+		using the 'fileToSelect' arg; however, using this feature is much slower. """
 
-# 			command = '"C:\\Windows\\explorer.exe" /select, \"{}\\{}\"'.format( folderPath, fileToSelect )
+	folderPath = os.path.abspath( folderPath ) # Turns relative to absolute paths, and normalizes them (switches / for \, etc.)
 
-# 			try:
-# 				outputStream = subprocess.check_output(command, shell=False, stderr=subprocess.STDOUT, creationflags=0x08000000) # shell=True gives access to all shell features.
-# 			except subprocess.CalledProcessError as error:
-# 				outputStream = str(error.output)
-# 				if len(outputStream) != 0:
-# 					exitCode = str(error.returncode)
-# 					print( 'IPC error: \n\n' + outputStream + '\n\nErrorlevel ' + exitCode )
-# 			except Exception as generalError:
-# 					print( 'IPC error: \n\n' + generalError )
+	if not os.path.exists( folderPath ):
+		if showWarnings:
+			msg( 'Unable to find this folder: \n\n{}'.format(folderPath), 'Folder Not Found', globalData.gui.root, error=True )
 
-# 		else: # Fast method, but cannot select files
-# 			os.startfile( folderPath )
+	elif not fileToSelect: # Fast method, but cannot select files
+		os.startfile( folderPath )
 
-# 	else: print( 'Could not find this folder: \n\n' + folderPath )
+	elif not os.path.exists( folderPath + '\\' + fileToSelect ):
+		os.startfile( folderPath )
+
+		if showWarnings:
+			msg( 'Unable to find this file: \n\n{}'.format(fileToSelect), 'File Not Found', globalData.gui.root, error=True )
+
+	else: # Slow method, but can select/highlight items in the folder
+		try:
+			command = '"C:\\Windows\\explorer.exe" /select, \"{}\\{}\"'.format( folderPath, fileToSelect )
+			outputStream = subprocess.check_output( command, shell=False, stderr=subprocess.STDOUT, creationflags=0x08000000 )
+			errMsg = ''
+
+		except subprocess.CalledProcessError as err:
+			errMsg = 'Process exit code: {}'.format( err.returncode )
+			if err.output:
+				errMsg += '; {}'.format( err.output)
+
+		except Exception as err:
+			errMsg = 'IPC error; {}'.format( err )
+
+		if errMsg and showWarnings:
+			msg( 'There was an error in attempting to open this folder: "{}"\n\n{}'.format(folderPath, errMsg), globalData.gui.root, error=True )
 
 
 def createFolders( folderPath ):

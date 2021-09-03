@@ -329,14 +329,16 @@ def setLastUsedDir( savePath, category='default', saveSettings=True ):
 		if category == 'auto':
 			fileExt = os.path.splitext( savePath )[1].replace( '.', '' )
 
-			if fileExt in ( 'hps', 'wav', 'dsp', 'mp3', 'aiff', 'wma', 'm4a' ):
+			if fileExt in ( 'hps', 'wav', 'dsp', 'mp3', 'aiff', 'wma', 'm4a' ): # Audio files
 				category = 'hps'
-			elif fileExt in ( 'iso', 'gcm' ):
+			elif fileExt in ( 'iso', 'gcm' ): # Discs
 				category = 'iso'
 			elif fileExt.endswith( 'at' ) or fileExt.endswith( 'sd' ): # To match .dat/.usd as well as .0at/etc variants
 				category = 'dat'
 			elif fileExt in ( 'mth', 'thp' ): # Video files
 				category = 'mth'
+			elif fileExt == 'dol':
+				category = 'dol'
 			else:
 				category = 'default'
 

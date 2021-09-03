@@ -72,7 +72,7 @@ def exportSingleFileWithGui( fileObj ):
 	# Prompt for a place to save the file.
 	fileExt = fileObj.ext[1:] # Removing dot
 	savePath = tkFileDialog.asksaveasfilename(
-		title="Where would you like to export the file?", 
+		title="Where would you like to export the file?",
 		parent=globalData.gui.root,
 		initialdir=globalData.getLastUsedDir(),
 		initialfile=fileObj.filename,
@@ -87,12 +87,7 @@ def exportSingleFileWithGui( fileObj ):
 	# Write the file to an external/standalone file
 	successful = fileObj.export( savePath )
 
-	# Update the default directory to start in when opening or exporting files.
-	# if fileExt in ( 'hps', 'wav', 'dsp', 'mp3', 'aiff', 'wma', 'm4a' ):
-	# 	globalData.setLastUsedDir( savePath, 'hps' )
-	# elif fileExt.endswith( 'at' ):
-	# 	globalData.setLastUsedDir( savePath, 'dat' )
-	# else:
+	# Update the default directory to start in when opening or exporting files
 	globalData.setLastUsedDir( savePath, 'auto' )
 
 	if successful:

@@ -22,10 +22,10 @@ from urlparse import urlparse 	# For validating and security checking URLs
 # Internal Dependencies
 import globalData
 from disc import Disc
-from basicFunctions import msg
+from basicFunctions import msg, openFolder
 from codeMods import regionsOverlap, CodeLibraryParser
 from guiSubComponents import (
-	VerticalScrolledFrame, LabelButton, ToolTip, CodeLibrarySelector, 
+	exportSingleFileWithGui, VerticalScrolledFrame, LabelButton, ToolTip, CodeLibrarySelector, 
 	CodeSpaceOptionsWindow, ColoredLabelButton, BasicWindow, DisguisedEntry
 )
 
@@ -71,7 +71,8 @@ class CodeManagerTab( ttk.Frame ):
 		buttonBar.pack( fill='x', pady=(5, 20) )
 
 		# Begin adding primary buttons
-		ttk.Button( self.controlPanel, text='Open this File', command=self.openLibraryFile ).pack( pady=4, padx=6, ipadx=8 )
+		self.openMcmFileBtn = ttk.Button( self.controlPanel, text='Open this File', command=self.openLibraryFile, state='disabled' )
+		self.openMcmFileBtn.pack( pady=4, padx=6, ipadx=8 )
 		ttk.Button( self.controlPanel, text='Open Mods Library Folder', command=self.openLibraryFolder ).pack( pady=4, padx=6, ipadx=8 )
 
 		ttk.Separator( self.controlPanel, orient='horizontal' ).pack( pady=7, ipadx=120 )
@@ -110,17 +111,17 @@ class CodeManagerTab( ttk.Frame ):
 
 		self.bind( '<Configure>', self.alignControlPanel )
 
-	def onTabChange( self, event=None ):
+	def onTabChange( self, event=None, forceUpdate=False ):
 
 		""" Called whenever the selected tab in the library changes, or when a new tab is added. """
 		
 		# Check if the Code Manager tab is selected, and thus if any updates are really needed
-		if globalData.gui.root.nametowidget( globalData.gui.mainTabFrame.select() ) != self:
+		if not forceUpdate and globalData.gui.root.nametowidget( globalData.gui.mainTabFrame.select() ) != self:
 			return
 
 		currentTab = self.getCurrentTab()
 
-		if self.lastTabSelected == currentTab:
+		if not forceUpdate and self.lastTabSelected == currentTab:
 			print 'already selected'
 			return
 
@@ -166,10 +167,19 @@ class CodeManagerTab( ttk.Frame ):
 		if not currentTab: return
 
 		modsPanel = currentTab.winfo_children()[0]
+		foundMcmFormatting = False
 
 		for mod in modsPanel.mods:
-			newModule = ModModule( modsPanel.interior, mod )
-			newModule.pack( fill='x', expand=1 )
+			ModModule( modsPanel.interior, mod ).pack( fill='x', expand=1 )
+
+			if not mod.isAmfs:
+				foundMcmFormatting = True
+
+		# Enable or disable the 'Open this file' button
+		if foundMcmFormatting:
+			self.openMcmFileBtn['state'] = 'normal'
+		else:
+			self.openMcmFileBtn['state'] = 'disabled'
 
 	def alignControlPanel( self, event=None, currentTab=None ):
 
@@ -240,7 +250,7 @@ class CodeManagerTab( ttk.Frame ):
 
 		self.installTotalLabel.set( '' )
 
-	def reattachTabChangeHandler( self ):
+	def _reattachTabChangeHandler( self, notebook ):
 
 		""" Even though the onTabChange event handler is unbound in .scanCodeLibrary(), several 
 			events will still be triggered, and will linger until the GUI's thread can get back 
@@ -250,7 +260,9 @@ class CodeManagerTab( ttk.Frame ):
 			Thus, this method should be called after idle tasks from the main gui (which includes 
 			the tab change events) have finished. """
 
-		self.codeLibraryNotebook.bind( '<<NotebookTabChanged>>', self.onTabChange )
+		print 'reattaching for', notebook
+
+		notebook.bind( '<<NotebookTabChanged>>', self.onTabChange )
 		
 	def getCurrentTab( self ):
 		
@@ -279,6 +291,9 @@ class CodeManagerTab( ttk.Frame ):
 		if not notebook: # Initial condition; top-level search start
 			notebook = self.codeLibraryNotebook
 			self.lastTabSelected = None
+		else:
+			# Minimize calls to onTabChange by unbinding the event handler (which will fire throughout this method)
+			notebook.unbind( '<<NotebookTabChanged>>' )
 
 		root = globalData.gui.root
 		found = False
@@ -288,10 +303,10 @@ class CodeManagerTab( ttk.Frame ):
 
 			# Check if this is the target tab, if not, check if the target tab is in a notebook sub-tab of this tab
 			if tabWidget == targetTabWidget: found = True
-			elif tabWidget.winfo_class() == 'TNotebook': # If it's actually a tab full of mods, the class will be "Frame".
+			elif tabWidget.winfo_class() == 'TNotebook': # If it's actually a tab full of mods, the class will be "Frame"
 				# Check whether this notebook is empty. If not, scan it.
 				if tabWidget.tabs() == (): continue # Skip this tab.
-				else: found = self.selectCodeLibraryTab( tabWidget )
+				else: found = self.selectCodeLibraryTab( targetTabWidget, tabWidget )
 
 			if found: # Select the current tab
 				notebook.select( tabWidget )
@@ -301,53 +316,18 @@ class CodeManagerTab( ttk.Frame ):
 					self.lastTabSelected = tabWidget
 				break
 
+		# Wait to let tab change events fizzle out before reattaching the onTabChange event handler
+		if notebook != self.codeLibraryNotebook:
+			self.after_idle( self._reattachTabChangeHandler, notebook )
+
 		return found
 
-	def autoSelectCodeRegions( self ):
-
-		""" If 20XX is loaded, attempts to recognize its version and select the appropriate custom code regions. """
-
-		# Check if the loaded DOL is 20XX and get its version
-		dol = globalData.disc.dol
-		if not dol or not dol.is20XX:
-			return
-		v20XX = dol.is20XX.replace( '+', '' ) # Strip from 4.07+/4.07++
-
-		# Get the version as major.minor and construct the code regions name
-		majorMinor = '.'.join( v20XX.split('.')[:2] ) # Excludes version.patch if present (e.g. 5.0.0)
-		customRegions = '20XXHP {} Regions'.format( majorMinor )
-
-		# Check if the current overwrite options match up with the version of 20XX loaded
-		foundTargetRegions = False
-		regions = []
-		for name, boolVar in globalData.overwriteOptions.iteritems():
-			if boolVar.get(): regions.append( name )
-			if name == customRegions: foundTargetRegions = True
-
-		if not foundTargetRegions:
-			print( 'Unable to auto-select custom code regions; unsupported 20XX version: {}'.format(v20XX) )
-			return
-
-		# Check that only the one target region is selected
-		if not regions == [customRegions]:
-			reselectRegions = tkMessageBox.askyesno( 'Enable Dedicated Region?', 'The game being loaded appears to be for the 20XX Hack Pack, v{}. '
-													'Would you like to enable the custom code regions specifically for this mod ({})?'
-													"\n\nIf you're unsure, click yes.".format(v20XX, customRegions) )
-			if reselectRegions:
-				# Disable all regions
-				for boolVar in globalData.overwriteOptions.itervalues():
-					boolVar.set( False )
-
-				# Enable the appropriate region
-				boolVar = globalData.overwriteOptions.get( customRegions )
-				if boolVar:
-					boolVar.set( True )
-				else:
-					msg( 'Unable to enable custom code regions for {}; that region could not be '
-						 'found among the configurations in the codeRegionSettings.py file.', 'Custom Code Regions Load Error', error=True )
-
-				# Remember these settings
-				globalData.saveProgramSettings()
+	def restartScan( self, playAudio ):
+		time.sleep( .2 ) # Give a moment to allow for current settings to be saved via saveOptions.
+		self.isScanning = False
+		self.stopToRescan = False
+		self.parser.stopToRescan = False
+		self.scanCodeLibrary( playAudio )
 
 	def scanCodeLibrary( self, playAudio=True ):
 
@@ -417,18 +397,19 @@ class CodeManagerTab( ttk.Frame ):
 			self.stopToRescan = False
 
 			# Wait to let tab change events fizzle out before reattaching the onTabChange event handler
-			self.after_idle( self.reattachTabChangeHandler )
+			#self.update_idletasks()
+			self.after_idle( self._reattachTabChangeHandler, self.codeLibraryNotebook )
+			#self.onTabChange( forceUpdate=True ) # Make sure it's called at least once
+			# self.after_idle( self.TEST, 'test1' ) # called in-order
+			# self.after_idle( self.TEST, 'test2' )
+			self.after_idle( self.onTabChange, None, True )
 
 			if playAudio:
 				#playSound( 'menuChange' )
 				print 'beep!'
 
-	def restartScan( self, playAudio ):
-		time.sleep( .2 ) # Give a moment to allow for current settings to be saved via saveOptions.
-		self.isScanning = False
-		self.stopToRescan = False
-		self.parser.stopToRescan = False
-		self.scanCodeLibrary( playAudio )
+	# def TEST( self, string ):
+	# 	print string
 
 	def populateCodeLibraryTabs( self, targetCategory='', sliderYPos=0 ):
 
@@ -526,8 +507,10 @@ class CodeManagerTab( ttk.Frame ):
 			self.selectCodeLibraryTab( modPanelToScroll.master )
 
 			# Update idle tasks so the modPanel's height and scroll position calculate correctly
-			modPanelToScroll.update_idletasks()
-			modPanelToScroll.canvas.yview_moveto( sliderYPos )
+			# modPanelToScroll.update_idletasks()
+			# modPanelToScroll.canvas.yview_moveto( sliderYPos )
+			#self.after_idle( lambda y=sliderYPos: modPanelToScroll.canvas.yview_moveto( y ) )
+			self.after_idle( self._updateScrollPosition, modPanelToScroll, sliderYPos )
 
 			self.updateInstalledModsTabLabel( modPanelToScroll.master )
 
@@ -537,6 +520,57 @@ class CodeManagerTab( ttk.Frame ):
 				ttk.Label( notebook, image=globalData.gui.imageBank('randall'), background='white' ).place( relx=0.3, rely=0.5, anchor='s', y=-20 ) # y not :P
 				warningMsg = 'No code mods found in this folder or cetegory.'
 				ttk.Label( notebook, text=warningMsg, background='white', wraplength=600, justify='center' ).place( relx=0.3, rely=0.5, anchor='center' )
+
+	def _updateScrollPosition( self, modPanel, sliderYPos ):
+		print 'updating scroll position'
+		self.update_idletasks()
+		modPanel.canvas.yview_moveto( sliderYPos )
+
+	def autoSelectCodeRegions( self ):
+
+		""" If 20XX is loaded, this attempts to recognize its version and select the appropriate custom code regions. """
+
+		# Check if the loaded DOL is 20XX and get its version
+		dol = globalData.disc.dol
+		if not dol.is20XX:
+			return
+		v20XX = dol.is20XX.replace( '+', '' ) # Strip from 4.07+/4.07++
+
+		# Get the version as major.minor and construct the code regions name
+		majorMinor = '.'.join( v20XX.split('.')[:2] ) # Excludes version.patch if present (e.g. 5.0.0)
+		customRegions = '20XXHP {} Regions'.format( majorMinor )
+
+		# Check if the current overwrite options match up with the version of 20XX loaded
+		foundTargetRegions = False
+		regions = []
+		for name, boolVar in globalData.overwriteOptions.iteritems():
+			if boolVar.get(): regions.append( name )
+			if name == customRegions: foundTargetRegions = True
+
+		if not foundTargetRegions:
+			print( 'Unable to auto-select custom code regions; unsupported 20XX version: {}'.format(v20XX) )
+			return
+
+		# Check that only the one target region is selected
+		if not regions == [customRegions]:
+			reselectRegions = tkMessageBox.askyesno( 'Enable Dedicated Region?', 'The game being loaded appears to be for the 20XX Hack Pack, v{}. '
+													'Would you like to enable the custom code regions specifically for this mod ({})?'
+													"\n\nIf you're unsure, click yes.".format(v20XX, customRegions) )
+			if reselectRegions:
+				# Disable all regions
+				for boolVar in globalData.overwriteOptions.itervalues():
+					boolVar.set( False )
+
+				# Enable the appropriate region
+				boolVar = globalData.overwriteOptions.get( customRegions )
+				if boolVar:
+					boolVar.set( True )
+				else:
+					msg( 'Unable to enable custom code regions for {}; that region could not be '
+						 'found among the configurations in the codeRegionSettings.py file.', 'Custom Code Regions Load Error', error=True )
+
+				# Remember these settings
+				globalData.saveProgramSettings()
 
 	def openLibraryFile( self ):
 
@@ -556,12 +590,13 @@ class CodeManagerTab( ttk.Frame ):
 				 "which should open to a folder.", 'No MCM Style Mods Found', globalData.gui.root )
 
 	def openLibraryFolder( self ):
+		openFolder( self.libraryFolder )
 
-		""" Opens the current Code Library folder. """
-
-		
-
-	def exportDOL( self ): pass
+	def exportDOL( self ):
+		if globalData.disc:
+			exportSingleFileWithGui( globalData.disc.dol )
+		else:
+			msg( 'No disc has been loaded!' )
 
 	def saveIniFile( self ): pass
 	def saveGctFile( self ): pass
