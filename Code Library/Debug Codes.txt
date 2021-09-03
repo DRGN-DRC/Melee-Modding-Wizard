@@ -1,0 +1,352 @@
+Debug Menu replaces Tournament Mode
+- Selecting Tournament Melee in the main menu takes you to the Debug Menu instead
+- Selecting Single Button Mode takes you to the Tournament Melee mode instead
+(Concomitant Graphical Mod Here: http://smashboards.com/threads/326347/page-3#post-15738900)
+[Magus, donny2112, SypherPhoenix]
+Version -- DOL Offset ------ Hex to Replace ---------- ASM Code 
+1.00 ------ 0x228F20 ---- 3800001B -> 38000006 ---- (li r0,27 -> li r0,6)
+----------- 0x227F2C ---- 3800002C -> 3800001B ---- (li r0,44 -> li r0,27)
+
+1.01 ------ 0x229A90 ---- 3800001B -> 38000006 ---- (li r0,27 -> li r0,6)
+----------- 0x228A9C ---- 3800002C -> 3800001B ---- (li r0,44 -> li r0,27)
+
+1.02 ------ 0x22A218 ---- 3800001B -> 38000006 ---- (li r0,27 -> li r0,6)
+----------- 0x229224 ---- 3800002C -> 3800001B ---- (li r0,44 -> li r0,27)
+
+PAL ------- 0x22C084 ---- 3800001E -> 38000006 ---- (li r0,30 -> li r0,6)
+----------- 0x22B08C ---- 3800002F -> 3800001E ---- (li r0,74 -> li r0,30)
+
+
+	-==-
+
+
+Normal C-Stick Functionality in Develop Mode [Updated]
+- C-Stick additionally provides Master mode functionality while in Develop Mode
+- C-Stick no longer also toggles fixed camera mode
+[Magus (1st set) and achilles (2nd set)]
+Version -- DOL Offset ------ Hex to Replace ---------- ASM Code
+1.00 ------ 0x067918 ---- 800D9368 -> 38000000 ---- (lwz r0,-27800(r13) -> li r0,0)
+1.00 ------ 0x02CC04 ---- 38000008 -> 38000000 ---- (li r0,8 -> li r0,0)
+
+1.01 ------ 0x067A28 ---- 800D9368 -> 38000000 ---- (lwz r0,-27800(r13) -> li r0,0)
+1.01 ------ 0x02CC84 ---- 38000008 -> 38000000 ---- (li r0,8 -> li r0,0)
+
+1.02 ------ 0x067A70 ---- 800D9368 -> 38000000 ---- (lwz r0,-27800(r13) -> li r0,0)
+1.02 ------ 0x02CC84 ---- 38000008 -> 38000000 ---- (li r0,8 -> li r0,0)
+
+PAL ------- 0x068154 ---- 800D9388 -> 38000000 ---- (lwz r0,-27768(r13) -> li r0,0)
+PAL ------- 0x02D1B0 ---- 38000008 -> 38000000 ---- (li r0,8 -> li r0,0)
+
+
+	-==-
+
+
+Debug Menu Default Language to English
+The default language in vanilla Melee is Japanese. As the name says, this changes it to English.
+(For PAL, you can edit the code in the text file library in the "Mods" folder to change what language this sets. The other options are UK English, German, French, Italian, or Spanish.)
+[SypherPhoenix]
+Version -- DOL Offset --- Hex to Replace
+1.00 ------ 0x3F53CB ------- 00 -> 01
+1.01 ------ 0x3F657B ------- 00 -> 01
+1.02 ------ 0x3F725B ------- 00 -> 01
+PAL ------- 0x3F8003 ------- 02 -> 01
+
+# Possible values:
+# 00 - Japanese
+# 01 - US English
+# 02 - UK English (PAL Only)
+# 03 - German (PAL Only)
+# 04 - French (PAL Only)
+# 05 - Italian (PAL Only)
+# 06 - Spanish (PAL Only)
+
+
+	-==-
+
+
+Go to the CSS when leaving Debug Menu
+This mod can be modified to go to other screens by modifying the last byte with a different ID.
+A list of different menu IDs can be found here: http://tinyurl.com/Menu-ID-Notes
+[Achilles]
+Version -- DOL Offset ------ Hex to Replace ---------- ASM Code
+1.02 ----- 0x1AD5F4 ---- 38600000 -> 38600002
+
+
+	-==-
+
+
+All Players Can Control the Debug Menu
+Hold R or use C-Stick for turbo speed through menu selections.
+[wParam]
+Version -- DOL Offset ------ Hex to Replace ---------- ASM Code
+1.02 ----- 0x803039A4 --- 3C80804C -> Branch
+
+39400000 39000000
+38E00008 3C80804C
+608420BC 1CAA0044
+7D242A14 80690008
+70631F10 7D081B78
+80690000 70600020
+41820008 38E00000
+5460C8C6 5060D884
+5060F002 7D080378
+54606006 7D080378
+54604007 4182000C
+38E00000 7D080378
+394A0001 2C0A0004
+4180FFA4 7500F000
+41820028 886DB7AC
+2C030000 41820014
+3863FFFF 986DB7AC
+5508013E 48000014
+98EDB7AC 4800000C
+38600000 986DB7AC
+7D034378 4E800020
+60000000 48000000
+
+
+	-==-
+
+
+[Debug Menus] Submenus Resemble Normal Menus
+[Dan Salvato]
+Version -- DOL Offset ------ Hex to Replace ---------- ASM Code
+1.02 ----- 0x80304254 --- 887F0000 -> 38600000
+1.02 ----- 0x8030425c --- 88A90004 -> 38A00006
+1.02 ----- 0x803030dc --- 80010058 -> 3C000000
+1.02 ----- 0x80303158 --- 80010050 -> 3C000000
+1.02 ----- 0x803031d4 --- 80010048 -> 3C000000
+1.02 ----- 0x80303244 --- 80010040 -> 3C000000
+
+
+	-==-
+
+
+Stale Moves in Develop Mode
+This leaves the DEBUG-ROM setting (3) to still not use stale moves.
+(Notes: http://smashboards.com/threads/melee-gecko-codes-guide-and-discussion.327311/page-31#post-18625334)
+[Magus]
+Version -- DOL Offset ------ Hex to Replace ---------- ASM Code
+1.02 ------ 0x85E34 ---- 48000030 -> 41820030
+1.01 ------ 0x85C74 ---- 48000030 -> 41820030
+1.00 ------ 0x85B8C ---- 48000030 -> 41820030
+PAL ------- 0x864EC ---- 48000030 -> 41820030
+
+
+	-==-
+
+
+Custom Hitbox ID Colors 
+[Achilles]
+1.02
+C2009F60 0000000A
+80030000 2C190000
+41820020 2C190001
+41820024 2C190002
+41820028 3CA000FF # <- ________ ____3333
+60A50080 48000024 # <- ____3333 ________
+3CA0FF00 60A50080 # <- ____0000 ____0000
+48000018 3CA0FF80 # <- ________ ____1111
+60A50080 4800000C # <- ____1111 ________
+3CA0FF00 60A5FF80 # <- ____2222 ____2222
+90AD8000 00000000
+
+# Customization:
+	# 0 = Hitbox0
+	# 1 = Hitbox1
+	# 2 = Hitbox2
+	# 3 = Hitbox3
+# Last byte for each of the colors is the alpha value (default = 0x80)
+
+
+	-==-
+
+
+Hitbox Displays Do Not Interpolate
+This removes the 1 frame "stretching" of a hitbox to its previous position.
+[Magus]
+Version -- DOL Offset ------ Hex to Replace ---------- ASM Code
+1.02 ------ 0x006BE8 ---- 80E300588003005C -> 80E3004C80030050
+1.02 ------ 0x006BF8 ---- 80030060 -> 80030054
+1.01 ------ 0x006BE8 ---- 80E300588003005C -> 80E3004C80030050
+1.01 ------ 0x006BF8 ---- 80030060 -> 80030054
+1.00 ------ 0x006BE8 ---- 80E300588003005C -> 80E3004C80030050
+1.00 ------ 0x006BF8 ---- 80030060 -> 80030054
+PAL ------- 0x006BE8 ---- 80E300588003005C -> 80E3004C80030050
+PAL ------- 0x006BF8 ---- 80030060 -> 80030054
+
+
+	-==-
+
+
+Unobscured Hitbox Display 1.2
+Prevent GFX from spawning during hitbox display.
+[Punkline, Achilles]
+Version -- DOL Offset ------ Hex to Replace ---------- ASM Code
+PAL ------- 0x5D080 ---- 7C0802A6 -> Branch
+
+2C040000 41820034
+A1640000 2C0B0006
+8164002C 40820014
+816B0518 2C0B0000
+41820018 816B002C
+896B21FC 2C0B0001
+41A20008 4E800020
+7C0802A6 00000000
+
+1.01 ------ 0x5C9A8 ---- 7C0802A6 -> Branch
+
+2C040000 41820034
+A1640000 2C0B0006
+8164002C 40820014
+816B0518 2C0B0000
+41820018 816B002C
+896B21FC 2C0B0001
+41A20008 4E800020
+7C0802A6 00000000
+
+1.02 ------ 0x5C9BC ---- 7C0802A6 -> Branch
+
+2C040000 41820034
+A1640000 2C0B0006
+8164002C 40820014
+816B0518 2C0B0000
+41820018 816B002C
+896B21FC 2C0B0001
+41A20008 4E800020
+7C0802A6 00000000
+
+1.00 ------ 0x5C898 ---- 7C0802A6 -> Branch
+
+2C040000 41820034
+A1640000 2C0B0006
+8164002C 40820014
+816B0518 2C0B0000
+41820018 816B002C
+896B21FC 2C0B0001
+41A20008 4E800020
+7C0802A6 00000000
+
+
+	-==-
+
+
+D-Pad Controls Damage
+[Dan Salvato]
+Version -- DOL Offset ------ Hex to Replace ---------- ASM Code
+1.02 ----- 0x8006D1EC --- 7C0802A6 -> Branch
+
+3DE08047 61EF9C3F
+8A0F0000 2C100000
+41A200D8 3E60805A
+62737000 3A400000
+2C100001 4082000C
+3E40FFFF 3E80BF80
+2C100002 4082000C
+3E400001 3E803F80
+2C100004 4082000C
+3E40FFF6 3E80C120
+2C100008 4082000C
+3E40000A 3E804120
+92530000 92930008
+3E000000 9A0F0000
+3E200000 3DE08045
+61EF30E0 820F0000
+7E109214 2C100000
+40800008 3A000000
+920F0000 39EF0E90
+3A310001 2C110004
+4180FFDC 3DE080BD
+61EFA4A0 81EF0000
+3E000000 C0130008
+C02F1890 EC21002A
+C0130004 FC010000
+4080000C D00F1890
+48000008 D02F1890
+81EF0008 2C0F0000
+41820008 4BFFFFCC
+7C0802A6 48000000
+
+
+	-==-
+
+
+Boot to In-Game v2
+Simple code for testing things out. Boots directly into a match with specified P1, P2, and stage, which can be changed by modifying the code.
+
+Character and Stage IDs are 'external' IDs; which you can find referenced here:
+https://docs.google.com/spreadsheets/d/1JX2w-r2fuvWuNgGb6D3Cs4wHQKLFegZe2jhbBuIhCG8/edit#gid=20
+<https://smashboards.com/threads/official-melee-texture-hack-thread.361190/post-21753098>
+[UnclePunch]
+Revision ---- DOL Offset ---- Hex to Replace ---------- ASM Code -
+NTSC 1.02 ---- 0x1A11A0 ----- 887E0000 -> 3860000E
+-------------- 0x1AE008 ----- 38800006 -> Branch
+
+3880000A 39C00002 # 0A byte = P1 Character
+99DC0063 00000000 # 02 byte = P1 color
+
+-------------- 0x1AE010 ----- 38000008 -> Branch
+
+3800000A 39C00002 # 0A byte = P2 Character
+99DC0087 00000000 # 02 byte = P2 color
+
+-------------- 0x16B3D4 ----- A07F000E -> 38600004  # Last byte = Stage ID
+
+
+	-==-
+
+
+Stages Have Magenta Background and No Textures
+Changes the color of the background color when all stage element rendering is turned off in debug mode. The magenta color can be changed to any RGB color, by modifying the code's "FF00FF" value.
+<https://smashboards.com/threads/the-complete-csp-compendium.380315/post-20845251>
+[Achilles]
+NTSC 1.02
+04452C70 FF00FF00
+04453000 00C40000
+
+
+	-==-
+
+
+Split Audio Channels 2.0
+This code splits the game music onto the left channel, and the game sounds onto right channel. Game must be set to Mono to take effect, stereo is preserved.
+<https://smashboards.com/threads/split-audio-channels.499408/>
+[UnclePunch]
+Revision ---- DOL Offset ---- Hex to Replace ---------- ASM Code -
+NTSC 1.02 --- 0x8038A984 ---- 807A000C -> Branch
+
+800DC0B4 2C000000
+40820034 887A000B
+2C030001 40820018
+38600000 B07F0228
+B07F0230 B07F0238
+48000014 38600000
+B07F0224 B07F022C
+B07F0234 807A000C
+389F0224 00000000
+
+------------- 0x8038A80C ---- 807A000C -> Branch
+
+800DC0B4 2C000000
+40820034 887A000B
+2C030001 40820018
+38600000 B07F0228
+B07F0230 B07F0238
+48000014 38600000
+B07F0224 B07F022C
+B07F0234 807A000C
+389F0224 00000000
+
+
+	-==-
+
+
+Enable OSReport Print on Crash
+Enables an on-screen crash printout (stack trace) in cases where the game crashes; very useful for debugging. If this mod is to be used, the External Frame Buffer (XFB) option in Dolphin should be enabled, and the Aux Code Regions in MCM's Code-Space Options should not be used (i.e. that region should be vanilla code). This mod will automatically be selected by default if it's found in your library. You may change this behavior by setting the "alwaysEnableCrashReports" option in the "settings.py" file to False.
+<https://smashboards.com/threads/enable-osreport-print-on-crash.456513/>
+[UnclePunch]
+Revision ---- DOL Offset ---- Hex to Replace ---------- ASM Code -
+NTSC 1.02 --- 0x80397878 ---- 801E0000 -> 4800020C
+NTSC 1.01 --- 0x80396B98 ---- 801E0000 -> 4800020C
+NTSC 1.00 --- 0x803959B4 ---- 801E0000 -> 4800020C
+PAL 1.00 ---- 0x803977A0 ---- 801E0000 -> 4800020C

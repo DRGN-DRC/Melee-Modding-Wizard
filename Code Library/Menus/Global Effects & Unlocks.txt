@@ -1,0 +1,321 @@
+
+
+16:9 Widescreen Support (Variation A)
+Includes the fullscreen flashing effect fix.
+This variation also fixes the position of magnifier bubbles, but also stretches the HUD.
+
+If using with Dolphin, you'll also need to change the setting, "Force 16:9" for the aspect ratio and make sure "Widescreen Hack" is OFF.
+
+See the notes in the link below for adjustments based on your display device:
+https://docs.google.com/document/d/1o_KEmsbKg4_qIm607FfewzIvChQYxayN4r1j3Uy6yX0/edit
+<https://smashboards.com/threads/16-9-widescreen-w-options-for-tv-monitor-dolphin.397929/>
+[Dan Salvato]
+Version -- DOL Offset ------ Hex to Replace ---------- ASM Code
+1.02 ----- 0x80021ABC --- 38600006 -> Branch
+
+39C00001 38600006
+60000000 48000000
+
+---------- 0x802F3980 --- 387F0000 -> Branch
+
+39C00001 387F0000
+60000000 48000000
+
+---------- 0x8036A4A8 --- C03F0034 -> Branch
+
+C03F0034 2C0E0001
+41820024 3C004080 # <- ____XXXX
+90010030 3C004040 # <- ____YYYY
+90010034 C0010030
+EC210032 C0010034
+EC210024 39C00000
+281E0000 48000000
+
+1.01 ------ 0x1E69C ---- 38600006 -> Branch
+
+39C00001 38600006
+60000000 48000000
+
+----------- 0x2EFAD8 --- 387F0000 -> Branch
+
+39C00001 387F0000
+60000000 48000000
+
+----------- 0x3663A8 ---- C03F0034 -> Branch
+
+C03F0034 2C0E0001
+41820024 3C004080 # <- ____XXXX
+90010030 3C004040 # <- ____YYYY
+90010034 C0010030
+EC210032 C0010034
+EC210024 39C00000
+281E0000 48000000
+
+1.00 ------ 0x1E61C ---- 38600006 -> Branch
+
+39C00001 38600006
+60000000 48000000
+
+----------- 0x2EEE8C --- 387F0000 -> Branch
+
+39C00001 387F0000
+60000000 48000000
+
+----------- 0x3651D4 ---- C03F0034 -> Branch
+
+C03F0034 2C0E0001
+41820024 3C004080 # <- ____XXXX
+90010030 3C004040 # <- ____YYYY
+90010034 C0010030
+EC210032 C0010034
+EC210024 39C00000
+281E0000 48000000
+
+PAL ------- 0x1EA34 ---- 38600006 -> Branch
+
+39C00001 38600006
+60000000 48000000
+
+----------- 0x2F0B54 --- 387F0000 -> Branch
+
+39C00001 387F0000
+60000000 48000000
+
+----------- 0x366F8C ---- C03F0034 -> Branch
+
+C03F0034 2C0E0001
+41820024 3C004080 # <- ____XXXX
+90010030 3C004040 # <- ____YYYY
+90010034 C0010030
+EC210032 C0010034
+EC210024 39C00000
+281E0000 48000000
+
+
+	-==-
+
+
+16:9 Widescreen Support (Variation B)
+Includes the fullscreen flashing effect fix.
+This variation also fixes the position of magnifier bubbles, but also stretches the HUD.
+
+If using with Dolphin, you'll also need to change the setting, "Force 16:9" for the aspect ratio and make sure "Widescreen Hack" is OFF.
+
+See the notes in the link below for adjustments based on your display device:
+https://docs.google.com/document/d/1o_KEmsbKg4_qIm607FfewzIvChQYxayN4r1j3Uy6yX0/edit
+[Dan Salvato]
+Version -- DOL Offset ------ Hex to Replace ---------- ASM Code
+1.02 ----- 0x80021ABC --- 38600006 -> Branch
+
+39C00001 38600006
+60000000 48000000
+
+1.02 ----- 0x802F3980 --- 387F0000 -> Branch
+
+39C00001 387F0000
+60000000 48000000
+
+1.02 ----- 0x8036A4A8 --- C03F0034 -> Branch
+
+C03F0034 2C0E0001
+41820024 3C004080 # <- ____XXXX
+90010030 3C004040 # <- ____YYYY
+90010034 C0010030
+EC210032 C0010034
+EC210024 39C00000
+281E0000 48000000
+
+1.01 ------ 0x1E69C ---- 38600006 -> Branch
+
+39C00001 38600006
+60000000 48000000
+
+----------- 0x3663A8 ---- C03F0034 -> Branch
+
+C03F0034 2C0E0001
+41820024 3C004080 # <- ____XXXX
+90010030 3C004040 # <- ____YYYY
+90010034 C0010030
+EC210032 C0010034
+EC210024 39C00000
+281E0000 48000000
+
+1.00 ------ 0x1E61C ---- 38600006 -> Branch
+
+39C00001 38600006
+60000000 48000000
+
+----------- 0x3651D4 ---- C03F0034 -> Branch
+
+C03F0034 2C0E0001
+41820024 3C004080 # <- ____XXXX
+90010030 3C004040 # <- ____YYYY
+90010034 C0010030
+EC210032 C0010034
+EC210024 39C00000
+281E0000 48000000
+
+PAL ------- 0x1EA34 ---- 38600006 -> Branch
+
+39C00001 38600006
+60000000 48000000
+
+----------- 0x366F8C ---- C03F0034 -> Branch
+
+C03F0034 2C0E0001
+41820024 3C004080 # <- ____XXXX
+90010030 3C004040 # <- ____YYYY
+90010034 C0010030
+EC210032 C0010034
+EC210024 39C00000
+281E0000 48000000
+
+
+	-==-
+
+
+Unlock All 293 Trophies 
+[Datel]
+1.02
+0245C390 00000125
+0245C395 01266363
+
+1.01 
+0245B6B0 00000125
+0245B6B5 01266363
+
+1.00
+0245A3C8 00000125
+0245A3CD 01266363
+
+
+	-==-
+
+
+Unlock Stage Select Upon Boot
+[Ato]
+1.00 ---- 0x15afac ---- 8803186c -> 3800000e
+1.02 ---- 0x15ba28 ---- 8803186c -> 3800000e
+
+
+	-==-
+
+
+Remove Special Messages
+- Gets rid of all those annoying messages that pop up if you used some DOL codes to unlock stuff. 
+[???]
+Version -- DOL Offset ------ Hex to Replace ---------- ASM Code
+1.02 ----- 0x001BC600 ----- 887f0004 -> Branch
+
+3E408045 6252C20C 
+3AA03940 B2B20000
+3AA00010 9AB20024 
+3AA00001 9AB20023
+3AA00080 9AB2001C 
+3DE08046 61EFAF5C
+3E00803F 6210A25C 
+39E00000 99F0008A
+887F0004 481BC310
+
+
+	-==-
+
+
+All 51 Event Matches Open but Not Complete
+(Completed event matches are read from the memory card, or from the current boot as normal.)
+[achilles]
+Version -- DOL Offset ------ Hex to Replace ----------
+1.02 ------ 0x249aa4 ---- 2c1f0005 -> 48000058 ----
+----------- 0x15fac8 ---- 4182000c -> 60000000 ----
+
+
+	-==-
+
+
+Disable Rumble When Controller is Unplugged
+If a player has rumble enabled and then takes his controller out, the next person who plugs into that slot will not have rumble enabled.
+[Dan Salvato]
+Version -- DOL Offset ------ Hex to Replace ---------- ASM Code
+1.02 ------ 0x373790 ---- 8081002C -> Branch
+
+3CC08045 60C6C380
+38800000 38A0000A
+39000000 7CE518AE
+2C0700FF 40820008
+7D0431AE 38840001
+38A5000C 2C040004
+4180FFE4 8081002C
+60000000 48000000
+
+
+	-==-
+
+
+Spoof Controller Plugin for P1
+Makes the game think that a controller is plugged in for player 1.
+[Achilles]
+Version -- DOL Offset ------ Hex to Replace ---------- ASM Code
+1.02 ------ 0x3737B4 ---- 80010040 -> 38000000
+1.01 ------ 0x372AD4 ---- 80010040 -> 38000000
+1.00 ------ 0x371900 ---- 80010040 -> 38000000
+PAL ------- 0x3736B8 ---- 80010040 -> 38000000
+
+
+	-==-
+
+
+Spoof Controller Plugin for P2
+Makes the game think that a controller is plugged in for player 2.
+[Achilles]
+Version -- DOL Offset ------ Hex to Replace ---------- ASM Code
+1.02 ------ 0x3737BC ---- 90030014 -> 38000000
+1.01 ------ 0x372ADC ---- 90030014 -> 38000000
+1.00 ------ 0x371908 ---- 90030014 -> 38000000
+PAL ------- 0x3736C0 ---- 90030014 -> 38000000
+
+
+	-==-
+
+
+Spoof Controller Plugin for P3
+Makes the game think that a controller is plugged in for player 3.
+[Achilles]
+Version -- DOL Offset ------ Hex to Replace ---------- ASM Code
+1.02 ------ 0x3737D0 ---- 8081004C -> 380000D8
+1.01 ------ 0x372AF0 ---- 8081004C -> 380000D8
+1.00 ------ 0x37191C ---- 8081004C -> 380000D8
+PAL ------- 0x3736D4 ---- 8081004C -> 380000D8
+
+
+	-==-
+
+
+Spoof Controller Plugin for P4
+Makes the game think that a controller is plugged in for player 4.
+[Achilles]
+Version -- DOL Offset ------ Hex to Replace ---------- ASM Code
+1.02 ------ 0x3737E4 ---- 80010058 -> 38000001
+1.01 ------ 0x372B04 ---- 80010058 -> 38000001
+1.00 ------ 0x371930 ---- 80010058 -> 38000001
+PAL ------- 0x3736E8 ---- 80010058 -> 38000001
+
+
+	-==-
+
+
+X + Y Disables Start
+Holding X + Y + Start on a Gamecube controller for two seconds forces the controller to reset itself, as if it were unplugged and plugged back in. This code will disable the Start button when X + Y is held. It is a game polish that allows the player to reset his/her controller without the game registering Start being pressed.
+<https://smashboards.com/threads/x-y-disables-start.399375/>
+[Dan Salvato]
+Revision ---- DOL Offset ---- Hex to Replace ---------- ASM Code -
+NTSC 1.02 --- 0x80376BB4 ---- 80010030 -> Branch
+
+38A00000 38C1002C
+1CE50008 7D07302E
+55090109 4182001C
+5509014B 41820014
+3D20EFFF 6129FFFF
+7D084838 7D07312E
+38A50001 2C050003
+4081FFD0 8081002C
+80010030 00000000

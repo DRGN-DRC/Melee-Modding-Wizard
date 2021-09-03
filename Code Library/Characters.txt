@@ -1,0 +1,913 @@
+Bowser - Flame Cancel
+Restores his Flame Cancel ability to as it was in v1.00.
+[Achilles]
+Version -- DOL Offset ------ Hex to Replace ---------- ASM Code
+1.02 ------ 0x132264 ---- 38800155 -> 38800156
+
+
+	-==-
+
+
+Captain Falcon - Raptor Boost Enters "Fall" Action!?
+For aerial hit and miss, and grounded Raptor Boost that travels offstage.
+FallSpecial is the "helpless" fall state.s
+[Achilles]
+Version -- DOL Offset ------ Hex to Replace ---------- ASM Code
+1.02 ------ 0xE05B0 ---- 4BFB2F31 -> 4BFE8D61
+----------- 0xE08B0 ---- 4BFB2C31 -> 4BFE8A61
+
+
+	-==-
+
+
+Captain Falcon - No Rapid Jabs
+[Achilles]
+Version -- DOL Offset ------ Hex to Replace ---------- ASM Code
+1.02 ------ 0xD376C ---- 7C0802A6 -> Branch
+
+81DE0064 2C0E0002
+40820008 4E800020
+7C0802A6 00000000
+
+
+	-==-
+
+
+Captain Falcon - No Rapid Jabs (CPU only)
+CPU Always Performs Gentleman
+[Achilles]
+Version -- DOL Offset ------ Hex to Replace ---------- ASM Code
+1.02 ----- 0x800D6B8C --- 7C0802A6  -> Branch
+
+89DE0678 1DCE0E90
+3DE08045 61EF3088
+7DEF702E 2C0F0001
+40820014 81DE0064
+2C0E0002 40820008
+4E800020 7C0802A6
+60000000 00000000
+
+
+	-==-
+!
+
+Donkey Kong - Giant Punch cannot be lost during Up+B
+[VietGeek]
+Version -- DOL Offset ------ Hex to Replace ---------- ASM Code
+1.00 ------ 0x10C18C ---- 9004222C -> 60000000 ---- (stw r0,8748(r4) -> nop)
+1.01 ------ 0x10C470 ---- 9004222C -> 60000000 ---- (stw r0,8748(r4) -> nop)
+1.02 ------ 0x10C6E4 ---- 9004222C -> 60000000 ---- (stw r0,8748(r4) -> nop)
+PAL ------- 0x10CE98 ---- 9004222C -> 60000000 ---- (stw r0,8748(r4) -> nop)
+
+
+	-==-
+
+
+DK Keeps Punch When Hit During Up B (Fixed)
+Should make his charge work as it does in the PAL version.
+<https://smashboards.com/threads/misc-character-codes.446554/post-21830983>
+[UnclePunch]
+Revision ---- DOL Offset ---- Hex to Replace ---------- ASM Code -
+NTSC 1.02 --- 0x8010FB68 ---- 900521DC -> 60000000
+------------- 0x8010FC48 ---- 900521DC -> 60000000
+
+
+	-==-
+
+
+DK - Always Full Giant Punch
+[Achilles]
+Version -- DOL Offset ------ Hex to Replace ---------- ASM Code
+1.02 ----- 0x8010D98C --- 40820010 -> 90A4002C
+
+
+	-==-
+
+
+Falco/Fox - Hold Z While *Aerial* Laser Emits to Fire at Half Speed
+[Achilles]
+Version -- DOL Offset ------ Hex to Replace ---------- ASM Code
+1.02 ----- 0x800E6908 --- 80BF001C -> Branch
+
+80BD065C 54A506F7
+41820014 3CA04000
+90A1FFF8 C1E1FFF8
+FC427824 80BF001C
+60000000 48000000
+
+
+	-==-
+
+
+Giga Bowser Can Be Grabbed
+[Achilles]
+Version -- DOL Offset ------ Hex to Replace ---------- ASM Code
+1.02 ----- 0x8014f704 --- 981F222A -> 60000000
+
+
+	-==-
+
+
+ICies - Solo Popo Up-B Gives Increased Vertical Velocity
+[Achilles]
+Version -- DOL Offset ------ Hex to Replace ---------- ASM Code
+1.02 ----- 0x80121E7C --- C00400A4 -> C004013C
+
+
+	-==-
+
+
+Luigi - Always Misfire
+[Achilles]
+Version -- DOL Offset ------ Hex to Replace ---------- ASM Code
+1.02 ------ 0x13F6DB ---- 00 -> 01
+
+
+	-==-
+
+
+Marth - Costume Dependent Marth Sword Swing Colors
+Color 1 of Marth's sword swing is changed on a per costume basis
+Blue costume [default] = Default swing color (teal)
+Red costume = Red swing color
+Green costume = Green swing color
+White costume = Light purple swing color
+Black costume = Gold swing color
+Code can be modified to change the colors to whatever you like (check the text file library for more notes).
+(Updated 4/29 with slightly shortened code.)
+[Achilles]
+Version -- DOL Offset ------ Hex to Replace ---------- ASM Code
+1.02 ----- 0x80136510 --- 94650008 -> Branch
+
+3DC0FF00 61CEFFFF
+7C007000 40820060
+39E5E181 89EF0000
+2C0F0001 40820010
+3C60FF00 6063BE0C
+3C001900 2C0F0002
+40820010 3C60FF00
+60638DD5 3C002E00
+2C0F0003 40820010
+3C60FF00 6063F7E1
+3C008300 2C0F0004
+40820010 3C60FF00
+60637D77 3C00C800
+6000FFFF 94650008
+60000000 48000000
+
+1.00 ----- 0x80135E98 --- 94650008 -> Branch
+
+3DC0FF00 61CEFFFF
+7C007000 40820060
+39E5E181 89EF0000
+2C0F0001 40820010
+3C60FF00 6063BE0C
+3C001900 2C0F0002
+40820010 3C60FF00
+60638DD5 3C002E00
+2C0F0003 40820010
+3C60FF00 6063F7E1
+3C008300 2C0F0004
+40820010 3C60FF00
+60637D77 3C00C800
+6000FFFF 94650008
+60000000 48000000
+
+PAL ------ 0x80136CB4 --- 94650008 -> Branch
+
+3DC0FF00 61CEFFFF
+7C007000 40820060
+39E5E181 89EF0000
+2C0F0001 40820010
+3C60FF00 6063BE0C
+3C001900 2C0F0002
+40820010 3C60FF00
+60638DD5 3C002E00
+2C0F0003 40820010
+3C60FF00 6063F7E1
+3C008300 2C0F0004
+40820010 3C60FF00
+60637D77 3C00C800
+6000FFFF 94650008
+60000000 48000000
+
+# How to change the colors to whatever you'd like:
+# 
+# 1) Get the RGB value of the color you would like (in format RRGGBB)
+# 2) Plug the values into the places for colors shown below:
+# 
+# 3DC0FF00 61CEFFFF
+# 7C007000 40820060
+# 39E5E181 89EF0000
+# 2C0F0001 40820010
+# 3C60FF00 6063RRGG // these RRGGBB values refer to Red Marth costume
+# 3C00BB00 2C0F0002 //
+# 40820010 3C60FF00
+# 6063RRGG 3C00BB00 // these RRGGBB values refer to Green Marth costume
+# 2C0F0003 40820010
+# 3C60FF00 6063RRGG // these RRGGBB values refer to Black Marth costume
+# 3C00BB00 2C0F0004 //
+# 40820010 3C60FF00
+# 6063RRGG 3C00BB00 // these RRGGBB values refer to White Marth costume
+# 6000FFFF 94650008
+# 60000000 00000000
+
+
+	-==-
+
+
+Mewtwo - Always Full Shadow Ball
+[Achilles]
+Version -- DOL Offset ------ Hex to Replace ---------- ASM Code
+1.02 ------ 0x141B70 ---- FC01000040820010 -> 89E2E42391E32234
+
+
+	-==-
+
+
+Mr. Game & Watch - N/B/U-Aerials L-Cancelable, w/ U-Air Lag Bug Fix
+[Magus]
+
+# Attack -- DOL Offset ------ Hex to Replace ---------- ASM Code
+# N-Air 
+1.00 ----- 0x147F98 ---- 3880015E -> 38800041 ---- (li r4,350 --> li r4,65)
+---------- 0x147FA4 ---- 80A3002C -> 90830070 ---- (lwz r5,44(r3) --> stw r4,112(r3))
+---------- 0x147FA8 ---- C02501F8 -> C0230258 ---- (lfs f1,504(r5) --> lfs f1,600(r3))
+---------- 0x147FAC ---- 4BF42095 -> 4BF41F89 ---- (bl 0x8008d460 --> bl 0x8008D354)
+# B-Air 
+---------- 0x148028 ---- 3880015F -> 38800043 ---- (li r4,351 --> li r4,67)
+---------- 0x148034 ---- 80A3002C -> 90830070 ---- (lwz r5,44(r3) --> stw r4,112(r3))
+---------- 0x148038 ---- C0250200 -> C0230260 ---- (lfs f1,512(r5) --> lfs f1,608(r3))
+---------- 0x14803C ---- 4BF42005 -> 4BF41EF9 ---- (bl 0x8008d460 --> bl 0x8008D354)
+# U-Air
+---------- 0x1480B8 ---- 38800160 -> 38800044 ---- (li r4,352 --> li r4,68)
+---------- 0x1480C4 ---- 80A3002C -> 90830070 ---- (lwz r5,44(r3) --> stw r4,112(r3))
+---------- 0x1480C8 ---- C0250200 -> C0230264 ---- (lfs f1,512(r5) --> lfs f1,612(r3))
+---------- 0x1480CC ---- 4BF41F75 -> 4BF41E69 ---- (bl 0x8008d460 --> bl 0x8008D354)
+
+
+# Attack -- DOL Offset ------ Hex to Replace ---------- ASM Code
+# N-Air 
+1.01 ----- 0x1483E8 ---- 3880015E -> 38800041 ---- (li r4,350 --> li r4,65)
+---------- 0x1483F4 ---- 80A3002C -> 90830070 ---- (lwz r5,44(r3) --> stw r4,112(r3))
+---------- 0x1483F8 ---- C02501F8 -> C0230258 ---- (lfs f1,504(r5) --> lfs f1,600(r3))
+---------- 0x1473FC ---- 4BF41D2D -> 4BF41C21 ---- (bl 0x8008d460 --> bl 0x8008D354)
+# B-Air 
+---------- 0x1484D0 ---- 3880015F -> 38800043 ---- (li r4,351 --> li r4,67)
+---------- 0x1484DC ---- 80A3002C -> 90830070 ---- (lwz r5,44(r3) --> stw r4,112(r3))
+---------- 0x1484E0 ---- C0250200 -> C0230260 ---- (lfs f1,512(r5) --> lfs f1,608(r3))
+---------- 0x1484E4 ---- 4BF41C45 -> 4BF41B39 ---- (bl 0x8008d460 --> bl 0x8008D354)
+# U-Air 
+---------- 0x1485B8 ---- 38800160 -> 38800044 ---- (li r4,352 --> li r4,68)
+---------- 0x1485C4 ---- 80A3002C -> 90830070 ---- (lwz r5,44(r3) --> stw r4,112(r3))
+---------- 0x1485C8 ---- C0250200 -> C0230264 ---- (lfs f1,512(r5) --> lfs f1,612(r3))
+---------- 0x1485CC ---- 4BF41B5D -> 4BF41A51 ---- (bl 0x8008d460 --> bl 0x8008D354)
+
+
+# Attack -- DOL Offset ------ Hex to Replace ---------- ASM Code
+# N-Air 
+1.02 ----- 0x1486DC ---- 3880015E -> 38800041 ---- (li r4,350 --> li r4,65)
+---------- 0x1486E8 ---- 80A3002C -> 90830070 ---- (lwz r5,44(r3) --> stw r4,112(r3))
+---------- 0x1486EC ---- C02501F8 -> C0230258 ---- (lfs f1,504(r5) --> lfs f1,600(r3))
+---------- 0x1486F0 ---- 4BF41BF9 -> 4BF41AED ---- (bl 0x8008d460 --> bl 0x8008D354)
+# B-Air 
+---------- 0x1487C4 ---- 3880015F -> 38800043 ---- (li r4,351 --> li r4,67)
+---------- 0x1487D0 ---- 80A3002C -> 90830070 ---- (lwz r5,44(r3) --> stw r4,112(r3))
+---------- 0x1487D4 ---- C0250200 -> C0230260 ---- (lfs f1,512(r5) --> lfs f1,608(r3))
+---------- 0x1487D8 ---- 4BF41B11 -> 4BF41A05 ---- (bl 0x8008d460 --> bl 0x8008D354)
+# U-Air 
+---------- 0x1488AC ---- 38800160 -> 38800044 ---- (li r4,352 --> li r4,68)
+---------- 0x1488B8 ---- 80A3002C -> 90830070 ---- (lwz r5,44(r3) --> stw r4,112(r3))
+---------- 0x1488BC ---- C0250200 -> C0230264 ---- (lfs f1,512(r5) --> lfs f1,612(r3))
+---------- 0x1488C0 ---- 4BF41A29 -> 4BF4191D ---- (bl 0x8008d460 --> bl 0x8008D354)
+
+
+# Attack -- DOL Offset ------ Hex to Replace ---------- ASM Code
+# N-Air 
+PAL ------ 0x148E80 ---- 3880015E -> 38800041 ---- (li r4,350 --> li r4,65)
+---------- 0x148E8C ---- 80A3002C -> 90830070 ---- (lwz r5,44(r3) --> stw r4,112(r3))
+---------- 0x148E90 ---- C02501F8 -> C0230258 ---- (lfs f1,504(r5) --> lfs f1,600(r3))
+---------- 0x148E94 ---- 4BF41B0D -> 4BF41A01 ---- (bl 0x8008d460 --> bl 0x8008D354)
+# B-Air 
+---------- 0x148F68 ---- 3880015F -> 38800043 ---- (li r4,351 --> li r4,67)
+---------- 0x148F74 ---- 80A3002C -> 90830070 ---- (lwz r5,44(r3) --> stw r4,112(r3))
+---------- 0x148F78 ---- C0250200 -> C0230260 ---- (lfs f1,512(r5) --> lfs f1,608(r3))
+---------- 0x148F7C ---- 4BF41A25 -> 4BF41919 ---- (bl 0x8008d460 --> bl 0x8008D354)
+# U-Air 
+---------- 0x149050 ---- 38800160 -> 38800044 ---- (li r4,352 --> li r4,68)
+---------- 0x14905C ---- 80A3002C -> 90830070 ---- (lwz r5,44(r3) --> stw r4,112(r3))
+---------- 0x149060 ---- C0250200 -> C0230264 ---- (lfs f1,512(r5) --> lfs f1,612(r3))
+---------- 0x149064 ---- 4BF4193D -> 4BF41831 ---- (bl 0x8008d460 --> bl 0x8008D354)
+
+
+	-==-
+
+
+Mr. Game and Watch - Always Specific Hammer Value
+Default is 9. Check the text file library to change this.
+(Notes: http://smashboards.com/threads/melee-gecko-codes-guide-and-discussion.327311/page-32#post-18703696)
+[Wooggle]
+Version -- DOL Offset ------ Hex to Replace ---------- ASM Code
+1.02 ----- 0x8014C760 --- 7FC3002E -> 3BC00008
+
+# To change the above code to give a different number (N), use '3BC0000X', where X = N - 1.
+
+
+	-==-
+
+
+3D Mr. Game and Watch
+Changes Mr. Game and Watch's model width from 0.01 to 1.
+[Achilles]
+1.02
+0414A410 C005048C
+
+
+	-==-
+
+
+Ness - PK Thunder Does Not Disappear on Hit or Death
+This is an SSBM v1.00 game mechanic that was changed in v1.02.
+[_glook]
+Version -- DOL Offset ------ Hex to Replace ---------- ASM Code
+1.02 ----- 0x802abcb0 --- 4BFFFC5D38600001 -> 4bfc748160000000
+
+
+	-==-
+
+
+Ness - PK Thunder and PK Flash Last Forever
+PK Thunder is still stopped when it hits something (either the ground or a character).
+[_glook]
+Version -- DOL Offset ------ Hex to Replace ---------- ASM Code
+1.02 ----- 0x80269528 --- 7C0802A6 -> 4E800020
+
+
+	-==-
+
+
+Peach - Break the Targets Turnip Pull Strategies - S1
+Peach will pull turnip/bomb/beam sword based on how many targets are left.
+3 different strategies available; this is Strategy 1: Beam Sword with 6 targets left.
+Peach will flash a color when pulling a coded turnip
+The color she flashes is based on the last action that caused a color tint on her (ex. parasol fastfall).
+[Achilles]
+Version -- DOL Offset ------ Hex to Replace ---------- ASM Code
+1.02 ----- 0x8011D0A4 --- 7FE6FB78 -> Branch
+
+3E608049 6273ED9D
+8A930000 2C140006
+4082001C 3E408045
+82523130 3A200091
+9A320564 38C0000C
+48000008 7FE6FB78
+60000000 48000000
+
+
+	-==-
+
+
+Peach - Break the Targets Turnip Pull Strategies - S2
+Peach will pull turnip/bomb/beam sword based on how many targets are left.
+3 different strategies available; this is Strategy 2: Bomb with 6 targets left, Beam Sword with 4 targets left
+Peach will flash a color when pulling a coded turnip.
+The color she flashes is based on the last action that caused a color tint on her (ex. parasol fastfall).
+[Achilles]
+Version -- DOL Offset ------ Hex to Replace ---------- ASM Code
+1.02 ----- 0x8011D0A4 --- 7FE6FB78 -> Branch
+
+3E608049 6273ED9D
+8A930000 2C140006
+4082000C 38C00006
+48000010 2C140004
+4082001C 38C0000C
+3E408045 82523130
+3A200091 9A320564
+48000008 7FE6FB78
+60000000 48000000
+
+
+	-==-
+
+
+Peach - Break the Targets Turnip Pull Strategies - S3
+Peach will pull turnip/bomb/beam sword based on how many targets are left.
+3 different strategies available; this is Strategy 3: Bomb with 6 or more targets left, Beam Sword with 4 targets left
+Peach will flash a color when pulling a coded turnip.
+The color she flashes is based on the last action that caused a color tint on her (ex. parasol fastfall).
+[Achilles]
+Version -- DOL Offset ------ Hex to Replace ---------- ASM Code
+1.02 ----- 0x8011D0A4 --- 7FE6FB78 -> Branch
+
+3E608049 6273ED9D
+8A930000 2C140006
+40800014 2C140004
+40820024 38C0000C
+48000008 38C00006
+3E408045 82523130
+3A200091 9A320564
+48000008 7FE6FB78
+60000000 48000000
+
+
+	-==-
+
+
+Peach - Always Pull Specific Turnip
+The default for this code is Stitch Face, but it can be changed to any of the turnips.
+Configurations:
+    uint8 Turnip Count = 0x7; 0-0x7 # Select your preferred vegetable features
+        0: 'Smile' # Optional comment/description
+        1: 'T Eyes'
+        2: 'Line Eyes'
+        3: 'Circle Eyes'
+        4: 'Upward Curve Eyes'
+        5: 'Wink'
+        6: 'Dot Eyes'
+        7: 'Stitch Face'
+[??]
+Version -- DOL Offset ------ Hex to Replace ---------- ASM Code
+1.02 ----- 0x802BD410 --- 7CC83378 -> 390000[[Turnip Count]]
+1.02 ----- 0x8011D090 --- 40820010 -> 48000010
+1.01 ----- 0x802BC988 --- 7CC83378 -> 390000[[Turnip Count]]
+1.01 ----- 0x8011CE04 --- 40820010 -> 48000010
+1.00 ----- 0x802BBDA0 --- 38C60001 -> 390000[[Turnip Count]]
+1.00 ------ 0x11CA54 ---- 7FE3FB78 -> 48000010
+
+
+	-==-
+
+
+Peach - Infinite Float
+[Achilles]
+Version -- DOL Offset ------ Hex to Replace ---------- ASM Code
+1.02 ----- 0x8011BBC4 --- C01E000CD01F2230 -> 3DE04A0091FF2230
+
+
+	-==-
+!
+
+Samus - Charge Shot cannot be lost during Up+B
+[VietGeek]
+Version -- DOL Offset ------ Hex to Replace ---------- ASM Code
+1.00 ------ 0x125818 ---- 901F2230 -> 60000000 ---- (stw r0,8752(r31) -> nop)
+1.01 ------ 0x125BC8 ---- 901F2230 -> 60000000 ---- (stw r0,8752(r31) -> nop)
+1.02 ------ 0x125EA4 ---- 901F2230 -> 60000000 ---- (stw r0,8752(r31) -> nop)
+PAL ------- 0x126648 ---- 901F2230 -> 60000000 ---- (stw r0,8752(r31) -> nop)
+
+
+	-==-
+
+
+Samus Keeps Charge Shot When Hit During Up B (Fixed)
+Should make her charge work as it does in the PAL version.
+<https://smashboards.com/threads/misc-character-codes.446554/post-21830983>
+[UnclePunch]
+Revision ---- DOL Offset ---- Hex to Replace ---------- ASM Code -
+NTSC 1.02 --- 0x8012A6B8 ---- 900521DC -> 60000000
+------------- 0x8012A784 ---- 900521DC -> 60000000
+
+
+	-==-
+
+
+Samus - Always Full Charge Shot
+Full charge shot blink is always on.
+Samus never enters "Charging" action state.
+[Achilles]
+Version -- DOL Offset ------ Hex to Replace ---------- ASM Code
+1.02 ----- 0x80128660 --- FC01000040820010 -> 81E4009C91E32230
+
+
+	-==-
+
+
+Samus - Always Have Extended Grapple
+[donny2122]
+Version -- DOL Offset ------ Hex to Replace ---------- ASM Code
+1.02 ----- 0x802B7D04 --- 881F2240 -> 38000004
+
+
+	-==-
+
+
+Falcon Punch Takes 2 Stocks
+[Todd Bonney]
+Version -- DOL Offset ------ Hex to Replace ---------- ASM Code
+1.02 ----- 0x80033D48 --- 9804008E  -> Branch
+
+81810014 816C1868
+814B0064 2C0A0002
+4082001C 2C030001
+41820014 814B20EC
+2C0A0012 40820008
+3803FFFE 9804008E
+60000000 00000000
+
+1.01 ----- 0x80033D48 --- 9804008E  -> Branch
+
+81810014 816C1868
+814B0064 2C0A0002
+4082001C 2C030001
+41820014 814B20EC
+2C0A0012 40820008
+3803FFFE 9804008E
+60000000 00000000
+
+1.00 ----- 0x80033D48 --- 7C0803A6  -> Branch
+
+81810014 816C1868
+814B0064 2C0A0002
+4082001C 2C030001
+41820014 814B20EC
+2C0A0012 40820008
+3803FFFE 9804008E
+60000000 00000000
+
+
+	-==-
+
+
+Fox/Falco - Fall Instead of FallSpecial after Side-B
+[Achilles]
+Version -- DOL Offset ------ Hex to Replace ---------- ASM Code
+1.02 ----- 0x800EA988 --- 4BFABF79 -> 4BFE1DA9
+
+
+	-==-
+
+
+GaW Modulo 10 Hammer
+GaW hammer number equals the rightmost digit of his current percent.
+<https://smashboards.com/threads/gaw-modulo-10-hammer.492028/>
+[UnclePunch]
+Revision ---- DOL Offset ---- Hex to Replace ---------- ASM Code -
+NTSC 1.02 --- 0x8014C784 ---- 8001007C -> Branch
+
+48000041 7C6802A6
+C03F1830 C0430000
+3D808036 618C4340
+7D8903A6 4E800421
+FC20081E D8210020
+80610024 2C030000
+41820018 3863FFFF
+907F222C 4800000C
+4E800021 41200000
+8001007C 00000000
+
+
+	-==-
+
+
+Fix Samus Extender Crash
+Disables extender grab box from appearing on problematic frames, which would otherwise cause a crash.
+<https://smashboards.com/threads/bug-fixes.471624/post-23238983>
+[UnclePunch]
+Revision ---- DOL Offset ---- Hex to Replace ---------- ASM Code -
+NTSC 1.02 --- 0x802B9D28 ---- 40820078 -> 48000078
+
+
+	-==-
+
+
+Ganon Float v1.0
+Features:
+
+-Applies only to Ganondorf.
+-Kills all vertical velocity.
+-Allows for aerial movement.
+-Can interrupt with jump or aerial attack starting on frame 13. Can also press down after frame 13 to start descending early.
+-Descends after 30 frames.
+-Landing goes to normal land.
+<https://smashboards.com/threads/ganon-float-v1-0.449465/>
+[UnclePunch]
+Revision ---- DOL Offset ---- Hex to Replace ---------- ASM Code -
+NTSC 1.02 --- 0x800E2C00 ---- 7C0802A6 -> Branch
+
+801F0004 2C000019
+4082002C 881F1969
+2C000001 40820008
+4E800020 38000000
+901F0084 38000030
+901F2354 38000001
+981F1969 7C0802A6
+60000000 00000000
+
+------------- 0x800E31F4 ---- 7C0802A6 -> Branch
+
+801E0004 2C000019
+40820014 3DC0800C
+61CECD78 7DC903A6
+4E800420 7C0802A6
+60000000 00000000
+
+------------- 0x800E2E3C ---- 7C0802A6 -> Branch
+
+801F0004 2C000019
+40820090 3821FFFC
+7FA802A6 83E3002C
+7C7E1B78 807F2354
+2C030000 4182000C
+3863FFFF 907F2354
+2C030017 40810008
+48000054 7FC3F378
+3DC08008 61CECD68
+7DC903A6 4E800421
+2C030001 41820038
+7FC3F378 3DC0800C
+61CEB870 7DC903A6
+4E800421 2C030001
+4182001C 89DF065D
+2C0E0002 40820010
+39C00000 91DF2354
+48000004 38210004
+7FA803A6 4E800020
+7C0802A6 00000000
+
+------------- 0x800E3018 ---- 7C0802A6 -> Branch
+
+801F0004 2C000019
+408200B8 3821FFFC
+7C0802A6 90010000
+83E3002C 7C7E1B78
+3BDF0110 881F221A
+7FE3FB78 5400EFFF
+41820018 3DC08007
+61CED4E4 7DC903A6
+4E800421 48000020
+C03E005C 7FE3FB78
+C05E0060 3DC08007
+61CED494 7DC903A6
+4E800421 7FE3FB78
+3DC08007 61CED268
+7DC903A6 4E800421
+801F2354 2C000000
+40820024 C1DF0084
+3DC03DA3 61CED70A
+91C1FFFC C1E1FFFC
+EDCE782A D1DF0084
+48000010 38600000
+907F0084 48000004
+80010000 7C0803A6
+38210004 4E800020
+7C0802A6 00000000
+
+
+
+	-==-
+
+
+Cannot Escape Kirby Throws
+<https://smashboards.com/threads/disable-escaping-from-kirby-throws-and-kirbycide.454066/post-22748043>
+[UnclePunch]
+Revision ---- DOL Offset ---- Hex to Replace ---------- ASM Code -
+NTSC 1.02 --- 0x800DE490 ---- 40820010 -> 48000010
+
+
+	-==-
+
+
+Link Shield Always Active
+<https://smashboards.com/threads/misc-character-codes.446554/post-21695173>
+[UnclePunch]
+Revision ---- DOL Offset ---- Hex to Replace ---------- ASM Code -
+NTSC 1.02 --- 0x80007C44 ---- 981F0004 -> 60000000
+------------- 0x8000A80C ---- 981D0004 -> 60000000
+------------- 0x8006A19C ---- 800100A4 -> Branch
+
+81DE002C 89CE0007
+2C0E0006 41820010
+2C0E0014 41820008
+48000018 7FC3F378
+3DC0800E 61CEB3BC
+7DC903A6 4E800421
+800100A4 00000000
+
+
+
+	-==-
+
+
+Link's Shield Reflects
+<https://smashboards.com/threads/misc-character-codes.446554/post-21695173>
+[UnclePunch]
+Revision ---- DOL Offset ---- Hex to Replace ---------- ASM Code -
+NTSC 1.02 --- 0x8000A9DC ---- 981D0004 -> 60000000
+------------- 0x800EB3EC ---- 4BF8FDCD -> Branch
+
+3881FFB0 38000044
+90040000 38000032
+90040004 C00298C8
+D0040008 C00298C8
+D004000C C00298C8
+D0040010 C00298CC
+D0040014 3C003F00
+90040018 C00298CC
+D004001C 81C3002C
+38000000 886E19E8
+50033E30 980E19E8
+38000000 90040020
+7FC3F378 3DC08007
+61CEB23C 7DC903A6
+4E800421 00000000
+
+
+
+	-==-
+
+
+Mash Firefox to Increase Length
+<https://smashboards.com/threads/misc-character-codes.446554/post-21695173>
+[UnclePunch]
+Revision ---- DOL Offset ---- Hex to Replace ---------- ASM Code -
+NTSC 1.02 --- 0x800E72B0 ---- 83E1002C -> Branch
+
+3DC03F7A 61CEE148
+91DF2354 83E1002C
+60000000 00000000
+
+------------- 0x800E733C ---- 80010034 -> Branch
+
+3DC03F7A 61CEE148
+91DF2354 80010034
+60000000 00000000
+
+------------- 0x800E73CC ---- 83E3002C -> Branch
+
+81DF0668 55CE05AD
+41820020 3DC03CA3
+61CED70A 91C1FFFC
+C1C1FFFC C1FF2354
+EDCE782A D1DF2354
+83E3002C 00000000
+
+------------- 0x800E736C ---- 83E3002C -> Branch
+
+81DF0668 55CE05AD
+41820020 3DC03CA3
+61CED70A 91C1FFFC
+C1C1FFFC C1FF2354
+EDCE782A D1DF2354
+83E3002C 00000000
+
+------------- 0x800E7D88 ---- C0040068 -> Branch
+
+C0040068 C1FD2354
+EC0003F2 00000000
+
+------------- 0x800E7DAC ---- C05F0074 -> Branch
+
+C05F0074 C1FD2354
+EC4203F2 00000000
+
+------------- 0x800E7DC8 ---- C01F0074 -> Branch
+
+C01F0074 C1FD2354
+EC0003F2 00000000
+
+
+
+	-==-
+
+
+Skip DK Down B Startup
+<https://smashboards.com/threads/misc-character-codes.446554/post-21699985>
+[UnclePunch]
+Revision ---- DOL Offset ---- Hex to Replace ---------- ASM Code -
+NTSC 1.02 --- 0x803C170C ---- 8010DC80 -> 8010de88
+
+
+	-==-
+
+
+DK Hold B for Down B
+<https://smashboards.com/threads/misc-character-codes.446554/post-21699985>
+[UnclePunch]
+Revision ---- DOL Offset ---- Hex to Replace ---------- ASM Code -
+NTSC 1.02 --- 0x8010DDE0 ---- 80030668 -> 80030660
+
+
+	-==-
+
+
+Bowser can mash for height during aerial upB
+<https://smashboards.com/threads/misc-character-codes.446554/post-21776218>
+[rmn]
+Revision ---- DOL Offset ---- Hex to Replace ---------- ASM Code -
+NTSC 1.02 --- 0x80135E34 ---- 80010024 -> Branch
+
+48000010 4E800021
+3F99999A 3FB33333
+801F0668 540005AD
+41A20024 4BFFFFE9
+7C8802A6 C0240000
+C0440004 3C008007
+6000D508 7C0903A6
+4E800421 80010024
+60000000 00000000
+
+
+
+	-==-
+
+
+Nana Respawns after 20 Seconds
+<https://smashboards.com/threads/sd-remix-3-2-full-lite-released.324620/post-21734645>
+[UnclePunch]
+Revision ---- DOL Offset ---- Hex to Replace ---------- ASM Code -
+NTSC 1.02 --- 0x8006CA5C ---- 7C0802A6 -> Branch
+
+89C30067 2C0E000B
+4082003C A1C30072
+2C0E000B 40820030
+39C00001 A1E30020
+7DCE7A14 B1C30020
+2C0E04B0 41800018
+39E00008 99E3227F
+3DE0800B 61EFFD9C
+91E32200 7C0802A6
+60000000 00000000
+
+------------- 0x800320E8 ---- 806300B0 -> Branch
+
+81C300B4 2C0E0000
+41820020 A1EE0020
+2C0F04B0 40820014
+39E00000 B1EE0020
+7DC37378 48000008
+806300B0 00000000
+
+------------- 0x800BFE48 ---- 889F221F -> Branch
+
+89DF0007 2C0E000B
+40820024 A1DF0012
+2C0E000B 40820018
+A1FFFFC0 2C0F04B0
+4082000C 38800001
+48000008 889F221F
+60000000 00000000
+
+------------- 0x800D4FF4 ---- 7C0802A6 -> Branch
+
+81C30064 2C0E000A
+40820010 81C30008
+39E00000 B1EE0020
+7C0802A6 00000000
+
+
+
+	-==-
+
+
+Captain Falcon/Ganondorf - Can Grab Ledge on Side-B
+[UnclePunch]
+Revision ---- DOL Offset ---- Hex to Replace ---------- ASM Code -
+NTSC 1.02 --- 0x800E3DFC ---- 8083002C -> Branch
+
+83E3002C 7FC3F378
+3DC0800E 61CE4D7C
+7DC903A6 4E800421
+7FC3F378 809E002C
+60000000 00000000
+
+
+
+	-==-
+
+
+Kirbys Taunt Without Ability Gives Random Ability (v1.1)
+Loads in all Kirby hats when Kirby is being played
+Load times are increased when Kirby is being played
+<https://smashboards.com/threads/kirbys-taunt-without-ability-gives-random-ability-v1-1.453155/>
+[UnclePunch]
+Revision ---- DOL Offset ---- Hex to Replace ---------- ASM Code -
+NTSC 1.02 --- 0x8016E18C ---- 2C1B0000 -> Branch
+
+9421FFBC BE810008
+7C0802A6 90010040
+7C7E1B78 3BE00000
+7FE3FB78 7FC4F378
+3D808003 618C1DA8
+7D8903A6 4E800421
+3BFF0001 2C1F001B
+4180FFE0 80010040
+7C0803A6 BA810008
+38210044 3D808016
+618CE1D4 7D8903A6
+4E800420 00000000
+
+------------- 0x800DEC2C ---- 387E0000 -> Branch
+
+807F2238 2C030004
+40820054 3860001B
+3D808038 618C0580
+7D8903A6 4E800421
+2C030004 4182FFE8
+2C03000B 4182FFE0
+7C641B78 7FC3F378
+38A00001 3D80800F
+618C1BAC 7D8903A6
+4E800421 3D80800D
+618CEC38 7D8903A6
+4E800420 387E0000
+60000000 00000000

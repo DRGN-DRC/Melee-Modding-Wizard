@@ -1,0 +1,292 @@
+Pokémon Stadium - Disable Stage Transformations
+[Zauron]
+Version -- DOL Offset ------ Hex to Replace ---------- ASM Code
+PAL ------- 0x1CFD4C ---- 48003135 -> 60000000
+1.01 ------ 0x1CDABC ---- 48002FA5 -> 60000000
+1.02 ------ 0x1CE128 ---- 48003001 -> 60000000
+1.00 ------ 0x1CD158 ---- 48002FA5 -> 60000000
+
+
+	-==-
+
+
+Dreamland - Disable Wind
+[Zauron]
+Version -- DOL Offset ------ Hex to Replace ---------- ASM Code
+1.00 ------ 0x20CF3C ---- 4800059C -> 60000000 ---- (b 0x59C -> nop)
+1.01 ------ 0x20D89C ---- 4800059C -> 60000000 ---- (b 0x59C -> nop)
+1.02 ------ 0x20E024 ---- 4800059C -> 60000000 ---- (b 0x59C -> nop)
+PAL ------- 0x20FE8C ---- 4800059C -> 60000000 ---- (b 0x59C -> nop)
+
+
+	-==-
+
+
+Dreamland - Disable Wind if P1's nametag is !WND
+[Wooggle]
+Version -- DOL Offset ------ Hex to Replace ---------- ASM Code 
+1.02 ------ 0x33950 ---- 3BE00000 -> Branch
+
+3E208021 62311444
+3E404800 6252059C
+92510000 3DC0EC0B
+61CE2020 3DE080BD
+61EF5D60 820F0000
+7C0E8000 40820034
+3DC00B20 61CE170B
+820F0004 7C0E8000
+40820020 3DC0200D
+61CE0F0D 820F0008
+7C0E8000 4082000C
+3E406000 92510000
+3BE00000 480338EC
+
+
+	-==-
+
+
+Yoshi's Story - Disable Shy Guy Spawns
+[Zauron]
+Version -- DOL Offset ------ Hex to Replace ---------- ASM Code
+1.00 ------ 0x1DEE64 ---- 480000D1 -> 60000000 ---- (bl 0xD0 -> nop)
+1.01 ------ 0x1DF7C8 ---- 480000D1 -> 60000000 ---- (bl 0xD0 -> nop)
+1.02 ------ 0x1DFF28 ---- 480000D1 -> 60000000 ---- (bl 0xD0 -> nop)
+PAL ------- 0x1E1D58 ---- 480000D1 -> 60000000 ---- (bl 0xD0 -> nop)
+
+
+	-==-
+
+
+Corneria - Disable Arwing Spawns
+[Zauron]
+Version -- DOL Offset ------ Hex to Replace ---------- ASM Code
+1.00 ------ 0x1D95FC ---- 4BFFF3D5 -> 60000000 ---- ()
+1.01 ------ 0x1D9F60 ---- 4BFFF3D5 -> 60000000 ---- ()
+1.02 ------ 0x1DA628 ---- 4BFFF3D5 -> 60000000 ---- ()
+PAL ------- 0x1DC438 ---- 4BFFF3D5 -> 60000000 ---- ()
+
+
+	-==-
+
+
+Corneria - Disable Great Fox's Gun (starts out dead)
+[Zauron]
+Version -- DOL Offset ------ Hex to Replace ---------- ASM Code
+1.02 ----- 0x801E1390 --- 40800018 -> 40800430
+1.00 ----- 0x801E035C --- 40800018 -> 40800430
+
+
+	-==-
+
+
+Brinstar - Disable Acid
+[Zauron]
+Version -- DOL Offset ------ Hex to Replace ---------- ASM Code
+1.00 ------ 0x1D5594 ---- 7C0802A6 -> 4E800020 ---- (mflr r0 -> blr)
+1.01 ------ 0x1D5EF8 ---- 7C0802A6 -> 4E800020 ---- (mflr r0 -> blr)
+1.02 ------ 0x1D65C0 ---- 7C0802A6 -> 4E800020 ---- (mflr r0 -> blr)
+PAL ------- 0x1D83D0 ---- 7C0802A6 -> 4E800020 ---- (mflr r0 -> blr)
+
+
+	-==-
+
+
+Mute City - Racers on longer affect the match
+[??]
+Version -- DOL Offset ------ Hex to Replace ---------- ASM Code
+1.02 ------ 0x1ECD68 ---- 480018AD -> 60000000
+
+
+	-==-
+
+
+Fountain of Dreams - Remove Side Platforms
+- Removes (Disable) the Side Platforms
+- Disables the Water Jets
+[Zauron]
+Version -- DOL Offset ------ Hex to Replace ---------- ASM Code
+1.00 ------ 0x1C84C4 ---- 801B0014 -> 4800013C ---- (lwz r0,20(r27) -> b 0x13C)
+----------- 0x1C84BC ---- EC0007FA -> FC000028 ---- (fmadds f0,f0,f31,f0 -> fsub f0,f0,f0)
+
+1.01 ------ 0x1CDABC ---- 801B0014 -> 4800013C ---- (lwz r0,20(r27) -> b 0x13C)
+----------- 0x1C8E20 ---- EC0007FA -> FC000028 ---- (fmadds f0,f0,f31,f0 -> fsub f0,f0,f0)
+
+1.02 ------ 0x1C9494 ---- 801B0014 -> 4800013C ---- (lwz r0,20(r27) -> b 0x13C)
+----------- 0x1C948C ---- EC0007FA -> FC000028 ---- (fmadds f0,f0,f31,f0 -> fsub f0,f0,f0)
+
+PAL ------- 0x1CB0B8 ---- 801B0014 -> 4800013C ---- (lwz r0,20(r27) -> b 0x13C)
+----------- 0x1CB0B0 ---- EC0007FA -> FC000028 ---- (fmadds f0,f0,f31,f0 -> fsub f0,f0,f0)
+
+
+	-==-
+
+
+Peach's Castle - Disable Switches and Bullet Bills
+[Zauron]
+Version -- DOL Offset ------ Hex to Replace ---------- ASM Code
+1.00 ------ 0x1C94D8 ---- 48001FA1 -> 4800000C ---- (bl 0x1FA0 -> b 0x0C)
+1.01 ------ 0x1C9E3C ---- 48001FA1 -> 4800000C ---- (bl 0x1FA0 -> b 0x0C)
+1.02 ------ 0x1CA4A8 ---- 48001FA1 -> 4800000C ---- (bl 0x1FA0 -> b 0x0C)
+PAL ------- 0x1CC0CC ---- 48001FA1 -> 4800000C ---- (bl 0x1FA0 -> b 0x0C)
+
+
+	-==-
+
+
+Green Greens - Disable Initial Bricks on Green Greens
+[Zauron]
+Version -- DOL Offset ------ Hex to Replace ---------- ASM Code
+1.02 ----- 0x802146EC --- 4800046D -> 60000000
+1.00 ----- 0x80213434 --- 4800046D -> 60000000
+
+
+	-==-
+
+
+Green Greens - Disable Falling Bricks
+[Zauron]
+Version -- DOL Offset ------ Hex to Replace ---------- ASM Code
+1.02 ----- 0x80216B24 --- 4BFFF3B5 -> 60000000
+1.00 ----- 0x8021586C --- 4BFFF3B5 -> 60000000
+
+
+	-==-
+
+
+Green Greens - Disable Whispy Woods (Wind & Apples)
+[Zauron]
+Version -- DOL Offset ------ Hex to Replace ---------- ASM Code
+1.00 ------ 0x20F538 ---- 7C0802A6 -> 4E800020 ---- (mflr r0 -> blr)
+1.01 ------ 0x210068 ---- 7C0802A6 -> 4E800020 ---- (mflr r0 -> blr)
+1.02 ------ 0x2107F0 ---- 7C0802A6 -> 4E800020 ---- (mflr r0 -> blr)
+PAL ------- 0x1EB0C8 ---- 7C0802A6 -> 4E800020 ---- (mflr r0 -> blr)
+
+
+	-==-
+
+
+Snag the Trophies (FigureGet) - Disable Trophy Spawn
+Prevents the stage from freezing the game outside of 1P mode.
+[wParam]
+Version -- DOL Offset ------ Hex to Replace ---------- ASM Code
+1.02 ----- 0x802199FC --- 480D8699 -> 60000000
+
+
+	-==-
+
+
+Final Destination - Disable Background Transitions
+[Achilles, Dan Salvato]
+Version -- DOL Offset ------ Hex to Replace ---------- ASM Code
+1.02 ----- 0x8021AAE4 --- 48000805 -> 60000000
+PAL ------ 0x8021C998 --- 48000805 -> 60000000
+
+
+	-==-
+
+
+Rainbow FD
+The stage's edges & highlights continually change colors.
+(From the 20XX Pack)
+[Achilles]
+Version -- DOL Offset ------ Hex to Replace ---------- ASM Code
+1.02 ------ 0x16CDF4 ---- 38600000  -> Branch
+
+3DC08048 89CE0687
+2C0E0020 408200FC
+3A200000 3DC080C2
+61CEE244 8A4E0003
+2C120002 41820024
+2C120003 41820034
+3A400001 89EE0000
+2C0F00FF 41820064
+3A000001 480000AC
+3A400002 8DEE0001
+2C0F00FF 41820074
+3A000001 48000094
+3A400003 8DEE0002
+2C0F00FF 4182000C
+3A00FFFE 4800007C
+89EEFFFF 2C0F0000
+41820014 39EFFFFF
+99EEFFFF 99EE0FFF
+48000078 3A400001
+9A4E0001 4800006C
+89EE0002 2C0F0000
+41820014 39EFFFFF
+99EE0002 99EE1002
+48000050 3A400002
+9A4E0003 48000044
+89EEFFFF 2C0F0000
+41820014 39EFFFFF
+99EEFFFF 99EE0FFF
+48000028 3A400003
+9A4E0002 4800001C
+39EF0001 99EE0000
+99EE1000 7DCE8214
+9A2E0000 9A2E1000
+38030001 00000000
+
+
+	-==-
+
+
+Disable All-Star Heal Portal from Ending Match
+[Achilles]
+Version -- DOL Offset ------ Hex to Replace ---------- ASM Code
+1.02 ----- 0x8021f474 --- 7C0802A6 -> 4E800020
+
+
+	-==-
+
+
+Break the Targets - Disable Targets and/or Flippers
+[Achilles]
+Version -- DOL Offset ------ Hex to Replace ---------- ASM Code
+1.02 ----- 0x801C4210 --- 7C0802A6 -> 4E800020 # TargetTest_SpawnTargets
+---------- 0x801C42AC --- 7C0802A6 -> 4E800020 # TargetTest_SpawnFlippers
+
+
+	-==-
+
+
+Disable FD Background
+Removes background graphics and animations on Final Destination.
+[Achilles]
+Revision ---- DOL Offset ---- Hex to Replace ---------- ASM Code -
+NTSC 1.02 ---- 0x2175A4 ----- 7C0802A6 -> 4E800020
+
+
+	-==-
+
+
+Disable Homerun Timer
+Stops the match timer from initializing during Homerun Contest
+<https://smashboards.com/threads/remove-time-limit-in-homerun-contest.444928/post-21625615>
+[Punkline]
+Version -- DOL Offset ------ Hex to Replace ---------- ASM Code
+1.02 ----- 0x801b9ab8 --- 53E70FBC -> 60000000
+---------- 0x801b9acc --- 53E73E30 -> 60000000
+1.01 ----- 0x801B9534 --- 53E70FBC -> 60000000
+---------- 0x801B9548 --- 53E73E30 -> 60000000
+1.00 ----- 0x801B8DE8 --- 53E70FBC -> 60000000
+---------- 0x801B8DFC --- 53E73E30 -> 60000000
+PAL ------ 0x801BB624 --- 53E70FBC -> 60000000
+---------- 0x801BB638 --- 53E73E30 -> 60000000
+
+
+	-==-
+
+
+Break the Targets Intangibility Glitch Fix
+Fixes glitch that causes player to not receive intangibility after quitting Adventure Mode while the stage was transformed
+<https://smashboards.com/threads/bug-fixes.471624/post-23834249>
+[UnclePunch]
+Revision ---- DOL Offset ---- Hex to Replace ---------- ASM Code -
+NTSC 1.02 --- 0x801B65AC ---- 9003000C -> Branch
+
+9003000C 3C608046
+6063B488 388001C0
+3D808000 618CC160
+7D8903A6 4E800421
+60000000 00000000

@@ -36,3 +36,636 @@ PAL ------- 0x1BE160 ---- 887F0004 -> 38600002 ---- (lbz r3,4(r31) -> li r0,2)
 
 
 	-==-
+
+
+Jump From Opening Movie to CSS
+Pressing Start at the opening movie sends you to the CSS instead of the title screen.
+[Starreaver1]
+Version -- DOL Offset ------ Hex to Replace ---------- ASM Code
+1.02 ----- 0x001a7204 ---- 38600000 -> 38600002
+
+
+	-==-
+
+
+Pressing Start at the title screen boots directly to the CSS
+[Starreaver1]
+Version -- DOL Offset ------ Hex to Replace ---------- ASM Code
+1.02 ----- 0x001AD554 ---- 48000014 -> Branch
+
+3C602802 60632D00
+90640000 481AC7DC
+
+
+	-==-
+
+
+!
+
+## I believe this version has bugs, which is why it's disabled 
+## and there's a newer injection mod version.
+
+
+Player Hands Default to HMN Button 
+[achilles]
+Version -- DOL Offset ------ Hex to Replace ---------- ASM Code
+1.02 ----- 0x00435e5c ---- C1AC0000 -> C0200000
+
+
+	-==-
+
+
+Players Can Choose the Same Costume Color for the Same Character
+[achilles and Starreaver1]
+Version -- DOL Offset ------ Hex to Replace ----------
+1.02 ------ 0x25ce2c ----- 4082000c -> 4800000c ----
+----------- 0x25a6f4 ----- 4082000c -> 4800000c ----
+----------- 0x25cd5c ----- 4082000c -> 4800000c ----
+
+
+	-==-
+
+
+Disable Name Tag Reset After Closing Character Port
+(Unknown difference to v2; needs testing)
+[Ato]
+Version -- DOL Offset ------ Hex to Replace ---------- ASM Code
+1.02 ------ 0x261b1c ---- C00300F0 -> 60000000
+1.02 ------ 0x261b30 ---- 4180FE38 -> 60000000
+1.01 ------ 0x261380 ---- C00300F0 -> 60000000
+1.01 ------ 0x261394 ---- 4180FE38 -> 60000000
+1.00 ------ 0x260810 ---- D017000C -> 60000000
+1.00 ------ 0x260824 ---- 3C608036 -> 60000000
+PAL ------- 0x2622c8 ---- 3BDC0438 -> 60000000
+PAL ------- 0x2622dc ---- 3A833B5C -> 60000000
+
+
+	-==-
+
+
+Disable Name Tag Reset After Closing Character Port (v2)
+On the CSS, name tags normally switch back to the default character name after closing and reopening a port, and KO stars would also disappear. This mod prevents that.
+[Ato]
+Version -- DOL Offset ------ Hex to Replace ---------- ASM Code
+1.02 ----- 0x80261B1C --- 98A4007A -> 60000000
+1.02 ----- 0x80261B30 --- 98A4001B -> 60000000
+1.01 ----- 0x80261380 --- 98A4007A -> 60000000
+1.01 ----- 0x80261394 --- 98A4001B -> 60000000
+1.00 ----- 0x80260810 --- 98A4007A -> 60000000
+1.00 ----- 0x80260824 --- 98A4001B -> 60000000
+PAL ------ 0x802622C8 --- 98A4007A -> 60000000
+PAL ------ 0x802622DC --- 98A4001B -> 60000000
+
+
+	-==-
+
+
+Disable Name Tag Reset After Exiting Character Select Screen
+Also prevents KO counts from resetting.
+[Todd Bonney]
+Version -- DOL Offset ------ Hex to Replace ---------- ASM Code
+1.02 ----- 0x801A55EC --- 7C0802A6 -> 4E800020
+
+
+	-==-
+
+
+Zelda is Permanently Sheik at CSS
+Selecting Zelda will have the player start the match as Sheik.
+Announcer even says "Sheik"!
+[Achilles]
+Version -- DOL Offset ------ Hex to Replace ---------- ASM Code
+1.02 ----- 0x803F0CC8 --- 12120100 -> 12130200
+
+
+	-==-
+
+
+D-Pad Down at CSS (Vs. Mode) Loads Rumble Select Screen
+[Achilles]
+Version -- DOL Offset ------ Hex to Replace ---------- ASM Code
+1.02 ------ 0x25FE30 ---- 880DB652 -> Branch
+
+3DE08047 61EF9D30
+89EF0000 2C0F0002
+40820044 39E00050
+7DE903A6 3E008048
+621007B4 3E208045
+6231AC4C 85F00004
+95F10004 4200FFF8
+54E0077B 41820018
+3DE0803F 3A000001
+9A0F0A47 3A000002
+9A0DB656 880DB652
+60000000 48000000
+
+1.02 ------ 0x229D1C ---- 546006F7 -> Branch
+
+3DE0803F 8A0F0A47
+2C100001 4082001C
+3A000000 9A0F0A47
+3DE08022 61EFD610
+7DE903A6 4E800421
+546006F7 48000000
+
+1.02 ------ 0x22A1A0 ---- 546006F7 -> Branch
+
+3DE0803F 89EF0A47
+2C0F0001 40820014
+3DE08022 61EFD190
+7DE903A6 4E800421
+546006F7 48000000
+
+
+	-==-
+
+
+Change Rumble Settings from CSS - Color Mod
+Pressing Up/Down on the D-Pad while at the CSS (only in versus mode) will set the Rumble settings for that slot to On/Off.
+Colored CSP background is modified ---> White = Rumble On, Grey = Rumble Off
+[Sham Rock]
+Version -- DOL Offset ------ Hex to Replace ---------- ASM Code
+1.02 ----- 0x8026304C --- 8803000E -> Branch
+
+8803000E 3DC08045
+61CEC380 3DE08046
+61EFB0FC 3A800000
+860F000C 56110319
+41820010 3A200001
+9A2E0000 48000014
+5611035B 4182000C
+3A200000 9A2E0000
+3A940001 39CE0001
+2C140004 41A0FFCC
+39CEFFFB 3E401919
+62521900 3E00804C
+2C140004 40820008
+621024EC 2C140005
+40820008 62102458
+2C140006 40820008
+62102558 2C140007
+40820008 621024C4
+2C140005 41810008
+82100000 82100000
+82100000 82100008
+82100018 82100008
+8210001C 82100004
+82100008 8E2E0001
+2C110001 40820010
+3E20EEEE 6231EE00
+4800000C 3E205555
+62315500 92300000
+92500004 3A940001
+2C140008 41A0FF70
+60000000 48000000
+
+1.00 ----- 0x80261D40 --- 8803000E -> Branch
+
+8803000E 3DC08045
+61CEA3B8 3DE08046
+61EF9134 3A800000
+860F000C 56110319
+41820010 3A200001
+9A2E0000 48000014
+5611035B 4182000C
+3A200000 9A2E0000
+3A940001 39CE0001
+2C140004 41A0FFCC
+39CEFFFB 3E401919
+62521900 3E00804C
+2C140004 40820008
+62100390 2C140005
+40820008 621002FC
+2C140006 40820008
+621003FC 2C140007
+40820008 62100368
+2C140005 41810008
+82100000 82100000
+82100000 82100008
+82100018 82100008
+8210001C 82100004
+82100008 8E2E0001
+2C110001 40820010
+3E20EEEE 6231EE00
+4800000C 3E205555
+62315500 92300000
+92500004 3A940001
+2C140008 41A0FF70
+60000000 48000000
+
+PAL ------ 0x802637F8 --- 8803000E -> Branch
+
+8803000E 3DC08044
+61CED188 3DE08045
+61EFBF04 3A800000
+860F000C 56110319
+41820010 3A200001
+9A2E0000 48000014
+5611035B 4182000C
+3A200000 9A2E0000
+3A940001 39CE0001
+2C140004 41A0FFCC
+39CEFFFB 3E401919
+62521900 3E00804B
+2C140004 40820008
+6210354C 2C140005
+40820008 621034B8
+2C140006 40820008
+621035B8 2C140007
+40820008 62103524
+82100000 82100000
+82100000 82100008
+82100018 82100008
+8210001C 82100004
+82100008 8E2E0001
+2C110001 40820010
+3E20EEEE 6231EE00
+4800000C 3E205555
+62315500 92300000
+92500004 3A940001
+2C140008 41A0FF78
+60000000 48000000
+
+
+	-==-
+
+
+!
+
+Change Rumble Settings from CSS - Default Color
+Pressing Up/Down on the D-Pad while at the CSS (only in versus mode) will set the Rumble settings for that slot to On/Off.
+With this version of the code, the CSP background color is not modified.
+[Sham Rock]
+Version -- DOL Offset ------ Hex to Replace ---------- ASM Code
+1.02 ----- 0x8026304C --- 48101B2D -> Branch
+
+8803000E 3DC08045
+61CEC380 3DE08046
+61EFB0FC 3A800000
+860F000C 56110319
+41820010 3A200001
+9A2E0000 48000014
+5611035B 4182000C
+3A200000 9A2E0000
+3A940001 39CE0001
+2C140004 41A0FFCC
+60000000 48000000
+
+
+	-==-
+
+
+Dpad up/down toggles rumble on CSS
+[Dan Salvato]
+1.02
+C22608D8 00000019
+887F0007 2C030000
+40820070 7C972378
+57800739 40820010
+5780077B 40820034
+4800009C 7EE3BB78
+38800000 38A0000E
+38C00000 38ED9950
+3D808037 618C8430
+7D8903A6 4E800421
+38800001 48000008
+38800000 7EE3BB78
+3D808015 618CED4C
+7D8903A6 4E800421
+38800001 989F0007
+3C80C040 909F0014
+C03F0014 C0428E0C
+C01F000C EC01002A
+D01F000C FC600850
+FC030840 41810008
+EC6300B2 D07F0014
+4180001C C0828258
+FC032040 41810010
+38800000 909F0014
+989F0007 889F0004
+60000000 00000000
+
+
+	-==-
+
+
+Rumble when character is selected
+[Dan Salvato]
+1.02
+C2260C3C 00000008
+7E639B78 800D8840
+7C801A14 88841CC0
+2C040000 41820024
+38800000 38A0000E
+38C00000 38ED9950
+3D808037 618C8430
+7D8903A6 4E800421
+880DB655 00000000
+C2260A58 00000008
+7E639B78 800D8840
+7C801A14 88841CC0
+2C040000 41820024
+38800000 38A0000E
+38C00000 38ED9950
+3D808037 618C8430
+7D8903A6 4E800421
+38000005 00000000
+
+
+	-==-
+
+
+Ignore Nametag Rumble Setting
+[Dan Salvato]
+NTSC 1.02
+04167810 60000000
+
+
+	-==-
+
+
+"Random" Always Selects Specific Character
+The default character for this is Captain Falcon. Check the notes with the mod in the Mods Library to change this.
+[Jorgasms]
+Version -- DOL Offset ------ Hex to Replace ---------- ASM Code
+1.02 ----- 0x8025fb74 --- 48120A0D -> 38600007
+
+# To change this mod to use a different character, change 
+# the 07 portion of the new hex above to a number between 
+# 0x0 and 0x18 (0-24), which corresponds to the 25
+# character icons on the CSS (in order from top left to 
+# bottom right).
+
+
+	-==-
+
+
+Hold L+R+A+Start During Stage Load to Return to the CSS
+In vanilla Melee, this button combination loads the Main Menu.
+[Jorgasms]
+Version -- DOL Offset ------ Hex to Replace ---------- ASM Code
+1.02 ----- 0x8025b8bc --- 38600001 -> 38600002
+
+
+	-==-
+
+
+CSS Hands Default to HMN Button
+(With double bug fix)
+[achilles]
+Version -- DOL Offset ------ Hex to Replace ---------- ASM Code
+1.02 ----- 0x804dc47c --- C1AC0000 -> c0200000
+1.02 ----- 0x80261a6c --- 1C130024 -> Branch
+
+89FF0005 2C0F0002
+40820014 3DE08026
+61EF1B6C 7DE903A6
+4E800420 1C130024
+60000000 00000000
+
+
+	-==-
+
+
+D-Pad Up (Any Player) Force Loads Stage Select Screen
+This is available for more game versions with the Gecko code variation.
+[Achilles]
+Version -- DOL Offset ------ Hex to Replace ---------- ASM Code
+1.02 ------ 0x3737F4 ---- 887F0000 -> Branch
+
+3E40804D 8AB26CF2
+2C15000A 40820034
+3E608046 6273B0FD
+3A200000 3A310001
+8E93000C 2C140008
+41820010 2C110004
+41A0FFEC 4800000C
+3A100001 9A126CF6
+887F0000 00000000
+
+
+	-==-
+
+
+D-Pad Up (Any Player Port) at Character Select Screen Brings Up Stage Select Screen
+- This lets you play versus matches with only one character (just make sure you are doing a timed match, otherwise it will end immediately)
+- This only works when the "Ready to Fight" banner is not on the screen
+- If no characters are chosen and the game is started, it will freeze
+- If at least one character is chosen and there is another human slot opened up but with no character chosen, Master Hand will show up as their character (game must be quit out of or it will freeze at winner's screen)
+- If you are using Sham Rock's code to skip results screen, it will NOT freeze
+(Code for v1.02 has been commented out; it's recommended to use the injection mod variation of this mod instead.)
+[Achilles]
+
+## 1.02 ## This is commented out to encourage using the injection variation; saving space.
+## 284D6CF2 00FF0A00
+## 2846B108 00000008
+## 004D6CF6 00000001
+## 2846B115 00000008
+## 004D6CF6 00000001
+## 2846B121 00000008
+## 004D6CF6 00000001
+## 2846B12D 00000008
+## 004D6CF6 00000001
+## E2000002 00000000
+
+1.01
+284D5FD2 00FF0A00
+2846A428 00000008
+004D5FD6 00000001
+2846A435 00000008
+004D5FD6 00000001
+2846A441 00000008
+004D5FD6 00000001
+2846A44D 00000008
+004D5FD6 00000001
+E2000002 00000000
+
+1.00
+284D4B72 00FF0A00
+28469140 00000008
+004D4B76 00000001
+2846914D 00000008
+004D4B76 00000001
+28469159 00000008
+004D4B76 00000001
+28469165 00000008
+004D4B76 00000001
+E2000002 00000000
+
+PAL
+284C800A 00FF0A00
+2845BF10 00000008
+004C800E 00000001
+2845BF1D 00000008
+004C800E 00000001
+2845BF29 00000008
+004C800E 00000001
+2845BF35 00000008
+004C800E 00000001
+E2000002 00000000
+
+
+	-==-
+
+
+D-Pad Down at Vs. Mode CSS Loads Rumble Select Screen
+[Achilles]
+1.02
+C2263250 0000000C
+3DE08047 61EF9D30
+89EF0000 2C0F0002
+40820044 39E00050
+7DE903A6 3E008048
+621007B4 3E208045
+6231AC4C 85F00004
+95F10004 4200FFF8
+54E0077B 41820018
+3DE0803F 3A000001
+9A0F0A47 3A000002
+9A0DB656 880DB652
+60000000 00000000
+C222D13C 00000006
+3DE0803F 8A0F0A47
+2C100001 4082001C
+3A000000 9A0F0A47
+3DE08022 61EFD610
+7DE903A6 4E800421
+546006F7 00000000
+C222D5C0 00000005
+3DE0803F 89EF0A47
+2C0F0001 40820014
+3DE08022 61EFD190
+7DE903A6 4E800421
+546006F7 00000000
+
+
+	-==-
+
+
+Disable Back Button on CSS
+[Achilles]
+Version -- DOL Offset ------ Hex to Replace ---------- ASM Code
+1.02 ----- 0x802612AC --- 980DB656 -> 60000000
+
+
+	-==-
+
+
+Disable Hold B to Return to Menus from CSS
+[Achilles]
+Version -- DOL Offset ------ Hex to Replace ---------- ASM Code
+1.02 ----- 0x80260700 --- 980DB656 -> 60000000
+
+
+	-==-
+
+
+Hold Start to Force SSS - Deluxe Edition
+Force moving from the Character Select Screen to the Stage Select Screen.
+
+Even works in 1P mode.
+[Achilles]
+1.02
+C2262614 00000017
+3C60801A 60634340
+7C6803A6 3C608048
+88639D30 4E800021
+2C030001 41820090
+3DE08043 61EF2087
+3A000006 3A200000
+7E0903A6 8E0F0008
+2C100021 41820008
+3A310001 4200FFF0
+2C110000 41820060
+38ADB4EF 38800004
+7C8903A6 8C850001
+2C040078 41800044
+2C110001 40820034
+3C808046 8884BF12
+2C040001 40820024
+38600000 98650000
+3C608002 60634030
+7C6803A6 38600003
+4E800021 48000010
+3A200001 9A2DB656
+4200FFB4 BA6100B4
+60000000 00000000
+
+
+	-==-
+
+
+Display Time at Top Right of CSS (v1.1)
+Shows the current IRL time on the Character Select Screen.
+<https://smashboards.com/threads/display-time-at-top-right-of-css-1-1.450591/>
+[UnclePunch]
+Revision ---- DOL Offset ---- Hex to Replace ---------- ASM Code -
+NTSC 1.02 --- 0x8025C00C ---- 80010014 -> Branch
+
+2C05004C 4082000C
+3863FFDE 48000008
+38600000 9062FDB0
+80010014 00000000
+
+------------- 0x8026339C ---- 8001001C -> Branch
+
+8062FDB0 2C030000
+4182017C 3DC08000
+61CEAFBC 7DC903A6
+4E800421 38810014
+3DC08016 61CE92E8
+7DC903A6 4E800421
+38810014 48000125
+7CC802A6 88640004
+2C03000C 4080000C
+38A00000 4800000C
+3863FFF4 38A00001
+2C03000A 41800010
+3863FFF6 38E02001
+48000024 2C030000
+40820018 2C050000
+40820010 38E02001
+38600002 48000008
+38E02000 B0E60018
+38E00020 98E6001A
+9866001B 88640005
+2C030009 4081002C
+2C030013 4081002C
+2C03001D 40810030
+2C030027 40810034
+2C030031 40810038
+2C03003B 4081003C
+38E02000 4800003C
+38E02001 3863FFF6
+48000030 38E02002
+3863FFEC 48000024
+38E02003 3863FFE2
+48000018 38E02004
+3863FFD8 4800000C
+38E02005 3863FFCE
+B0E6001E 38E00020
+98E60020 98660021
+2C050000 4082000C
+38E0200A 48000008
+38E02019 B0E60022
+8062FDB0 7CC43378
+38A00028 3DC08000
+61CE31F4 7DC903A6
+4E800421 48000030
+4E800021 201C2037
+20322026 202E2036
+20EC1A1A 1A1A1A1A
+1A1A1A1A 20002008
+20E92004 20052019
+20160000 8001001C
+60000000 00000000
+
+
+	-==-
+
+
+No Delay on Start at CSS
+<https://smashboards.com/threads/no-delay-on-pressing-start-at-css-and-sss.448419/>
+[UnclePunch]
+Version -- DOL Offset ------ Hex to Replace ---------- ASM Code
+1.02 ------ 0x260D90 ---- 3800001E -> 38000001
