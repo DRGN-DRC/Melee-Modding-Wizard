@@ -182,6 +182,33 @@ def openFolder( folderPath ):
 		os.startfile( normedPath )
 	else: 
 		msg( 'Could not find this folder: \n\n' + normedPath )
+		
+
+# def openFolder( folderPath, fileToSelect='' ): # Slow function, but cannot select files
+# 	folderPath = os.path.abspath( folderPath ) # Turns relative to absolute paths, and normalizes them (switches / for \, etc.)
+
+# 	if os.path.exists( folderPath ):
+# 		if fileToSelect: # Slow method, but can select/highlight items in the folder
+# 			if not os.path.exists( folderPath + '\\' + fileToSelect ):
+# 				print( 'Could not find this file: \n\n' + fileToSelect )
+# 				return
+
+# 			command = '"C:\\Windows\\explorer.exe" /select, \"{}\\{}\"'.format( folderPath, fileToSelect )
+
+# 			try:
+# 				outputStream = subprocess.check_output(command, shell=False, stderr=subprocess.STDOUT, creationflags=0x08000000) # shell=True gives access to all shell features.
+# 			except subprocess.CalledProcessError as error:
+# 				outputStream = str(error.output)
+# 				if len(outputStream) != 0:
+# 					exitCode = str(error.returncode)
+# 					print( 'IPC error: \n\n' + outputStream + '\n\nErrorlevel ' + exitCode )
+# 			except Exception as generalError:
+# 					print( 'IPC error: \n\n' + generalError )
+
+# 		else: # Fast method, but cannot select files
+# 			os.startfile( folderPath )
+
+# 	else: print( 'Could not find this folder: \n\n' + folderPath )
 
 
 def createFolders( folderPath ):
