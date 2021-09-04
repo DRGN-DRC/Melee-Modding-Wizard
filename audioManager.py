@@ -692,7 +692,11 @@ class AudioManager( ttk.Frame ):
 
 		# Display the result in the info pane
 		if not primaryReferences and not secondaryReferences:
-			self.referencesList['text'] = 'Not referenced by any stage files.'
+			if musicFile.isHexTrack and globalData.disc.dol.major < 5:
+				self.referencesList['text'] = ( 'Not referenced by any stage files.\n\nVersions of 20XX HP before v5.0.0 cannot '
+												'assign Hex Tracks to stages without the use of an in-game playlist.' )
+			else:
+				self.referencesList['text'] = 'Not referenced by any stage files.'
 		elif len( primaryReferences ) + len( secondaryReferences ) == 1:
 			if primaryReferences:
 				self.referencesList['text'] = 'Only found as a primary reference with ' + primaryReferences[0]
@@ -1143,16 +1147,9 @@ class AudioEngine( object ):
 		self.playbackAllowed.set()
 		self.exitAudioThread.clear()
 
-		# Highlight this song in the Audio Manager, if it's open
-		try:
-			# Remove any existing tags, and add the new one
-			fileTree = globalData.gui.audioManagerTab.fileTree
-			tracksPlaying = fileTree.tag_has( 'playing' )
-			for iid in tracksPlaying:
-				fileTree.removeTag( iid, 'playing' )
-			isoPath = '{}/audio/{}'.format( globalData.disc.gameId, fileObj.filename )
-			fileTree.addTag( isoPath, 'playing' )
-		except: pass
+		# Highlight this song in the Audio Manager, if it's open. 
+		# This should queue after any 'removal' from a stopping existing thread
+		globalData.gui.root.after_idle( self.showNowPlaying, fileObj.filename )
 
 		# Play the audio clip in a separate thread so that it's non-blocking
 		# (Yes, pyaudio has a "non-blocking" way for playback already, but that 
@@ -1190,8 +1187,8 @@ class AudioEngine( object ):
 
 	def done( self, event ):
 
-		""" Called after the audio thread has completed, but by the GUI's 
-			mainloop (after other idle tasks) and not the audio playback thread. """
+		""" Called after the audio playback thread has completed, but by the 
+			GUI's mainloop (after other idle tasks) and not the audio thread. """
 
 		if self.callback:
 			try:
@@ -1199,12 +1196,29 @@ class AudioEngine( object ):
 			except: pass
 
 		# Remove 'now playing' highlighting in the Audio Manager, if it's open
+		self.showNowPlaying()
+
+	def showNowPlaying( self, newTrack='' ):
+
+		""" Updates the 'now playing' highlighting in the Audio Manager tab. 
+			If this is called from a stopping thread in order to start a new 
+			piece of audio, the .start method will queue another call to this 
+			method, which will trigger after all idle tasks have been processed, 
+			and after the stopping thread's triggering of the .done method. """
+
 		try:
+			# Remove 'now playing' highlighting from all items that may have it
 			fileTree = globalData.gui.audioManagerTab.fileTree
 			tracksPlaying = fileTree.tag_has( 'playing' )
 			for iid in tracksPlaying:
 				fileTree.removeTag( iid, 'playing' )
-		except: pass
+
+			# Show now playing for one new item
+			if newTrack:
+				isoPath = '{}/audio/{}'.format( globalData.disc.gameId, newTrack )
+				fileTree.addTag( isoPath, 'playing' )
+		except:
+			pass
 
 	def reset( self ):
 
