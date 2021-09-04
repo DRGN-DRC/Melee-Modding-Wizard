@@ -1457,7 +1457,7 @@ class DiscMenu( Tk.Menu, object ):
 		if self.selectionCount == 1:
 		 	self.add_command( label='Import File', underline=0, command=self.discTab.importSingleIsoFile )								# I
 		# self.add_command( label='Import Multiple Files', underline=7, command=importMultipleIsoFiles )								# M
-		# self.add_separator()
+		self.add_separator()
 
 		# Add supplemental disc functions
 		self.add_command( label='Add File(s) to Disc', underline=0, command=self.addFilesToIso )										# A
@@ -1467,7 +1467,7 @@ class DiscMenu( Tk.Menu, object ):
 		 	if self.selectionCount == 1:
 
 				if self.entity == 'file':
-					self.add_command( label='Rename Disc File Name', underline=2, command=self.renameFilesystemEntry )					# N
+					self.add_command( label='Rename Disc Filesystem Name', underline=2, command=self.renameFilesystemEntry )					# N
 
 					if self.fileObj.__class__.__name__ == 'StageFile' and self.fileObj.isRandomNeutral():
 						self.add_command( label='Rename Stage Description (in CSS)', underline=2, command=self.renameDescription )		# N

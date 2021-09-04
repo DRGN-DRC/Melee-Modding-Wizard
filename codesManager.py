@@ -128,7 +128,7 @@ class CodeManagerTab( ttk.Frame ):
 		# Prevent focus on the tabs themselves (prevents appearance of selection box)
 		# currentTab = globalData.gui.root.nametowidget( self.codeLibraryNotebook.select() )
 		# currentTab.focus()
-		print 'tab changed; called with event:', (event)
+		print 'tab changed; called with event:', event
 		#time.sleep(2)
 
 		# Remove existing ModModules, and only add those for the currently selected tab
@@ -142,7 +142,7 @@ class CodeManagerTab( ttk.Frame ):
 
 	def emptyModsPanels( self, notebook=None ):
 
-		""" Destroys all GUI elements (ModModules) for all Mod Library tabs. """
+		""" Destroys all GUI elements (ModModules) for all Code Library tabs. """
 
 		root = globalData.gui.root
 
@@ -158,6 +158,8 @@ class CodeManagerTab( ttk.Frame ):
 					childWidget.destroy()
 			else:
 				self.emptyModsPanels( tabWidget )
+		
+		self.lastTabSelected = None # Allows the next onTabChange to proceed if this was called independently of it
 
 	def createModModules( self, currentTab ):
 

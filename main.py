@@ -332,14 +332,14 @@ class ToolsMenu( Tk.Menu, object ):
 		if not assetTest:
 			msg( 'Unable to find the Asset Test mod in the Core Codes library!', warning=True )
 			return
-		assetTest.customize( "Player 1 Character", selectionWindow.charId )
-		assetTest.customize( "P1 Costume ID", selectionWindow.costumeId )
-		# assetTest.customize( "Player 2 Character", selectionWindow.charId )
-		# assetTest.customize( "P2 Costume ID", selectionWindow.costumeId )
+		assetTest.configure( "Player 1 Character", selectionWindow.charId )
+		assetTest.configure( "P1 Costume ID", selectionWindow.costumeId )
+		# assetTest.configure( "Player 2 Character", selectionWindow.charId )
+		# assetTest.configure( "P2 Costume ID", selectionWindow.costumeId )
 		if selectionWindow.charId == 0x13: # Special case for Sheik (for different lighting direction)
-			assetTest.customize( "Stage", 3 ) # Selecting Pokemon Stadium
+			assetTest.configure( "Stage", 3 ) # Selecting Pokemon Stadium
 		else:
-			assetTest.customize( "Stage", 32 ) # Selecting FD
+			assetTest.configure( "Stage", 32 ) # Selecting FD
 		codesToInstall.append( assetTest )
 
 		# Customize Enter Action State On Match Start
@@ -347,8 +347,8 @@ class ToolsMenu( Tk.Menu, object ):
 		if not actionStateStart:
 			msg( 'Unable to find the Enter Action State On Match Start mod in the Core Codes library!', warning=True )
 			return
-		actionStateStart.customize( 'Action State ID', actionState )
-		actionStateStart.customize( 'Start Frame', targetFrameFloat )
+		actionStateStart.configure( 'Action State ID', actionState )
+		actionStateStart.configure( 'Start Frame', targetFrameFloat )
 		codesToInstall.append( actionStateStart )
 		
 		# Customize Action State Freeze
@@ -356,8 +356,8 @@ class ToolsMenu( Tk.Menu, object ):
 		if not actionStateFreeze:
 			msg( 'Unable to find the Action State Freeze mod in the Core Codes library!', warning=True )
 			return
-		actionStateFreeze.customize( 'Action State ID', actionState )
-		actionStateFreeze.customize( 'Frame ID', targetFrameId )
+		actionStateFreeze.configure( 'Action State ID', actionState )
+		actionStateFreeze.configure( 'Frame ID', targetFrameId )
 		codesToInstall.append( actionStateFreeze )
 
 		# Restore the disc's DOL data to vanilla and then install the necessary codes

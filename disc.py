@@ -2477,8 +2477,8 @@ class Disc( object ):
 		
 		# Set allocation configurations on the mod
 		try:
-			mallocMod.customize( 'Reservation Size', reservationSize )
-			mallocMod.customize( 'Reservation Location', reservationLocation )
+			mallocMod.configure( 'Reservation Size', reservationSize )
+			mallocMod.configure( 'Reservation Location', reservationLocation )
 		except Exception as err:
 			msg( 'Unable to install {}; {}'.format(mallocMod.name, err) )
 			return
@@ -2697,7 +2697,7 @@ class MicroMelee( Disc ):
 	# 	# Customize the code mod to load the given stage
 	# 	assetTest = parser.getModByName( 'Asset Test' )
 	# 	if assetTest:
-	# 		return assetTest.getCustomization( "Stage" )
+	# 		return assetTest.getConfiguration( "Stage" )
 	# 	else:
 	# 		printStatus( 'Unable to find the Asset Test mod in the Core Codes library!', warning=True )
 	# 		return -1
@@ -2737,7 +2737,7 @@ class MicroMelee( Disc ):
 		if not assetTest:
 			msg( 'Unable to find the Asset Test mod in the Core Codes library!', warning=True )
 			return
-		assetTest.customize( "Stage", externalStageId )
+		assetTest.configure( "Stage", externalStageId )
 		codesToInstall.append( assetTest )
 		
 		# Add Enable OSReport Print on Crash, if enabled
@@ -2758,7 +2758,7 @@ class MicroMelee( Disc ):
 		# Check if we can enable audio (if the music file is present)
 		# musicFile = self.getMusicFile( songId )
 		# if musicFile:
-		# 	assetTest.customize( "Stage", externalStageId )
+		# 	assetTest.configure( "Stage", externalStageId )
 
 		# Restore the DOL's data to vanilla and then install the necessary codes
 		self.restoreDol()
@@ -2796,8 +2796,8 @@ class MicroMelee( Disc ):
 		if not assetTest:
 			msg( 'Unable to find the Asset Test mod in the Core Codes library!', warning=True )
 			return
-		assetTest.customize( "Player 1 Character", charObj.extCharId )
-		assetTest.customize( "P1 Costume ID", charObj.getCostumeId() )
+		assetTest.configure( "Player 1 Character", charObj.extCharId )
+		assetTest.configure( "P1 Costume ID", charObj.getCostumeId() )
 		codesToInstall.append( assetTest )
 
 		# Restore the DOL's data to vanilla and then install the necessary codes
