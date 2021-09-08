@@ -94,3 +94,25 @@ A20F0894 2C10[[Frame ID]]
 81EF0008 2C0F0000
 40A2FFD0 9421FFD0
 48000000
+
+
+	-==-
+
+
+Debug Menu replaces Tournament Mode
+- Selecting Tournament Melee in the main menu takes you to the Debug Menu instead
+- Selecting Single Button Mode takes you to the Tournament Melee mode instead
+(Concomitant Graphical Mod Here: http://smashboards.com/threads/326347/page-3#post-15738900)
+[Magus, donny2112, SypherPhoenix]
+Version -- DOL Offset ------ Hex to Replace ---------- ASM Code 
+1.00 ------ 0x228F20 ---- 3800001B -> 38000006 ---- (li r0,27 -> li r0,6)
+----------- 0x227F2C ---- 3800002C -> 3800001B ---- (li r0,44 -> li r0,27)
+
+1.01 ------ 0x229A90 ---- 3800001B -> 38000006 ---- (li r0,27 -> li r0,6)
+----------- 0x228A9C ---- 3800002C -> 3800001B ---- (li r0,44 -> li r0,27)
+
+1.02 ------ 0x22A218 ---- 3800001B -> 38000006 ---- (li r0,27 -> li r0,6)
+----------- 0x229224 ---- 3800002C -> 3800001B ---- (li r0,44 -> li r0,27)
+
+PAL ------- 0x22C084 ---- 3800001E -> 38000006 ---- (li r0,30 -> li r0,6)
+----------- 0x22B08C ---- 3800002F -> 3800001E ---- (li r0,74 -> li r0,30)

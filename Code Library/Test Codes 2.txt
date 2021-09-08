@@ -15,6 +15,43 @@ bl <TEST_Func>
 	-==-
 
 
+Peach - Always Pull Specific Turnip
+The default for this code is Stitch Face, but it can be changed to any of the turnips.
+Configurations:
+    float Turnip Count Float TEST = 0x7; 0-0x7 # Select your preferred vegetable features
+        0: 'Smile' # Optional comment/description
+        1: 'T Eyes'
+        2: 'Line Eyes'
+        3: 'Circle Eyes'
+        4: 'Upward Curve Eyes'
+        5: 'Wink'
+        6: 'Dot Eyes'
+        7: 'Stitch Face'
+    uint8 Turnip Count = 0x7; 0-0x7 # Select your preferred vegetable features
+        0: Smile # Optional comment/description
+        1: T Eyes
+        2: Line Eyes
+        3: Circle Eyes
+        4: Upward Curve Eyes
+        5: Wink
+        6: Dot Eyes
+        7: Stitch Face
+    uint32 TEST_uint32_range = 5; 0-10
+    float TEST_float = 10 # This is a float
+    int16 TEST_uint32 = 75
+[??]
+Version -- DOL Offset ------ Hex to Replace ---------- ASM Code
+1.02 ----- 0x802BD410 --- 7CC83378 -> 390000[[Turnip Count]]
+1.02 ----- 0x8011D090 --- 40820010 -> 48000010
+1.01 ----- 0x802BC988 --- 7CC83378 -> 390000[[Turnip Count]]
+1.01 ----- 0x8011CE04 --- 40820010 -> 48000010
+1.00 ----- 0x802BBDA0 --- 38C60001 -> 390000[[Turnip Count]]
+1.00 ------ 0x11CA54 ---- 7FE3FB78 -> 48000010
+
+
+	-==-
+
+
 testcode
 testDesc
 [Punkline]

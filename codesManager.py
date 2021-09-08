@@ -960,66 +960,119 @@ class ModModule( Tk.Frame, object ):
 
 class CodeConfigWindow( BasicWindow ):
 
+	""" Provides a user interface (a new window, created by clicking on a mod config buttton) 
+		for viewing or changing a mod's configuration options. """
+
 	def __init__( self, mod ):
-		super( CodeConfigWindow, self ).__init__( globalData.gui.root, mod.name + ' - Configuration' )
 
-		self.mod = mod
-
-		# configurations = []
-		# for optionName, optionDict in mod.configurations.items():
-		# 	if 'hidden' in optionDict:
-
-		ttk.Label( self.window, text='Select an option to configure.' ).pack( pady=(8, 0), padx=12 )
-		
-		ttk.Separator( self.window, orient='horizontal' ).pack( pady=8, ipadx=120 )
-
-		# Add rows for each option to be displayed
-		validationCommand = globalData.gui.root.register( self.validateEntry )
+		# Check for non-hidden configuration options
+		configurations = []
 		for optionName, optionDict in mod.configurations.items():
 			if 'hidden' in optionDict:
 				continue
+			else:
+				configurations.append( (optionName, optionDict) )
 
+		# Just give a message to the user and exit if there are no public configurations
+		if not configurations:
+			msg( "All of this mod's configuration options are hidden."
+				 "\nYou'll need to view the mod's source to edit or unhide them.", 'All Options are Hidden' )
+			return
+
+		# Found some public config options; create the configuration window
+		super( CodeConfigWindow, self ).__init__( globalData.gui.root, mod.name + ' - Configuration', resizable=True, minsize=(400, 70) )
+
+		windowWidth = 550
+		separatorWidth = 400
+		verticalPadding = ( 8, 0 )
+		ipadx = ( separatorWidth / 2 ) - 1
+		separatorPadding = ( windowWidth - (ipadx * 2) - 2 ) / 2
+		framePadding = separatorPadding + 20
+
+		self.mod = mod
+
+		#ttk.Label( self.window, text='Select an option to configure.' ).pack( pady=verticalPadding, padx=12 )
+		
+		ttk.Separator( self.window, orient='horizontal' ).pack( pady=(verticalPadding[0]*3, 0), ipadx=ipadx, padx=separatorPadding )
+
+		validationCommand = globalData.gui.root.register( self.validateEntry )
+		#optionsFrame = VerticalScrolledFrame( self.window )
+
+		# Add rows for each option to be displayed
+		for optionName, optionDict in configurations:
 			# Check the type and data width
 			optType = optionDict.get( 'type' )
 			optWidth = self.getOptionWidth( optType )
 			members = optionDict.get( 'members' ) # A list of lists
 
-			# Add the mod name
-			optFrame = ttk.Frame( self.window )
+			# Add the option name
+			optFrame = Tk.Frame( self.window, background='red' )
 			optFrame.optDict = optionDict
-			ttk.Label( optFrame, text=mod.name ).pack( side='left' )
+			ttk.Label( optFrame, text=optionName ).pack( side='left' )
 
 			# Add a control widget
 			#if len( members ) == 2 and : # Create an On/Off toggle
-			if members: # Create a dropdown
+			if members: # Create a dropdown menu
 				if optType == 'float':
 					dropdownVar = Tk.DoubleVar()
 				else:
 					dropdownVar = Tk.IntVar()
-				dropdown = ttk.OptionMenu( optFrame, dropdownVar, optionDict['value'], *members )
-				dropdown.pack( side='right' )
 
-			elif 'range' in optionDict: # Create a slider and connected value entry
-				start, end = optionDict['range']
-				slider = ttk.Scale( transparencyPane, from_=start, to=end, command=self.rangeOptionUpdated )
-				slider.pack( side='right' )
+				# Format options for the dropdown
+				#options = [ '{} | {}'.format(name, value) if ]
+				options = []
+				for opt in members:
+					if len( opt ) == 2 or opt[-1] == '': 
+						# No comment available; format as 'Value | Name'
+						options.append( '{}  |    {}'.format(opt[1], opt[0]) )
+					else:
+						# Format as 'Value | Name (Comment)'
+						comment = opt[2].lstrip( '# ' )
+						options.append( '{}  |    {} ({})'.format(opt[1], opt[0], comment) )
+
+				inputWidget = ttk.OptionMenu( optFrame, dropdownVar, optionDict['value'], *options )
+
+			# elif 'range' in optionDict: # Create a slider and connected value entry
+			# 	inputWidget = DisguisedEntry( optFrame, width=optWidth*2+2, validate='key', validatecommand=(validationCommand, '%P') )
+			# 	inputWidget.pack( side='right' )
+			# 	inputWidget.insert( 0, optionDict['value'] )
+
+			# 	start, end = optionDict['range']
+			# 	inputWidget = ttk.Scale( optFrame, from_=start, to=end, command=self.rangeOptionUpdated )
 
 			elif optType == 'float': # Create float value entry
-				entry = DisguisedEntry( optFrame, width=6, validate='key', validatecommand=(validationCommand, '%P') )
-				entry.pack( side='right' )
-				entry.insert( 0, optionDict['value'] )
+				inputWidget = DisguisedEntry( optFrame, width=6, validate='key', validatecommand=(validationCommand, '%P'), justify='right' )
 
 			else: # Create a standard value entry (int/uint)
-				entry = DisguisedEntry( optFrame, width=optWidth*2+2, validate='key', validatecommand=(validationCommand, '%P') )
-				entry.pack( side='right' )
-				entry.insert( 0, optionDict['value'] )
+				inputWidget = DisguisedEntry( optFrame, width=optWidth*2+2, validate='key', validatecommand=(validationCommand, '%P'), justify='right' )
 
-			optFrame.pack( pady=(8, 0), padx=12, ipadx=12 )
 
-			ttk.Separator( self.window, orient='horizontal' ).pack( pady=(8, 0), ipadx=120 )
+			if inputWidget.winfo_class() == 'TMenubutton': # This is actually the OptionMenu widget
+				inputWidget.pack( side='right' )
+			else:
+				inputWidget.insert( 0, optionDict['value'] )
+				inputWidget.pack( side='right', padx=18 )
+
+			if 'range' in optionDict:
+				start, end = optionDict['range']
+				inputWidget = ttk.Scale( optFrame, from_=start, to=end, command=self.rangeOptionUpdated, width=200 )
+				inputWidget.pack( side='right', padx=(14, 7) )
+
+			optFrame.pack( pady=verticalPadding, padx=framePadding, ipadx=12, fill='x', expand=True )
+
+			# Add a tooltip over this section for a comment/annotation if one is available
+			comment = optionDict.get( 'annotation' )
+			if comment:
+				ToolTip( optFrame, text=comment.lstrip( '# ' ), wraplength=windowWidth-50 )
+
+			ttk.Separator( self.window, orient='horizontal' ).pack( pady=verticalPadding, ipadx=ipadx )
 			
-
-			# Restore All Defaults
+		# Add the bottom row of buttons
+		buttonsFrame = ttk.Frame( self.window )
+		ttk.Button( buttonsFrame, text='OK', command=self.confirmChanges ).grid( column=0, row=0, padx=7 )
+		ttk.Button( buttonsFrame, text='Reset to Defaults', command=self.setToDefaults ).grid( column=1, row=0, padx=7 )
+		ttk.Button( buttonsFrame, text='Cancel', command=self.close ).grid( column=2, row=0, padx=7 )
+		buttonsFrame.pack( pady=verticalPadding[0]*3, padx=12, ipadx=12 )
 
 	def getOptionWidth( self, optionType ):
 
@@ -1037,6 +1090,13 @@ class CodeConfigWindow( BasicWindow ):
 		""" Run some basic validation on the input and color the widget text red if invalid. 
 			Must return True to validate the entered text and allow it to be displayed. """
 
-	def rangeOptionUpdated( self ):
+		print 'newString:', newString
+
+		return True
+
+	def rangeOptionUpdated( self, event ):
 
 		""" Called when a slider or its associated Entry widget are updated. """
+
+	def confirmChanges( self ): pass
+	def setToDefaults( self ): pass
