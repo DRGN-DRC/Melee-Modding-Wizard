@@ -55,6 +55,8 @@ class StandaloneStruct( object ):
 			If only an offset is given, the data length is assumed to be 1. """
 
 		if not self.data:
+			assert self.offset > 0, 'Invalid offset for {}: {}'.format( self.name, self.offset )
+			assert self.length > 0, 'Invalid length for {}: {}'.format( self.name, self.length )
 			self.data = self.host.getData( self.offset, self.length )
 				
 		# Return all of the data if no args were given

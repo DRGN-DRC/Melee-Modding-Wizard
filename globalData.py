@@ -63,6 +63,7 @@ def init( programArgs ):
 		'emulatorPath': '',
 		'maxFilesToRemember': '7',
 		'paddingBetweenFiles': '0x40',
+		'dolSource': 'vanilla',
 	}
 	defaultBoolSettings = { # Same as above, but for bools, which are initialized slightly differently (must be strings of 0 or 1!)
 		'useDiscConvenienceFolders': '1',

@@ -389,7 +389,11 @@ class DiscTab( ttk.Frame ):
 		# Add the file to the treeview (all files in the treeview should be added with the line below, but may be modified elsewhere)
 		if not discFile.description:
 			discFile.getDescription( usingConvenienceFolders )
-		self.isoFileTree.insert( parent, 'end', iid=discFile.isoPath, text=' ' + entryName, values=(discFile.description, 'file') )
+
+		try:
+			self.isoFileTree.insert( parent, 'end', iid=discFile.isoPath, text=' ' + entryName, values=(discFile.description, 'file') )
+		except Exception as err:
+			print 'Unable to add {} to the Disc File Tree; {}'.format( discFile.description, err )
 
 	def scanDiscItemForStats( self, iidSelectionsTuple, folderContents ):
 

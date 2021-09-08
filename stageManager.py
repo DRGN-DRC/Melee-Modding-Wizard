@@ -1449,6 +1449,7 @@ class StageManager( ttk.Frame ):
 
 		selectedTabId = self.pagesNotebook.select() # This will be a tab ID, not the actual widget
 		selectedTab = globalData.gui.root.nametowidget( selectedTabId )
+
 		return selectedTab.canvas
 
 	def stageVariationUnselected( self ):
@@ -1479,7 +1480,7 @@ class StageManager( ttk.Frame ):
 		if not stageFile:
 			self.stageVariationUnselected()
 			return
-		elif stageFile == self.selectedStage:
+		elif stageFile == self.selectedStage: # This was already selected
 			return
 		else:
 			self.selectedStage = stageFile
@@ -1501,21 +1502,13 @@ class StageManager( ttk.Frame ):
 			for widget in self.controlsFrame.winfo_children():
 				# Disable the Add Variation button if this stage is maxed out on slots; all else enabled
 				if widget['text'] == 'Add Variation' and not self.allowAddingVariations( stageFile, canvas ):
-					# if stageFile.isRandomNeutral():
-					# 	if self.variationsTreeview.tag_has( 'fileNotFound' ):
-					# 		widget['state'] = 'normal'
-					# 	else:
-					# 		widget['state'] = 'disabled'
-					# elif canvas.pageNumber == 1: # Random byte value replacements (mode 0xFF) not supported on first page
-					# 	widget['state'] = 'disabled'
-					# elif len( self.variationsTreeview.get_children() ) == 4: # For other pages, only up to 4 variations supported
 					widget['state'] = 'disabled'
-					# else:
-					# 	widget['state'] = 'normal'
 				else:
 					widget['state'] = 'normal'
 
 		else: # Is vanilla Melee
+			self.editStageSwapDetailsBtn['state'] = 'disabled'
+			
 			for widget in self.controlsFrame.winfo_children():
 				if widget['text'] == 'Add Variation':
 					widget['state'] = 'disabled'
@@ -1913,7 +1906,8 @@ class StageManager( ttk.Frame ):
 	def updateGuiForNewlyAddedStage( self, stageObj, selection=None ):
 
 		""" Handles updating elements in each tab in the program (if present) to accomodate 
-			a new stage being added to the disc (also works for imports/replacements). """
+			a new stage being added to the disc (also works for imports/replacements). 
+			Also prompts the user to rename the new stage. """
 
 		# Update the name shown in the Variations treeview
 		if selection:
@@ -2004,20 +1998,28 @@ class StageManager( ttk.Frame ):
 			if not stageObj:
 				print 'unused isoPath (first unused variation slot):', isoPath
 				break
+
 		else: # Loop above didn't break; all slots are filled
 			if stageObj.isRandomNeutral():
-				msg( 'There are no open random neutral slots for this stage. You will need to import over, or delete, an existing variation.', 'No open stage slots' )
+				msg( 'There are no open random neutral slots for this stage. You will need to import over or delete an existing variation.', 'No open stage slots' )
 			else:
-				msg( 'There are no open slots for this stage. You will need to import over, or delete, '
-					 'an existing variation. Or modify the stage Swap Details to allow for more variations.', 'No open stage slots' )
+				msg( 'There are no open slots for this stage. You will need to import over or delete '
+					 'an existing variation. Or modify the stage Swap Details to allow for more variations '
+					 '(multiple variations for non-random-neutral stages are only available for pages 2 through 4).', 'No open stage slots' )
 			globalData.gui.updateProgramStatus( "No empty slots available.", warning=True )
+
 			return
 
 		# Prompt the user to choose a new stage file, and add it to the disc
 		newStage = self.getStageFileToAddToDisc( isoPath )
 
 		if newStage:
-			self.updateGuiForNewlyAddedStage( newStage, self.variationsTreeview.selection() )
+			# Change selection to the targeted slot (mainly so .rename works) and scroll so it's visible
+			self.variationsTreeview.selection_set( iid )
+			self.variationsTreeview.see( iid )
+
+			# Update GUI elements across the program, and prompt the user to enter a new stage name
+			self.updateGuiForNewlyAddedStage( newStage, (iid,) )
 
 	def renameStage( self, useDefaultText=True, updateProgramStatus=True ):
 

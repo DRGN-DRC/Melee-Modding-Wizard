@@ -305,7 +305,7 @@ class BasicWindow( object ):
 			topOffset += rootDistanceFromScreenTop
 			leftOffset += rootDistanceFromScreenLeft
 
-		# Set/apply the window width/height and spawning position
+		# Set/apply the window width/height
 		if dimensions == 'auto':
 			self.window.geometry( '+{}+{}'.format(leftOffset, topOffset) )
 		else:
@@ -1077,10 +1077,14 @@ class DisguisedEntry( Tk.Entry ):
 		self.initialBgColor = background
 
 		# Create the Entry widget
-		Tk.Entry.__init__( self, parent, relief='flat', borderwidth=2, background=background, *args, **kwargs ) #background=self.defaultSystemBgColor,
+		Tk.Entry.__init__( self, parent, relief='flat', borderwidth=2, background=background, *args, **kwargs )
 
-		self.respectiveLabel.configure( cursor='' )
-		self.configure( cursor='' )
+		#self['state'] = 'normal'
+		self.enableBindings()
+
+		if respectiveLabel:
+			self.respectiveLabel.configure( cursor='' )
+			self.configure( cursor='' )
 
 	def enableBindings( self ):
 		if not self.bindingsCreated:
@@ -1094,26 +1098,30 @@ class DisguisedEntry( Tk.Entry ):
 				self.respectiveLabel.bind( '<1>', self.focusThisWid, '+' )
 			self.bindingsCreated = True
 
-	def enableEntry( self ):
-		self['state'] = 'normal'
-		self.enableBindings()
-		self.respectiveLabel.configure( cursor='hand2' )
-		self.configure( cursor='xterm' )
+	# def enableEntry( self ):
+	# 	self['state'] = 'normal'
+	# 	self.enableBindings()
+
+		if self.respectiveLabel:
+			self.respectiveLabel.configure( cursor='hand2' )
+			self.configure( cursor='xterm' )
 
 	def disableEntry( self ):
 		self['state'] = 'disabled'
-		self.respectiveLabel.configure( cursor='' )
-		self.configure( cursor='' )
+
+		if self.respectiveLabel:
+			self.respectiveLabel.configure( cursor='' )
+			self.configure( cursor='' )
 
 	# Define the event handlers
 	def onMouseEnter( self, event ):
 		if self['state'] == 'normal':
 			self.config( relief='sunken' )
-			if not self['background'] == '#faa': # Don't change the background color if it indicates pending change saves
+			if not self['background'] == '#faa': # Don't change the background color if it indicates pending changes to save
 				self.config( background='#ffffff' )
 	def onMouseLeave( self, event ):
 		self.config( relief='flat' )
-		if not self['background'] == '#faa': # Don't change the background color if it indicates pending change saves
+		if not self['background'] == '#faa': # Don't change the background color if it indicates pending changes to save
 			self.config( background=self.initialBgColor )
 	def focusThisWid( self, event ):
 		if self['state'] == 'normal': self.focus()

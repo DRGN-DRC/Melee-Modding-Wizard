@@ -14,7 +14,7 @@
 import os
 import time
 import codecs
-#import psutil
+import psutil
 import subprocess
 from ruamel import yaml
 
@@ -256,15 +256,6 @@ class DolphinController( object ):
 
 	@property
 	def isRunning( self ):
-		# Check for a running instances of Dolphin
-		# for process in psutil.process_iter():
-		# 	if process.name() == 'Dolphin.exe':
-		# 		process.terminate()
-		# 		printStatus( 'Stopped Dolphin process' )
-		# 		time.sleep( 3 )
-		# 		return True
-
-		# return False
 		if not self.process: # Hasn't been started
 			return False
 
@@ -292,8 +283,9 @@ class DolphinController( object ):
 			return # User may have canceled the prompt
 
 		# Make sure there are no prior instances of Dolphin running
-		if self.isRunning:
-			self.stop()
+		# if self.isRunning:
+		# 	self.stop()
+		self.stopAllDolphinInstances()
 
 		# print 'Booting', discObj.filePath
 		# print 'In', self.exePath
@@ -305,7 +297,7 @@ class DolphinController( object ):
 		if globalData.checkSetting( 'runDolphinInDebugMode' ):
 			command = '"{}" --debugger --exec="{}"'.format( self.exePath, discObj.filePath )
 		else:
-			command = '"{}" --batch --exec="{}"'.format( self.exePath, self.filePath )
+			command = '"{}" --batch --exec="{}"'.format( self.exePath, discObj.filePath )
 		self.process = subprocess.Popen( command, stderr=subprocess.STDOUT, creationflags=0x08000000 )
 
 		#print 'is running:', self.isRunning
@@ -316,3 +308,17 @@ class DolphinController( object ):
 
 		self.process.terminate()
 		time.sleep( 3 )
+
+	def stopAllDolphinInstances( self ):
+		# Check for a running instances of Dolphin
+
+		processFound = False
+
+		for process in psutil.process_iter():
+			if process.name() == 'Dolphin.exe':
+				process.terminate()
+				processFound = True
+				printStatus( 'Stopped an older Dolphin process' )
+		
+		if processFound:
+			time.sleep( 2 )
