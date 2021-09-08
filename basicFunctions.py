@@ -129,7 +129,12 @@ def humansize( nbytes ):
 	""" Rewrites file sizes for human readability. 
 		e.g. 1408822364 -> 1.31 GB """
 	
+	isNegative = False
+
 	if nbytes == 0: return '0 B'
+	elif nbytes < 0:
+		isNegative = True
+		nbytes = abs( nbytes )
 
 	suffixes = [ 'B', 'KB', 'MB', 'GB', 'TB', 'PB' ]
 
@@ -139,13 +144,16 @@ def humansize( nbytes ):
 		i += 1
 	f = ('%.2f' % nbytes).rstrip('0').rstrip('.')
 
+	if isNegative:
+		f = '-' + f
+
 	return '%s %s' % (f, suffixes[i])
 
 
 def grammarfyList( theList ):
 	
 	""" Converts a list to a human-readable string. For example: 
-		the list [apple, pear, banana, melon] becomes the string 'apple, pear, banana, and melon' """
+		the list [apple, pear, banana] becomes the string 'apple, pear, and banana' """
 
 	if len( theList ) == 1:
 		return str( theList[0] )

@@ -144,21 +144,18 @@ class FileMenu( Tk.Menu, object ):
 
 		unsavedFiles = globalData.disc.getUnsavedChangedFiles()
 
+		# Scan for code-related changes
 		if globalData.gui.codeManagerTab:
-			modsToInstall = []
-			modsToUninstall = []
-
-			# Scan the library for mods to be installed or uninstalled
+			pendingCodeChanges = False
 			for mod in globalData.codeMods:
-				if mod.state == 'pendingDisable':
-					modsToUninstall.append( mod.name )
-				elif mod.state == 'pendingEnable':
-					modsToInstall.append( mod.name )
-
-			print( len(modsToInstall), 'mods to install' )
-			print( len(modsToUninstall), 'mods to uninstall' )
+				if mod.state == 'pendingEnable':
+					pendingCodeChanges = True
+					break
+				elif mod.state == 'pendingDisable':
+					pendingCodeChanges = True
+					break
 		
-		if not unsavedFiles and not globalData.disc.unsavedChanges and not globalData.disc.rebuildReason:
+		if not not pendingCodeChanges and not unsavedFiles and not globalData.disc.unsavedChanges and not globalData.disc.rebuildReason:
 			msg( 'There are no changes to be saved.' )
 		else:
 			msg( globalData.disc.concatUnsavedChanges(unsavedFiles, basicSummary=False) )
@@ -829,6 +826,7 @@ class MainGui( Tk.Frame, object ):
 					return
 
 				self.loadRootOrDisc( filepath, updateDefaultDirectory )
+
 			else:
 				msg( 'Only extracted root directories are able to opened in this way.' )
 				self.updateProgramStatus( 'Invalid input.', error=True )
@@ -843,7 +841,7 @@ class MainGui( Tk.Frame, object ):
 				self.loadRootOrDisc( filepath, updateDefaultDirectory )
 
 			else: # Assuming it's some form of DAT
-				# Perform some rudimentary validation; if it passes, remember it and load it
+				# Perform some rudimentary validation; if the file passes, remember it and load it
 				if os.path.getsize( filepath ) > 20971520: # i.e. 20 MB
 					msg("The recieved file doesn't appear to be a DAT or other type of texture file, as it's larger than 20 MB. "
 						"If this is actually supposed to be a disc image, rename the file with an extension of '.ISO' or '.GCM'.")
@@ -1145,9 +1143,10 @@ def parseArguments(): # Parses command line arguments
 					'The disc will be built in the root path given, unless the -o option is also provided.' )
 		discOpsParser.add_argument( '-o', '--output', dest='outputFilePath', help='Provides an output path for various operations. May be just a folder path, '
 																				  'or it may include the file name in order to name the finished file.' )
-																				  
+		
 		# Define "test" options
 		testOpsParser = subparsers.add_parser( 'test', help='Asset test tool. Uses Micro Melee to test assets such as characters or stages.' )
+		testOpsParser.add_argument( '-d', '--debug', action="store_true", help='If included, Dolphin will run in Debug Mode.' )
 		testOpsParser.add_argument( '-p', '--path', required=True, help='Provide a filepath for a character/stage/etc. for the program to load.' )
 
 	except Exception as err:
@@ -1162,7 +1161,9 @@ def parseArguments(): # Parses command line arguments
 
 def buildDiscFromRoot():
 
-	""" Exit codes (should be the same as program exit codes):
+	""" Function from command-line usage.debug
+	
+		Exit codes (should be the same as program exit codes):
 
 			0: All operations completed successfully
 			1: A problem occurred in parsing command line arguments
@@ -1226,6 +1227,27 @@ def buildDiscFromRoot():
 
 def performAssetTest( assetPath ):
 
+	""" Function from command-line usage. Boots an instance of the game with the given asset. 
+		Currently supported are stage and character files. """
+
+	# Perform some quick/basic validation based on file extension
+	ext = os.path.splitext( assetPath )[1]
+	if ext in ( '.png', '.jpg', '.jpeg', '.gif' ):
+		print( 'This appears to be an image file! This feature expects a stage or character file.' )
+		sys.exit( 3 )
+	elif ext == '.dol':
+		print( 'This appears to be a DOL file! This feature expects a stage or character file.' )
+		sys.exit( 3 )
+	elif ext in ( '.iso', '.gcm' ):
+		print( 'This appears to be a disc image file! This feature expects a stage or character file.' )
+		sys.exit( 3 )
+	elif ext in ( '.hps', '.ssm', 'wav', 'dsp', 'mp3', 'aiff', 'wma', 'm4a' ):
+		print( 'This appears to be an audio file! This feature expects a stage or character file.' )
+		sys.exit( 3 )
+	elif ext in ( '.mth', '.thp' ):
+		print( 'This appears to be a video file! This feature expects a stage or character file.' )
+		sys.exit( 3 )
+
 	# See if this is a stage file
 	try:
 		newFileObj = StageFile( None, -1, -1, '', extPath=assetPath, source='file' )
@@ -1250,6 +1272,12 @@ def performAssetTest( assetPath ):
 	microMelee = globalData.getMicroMelee()
 	if not microMelee:
 		sys.exit( 5 )
+
+	# Set whether to run Dolphin in Debug mode if the --debug option is present
+	if args.debug:
+		globalData.setSetting( 'runDolphinInDebugMode', True )
+	else:
+		globalData.setSetting( 'runDolphinInDebugMode', False )
 	
 	if isinstance( newFileObj, StageFile ):
 		microMelee.testStage( newFileObj )

@@ -700,6 +700,57 @@ class Disc( object ):
 		
 		return '\n'.join( fileList )
 
+	def getSize( self ):
+
+		""" Returns the expected size of the disc, taking into account disc changes if it needs to be rebuilt. """
+
+		if not self.rebuildReason:
+			# lastFile = next( reversed(self.files) )
+			# return lastFile.offset + lastFile.size
+			return os.path.getsize( self.filePath )
+
+		else:
+			return self.getDiscSizeCalculations()[0]
+
+	def getDiscSizeCalculations( self ):
+		# Make sure this is up to date
+		self.buildFstEntries()
+		
+		# Calculate the FST file offset and size
+		fstOffset = self.getFstOffset()
+		fstStrings = [ entry[-2] for entry in self.fstEntries[1:] ] # Skips the root entry
+		fstFileSize = len( self.fstEntries ) * 0xC + len( '.'.join(fstStrings) ) + 1 # Final +1 to account for last stop byte
+
+		# Get space needed for all system files (ends at FST)
+		totalSystemFileSpace = roundTo32( fstOffset + fstFileSize ) # roundTo will round up, to make sure subsequent files are aligned
+		
+		# Determine file space for non-system files
+		totalNonSystemFiles = 0
+		totalNonSystemFileSpace = 0
+		for entry in self.fstEntries:
+			if not entry[0] and entry[3] > 0: # Means it's a file, and bigger than 0 bytes
+				totalNonSystemFiles += 1
+				totalNonSystemFileSpace += roundTo32( entry[3], base=4 ) # Adding file size and post-file padding, rounding alignment up
+		interFilePaddingLength, paddingSetting = getInterFilePaddingLength( totalSystemFileSpace+totalNonSystemFileSpace, totalNonSystemFiles )
+
+		# Calculate the size of the disc
+		if paddingSetting == 'auto':
+			if interFilePaddingLength == 0: # Disc is greater than or equal to the max size
+				projectedDiscSize = totalSystemFileSpace + totalNonSystemFileSpace
+			else:
+				projectedDiscSize = defaultGameCubeMediaSize
+		else:
+			projectedDiscSize = totalSystemFileSpace + totalNonSystemFileSpace + interFilePaddingLength * totalNonSystemFiles
+		
+		# print 'totalNonSystemFiles determined:', totalNonSystemFiles
+		# print 'interFilePaddingLength:', hex(interFilePaddingLength)
+		# print 'total system file space:', hex(totalSystemFileSpace)
+		# print 'total non-system file space:', hex(totalNonSystemFileSpace)
+		# print 'padding:', hex(interFilePaddingLength), 'paddingSetting:', paddingSetting
+		# print 'projected disc size:', hex(projectedDiscSize), projectedDiscSize
+
+		return projectedDiscSize, totalSystemFileSpace, fstOffset, interFilePaddingLength, paddingSetting
+
 	def concatUnsavedChanges( self, unsavedFiles=None, basicSummary=True ):
 
 		""" Concatenates changes throughout the disc into a string to be displayed to the user. """
@@ -710,15 +761,33 @@ class Disc( object ):
 
 		lines = []
 
+		if unsavedFiles:
+			lines.append( 'Files to update: {}'.format(len( unsavedFiles )) )
+
 		#if self.rebuildRequired:
 		if self.rebuildReason:
 			lines.append( 'Rebuild required ' + self.rebuildReason )
 		else:
 			lines.append( 'Rebuild not required' )
+		lines.append( '' )
+		
+		# Scan for code-related changes
+		if globalData.gui and globalData.gui.codeManagerTab:
+			modsToInstall = 0
+			modsToUninstall = 0
 
-		if unsavedFiles:
-			lines.append( 'Files to update: {}'.format(len( unsavedFiles )) )
-			lines.append( '' )
+			# Scan the library for mods to be installed or uninstalled
+			for mod in globalData.codeMods:
+				if mod.state == 'pendingEnable':
+					modsToInstall += 1
+				elif mod.state == 'pendingDisable':
+					modsToUninstall += 1
+
+			if not modsToInstall and not modsToUninstall:
+				lines.append( '0 code mods to install or uninstall\n' )
+			else:
+				lines.append( '{} code mods to install'.format(modsToInstall) )
+				lines.append( '{} code mods to uninstall\n'.format(modsToUninstall) )
 
 		# for isoPath, (description, fileObj) in self.unsavedChanges.items():
 		# 	if not fileObj or len( fileObj.unsavedChanges ) == 0:
@@ -730,6 +799,7 @@ class Disc( object ):
 		# 		for fileChange in fileObj.unsavedChanges:
 		# 			lines.append( '    ' + fileChange )
 		# 		lines.append( '' )
+
 		if self.unsavedChanges:
 			for change in self.unsavedChanges:
 				lines.append( change )
@@ -925,6 +995,7 @@ class Disc( object ):
 		if newFileObj.size != origFileObj.size:
 			
 			if newFileObj.filename == 'Start.dol':
+				newFileObj.load()
 				self.rebuildReason = 'to import a larger DOL'
 
 			elif newFileObj.filename in self.systemFiles:
@@ -948,6 +1019,9 @@ class Disc( object ):
 
 			# Flag that the FST will need to be rebuilt upon saving
 			self.fstRebuildRequired = True
+
+		elif newFileObj.filename == 'Start.dol':
+			newFileObj.load()
 
 		# Update the DOL reference if this is a DOL file
 		# if newFileObj.isoPath == self.gameId + '/Start.dol':
@@ -1307,27 +1381,29 @@ class Disc( object ):
 		#tic = time.clock() # for performance testing
 
 		# Make sure this is up to date
-		self.buildFstEntries()
+		# self.buildFstEntries()
 		
-		# Calculate the FST file offset and size
-		#dol = self.files[ self.gameId + '/Start.dol' ]
-		fstOffset = self.getFstOffset()
-		fstStrings = [ entry[-2] for entry in self.fstEntries[1:] ] # Skips the root entry
-		fstFileSize = len( self.fstEntries ) * 0xC + len( '.'.join(fstStrings) ) + 1 # Final +1 to account for last stop byte
+		# # Calculate the FST file offset and size
+		# #dol = self.files[ self.gameId + '/Start.dol' ]
+		# fstOffset = self.getFstOffset()
+		# fstStrings = [ entry[-2] for entry in self.fstEntries[1:] ] # Skips the root entry
+		# fstFileSize = len( self.fstEntries ) * 0xC + len( '.'.join(fstStrings) ) + 1 # Final +1 to account for last stop byte
 
-		# Determine how much padding to add between files
-		totalSystemFileSpace = roundTo32( fstOffset + fstFileSize ) # roundTo will round up, to make sure subsequent files are aligned
-		totalNonSystemFiles = 0
-		totalNonSystemFileSpace = 0
-		for entry in self.fstEntries:
-			if not entry[0] and entry[3] > 0: # Means it's a file, and bigger than 0 bytes
-				totalNonSystemFiles += 1
-				totalNonSystemFileSpace += roundTo32( entry[3], base=4 ) # Adding file size and post-file padding, rounding alignment up
-		interFilePaddingLength, paddingSetting = getInterFilePaddingLength( totalSystemFileSpace+totalNonSystemFileSpace, totalNonSystemFiles )
+		# # Determine how much padding to add between files
+		# totalSystemFileSpace = roundTo32( fstOffset + fstFileSize ) # roundTo will round up, to make sure subsequent files are aligned
+		# totalNonSystemFiles = 0
+		# totalNonSystemFileSpace = 0
+		# for entry in self.fstEntries:
+		# 	if not entry[0] and entry[3] > 0: # Means it's a file, and bigger than 0 bytes
+		# 		totalNonSystemFiles += 1
+		# 		totalNonSystemFileSpace += roundTo32( entry[3], base=4 ) # Adding file size and post-file padding, rounding alignment up
+		# interFilePaddingLength, paddingSetting = getInterFilePaddingLength( totalSystemFileSpace+totalNonSystemFileSpace, totalNonSystemFiles )
 
-		# Calculate the size of the disc
-		if paddingSetting == 'auto': projectedDiscSize = defaultGameCubeMediaSize
-		else: projectedDiscSize = totalSystemFileSpace + totalNonSystemFileSpace + interFilePaddingLength * totalNonSystemFiles
+		# # Calculate the size of the disc
+		# if paddingSetting == 'auto': projectedDiscSize = defaultGameCubeMediaSize
+		# else: projectedDiscSize = totalSystemFileSpace + totalNonSystemFileSpace + interFilePaddingLength * totalNonSystemFiles
+
+		projectedDiscSize, totalSystemFileSpace, fstOffset, interFilePaddingLength, paddingSetting = self.getDiscSizeCalculations()
 
 		#projectedDiscSize, interFilePaddingLength, paddingSetting = self.calculateDiscSize(  )
 
@@ -1514,8 +1590,9 @@ class Disc( object ):
 		
 		# Warn the user if an ISO is too large for certain loaders
 		if os.path.getsize( self.filePath ) > defaultGameCubeMediaSize: # This is the default/standard size for GameCube discs.
-			msg( 'The disc is larger than the standard size for GameCube discs (which is ~1.36 GB, or 1,459,978,240 bytes). This will be a problem for Nintendont, but discs up to 4 GB '
-				 'should still work fine for both Dolphin and DIOS MIOS. (Dolphin may still play discs larger than 4 GB, but some features may not work.)', 'Standard Disc Size Exceeded' )
+			msg( 'The disc is larger than the standard size for GameCube discs (which is ~1.36 GB, or 1,459,978,240 bytes). '
+				 'This will be a problem for Nintendont, but discs up to 4 GB should still work fine for both Dolphin and DIOS MIOS. '
+				 '(Dolphin may even play discs larger than 4 GB, but some features may not work.)', 'Standard Disc Size Exceeded' )
 
 		return 0, filesUpdated
 	
@@ -2542,18 +2619,28 @@ class Disc( object ):
 
 	def restoreDol( self, vanillaDiscPath='' ):
 
-		""" Replaces the Start.dol file with a vanilla copy from a vanilla disc. """
+		""" Replaces the Start.dol file with a vanilla copy from a vanilla disc. 
+			Or, if a path is given for the 'dolSource' setting, that DOL is used. """
 		
-		if not vanillaDiscPath:
-			# See if we can get a reference to vanilla DOL code
-			vanillaDiscPath = globalData.getVanillaDiscPath()
-			if not vanillaDiscPath: # User canceled path input
-				printStatus( 'Unable to restore the DOL; no vanilla disc available for reference', error=True )
-				return
-		
-		vanillaDisc = Disc( vanillaDiscPath )
-		vanillaDisc.load()
-		self.files[self.gameId + '/Start.dol'] = copy.deepcopy( vanillaDisc.dol )
+		dolPath = globalData.checkSetting( 'dolSource' )
+
+		if dolPath == 'vanilla':
+			if not vanillaDiscPath:
+				# See if we can get a reference to vanilla DOL code
+				vanillaDiscPath = globalData.getVanillaDiscPath()
+				if not vanillaDiscPath: # User canceled path input
+					printStatus( 'Unable to restore the DOL; no vanilla disc available for reference', error=True )
+					return
+			
+			vanillaDisc = Disc( vanillaDiscPath )
+			vanillaDisc.load()
+			self.files[self.gameId + '/Start.dol'] = copy.deepcopy( vanillaDisc.dol )
+
+		elif not os.path.exists( dolPath ):
+			printStatus( 'Unable to restore the DOL; the source DOL could not be found', error=True )
+
+		else:
+			print dolPath
 
 	# def runInEmulator( self ): #todo: add support for root folders
 		
@@ -2657,7 +2744,7 @@ class MicroMelee( Disc ):
 		# Set up some special conditions for building the disc
 		self.isRootFolder = True # Prevent the buildNewDisc method from referencing an original disc when "re"-building
 		origPadding = globalData.settings.get( 'General Settings', 'paddingBetweenFiles' )
-		globalData.settings.set( 'General Settings', 'paddingBetweenFiles', '0x1000' ) # Add a bit more padding between files, so it doesn't have to be rebuilt as often
+		globalData.settings.set( 'General Settings', 'paddingBetweenFiles', '0x10000' ) # Add a bit more padding between files, so it doesn't have to be rebuilt as often
 		
 		# Build a new disc (overwriting existing file, if present)
 		self.buildNewDisc( buildMsg='Building the Micro Melee testing disc:' )
@@ -2710,13 +2797,13 @@ class MicroMelee( Disc ):
 		# templeFile = self.files[self.gameId + '/GrSh.dat']
 		# self.replaceFile( templeFile, stageObj )
 
-		# Replace the appropriate stage file
+		# Get the internal stage ID and disc filename
 		externalStageId = stageObj.externalId
 		internalStageId = self.dol.getIntStageIdFromExt( externalStageId )
-		# isoPathToReplace = self.gameId + '/' + globalData.stageFileNames[internalStageId]
-		# fileToReplace = self.files[isoPathToReplace]
-		# self.replaceFile( fileToReplace, stageObj )
 		stageFilename = self.dol.getStageFileName( internalStageId )[1]
+
+		# Replace the file in the disc
+		stageObj = copy.deepcopy( stageObj ) # Don't modify the original file!
 		isoPath = self.gameId + '/' + stageFilename
 		if isoPath in self.files:
 			fileToReplace = self.files[isoPath]
@@ -2774,6 +2861,7 @@ class MicroMelee( Disc ):
 		""" Method to set up the Micro Melee disc to boot directly to a match with the given character file. """
 		
 		# Replace the appropriate character file
+		charObj = copy.deepcopy( charObj ) # Don't modify the original file!
 		isoPath = self.gameId + '/' + charObj.buildDiscFileName()
 		fileToReplace = self.files.get( isoPath )
 		if not fileToReplace:

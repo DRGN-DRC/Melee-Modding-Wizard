@@ -25,6 +25,7 @@ import Tkinter as Tk
 from threading import Thread, Event
 
 # Internal dependencies
+import disc
 import globalData
 from hsdFiles import MusicFile
 from basicFunctions import uHex, humansize, createFolders, msg, cmdChannel
@@ -105,7 +106,6 @@ class AudioManager( ttk.Frame ):
 		mainGui.mainTabFrame.add( self, text=' Audio Manager ' )
 		self.audioEngine = mainGui.audioEngine
 		self.lastExportFormat = 'hps'
-		#self.songs = []
 		#self.selectedFile = None
 		self.boldFont = tkFont.Font( weight='bold', size=mainGui.defaultFontSize )
 		self.normalFont = tkFont.Font( weight='normal' )
@@ -126,7 +126,7 @@ class AudioManager( ttk.Frame ):
 		infoPane = ttk.Frame( self )
 
 		generalLabelFrame = ttk.LabelFrame( infoPane, text='  General Info  ', labelanchor='n', padding=(20, 0, 20, 4) ) # Padding order: Left, Top, Right, Bottom.
-		ttk.Label( generalLabelFrame, text=('Total Tracks:\nTotal Filespace:') ).pack( side='left' )
+		ttk.Label( generalLabelFrame, text=('Total Tracks:\nTotal Filespace:\nRemaining Filespace:') ).pack( side='left' )
 		self.generalInfoLabel = ttk.Label( generalLabelFrame )
 		self.generalInfoLabel.pack( side='right', padx=6 )
 		generalLabelFrame.pack( pady=(12, 6) )
@@ -202,7 +202,6 @@ class AudioManager( ttk.Frame ):
 		self.clear()
 
 		# Get the list of songs from the disc
-		#self.songs = []
 		filecount = 0
 		totalFilesize = 0
 		for musicFile in globalData.disc.files.itervalues():
@@ -210,7 +209,6 @@ class AudioManager( ttk.Frame ):
 			if not musicFile.__class__.__name__ == 'MusicFile':
 				continue
 
-			#self.songs.append( musicFile )
 			filecount += 1
 			totalFilesize += musicFile.size
 		
@@ -279,9 +277,6 @@ class AudioManager( ttk.Frame ):
 	def updateGeneralInfo( self, filecount=0, totalFilesize=0 ):
 
 		if not filecount:
-			# for fileObj in self.songs:
-			# 	totalFilesize += fileObj.size
-			
 			for musicFile in globalData.disc.files.itervalues():
 				# Ignore non music files
 				if not musicFile.__class__.__name__ == 'MusicFile':
@@ -289,8 +284,10 @@ class AudioManager( ttk.Frame ):
 				
 				filecount += 1
 				totalFilesize += fileObj.size
+
+		spaceRemaining = disc.defaultGameCubeMediaSize - globalData.disc.getSize()
 		
-		self.generalInfoLabel['text'] = '\n'.join( [str(filecount), humansize(totalFilesize) ] )
+		self.generalInfoLabel['text'] = '\n'.join( [str(filecount), humansize(totalFilesize), humansize(spaceRemaining) ] )
 
 	def onFileTreeSelect( self, event=None ):
 
@@ -454,12 +451,6 @@ class AudioManager( ttk.Frame ):
 
 			# Reload information displayed in the GUI
 			self.loadFileList()
-			# for i, fileObj in enumerate( self.songs ):
-			# 	if fileObj.isoPath == musicFile.isoPath:
-			# 		self.songs[i] = newMusicFile
-			# 		break
-			# self.onFileTreeSelect()
-			#self.updateGeneralInfo()
 
 			# Prompt the user to enter a new name for this track
 			self.rename()
@@ -625,13 +616,6 @@ class AudioManager( ttk.Frame ):
 		globalData.disc.addFiles( [newTrack], insertAfter )
 
 		# Add the file to the internal file list and GUI for this tab, and update General Info
-		# if newTrack.isHexTrack:
-		# 	parent = 'hextracks'
-		# else:
-		# 	parent = ''
-		# self.songs.append( newTrack )
-		# self.fileTree.insert( parent, 'end', iid=newTrack.isoPath, text=newTrack.description, values=(newTrack.filename, 'file') )
-		# self.updateGeneralInfo()
 		self.loadFileList()
 
 		# Reload the Disc File Tree to show the new file
