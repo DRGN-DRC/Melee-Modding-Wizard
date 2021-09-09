@@ -296,7 +296,7 @@ class CodeMod( object ):
 		self.assemblyError = False
 		self.parsingError = False
 		#self.missingVanillaHex = False
-		self.missingIncludes = []		# Include filesnames detected to be required by the assembler
+		#self.missingIncludes = []		# Include filesnames detected to be required by the assembler
 		self.errors = []
 
 	def setState( self, newState ):

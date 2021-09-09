@@ -1174,15 +1174,17 @@ class VerticalScrolledFrame( Tk.Frame ):
 		The outer widget is essentially just a Frame; which can be attached using 
 		pack/place/grid geometry managers as normal. """
 
-	def __init__(self, parent, *args, **kw):
+	def __init__(self, parent, defaultHeight=700, *args, **kw):
 		Tk.Frame.__init__(self, parent, *args, **kw)
 
 		# create a canvas object, and a vertical scrollbar for scrolling it
 		self.vscrollbar = Tk.Scrollbar( self, orient='vertical' )
-		self.vscrollbar.pack( fill='y', side='right', expand=False )
-		self.canvas = Tk.Canvas( self, bd=0, highlightthickness=0, yscrollcommand=self.vscrollbar.set )
-		self.canvas.pack( side='left', fill='both', expand=True )
+		self.vscrollbar.grid( column=1, row=0, sticky='ns' )
+		self.canvas = Tk.Canvas( self, bd=0, highlightthickness=0, yscrollcommand=self.vscrollbar.set ) #, height=defaultHeight
+		self.canvas.grid( column=0, row=0, sticky='nsew' )
+		self.canvas.yview_scroll = self.yview_scroll
 		self.vscrollbar.config( command=self.canvas.yview )
+		#self.defaultHeight = defaultHeight
 
 		# reset the view
 		self.canvas.xview_moveto( 0 )
@@ -1191,38 +1193,63 @@ class VerticalScrolledFrame( Tk.Frame ):
 		# create a frame inside the canvas which will be scrolled with it
 		self.interior = Tk.Frame( self.canvas, relief='ridge' )
 		self.interior_id = self.canvas.create_window( 0, 0, window=self.interior, anchor='nw' )
+		#self.canvas.config( height=defaultHeight )
+
+		# add resize configuration for the canvas and scrollbar
+		self.rowconfigure( 0, weight=1 )
+		self.columnconfigure( 0, weight=1 )
+		self.columnconfigure( 1, weight=0 ) # Do not resize this column (for the scrollbar)
+		#print 'vsf init done'
 
 		# track changes to the canvas and frame width and sync them,
 		# also updating the scrollbar
-		self.interior.bind( '<Configure>', self._configure_interior )
-		self.canvas.bind( '<Configure>', self._configure_canvas )
+		self.interior.bind( '<Configure>', self.configureCanvas )
+		self.canvas.bind( '<Configure>', self.configureInterior )
 
-	def _configure_interior( self, event=None ):
+	def configureCanvas( self, event=None ):
+		#self.update_idletasks()
+		self.configureScrollbar()
+
+		#print 'configuring canvas'
+		# update the scroll area to match the size of the inner frame
+		self.canvas.config( scrollregion=self.canvas.bbox(self.interior_id) )
+		
+		interiorWidth = self.interior.winfo_reqwidth()
+		if interiorWidth != self.canvas.winfo_width():
+			# update the canvas' width to fit the inner frame
+			self.canvas.config( width=interiorWidth )
+		
+		if self.canvas.winfo_reqheight() > self.interior.winfo_height():
+			self.canvas.config( height=self.interior.winfo_reqheight() )
+
+	def configureInterior( self, event=None ):
+		#self.update_idletasks()
+		self.configureScrollbar()
+
+		#print 'configuring interior'
+		canvasWidth = self.canvas.winfo_width()
+		if self.interior.winfo_reqwidth() != canvasWidth:
+			# update the inner frame's width to fill the canvas
+			self.canvas.itemconfigure( self.interior_id, width=canvasWidth )
+		
+		# if self.interior.winfo_reqheight() != self.canvas.winfo_height():
+		# 	# update the inner frame's height to fill the canvas
+		# 	self.canvas.itemconfigure(self.interior_id, height=self.canvas.winfo_height())
+
+	def configureScrollbar( self ):
 		# Check if a scrollbar is necessary, and add/remove it as needed.
 		if self.interior.winfo_height() > self.canvas.winfo_height():
-			self.vscrollbar.pack( fill='y', side='right', expand=False )
-			
-			# update the scrollbars to match the size of the inner frame
-			self.update_idletasks()
-			interiorWidth = self.interior.winfo_reqwidth()
-			# size = (interiorWidth, self.interior.winfo_reqheight())
-			# self.canvas.config(scrollregion="0 0 %s %s" % size)
-			self.canvas.config( scrollregion=self.canvas.bbox(self.interior_id) )
-			if interiorWidth != self.canvas.winfo_width():
-				# update the canvas' width to fit the inner frame
-				self.canvas.config( width=interiorWidth )
+			self.vscrollbar.grid( column=1, row=0, sticky='ns' )
 		else:
 			# remove the scrollbar and disable scrolling
-			self.vscrollbar.pack_forget()
-
-	def _configure_canvas( self, event=None ):
-		if self.interior.winfo_reqwidth() != self.canvas.winfo_width():
-			# update the inner frame's width to fill the canvas
-			self.canvas.itemconfigure(self.interior_id, width=self.canvas.winfo_width())
+			self.vscrollbar.grid_forget()
+			self.canvas.itemconfigure( self.interior_id, width=self.canvas.winfo_width() )
 
 	def yview_scroll( self, number, what ):
-		# This is an override of the canvas' native yview_scroll method,
-		# so that it only operates while the scrollbar is attached.
+		
+		""" This is an override of the canvas' native yview_scroll method, 
+			so that it only operates while the scrollbar is attached. """
+		
 		if self.vscrollbar.winfo_manager():
 			self.canvas.tk.call( self.canvas._w, 'yview', 'scroll', number, what )
 

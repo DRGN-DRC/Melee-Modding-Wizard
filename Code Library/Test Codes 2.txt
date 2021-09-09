@@ -38,7 +38,10 @@ Configurations:
         7: Stitch Face
     uint32 TEST_uint32_range = 5; 0-10
     float TEST_float = 10 # This is a float
-    int16 TEST_uint32 = 75
+    int16 TEST_int16 = 16
+    int32 TEST_int32 = 32
+    #int32 INT5 = 5
+    #int32 INT6 = 
 [??]
 Version -- DOL Offset ------ Hex to Replace ---------- ASM Code
 1.02 ----- 0x802BD410 --- 7CC83378 -> 390000[[Turnip Count]]
