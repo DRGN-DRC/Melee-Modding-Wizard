@@ -1169,16 +1169,17 @@ class ColoredLabelButton( LabelButton ):
 
 class Dropdown( ttk.OptionMenu ):
 
-	def __init__( self, parent, options, default='', command=None, **kwargs ):
+	def __init__( self, parent, options, default='', variable=None, command=None, **kwargs ):
 
 		self.command = command
-		var = Tk.StringVar()
+		if not variable:
+			variable = Tk.StringVar()
 
 		if command:
 			assert callable( command ), 'Command is not callable! {}'.format( command )
-			ttk.OptionMenu.__init__( self, parent, var, default, *options, command=self.callBack, **kwargs )
+			ttk.OptionMenu.__init__( self, parent, variable, default, *options, command=self.callBack, **kwargs )
 		else:
-			ttk.OptionMenu.__init__( self, parent, var, default, *options, **kwargs )
+			ttk.OptionMenu.__init__( self, parent, variable, default, *options, **kwargs )
 
 	def callBack( self, newValue ):
 		self.command( self, newValue )

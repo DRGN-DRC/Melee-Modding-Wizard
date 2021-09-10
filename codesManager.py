@@ -984,6 +984,7 @@ class CodeConfigWindow( BasicWindow ):
 		self.mod = mod
 		sepPad = 7 # Separator padding
 		vPad = ( 8, 0 ) # Vertical padding
+		#self.dropdownWidgets {}
 		validationCommand = globalData.gui.root.register( self.entryUpdated )
 
 		self.optionsFrame = VerticalScrolledFrame( self.window )
@@ -1025,7 +1026,7 @@ class CodeConfigWindow( BasicWindow ):
 				options = []
 				comments = []
 				default = '' # Initial default selection for the dropdown
-				for opt in members:
+				for opt in members: # List of [name, value] or [name, value, comment]
 					options.append( '{}  |   {}'.format(opt[1], opt[0]) )
 
 					if opt[1] == currentValue:
@@ -1038,8 +1039,9 @@ class CodeConfigWindow( BasicWindow ):
 				if not default:
 					default = '{}  |   Unlisted Selection!'.format( currentValue )
 
-				#inputWidget = ttk.OptionMenu( self.optionsFrame.interior, var, default, *options )
-				inputWidget = Dropdown( self.optionsFrame.interior, options, default, command=self.dropdownUpdated )
+				inputWidget = ttk.OptionMenu( self.optionsFrame.interior, Tk.StringVar(), default, *options )
+				#inputWidget = Dropdown( self.optionsFrame.interior, options, default, command=self.dropdownUpdated )
+				inputWidget.option = optionName
 				if comments:
 					ToolTip( inputWidget, text='\n'.join(comments), wraplength=250 )
 
@@ -1119,17 +1121,50 @@ class CodeConfigWindow( BasicWindow ):
 
 	#def dropdownUpdated( self, name, index, mode ):
 	#def dropdownUpdated( self, name, var ):
-	def dropdownUpdated( self, widget, newValue ):
+	# def dropdownUpdated( self, widget, newValue ):
 
-		""" Called when a dropdown widget is updated. """
+	# 	""" Called when a dropdown widget is updated. """
 
-		#print 'updating!'
-		#print globalData.gui.root.getvar( name ), mode
-		print widget.winfo_class()
-		print newValue
+	# 	#print 'updating!'
+	# 	#print globalData.gui.root.getvar( name ), mode
+	# 	print widget.winfo_class()
+	# 	print newValue
 
-		# Update the width of the frame
-		#self.optionsFrame._configure_interior()
+	# 	memberName = newValue.split( '|' )[1].strip()
 
-	def confirmChanges( self ): pass
+	# 	# Look for the above member to get its associated value, and set that as the new "current" value
+	# 	for opt in self.mod.configurations[widget.option]['members']: # List of [name, value] or [name, value, comment]
+	# 		if opt[0] == memberName:
+	# 			self.mod.configurations[widget.option]['value'] = opt[1]
+	# 			break
+	# 	else: # Won't be encountered unless the loop above didn't break
+	# 		raise Exception( "Unable to find {} among {}'s option members.".format(memberName, widge.option) )
+
+	def confirmChanges( self ):
+
+		for widget in self.optionsFrame.interior.grid_slaves( column=2 ):
+			widgetClass = widget.winfo_class()
+
+			# Update values from dropdown (OptionMenu) widgets
+			if widgetClass == 'TMenubutton':
+				sValue = widget._variable.get().split( '|' )[0]
+				currentValue = int( sValue )
+				# Look for the above member to get its associated value, and set that as the new "current" value
+				# for opt in self.mod.configurations[widget.option]['members']: # List of [name, value] or [name, value, comment]
+				# 	if opt[0] == memberName:
+				# 		self.mod.configurations[widget.option]['value'] = opt[1]
+				# 		break
+				# else: # Won't be encountered unless the loop above didn't break
+				# 	raise Exception( "Unable to find {} among {}'s option members.".format(memberName, widge.option) )
+			
+			elif widgetClass == 'Entry':
+				currentValue = widget.get()
+
+			else:
+				raise Exception()
+
+			self.mod.configurations[widget.option]['value'] = currentValue
+
 	def setToDefaults( self ): pass
+
+	
