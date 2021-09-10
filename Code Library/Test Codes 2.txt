@@ -39,6 +39,12 @@ Configurations:
     uint32 TEST_uint32_range = 5; 0-10
     float TEST_float = 10 # This is a float
     int16 TEST_int16 = 16
+    uint16 Turni = 0x7; 0-0x4 # Select your preferred vegetable features
+        0: Smile # Optional comment/description 1
+        1: T Eyes # Optional comment/description 2
+        2: Line Eyes
+        3: Circle Eyes
+        4: Upward Curve Eyes
     int32 TEST_int32 = 32
     #int32 INT5 = 5
     #int32 INT6 = 

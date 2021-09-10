@@ -26,7 +26,7 @@ from basicFunctions import msg, openFolder
 from codeMods import regionsOverlap, CodeLibraryParser
 from guiSubComponents import (
 	exportSingleFileWithGui, VerticalScrolledFrame, LabelButton, ToolTip, CodeLibrarySelector, 
-	CodeSpaceOptionsWindow, ColoredLabelButton, BasicWindow, DisguisedEntry
+	CodeSpaceOptionsWindow, ColoredLabelButton, BasicWindow, DisguisedEntry, Dropdown
 )
 
 
@@ -982,12 +982,13 @@ class CodeConfigWindow( BasicWindow ):
 		super( CodeConfigWindow, self ).__init__( globalData.gui.root, mod.name + ' - Configuration', resizable=True, minsize=(450, 100) )
 
 		self.mod = mod
-		verticalPadding = ( 8, 0 )
+		sepPad = 7 # Separator padding
+		vPad = ( 8, 0 ) # Vertical padding
 		validationCommand = globalData.gui.root.register( self.entryUpdated )
 
 		self.optionsFrame = VerticalScrolledFrame( self.window )
 		
-		ttk.Separator( self.optionsFrame.interior, orient='horizontal' ).grid( column=0, columnspan=3, row=0, pady=verticalPadding[0], sticky='ew' )
+		ttk.Separator( self.optionsFrame.interior, orient='horizontal' ).grid( column=0, columnspan=3, row=0, pady=vPad[0], sticky='ew', padx=sepPad )
 
 		# Add rows for each option to be displayed
 		row = 1
@@ -995,46 +996,57 @@ class CodeConfigWindow( BasicWindow ):
 			
 			# Check the type and data width
 			optType = optionDict.get( 'type' )
+			currentValue = optionDict.get( 'value' )
+			if not optType or not currentValue: # Failsafe; should have been validated in parsing
+				globalData.gui.updateProgramStatus( '{} missing critical configuration type or value!'.format(optionName) )
+				continue
 			optWidth = self.getOptionWidth( optType )
 			members = optionDict.get( 'members' ) # A list of lists
 			comment = optionDict.get( 'annotation' )
 
 			# Add the option name, with a comment/annotation if one is available
-			nameLabel = ttk.Label( self.optionsFrame.interior, text=optionName )
-			nameLabel.grid( column=0, row=row, sticky='w', padx=18 )
+			nameLabel = ttk.Label( self.optionsFrame.interior, text=optionName + u'  \N{BLACK DOWN-POINTING TRIANGLE}' )
+			nameLabel.grid( column=0, row=row, sticky='w', padx=28 )
 			if comment:
 				ToolTip( nameLabel, text=comment.lstrip( '# ' ), wraplength=400 )
 
 			# Add a control widget
 			#if len( members ) == 2 and : # Create an On/Off toggle
+			#elif # Create a color chooser
 			if members: # Create a dropdown menu
-				if optType == 'float':
-					dropdownVar = Tk.DoubleVar()
-				else:
-					dropdownVar = Tk.IntVar()
+				# if optType == 'float':
+				# 	var = Tk.DoubleVar( name=optionName )
+				# else:
+				# 	var = Tk.IntVar( name=optionName )
+				#var = Tk.StringVar()
+				#var.trace( 'w', self.dropdownUpdated )
 
 				# Format options for the dropdown
 				options = []
 				comments = []
-				initSelection = optionDict['value']
+				default = '' # Initial default selection for the dropdown
 				for opt in members:
 					options.append( '{}  |   {}'.format(opt[1], opt[0]) )
 
-					if opt[1] == initSelection:
-						initSelection = '{}  |   {}'.format(opt[1], opt[0])
+					if opt[1] == currentValue:
+						default = '{}  |   {}'.format(opt[1], opt[0])
 
 					if len( opt ) == 3 and opt[-1] != '':
 						comment = opt[2].lstrip( '# ' )
 						comments.append( '{}: {}'.format(opt[0], comment) )
 
-				inputWidget = ttk.OptionMenu( self.optionsFrame.interior, dropdownVar, initSelection, *options, command=self.dropdownUpdated )
+				if not default:
+					default = '{}  |   Unlisted Selection!'.format( currentValue )
+
+				#inputWidget = ttk.OptionMenu( self.optionsFrame.interior, var, default, *options )
+				inputWidget = Dropdown( self.optionsFrame.interior, options, default, command=self.dropdownUpdated )
 				if comments:
 					ToolTip( inputWidget, text='\n'.join(comments), wraplength=250 )
 
 			# elif 'range' in optionDict: # Create a slider and connected value entry
 			# 	inputWidget = DisguisedEntry( self.optionsFrame.interior, width=optWidth*2+2, validate='key', validatecommand=(validationCommand, '%P') )
 			# 	inputWidget.pack( side='right' )
-			# 	inputWidget.insert( 0, optionDict['value'] )
+			# 	inputWidget.insert( 0, currentValue )
 
 			# 	start, end = optionDict['range']
 			# 	inputWidget = ttk.Scale( self.optionsFrame.interior, from_=start, to=end, command=self.rangeOptionUpdated )
@@ -1045,25 +1057,23 @@ class CodeConfigWindow( BasicWindow ):
 			else: # Create a standard value entry (int/uint)
 				inputWidget = DisguisedEntry( self.optionsFrame.interior, width=8, validate='key', validatecommand=(validationCommand, '%P'), justify='right' )
 
+			# Add the input widget to the interface and give it its initial value
 			if inputWidget.winfo_class() == 'TMenubutton': # This is actually the OptionMenu (dropdown) widget
-				#inputWidget.pack( side='right' )
-				inputWidget.grid( column=2, row=row, sticky='e', padx=18 )
+				inputWidget.grid( column=2, row=row, sticky='e', padx=28 )
 			else:
-				inputWidget.insert( 0, optionDict['value'] )
-				#inputWidget.pack( side='right', padx=18 )
 				inputWidget.grid( column=2, row=row, sticky='e', padx=36 )
+				inputWidget.insert( 0, currentValue )
 
 			# Add a slider if a range was provided
 			if 'range' in optionDict:
 				start, end = optionDict['range']
 				inputWidget = ttk.Scale( self.optionsFrame.interior, from_=start, to=end, command=self.sliderUpdated, length=180 )
-				#inputWidget.pack( side='right', padx=(14, 7) )
 				inputWidget.grid( column=1, row=row, padx=(14, 7) )
 
-			ttk.Separator( self.optionsFrame.interior, orient='horizontal' ).grid( column=0, columnspan=3, row=row+1, pady=verticalPadding[0], sticky='ew' )
+			ttk.Separator( self.optionsFrame.interior, orient='horizontal' ).grid( column=0, columnspan=3, row=row+1, pady=vPad[0], sticky='ew', padx=sepPad )
 			row += 2
 		
-		self.optionsFrame.grid( column=0, row=0, pady=verticalPadding, padx=40, ipadx=0, sticky='nsew' )
+		self.optionsFrame.grid( column=0, row=0, pady=vPad, padx=40, ipadx=0, sticky='nsew' )
 
 		self.optionsFrame.interior.rowconfigure( 'all', weight=1 )
 		self.optionsFrame.interior.columnconfigure( 0, weight=1 )
@@ -1107,12 +1117,19 @@ class CodeConfigWindow( BasicWindow ):
 
 		""" Called when a slider or its associated Entry widget are updated. """
 
-	def dropdownUpdated( self, event ):
+	#def dropdownUpdated( self, name, index, mode ):
+	#def dropdownUpdated( self, name, var ):
+	def dropdownUpdated( self, widget, newValue ):
 
 		""" Called when a dropdown widget is updated. """
 
+		#print 'updating!'
+		#print globalData.gui.root.getvar( name ), mode
+		print widget.winfo_class()
+		print newValue
+
 		# Update the width of the frame
-		self.optionsFrame._configure_interior()
+		#self.optionsFrame._configure_interior()
 
 	def confirmChanges( self ): pass
 	def setToDefaults( self ): pass

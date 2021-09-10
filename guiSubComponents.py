@@ -1167,6 +1167,23 @@ class ColoredLabelButton( LabelButton ):
 		self['image'] = self.nonHoverImage
 
 
+class Dropdown( ttk.OptionMenu ):
+
+	def __init__( self, parent, options, default='', command=None, **kwargs ):
+
+		self.command = command
+		var = Tk.StringVar()
+
+		if command:
+			assert callable( command ), 'Command is not callable! {}'.format( command )
+			ttk.OptionMenu.__init__( self, parent, var, default, *options, command=self.callBack, **kwargs )
+		else:
+			ttk.OptionMenu.__init__( self, parent, var, default, *options, **kwargs )
+
+	def callBack( self, newValue ):
+		self.command( self, newValue )
+
+
 class VerticalScrolledFrame( Tk.Frame ):
 
 	""" Provides a simple vertical scrollable area, for space for other widgets. 
