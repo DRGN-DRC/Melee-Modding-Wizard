@@ -23,7 +23,7 @@ PAL ------- 0x161E78 ---- A0BF0000 -> 38A007FF ---- (lhz r5,0(r31) -> li r5,2047
 
 	-==-
 
-
+!
 Boot to Character Select Screen
 - Does not skip loading memory card data.
 This mod can be modified to go to other screens by modifying the last byte with a different ID.

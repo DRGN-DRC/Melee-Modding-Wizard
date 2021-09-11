@@ -15,47 +15,28 @@ bl <TEST_Func>
 	-==-
 
 
-Peach - Always Pull Specific Turnip
-The default for this code is Stitch Face, but it can be changed to any of the turnips.
+Example Mod with Configuration Options
+Description text goes here.
 Configurations:
-    float Turnip Count Float TEST = 0x7; 0-0x7 # Select your preferred vegetable features
-        0: 'Smile' # Optional comment/description
-        1: 'T Eyes'
-        2: 'Line Eyes'
-        3: 'Circle Eyes'
-        4: 'Upward Curve Eyes'
-        5: 'Wink'
-        6: 'Dot Eyes'
-        7: 'Stitch Face'
-    uint8 Turnip Count = 0x7; 0-0x7 # Select your preferred vegetable features
-        0: Smile # Optional comment/description
-        1: T Eyes
-        2: Line Eyes
-        3: Circle Eyes
-        4: Upward Curve Eyes
-        5: Wink
-        6: Dot Eyes
-        7: Stitch Face
-    uint32 TEST_uint32_range = 5; 0-10
-    float TEST_float = 10 # This is a float
-    int16 TEST_int16 = 16
-    uint16 Turni = 0x7; 0-0x4 # Select your preferred vegetable features
-        0: Smile # Optional comment/description 1
-        1: T Eyes # Optional comment/description 2
-        2: Line Eyes
-        3: Circle Eyes
-        4: Upward Curve Eyes
-    int32 TEST_int32 = 32
-    #int32 INT5 = 5
-    #int32 INT6 = 
+    float Float Slider = .6; 0-1.0 # You can even set comments
+    int32 Int Slider = 42; 0-100 # You can even set comments
+    uint32 Object = 0x4 # Select your preferred vegetable features
+        0: Point # Optional comment/description
+        1: Line
+        2: Square
+        3: Cube # Another comment
+        4: Tesseract
+    int16 Some INT16 = 0x16
+    int16 Object 2 = 0x2 # Select your preferred vegetable features
+        0: Point # Optional comment/description
+        1: Line
+        2: Square
+        3: Cube # Another comment
+        4: Tesseract
 [??]
 Version -- DOL Offset ------ Hex to Replace ---------- ASM Code
-1.02 ----- 0x802BD410 --- 7CC83378 -> 390000[[Turnip Count]]
+1.02 ----- 0x802BD410 --- 7CC83378 -> 390000[[Object 2]]
 1.02 ----- 0x8011D090 --- 40820010 -> 48000010
-1.01 ----- 0x802BC988 --- 7CC83378 -> 390000[[Turnip Count]]
-1.01 ----- 0x8011CE04 --- 40820010 -> 48000010
-1.00 ----- 0x802BBDA0 --- 38C60001 -> 390000[[Turnip Count]]
-1.00 ------ 0x11CA54 ---- 7FE3FB78 -> 48000010
 
 
 	-==-
@@ -75,3 +56,51 @@ lis r0, <<mytestfunc>>@h
 ori r4, r0, <<mytestfunc>>@l
 80A3000C 7C842A14
 00000000
+
+
+	-==-
+
+
+Test End File Alignment on Main Menu Load
+Tests for alignment error
+[Punkline]
+Version -- DOL Offset ------ Hex to Replace ---------- ASM Code
+1.02 ------ 0x1ADF4C ---- 80010024 -> branch
+
+# --- SDATA offsets
+r13.xFSTEntries = -0x4424
+r13.xFSTPaths   = -0x4420
+r13.xFSTCount   = -0x441C
+r13.xDVDAsyncQueue = -0x3ea8
+
+# rFST:
+FST.xStr    = 0x0
+FST.xOffset = 0x4
+FST.xSize   = 0x8
+FST.size    = 0xC
+
+
+rFST = 31
+
+lwz r3, r13.xFSTCount(r13)
+subi r3, r3, 1
+lwz rFST, r13.xFSTEntries(r13)
+mulli r3, r3, FST.size
+add rFST, rFST, r3
+# rFST = last file in FST entries
+
+lwz r3, FST.xSize(rFST)
+bl 0x80381fa8  # hsdAllocMemPiece
+# allocate space for loading file
+
+lwz r30, 0x24(sp)  # backup sp value for safe return
+mr r4, r3                  # r3 = path str
+lwz r3, FST.xStr(rFST)     # r4 = file output
+addi r5, sp, 0x24          # r5 = temp value to store file size
+lwz rFST, r13.xFSTPaths(r13)
+add r3, r3, rFST
+bl 0x8001668c  # DVD.load
+# attempt to load last file in ISO into allocated space
+
+mr r0, r30  # recover last instruction from backup sp value
+.long 0     # return from injection

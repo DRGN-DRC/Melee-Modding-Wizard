@@ -2,17 +2,19 @@
 	"category": "Core Codes",
 	"codes": [
 		{
-			"name": "Static ArenaHi Malloc",
+			"name": "Arena Memory Allocation (Static ArenaHi Malloc)",
 			"authors": [ "Punkline" ],
 			"description": [ "Creates a permanent allocation from the top of the arena of a custom size." ],
 			"configurations": {
 				"Reservation Size": {
-					"type": "int32",
-					"value": 0
+					"type": "uint32",
+					"value": 0,
+					"default": 0
 				},
 				"Reservation Location": {
-					"type": "int32",
-					"value": 0
+					"type": "uint32",
+					"value": 0,
+					"default": 0
 				}
 			},
 			"build": [
