@@ -13,6 +13,7 @@
 import os
 import ttk
 import time
+import struct
 import urlparse
 import webbrowser
 import tkMessageBox
@@ -22,8 +23,8 @@ from urlparse import urlparse 	# For validating and security checking URLs
 # Internal Dependencies
 import globalData
 from disc import Disc
-from basicFunctions import msg, openFolder
-from codeMods import regionsOverlap, CodeLibraryParser
+from basicFunctions import msg, openFolder, validHex
+from codeMods import ConfigurationTypes, regionsOverlap, CodeLibraryParser
 from guiSubComponents import (
 	exportSingleFileWithGui, VerticalScrolledFrame, LabelButton, ToolTip, CodeLibrarySelector, 
 	CodeSpaceOptionsWindow, ColoredLabelButton, BasicWindow, DisguisedEntry, Dropdown
@@ -982,9 +983,10 @@ class CodeConfigWindow( BasicWindow ):
 		super( CodeConfigWindow, self ).__init__( globalData.gui.root, mod.name + ' - Configuration', resizable=True, minsize=(450, 100) )
 
 		self.mod = mod
+		#self.skipValidation = False
+		self.allowSliderUpdates = True
 		sepPad = 7 # Separator padding
 		vPad = ( 8, 0 ) # Vertical padding
-		#self.dropdownWidgets {}
 		validationCommand = globalData.gui.root.register( self.entryUpdated )
 
 		self.optionsFrame = VerticalScrolledFrame( self.window )
@@ -998,79 +1000,68 @@ class CodeConfigWindow( BasicWindow ):
 			# Check the type and data width
 			optType = optionDict.get( 'type' )
 			currentValue = optionDict.get( 'value' )
-			if not optType or not currentValue: # Failsafe; should have been validated in parsing
-				globalData.gui.updateProgramStatus( '{} missing critical configuration type or value!'.format(optionName) )
+			if not optType or currentValue == None: # Failsafe; should have been validated by now
+				globalData.gui.updateProgramStatus( '{} missing critical configuration details!'.format(optionName) )
 				continue
-			optWidth = self.getOptionWidth( optType )
-			members = optionDict.get( 'members' ) # A list of lists
-			comment = optionDict.get( 'annotation' )
+
+			# Optional parameters
+			optRange = optionDict.get( 'range' )
+			optMembers = optionDict.get( 'members' )
+			optComment = optionDict.get( 'annotation' )
 
 			# Add the option name, with a comment/annotation if one is available
 			nameLabel = ttk.Label( self.optionsFrame.interior, text=optionName + u'  \N{BLACK DOWN-POINTING TRIANGLE}' )
 			nameLabel.grid( column=0, row=row, sticky='w', padx=28 )
-			if comment:
-				ToolTip( nameLabel, text=comment.lstrip( '# ' ), wraplength=400 )
+
+			# Add a hover tooltip to the name
+			details = 'Type:  {}\nDefault value:  {}'.format( optType, optionDict['default'] )
+			if optComment:
+				optComment += '\n' + details
+			else:
+				optComment = details
+			ToolTip( nameLabel, text=optComment.lstrip( '# ' ), wraplength=400, delay=800 )
 
 			# Add a control widget
-			#if len( members ) == 2 and : # Create an On/Off toggle
+			#if len( optMembers ) == 2 and : # Create an On/Off toggle
 			#elif # Create a color chooser
-			if members: # Create a dropdown menu
-				# if optType == 'float':
-				# 	var = Tk.DoubleVar( name=optionName )
-				# else:
-				# 	var = Tk.IntVar( name=optionName )
-				#var = Tk.StringVar()
-				#var.trace( 'w', self.dropdownUpdated )
-
+			if optMembers: # Create a dropdown menu
 				# Format options for the dropdown
-				options = []
-				comments = []
-				default = '' # Initial default selection for the dropdown
-				for opt in members: # List of [name, value] or [name, value, comment]
-					options.append( '{}  |   {}'.format(opt[1], opt[0]) )
-
-					if opt[1] == currentValue:
-						default = '{}  |   {}'.format(opt[1], opt[0])
-
-					if len( opt ) == 3 and opt[-1] != '':
-						comment = opt[2].lstrip( '# ' )
-						comments.append( '{}: {}'.format(opt[0], comment) )
-
-				if not default:
-					default = '{}  |   Unlisted Selection!'.format( currentValue )
+				options, default, comments = self.formatDropdownOptions( optMembers, optType, currentValue )
 
 				inputWidget = ttk.OptionMenu( self.optionsFrame.interior, Tk.StringVar(), default, *options )
-				#inputWidget = Dropdown( self.optionsFrame.interior, options, default, command=self.dropdownUpdated )
-				inputWidget.option = optionName
 				if comments:
 					ToolTip( inputWidget, text='\n'.join(comments), wraplength=250 )
 
-			# elif 'range' in optionDict: # Create a slider and connected value entry
-			# 	inputWidget = DisguisedEntry( self.optionsFrame.interior, width=optWidth*2+2, validate='key', validatecommand=(validationCommand, '%P') )
-			# 	inputWidget.pack( side='right' )
-			# 	inputWidget.insert( 0, currentValue )
-
-			# 	start, end = optionDict['range']
-			# 	inputWidget = ttk.Scale( self.optionsFrame.interior, from_=start, to=end, command=self.rangeOptionUpdated )
-
 			elif optType == 'float': # Create float value entry
-				inputWidget = DisguisedEntry( self.optionsFrame.interior, width=8, validate='key', validatecommand=(validationCommand, '%P'), justify='right' )
+				inputWidget = DisguisedEntry( self.optionsFrame.interior, width=8, validate='key', justify='right' )
 
 			else: # Create a standard value entry (int/uint)
-				inputWidget = DisguisedEntry( self.optionsFrame.interior, width=8, validate='key', validatecommand=(validationCommand, '%P'), justify='right' )
+				inputWidget = DisguisedEntry( self.optionsFrame.interior, width=8, validate='key', justify='right' )
 
 			# Add the input widget to the interface and give it its initial value
+			inputWidget.option = optionName
 			if inputWidget.winfo_class() == 'TMenubutton': # This is actually the OptionMenu (dropdown) widget
 				inputWidget.grid( column=2, row=row, sticky='e', padx=28 )
-			else:
-				inputWidget.grid( column=2, row=row, sticky='e', padx=36 )
+			else: # Entry
+				inputWidget.optType = optType
+				inputWidget.optRange = optRange
 				inputWidget.insert( 0, currentValue )
+				inputWidget.slider = None
+				inputWidget.configure( validatecommand=(validationCommand, '%P', '%W') )
+				inputWidget.grid( column=2, row=row, sticky='e', padx=46, ipadx=10 )
 
-			# Add a slider if a range was provided
-			if 'range' in optionDict:
-				start, end = optionDict['range']
-				inputWidget = ttk.Scale( self.optionsFrame.interior, from_=start, to=end, command=self.sliderUpdated, length=180 )
-				inputWidget.grid( column=1, row=row, padx=(14, 7) )
+				# Add a slider if a range was provided
+				if optRange:
+					#start, end = optRange
+					start, end = mod.parseConfigValue( optType, optRange[0] ), mod.parseConfigValue( optType, optRange[1] )
+					currentValue = mod.parseConfigValue( optType, currentValue )
+					print optionName, start, '-', end
+					slider = ttk.Scale( self.optionsFrame.interior, from_=start, to=end, length=180, value=currentValue )
+					slider.configure( command=lambda v, w=inputWidget: self.sliderUpdated(v, w) )
+					slider.grid( column=1, row=row, padx=(14, 7), sticky='ew' )
+
+					inputWidget.optRange = ( start, end )
+					inputWidget.slider = slider
 
 			ttk.Separator( self.optionsFrame.interior, orient='horizontal' ).grid( column=0, columnspan=3, row=row+1, pady=vPad[0], sticky='ew', padx=sepPad )
 			row += 2
@@ -1085,9 +1076,8 @@ class CodeConfigWindow( BasicWindow ):
 		# Add the bottom row of buttons
 		buttonsFrame = ttk.Frame( self.window )
 		ttk.Button( buttonsFrame, text='OK', command=self.confirmChanges ).grid( column=0, row=0, padx=9 )
-		ttk.Button( buttonsFrame, text='Reset to Defaults', command=self.setToDefaults ).grid( column=1, row=0, padx=9 )
+		ttk.Button( buttonsFrame, text='Reset to Defaults', command=self.setToDefaults ).grid( column=1, row=0, padx=9, ipadx=5 )
 		ttk.Button( buttonsFrame, text='Cancel', command=self.close ).grid( column=2, row=0, padx=9 )
-		#buttonsFrame.pack( pady=5, padx=12, ipadx=12, before=self.optionsFrame ) # Adding earlier in packing list via 'before'; so it hides last on resize
 		buttonsFrame.grid( column=0, row=1, pady=10, padx=12, ipadx=12 )
 
 		# Add resize capability (should allow buttons to always be visible, and instead force resize of the optionFrame)
@@ -1095,76 +1085,179 @@ class CodeConfigWindow( BasicWindow ):
 		self.window.rowconfigure( 1, weight=0 )
 		self.window.columnconfigure( 'all', weight=1 )
 
-	def getOptionWidth( self, optionType ):
+	# def getOptionWidth( self, optionType ):
 
-		if optionType.endswith( '32' ) or optionType == 'float':
-			return 4
-		elif optionType.endswith( '16' ):
-			return 2
-		elif optionType.endswith( '8' ):
-			return 1
-		else:
-			return -1
+	# 	if optionType.endswith( '32' ) or optionType == 'float':
+	# 		return 4
+	# 	elif optionType.endswith( '16' ):
+	# 		return 2
+	# 	elif optionType.endswith( '8' ):
+	# 		return 1
+	# 	else:
+	# 		return -1
 
-	def entryUpdated( self, newString ):
+	def formatDropdownOptions( self, members, optType, initValue ):
+
+		""" Returns a list of formatted options for a dropdown menu, 
+			along with a default option and a list of comments. """
+
+		options = []
+		comments = []
+		default = '' # Initial default selection for the dropdown
+		initValue = self.mod.parseConfigValue( optType, initValue ) # Normalize for the comparison
+
+		for opt in members: # List of [name, value] or [name, value, comment]
+			name = opt[0].strip()
+			value = self.mod.parseConfigValue( optType, opt[1] )
+			options.append( '{}  |   {}'.format(value, name) )
+
+			if value == initValue:
+				default = '{}  |   {}'.format(value, name)
+
+			if len( opt ) == 3 and opt[-1] != '':
+				comment = opt[2].lstrip( '# ' )
+				comments.append( '{}: {}'.format(name, comment) )
+
+		if not default:
+			default = '{}  |   Unlisted Selection!'.format( initValue )
+
+		return options, default, comments
+
+	def validEntryValue( self, widget, inputString ):
+
+		""" Returns True/False on whether or not the given string is a valid value 
+			input for the given input widget; tests string to int/float casting, 
+			value ranges (if available), and value to bytes packing. """
+
+		try:
+			value = self.mod.parseConfigValue( widget.optType, inputString )
+
+			# Make sure it's within range
+			if widget.optRange:
+				if value < widget.optRange[0]:
+					raise Exception( 'value is less than lower range limit' )
+				if value > widget.optRange[1]:
+					raise Exception( 'value is greater than upper range limit' )
+
+			# Validate the value with the type (make sure it's packable into the alloted space; e.g. 256 can't be packed to one byte)
+			struct.pack( ConfigurationTypes[widget.optType], value )
+			
+			# Update an associated slider if present
+			if widget.slider:
+				# Prevent slider from updating Entry to prevent infinite loop
+				self.allowSliderUpdates = False
+				widget.slider.set( value )
+				self.allowSliderUpdates = True
+
+			return True
+
+		except Exception as err:
+			globalData.gui.updateProgramStatus( 'Invalid value entry detected; {}'.format(err) )
+			return False
+
+	def entryUpdated( self, newString, widgetName ):
 
 		""" Run some basic validation on the input and color the widget text red if invalid. 
 			Must return True to validate the entered text and allow it to be displayed. """
 
-		print 'newString:', newString
+		widget = globalData.gui.root.nametowidget( widgetName )
+
+		if self.validEntryValue( widget, newString ):
+			widget['foreground'] = '#292' # Green
+		else:
+			widget['foreground'] = '#a34343' # Red
 
 		return True
 
-	def sliderUpdated( self, event ):
+	def sliderUpdated( self, value, entryWidget ):
 
-		""" Called when a slider or its associated Entry widget are updated. """
+		""" Called when a slider is updated in order to update its associated Entry widget. """
 
-	#def dropdownUpdated( self, name, index, mode ):
-	#def dropdownUpdated( self, name, var ):
-	# def dropdownUpdated( self, widget, newValue ):
+		if not self.allowSliderUpdates: # Can be turned off to preven updating associated Entry widget
+			return
 
-	# 	""" Called when a dropdown widget is updated. """
+		# Temporarily disable validation
+		entryWidget.configure( validate='none' )
+		entryWidget.delete( 0, 'end' )
 
-	# 	#print 'updating!'
-	# 	#print globalData.gui.root.getvar( name ), mode
-	# 	print widget.winfo_class()
-	# 	print newValue
+		if entryWidget.optType == 'float':
+			entryWidget.insert( 0, value )
+		else:
+			entryWidget.insert( 0, int(float( value )) )
+		entryWidget['foreground'] = '#292' # Green
 
-	# 	memberName = newValue.split( '|' )[1].strip()
-
-	# 	# Look for the above member to get its associated value, and set that as the new "current" value
-	# 	for opt in self.mod.configurations[widget.option]['members']: # List of [name, value] or [name, value, comment]
-	# 		if opt[0] == memberName:
-	# 			self.mod.configurations[widget.option]['value'] = opt[1]
-	# 			break
-	# 	else: # Won't be encountered unless the loop above didn't break
-	# 		raise Exception( "Unable to find {} among {}'s option members.".format(memberName, widge.option) )
+		#self.skipValidation = False
+		entryWidget.configure( validate='key' )
 
 	def confirmChanges( self ):
 
+		""" Validates input in all input widgets"""
+
+		changesToSave = {} # Store them until all input has been validated (user may still cancel after notification of invalid input)
+
+		# Iterate over input widgets in column 2
 		for widget in self.optionsFrame.interior.grid_slaves( column=2 ):
 			widgetClass = widget.winfo_class()
+			if widgetClass == 'TSeparator':
+				continue
 
 			# Update values from dropdown (OptionMenu) widgets
 			if widgetClass == 'TMenubutton':
 				sValue = widget._variable.get().split( '|' )[0]
 				currentValue = int( sValue )
-				# Look for the above member to get its associated value, and set that as the new "current" value
-				# for opt in self.mod.configurations[widget.option]['members']: # List of [name, value] or [name, value, comment]
-				# 	if opt[0] == memberName:
-				# 		self.mod.configurations[widget.option]['value'] = opt[1]
-				# 		break
-				# else: # Won't be encountered unless the loop above didn't break
-				# 	raise Exception( "Unable to find {} among {}'s option members.".format(memberName, widge.option) )
-			
 			elif widgetClass == 'Entry':
 				currentValue = widget.get()
 
+				# Validate the current input value
+				if not self.validEntryValue( widget, currentValue ):
+					msg( 'The value entry for {} appears to be invalid. Please double-check it and try again.'.format(widget.option), 'Invalid Value Detected' )
+					break
 			else:
-				raise Exception()
+				raise Exception( 'Unexpected input widget class: {}'.format(widgetClass) )
 
-			self.mod.configurations[widget.option]['value'] = currentValue
+			changesToSave[widget.option] = currentValue
 
-	def setToDefaults( self ): pass
+		else: # The loop above didn't break; all values validated. Time to save changes and close
+			for optionName, value in changesToSave.items():
+				self.mod.configurations[optionName]['value'] = value
 
+			self.close()
+
+	def setToDefaults( self ):
+
+		""" Reset current values in the mod's configuration to default settings, 
+			and update the GUI to reflect this. """
+
+		# Iterate over input widgets in column 2
+		for widget in self.optionsFrame.interior.grid_slaves( column=2 ):
+			widgetClass = widget.winfo_class()
+			if widgetClass == 'TSeparator':
+				continue
+
+			optionDict = self.mod.configurations[widget.option]
+			defaultValue = optionDict['default']
+
+			# Update the current value in the mod's configuration
+			optionDict['value'] = defaultValue
+
+			# Update values from dropdown (OptionMenu) widgets
+			if widgetClass == 'TMenubutton':
+				default = self.formatDropdownOptions( members, widget.optType, defaultValue )[1]
+				widget._variable.set( default )
+
+			elif widgetClass == 'Entry':
+				# Temporarily disable validation and set the default value in the widget
+				#self.skipValidation = True
+				widget.configure( validate='none' )
+				widget.delete( 0, 'end' )
+				widget.insert( 0, defaultValue )
+
+				# Change the font back to normal and re-enable validation
+				widget['foreground'] = 'black'
+				#self.skipValidation = False
+				widget.configure( validate='key' )
+
+				if widget.slider:
+					defaultValue = self.mod.parseConfigValue( widget.optType, defaultValue )
+					widget.slider.set( defaultValue )
 	

@@ -1172,11 +1172,13 @@ class Dropdown( ttk.OptionMenu ):
 	def __init__( self, parent, options, default='', variable=None, command=None, **kwargs ):
 
 		self.command = command
+		if not default:
+			default = options[0]
 		if not variable:
 			variable = Tk.StringVar()
 
 		if command:
-			assert callable( command ), 'Command is not callable! {}'.format( command )
+			assert callable( command ), 'The given command is not callable! {}'.format( command )
 			ttk.OptionMenu.__init__( self, parent, variable, default, *options, command=self.callBack, **kwargs )
 		else:
 			ttk.OptionMenu.__init__( self, parent, variable, default, *options, **kwargs )

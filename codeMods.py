@@ -26,7 +26,7 @@ from basicFunctions import toHex, validHex, msg
 from guiSubComponents import cmsg
 
 
-ConfigurationTypes = { 'int8': '>b', 'uint8': '>B', 'int16': '>h', 'uint16': '>H', 'int32': '>i', 'uint32': '>I', 'float': '>f' }
+ConfigurationTypes = { 'int8': 'b', 'uint8': 'B', 'int16': '>h', 'uint16': '>H', 'int32': '>i', 'uint32': '>I', 'float': '>f' }
 
 
 # def getCustomCodeLength( customCode, preProcess=False, includePaths=None, configurations=None ):
@@ -118,7 +118,7 @@ class CodeChange( object ):
 		self.mod = mod
 		self.type = changeType
 		self.length = -1
-		self.offset = offset			# May be a DOL offset or RAM address string. Should be interpreted by one of the DOL normalization methods
+		self.offset = offset			# String; may be a DOL offset or RAM address. Should be interpreted by one of the DOL normalization methods
 		self._origCode = origCode
 		self.rawCode = rawCustomCode
 		self.preProcessedCode = preProcessedCode
@@ -233,8 +233,8 @@ class CodeChange( object ):
 			self.mod.errors.append( 'Unrecognized configuration option type: {}'.format(codeOrErrorNote) )
 
 		if self.processStatus != 0:
-			print 'Error parsing code change at', hex( self.offset )
-			print 'Error code:', self.processStatus + ';', self.mod.stateDesc
+			print 'Error parsing code change at', self.offset
+			print 'Error code: {}; {}'.format( self.processStatus, self.mod.stateDesc )
 
 		return self.processStatus
 
@@ -477,6 +477,23 @@ class CodeMod( object ):
 		# 	raise Exception( '{} not found in configuration options.'.format(name) )
 
 		return self.configurations[name]['value']
+
+	@staticmethod
+	def parseConfigValue( optionType, value ):
+
+		""" Normalizes value input that may be a hex/decimal string or an int/float literal
+			to an int or float. The source value type may not be consistent due to
+			varying sources (i.e. from an MCM format file or AMFS config file). """
+
+		if type( value ) == str: # Need to typecast to int or float
+			if optionType == 'float':
+				value = float( value )
+			elif '0x' in value: # Convert from hex using base 16
+				value = int( value, 16 )
+			else: # Assume decimal value
+				value = int( value )
+
+		return value
 
 
 class CodeLibraryParser():
@@ -782,34 +799,39 @@ class CodeLibraryParser():
 								if customizationOption['type'] not in ConfigurationTypes:
 									raise Exception( 'unsupported option type' )
 
-								# Check for value ranges
+								# Check for and parse value ranges
 								if ';' in valueInfo:
 									defaultValue, rangeString = valueInfo.split( ';' )
+									defaultValue = defaultValue.strip()
+
+									# Parse range
 									if '-' not in rangeString:
 										raise Exception( 'No "-" separator in range string' )
 									start, end = rangeString.split( '-' )
-									if '0x' in start:
-										start = int( start, 16 )
-									else:
-										start = int( start )
-									if '0x' in end:
-										end = int( end, 16 )
-									else:
-										end = int( end )
+									# if customizationOption['type'] == 'float':
+									# if '0x' in start:
+									# 	start = int( start, 16 )
+									# else:
+									# 	start = int( start )
+									# if customizationOption['type'] == 'float':
+									# if '0x' in end:
+									# 	end = int( end, 16 )
+									# else:
+									# 	end = int( end )
 									customizationOption['range'] = ( start, end )
 
 								elif valueInfo.strip():
-									defaultValue = valueInfo
+									defaultValue = valueInfo.strip()
 
 								else:
 									defaultValue = '0'
 
-								if '0x' in defaultValue:
-									intValue = int( defaultValue, 16 )
-								else:
-									intValue = int( defaultValue )
-								customizationOption['default'] = intValue
-								customizationOption['value'] = intValue
+								# if '0x' in defaultValue:
+								# 	intValue = int( defaultValue, 16 )
+								# else:
+								# 	intValue = int( defaultValue )
+								customizationOption['default'] = defaultValue
+								customizationOption['value'] = defaultValue
 								customizationOption['annotation'] = lineComments
 
 							# Process enumerations/members of an existing option
@@ -821,11 +843,11 @@ class CodeLibraryParser():
 
 								# Save the name, value, and comment from this line
 								value, name = line.split( ':' )
-								if '0x' in value:
-									value = int( value, 16 )
-								else:
-									value = int( value )
-								customizationOption['members'].append( [name.strip(), value, lineComments] )
+								# if '0x' in value:
+								# 	value = int( value, 16 )
+								# else:
+								# 	value = int( value )
+								customizationOption['members'].append( [name.strip(), value.strip(), lineComments] )
 
 						except Exception as err:
 							mod.parsingError = True
@@ -2756,10 +2778,14 @@ class CommandProcessor( object ):
 							sectionChunks[j] = chunk.replace( varName+']]', str(value) )
 						else: # Needs to be packed to the appropriate length for the data type
 							optionType, value = optionData.pop( 0 )
-							# if '0x' in value:
-							# 	value = int( value, 16 )
-							# else:
-							# 	value = int( value )
+							# if type( value ) == str: # Need to typecast to int or float
+							# 	if optionType == 'float':
+							# 		value = float( value )
+							# 	elif '0x' in value:
+							# 		value = int( value, 16 )
+							# 	else:
+							# 		value = int( value )
+							value = CodeMod.parseConfigValue( optionType, value )
 							valueAsBytes = struct.pack( ConfigurationTypes[optionType], value )
 							sectionChunks[j] = chunk.replace( varName+']]', hexlify(valueAsBytes) )
 

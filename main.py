@@ -35,7 +35,8 @@ from tools import TriCspCreator
 from disc import Disc, isExtractedDirectory
 from hsdFiles import StageFile, CharCostumeFile
 from basicFunctions import (
-		floatToHex, msg, uHex, humansize,
+		#floatToHex, 
+		msg, uHex, humansize,
 		openFolder, createFolders
 	)
 from guiSubComponents import (
