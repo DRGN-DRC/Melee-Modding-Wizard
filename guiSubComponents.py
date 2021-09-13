@@ -1302,6 +1302,47 @@ class NeoTreeview( ttk.Treeview, object ):
 		else:
 			self.scrollbar = None
 
+	def getItemsInSelection( self, selectionTuple='', recursive=True ):
+
+		""" Extends a selection in the treeview, which may contain folders, to include all files within those folders. 
+			"iid"s are unique "Item IDentifiers" given to file/folder items in treeview widgets to identify or select them. """
+
+		fileIids = set()
+		folderIids = set()
+
+		if not selectionTuple: # Start with root level items and get everything
+			selectionTuple = self.get_children()
+
+		# Separate sets/lists of file/folder isoPaths
+		for iid in selectionTuple:
+			# itemType = self.isoFileTree.item( iid, 'values' )[1] # May be "file", "nFolder" (native folder), or "cFolder" (convenience folder)
+
+			# if itemType != 'file':
+			# 	folderIids.add( iid )
+
+			# 	if recursive:
+			# 		subFolderItems = self.isoFileTree.get_children( iid )
+			# 		subFolders, subFiles = self.getItemsInSelection( subFolderItems, True )
+			# 		folderIids.update( subFolders )
+			# 		fileIids.update( subFiles )
+			# else:
+			# 	fileIids.add( iid )
+
+			children = self.get_children( iid )
+
+			if children and recursive:
+				folderIids.add( iid )
+
+				subFolders, subFiles = self.getItemsInSelection( children, True )
+				folderIids.update( subFolders )
+				fileIids.update( subFiles )
+			elif children:
+				folderIids.add( iid )
+			else:
+				fileIids.add( iid )
+
+		return folderIids, fileIids
+
 	def getOpenFolders( self, openIids=[], parentIid='' ):
 
 		""" Gets the iids of all open folders. """

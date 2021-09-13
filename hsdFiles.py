@@ -192,7 +192,7 @@ class FileBase( object ):
 		self.isoPath = isoPath			# e.g. 'GALE01/audio/1padv.ssm' if this is for a file in a disc
 		self.extPath = extPath			# External path. I.e. a full (absolute) system file path if this is a standalone file
 		self.origSize = size			# Should always be the original size of the file (even if its data changes size)
-		self.description = description.encode( 'utf-8' )
+		self.description = description #.encode( 'utf-8' )
 		#self.updateSummary = set()		# Summary of changes done to this file
 		self.unsavedChanges = []		# Detailed list of all specific changes to this file
 
@@ -218,7 +218,8 @@ class FileBase( object ):
 		descriptionsFile = os.path.join( globalData.scriptHomeFolder, 'File Descriptions', gameId + '.yaml' )
 		
 		try:
-			with codecs.open( descriptionsFile, 'r', encoding='utf-8' ) as stream: # Using a different read method to accommodate UTF-8 encoding
+			#with codecs.open( descriptionsFile, 'r', encoding='utf-8' ) as stream: # Using a different read method to accommodate UTF-8 encoding
+			with codecs.open( descriptionsFile, 'r' ) as stream: # Using a different read method to accommodate UTF-8 encoding
 				#cls.yamlDescriptions = yaml.safe_load( stream ) # Vanilla yaml module method (loses comments when saving/dumping back to file)
 				cls.yamlDescriptions = yaml.load( stream, Loader=yaml.RoundTripLoader )
 		except IOError: # Couldn't find the file
@@ -379,7 +380,9 @@ class FileBase( object ):
 			description = ''
 			print 'Error in getting a description for {}; {}'.format( self.filename, err )
 			
-		self.description = description.encode( 'utf-8' )
+		#self.description = description.encode( 'utf-8' )
+		if description:
+			self.description = description
 
 		return self.description
 
@@ -2417,15 +2420,15 @@ class StageFile( DatFile ):
 		# Check if there's a file explicitly defined in the file descriptions config file
 		if not stageName:
 			stageName = self.yamlDescriptions.get( self.filename, '' )
-			if stageName:
-				stageName = stageName.encode( 'utf-8' )
+			# if stageName:
+			# 	stageName = stageName.encode( 'utf-8' )
 
 		# If this is a usd file, check if there's a dat equivalent description
 		if not stageName and self.ext == '.usd':
 			filenameOnly = os.path.splitext( self.filename )[0]
 			stageName = self.yamlDescriptions.get( filenameOnly + '.dat', '' )
 			if stageName:
-				stageName = stageName.encode( 'utf-8' )
+				# stageName = stageName.encode( 'utf-8' )
 				stageName += ' (English)'
 
 		# Check for Target Test stages
@@ -2913,7 +2916,8 @@ class MusicFile( FileBase ):
 			# Check if there's a file explicitly defined in the file descriptions config file
 			description = self.yamlDescriptions.get( self.filename, '' )
 			if description:
-				self.description = description.encode( 'utf-8' )
+				#self.description = description.encode( 'utf-8' )
+				self.description = description
 		
 		return self.description
 

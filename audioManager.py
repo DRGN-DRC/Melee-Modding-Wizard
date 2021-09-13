@@ -147,10 +147,15 @@ class AudioManager( ttk.Frame ):
 		ttk.Button( self.controlsFrame, text='Edit Loop', command=self.editLoop, state='disabled' ).grid( column=1, row=1, padx=5, pady=5 )
 		ttk.Button( self.controlsFrame, text='Delete', command=self.delete, state='disabled' ).grid( column=0, row=2, padx=5, pady=5 )
 		ttk.Button( self.controlsFrame, text='Add Track', command=self.addTrack ).grid( column=1, row=2, padx=5, pady=5 )
-		ttk.Button( self.controlsFrame, text='Look for References', command=self.findReferences ).grid( column=0, row=3, columnspan=2, ipadx=10, padx=5, pady=5 )
-		self.controlModule = AudioControlModule( self.controlsFrame, self.audioEngine )
-		self.controlModule.grid( column=0, columnspan=2, row=4, padx=5, pady=5 )
+		ttk.Button( self.controlsFrame, text='Look for References', command=self.findReferences, state='disabled' ).grid( column=0, row=3, columnspan=2, ipadx=10, padx=5, pady=5 )
+		# self.controlModule = AudioControlModule( self.controlsFrame, self.audioEngine )
+		# self.controlModule.grid( column=0, columnspan=2, row=4, padx=5, pady=5 )
 		self.controlsFrame.pack( pady=6 )
+
+		ttk.Button( infoPane, text='Color Code by File Size', command=self.colorCode ).pack( pady=(0, 6) )
+
+		self.controlModule = AudioControlModule( infoPane, self.audioEngine )
+		self.controlModule.pack( pady=6 )
 
 		self.referencesList = ttk.Label( infoPane, wraplength=400 )
 		self.referencesList.pack( pady=6 )
@@ -671,8 +676,8 @@ class AudioManager( ttk.Frame ):
 				secondaryReferences.append( fileObj )
 
 		# Reformat the lists of files to descriptive strings
-		primaryReferences = [ '{} ({})'.format(fileObj.filename, fileObj.getDescription(False, False)) for fileObj in primaryReferences ]
-		secondaryReferences = [ '{} ({})'.format(fileObj.filename, fileObj.getDescription(False, False)) for fileObj in secondaryReferences ]
+		primaryReferences = [ u'{} ({})'.format(fileObj.filename, fileObj.getDescription(False, False)) for fileObj in primaryReferences ]
+		secondaryReferences = [ u'{} ({})'.format(fileObj.filename, fileObj.getDescription(False, False)) for fileObj in secondaryReferences ]
 
 		# Display the result in the info pane
 		if not primaryReferences and not secondaryReferences:
@@ -695,6 +700,41 @@ class AudioManager( ttk.Frame ):
 					self.referencesList['text'] += '\n\n'
 				self.referencesList['text'] += '      Secondary references:\n\n' + ', '.join( secondaryReferences ).encode( 'utf-8' )
 
+	def colorCode( self ):
+
+		lowEndColor = ( 0xb5, 0xeb, 0x0f ) # Yellow-ish green
+		highEndColor = ( 0xeb, 0x1d, 0x0f ) # Red
+		#steps = 10
+		minSize = 1000000000
+		print humansize(minSize)
+		maxSize = 0
+		totalFiles = 0
+
+		fileIids = self.fileTree.getItemsInSelection()[1]
+
+		for iid in fileIids:
+			fileObj = globalData.disc.files.get( iid )
+			totalFiles += 1
+
+			if fileObj.size < minSize:
+				minSize = fileObj.size
+			if fileObj.size > maxSize:
+				maxSize = fileObj.size
+
+		print humansize(minSize)
+		print humansize(maxSize)
+		
+		for iid in fileIids:
+			fileObj = globalData.disc.files.get( iid )
+
+			# Get percentage of the minSize to maxSize range (e.g. min=4 and max=8, fileSize of 6 would be 50%)
+			percentOfRange = float( fileObj.size - minSize ) / maxSize - minSize
+			newColor = []
+			for channel1, channel2 in zip( lowEndColor, highEndColor ):
+				channelDiff = channel2 - channel1
+				percentDiff = channelDiff * percentOfRange
+				newColor.append( int(channel1 + percentDiff) )
+			
 
 class LoopEditorWindow( BasicWindow ):
 
