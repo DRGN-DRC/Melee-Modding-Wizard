@@ -1305,7 +1305,9 @@ class NeoTreeview( ttk.Treeview, object ):
 	def getItemsInSelection( self, selectionTuple='', recursive=True ):
 
 		""" Extends a selection in the treeview, which may contain folders, to include all files within those folders. 
-			"iid"s are unique "Item IDentifiers" given to file/folder items in treeview widgets to identify or select them. """
+			"iid"s are unique "Item IDentifiers" given to file/folder items in treeview widgets to identify or select them. 
+			This will exclude duplicates (in case files inside folders were also chosen). Returns a set of folder Iids and 
+			a set of file Iids. If no selectionTuple is given, all files and folders will be returned. """
 
 		fileIids = set()
 		folderIids = set()
@@ -1330,6 +1332,7 @@ class NeoTreeview( ttk.Treeview, object ):
 
 			children = self.get_children( iid )
 
+			# If the item has children, it's a folder
 			if children and recursive:
 				folderIids.add( iid )
 

@@ -298,6 +298,10 @@ class FileBase( object ):
 		if description not in self.unsavedChanges:
 			self.unsavedChanges.append( description )
 
+		# If the Disc File Tree is present, indicate this file has changes waiting to be saved there
+		if globalData.gui and globalData.gui.discTab:
+			globalData.gui.discTab.isoFileTree.item( self.isoPath, tags='changed' )
+
 	def export( self, savePath ):
 
 		""" Simple method to export this file's data (regardless of source) to
@@ -1337,6 +1341,10 @@ class DatFile( FileBase ):
 		if noChangesNeedSaving: # Forget the past changes
 			self.unsavedChanges = []
 
+			# If the Disc File Tree is present, remove indication that this file had changes waiting to be saved there
+			if globalData.gui and globalData.gui.discTab:
+				globalData.gui.discTab.isoFileTree.item( self.isoPath, tags=() )
+
 		return noChangesNeedSaving
 
 	def removePointer( self, offset ):
@@ -1383,7 +1391,6 @@ class DatFile( FileBase ):
 
 		# Record this change
 		description = 'Pointer removed at 0x{:X}.'.format( 0x20 + offset )
-		#self.unsavedChanges.append( description )
 		self.recordChange( description )
 
 	def collapseDataSpace( self, collapseOffset, amount ):
@@ -1541,7 +1548,6 @@ class DatFile( FileBase ):
 
 		# Record this change
 		description = '0x{:X} bytes of data removed at 0x{:X}.'.format( amount, 0x20 + collapseOffset )
-		#self.unsavedChanges.append( description )
 		self.recordChange( description )
 
 	def extendDataSpace( self, extensionOffset, amount ):
@@ -1639,7 +1645,6 @@ class DatFile( FileBase ):
 
 		# Record this change
 		description = '0x{:X} bytes of data added at 0x{:X}.'.format( amount, 0x20 + extensionOffset )
-		#self.unsavedChanges.append( description )
 		self.recordChange( description )
 
 	def identifyTextures( self ):
@@ -2470,7 +2475,6 @@ class StageFile( DatFile ):
 
 			try:
 				cssFile.setRandomNeutralName( self.filename, description )
-				#cssFile.unsavedChanges.append( 'Random neutral stage name updated for ' + description )
 				returnCode = 0
 
 			except Exception as err:

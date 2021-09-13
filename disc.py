@@ -1421,7 +1421,7 @@ class Disc( object ):
 		# print 'total system file space:', hex(totalSystemFileSpace)
 		# print 'total non-system file space:', hex(totalNonSystemFileSpace)
 		# print 'padding:', hex(interFilePaddingLength), 'paddingSetting:', paddingSetting
-		# print 'projected disc size:', hex(projectedDiscSize), projectedDiscSize
+		print 'projected disc size:', hex(projectedDiscSize), projectedDiscSize
 
 		dataCopiedSinceLastUpdate = 0
 		fileWriteSuccessful = False
@@ -1491,7 +1491,7 @@ class Disc( object ):
 			dataCopiedSinceLastUpdate += fstPlaceholderPadding
 			dataCopiedSinceLastUpdate = self.updateProgressDisplay( buildMsg, dataCopiedSinceLastUpdate, currentFilePosition+fstPlaceholderPadding, projectedDiscSize )
 			
-			# Write the new ISO's main file structure
+			# Write the new disc's main file structure
 			for fileObj in self.files.itervalues():
 				if fileObj.filename in self.systemFiles: continue
 
@@ -1506,7 +1506,6 @@ class Disc( object ):
 					originalIsoBinary.seek( fileObj.offset )
 					fileData = originalIsoBinary.read( fileObj.size )
 				else:
-					#print 'updating', fileObj.filename, '| source:', fileObj.source, '| unsaved changes:', len(fileObj.unsavedChanges)
 					fileData = fileObj.getData()
 					filesUpdated.add( fileObj.isoPath )
 				newIsoBinary.write( fileData )
@@ -1514,7 +1513,7 @@ class Disc( object ):
 				# Update the file/entry disc offset and size
 				fileObj.offset = newEntryOffset
 				self.updateFstEntry( newEntryOffset, fileObj.size, fileObj.isoPath )
-					
+				
 				# Update the GUI's progress display.
 				dataCopiedSinceLastUpdate += fileObj.size
 				dataCopiedSinceLastUpdate = self.updateProgressDisplay( buildMsg, dataCopiedSinceLastUpdate, newEntryOffset+fileObj.size, projectedDiscSize )
@@ -1522,7 +1521,13 @@ class Disc( object ):
 			# If auto padding was used, there should be a bit of padding left over to bring the file up to the standard GameCube disc size.
 			if paddingSetting == 'auto':
 				finalPaddingSize = defaultGameCubeMediaSize - int( newIsoBinary.tell() )
-				newIsoBinary.write( bytearray(finalPaddingSize) )
+				if finalPaddingSize > 0:
+					newIsoBinary.write( bytearray(finalPaddingSize) )
+
+			# Ensure the final file has padding rounded up to nearest 0x20 bytes (the file cannot be loaded without this!)
+			lastFilePadding = roundTo32( int(newIsoBinary.tell()) - newEntryOffset ) - fileObj.size
+			if lastFilePadding > 0 and lastFilePadding < 0x20:
+				newIsoBinary.write( bytearray(lastFilePadding) )
 
 			# Now that all files have been written, and FST entries updated, the new FST is ready to be assembled and written into the disc
 			self.buildFst()

@@ -110,7 +110,7 @@ class CodeManagerTab( ttk.Frame ):
 		# Add a label that shows how many code modes are selected on the current tab
 		self.installTotalLabel = Tk.StringVar()
 		self.installTotalLabel.set( '' )
-		ttk.Label( self.controlPanel, textvariable=self.installTotalLabel ).pack( side='bottom', pady=(0, 12) )
+		ttk.Label( self.controlPanel, textvariable=self.installTotalLabel ).pack( side='bottom' )
 
 		self.bind( '<Configure>', self.alignControlPanel )
 

@@ -152,13 +152,16 @@ class AudioManager( ttk.Frame ):
 		# self.controlModule.grid( column=0, columnspan=2, row=4, padx=5, pady=5 )
 		self.controlsFrame.pack( pady=6 )
 
-		ttk.Button( infoPane, text='Color Code by File Size', command=self.colorCode ).pack( pady=(0, 6) )
+		# Add buttons outside of the 'controlsFrame' above; these will always be enabled (won't be disabled depending on file selection)
+		ttk.Button( infoPane, text='Color Code by File Size', command=self.colorCode ).pack( pady=(0, 6), ipadx=10 )
 
 		self.controlModule = AudioControlModule( infoPane, self.audioEngine )
 		self.controlModule.pack( pady=6 )
 
 		self.referencesList = ttk.Label( infoPane, wraplength=400 )
 		self.referencesList.pack( pady=6 )
+		self.colorCodeDetails = ttk.Label( infoPane, wraplength=400 )
+		self.colorCodeDetails.pack( pady=6 )
 
 		# Add treeview event handlers
 		self.fileTree.bind( '<<TreeviewSelect>>', self.onFileTreeSelect )
@@ -188,6 +191,7 @@ class AudioManager( ttk.Frame ):
 		self.generalInfoLabel['text'] = ''
 		self.trackInfoLabel['text'] = ''
 		self.referencesList['text'] = ''
+		self.colorCodeDetails['text'] = ''
 
 		# Update the main control buttons (to a state of no item is selected)
 		for widget in self.controlsFrame.winfo_children():
@@ -239,30 +243,30 @@ class AudioManager( ttk.Frame ):
 
 		self.updateGeneralInfo( filecount, totalFilesize )
 
-	def getItemsInSelection( self, selectionTuple, recursive=True ):
+	# def getItemsInSelection( self, selectionTuple, recursive=True ):
 
-		""" Extends a selection in the treeview, which may contain folders, to include all files within those folders. 
-			"iid"s are unique "Item IDentifiers" given to file/folder items in treeview widgets to identify or select them. """
+	# 	""" Extends a selection in the treeview, which may contain folders, to include all files within those folders. 
+	# 		"iid"s are unique "Item IDentifiers" given to file/folder items in treeview widgets to identify or select them. """
 
-		fileIids = set()
-		folderIids = set()
+	# 	fileIids = set()
+	# 	folderIids = set()
 
-		# Separate sets/lists of file/folder isoPaths
-		for iid in selectionTuple:
-			itemType = self.fileTree.item( iid, 'values' )[1] # May be "file", "nFolder" (native folder), or "cFolder" (convenience folder)
+	# 	# Separate sets/lists of file/folder isoPaths
+	# 	for iid in selectionTuple:
+	# 		itemType = self.fileTree.item( iid, 'values' )[1] # May be "file", "nFolder" (native folder), or "cFolder" (convenience folder)
 
-			if itemType != 'file':
-				folderIids.add( iid )
+	# 		if itemType != 'file':
+	# 			folderIids.add( iid )
 
-				if recursive:
-					subFolderItems = self.fileTree.get_children( iid )
-					subFolders, subFiles = self.getItemsInSelection( subFolderItems, True )
-					folderIids.update( subFolders )
-					fileIids.update( subFiles )
-			else:
-				fileIids.add( iid )
+	# 			if recursive:
+	# 				subFolderItems = self.fileTree.get_children( iid )
+	# 				subFolders, subFiles = self.getItemsInSelection( subFolderItems, True )
+	# 				folderIids.update( subFolders )
+	# 				fileIids.update( subFiles )
+	# 		else:
+	# 			fileIids.add( iid )
 
-		return folderIids, fileIids
+	# 	return folderIids, fileIids
 
 	def getSelectedFile( self ):
 
@@ -537,9 +541,7 @@ class AudioManager( ttk.Frame ):
 			return
 
 		# Get all folder and file iids currently selected (the file iids will be isoPaths)
-		folderIids, fileIids = self.getItemsInSelection( iidSelectionsTuple )
-		print 'folderIids:', folderIids
-		print 'fileIids:', fileIids
+		folderIids, fileIids = self.fileTree.getItemsInSelection( iidSelectionsTuple )
 		discFiles = globalData.disc.files
 		fileObjects = []
 
@@ -656,9 +658,9 @@ class AudioManager( ttk.Frame ):
 
 			# Get values from the music table
 			fileObj.initialize()
-			musicTableStruct = fileObj.getMusicTableStruct()
-			values = musicTableStruct.getValues()
-			valuesPerEntry = len( values ) / musicTableStruct.entryCount
+			musicTable = fileObj.getMusicTableStruct()
+			values = musicTable.getValues()
+			valuesPerEntry = len( values ) / musicTable.entryCount
 			
 			# Check for primary references; check music IDs in the first table entry
 			if musicFile.musicId in values[1:5]:
@@ -667,7 +669,7 @@ class AudioManager( ttk.Frame ):
 
 			# Check for secondary references; get all song IDs from the music table values beyond the first table entry
 			secondaryRefs = []
-			for i in range( 1, musicTableStruct.entryCount ):
+			for i in range( 1, musicTable.entryCount ):
 				# Pick out the external stage ID names to get the names for each entry
 				secondaryRefs.extend( values[i*valuesPerEntry+1:i*valuesPerEntry+5] ) # Getting values 1 through 4 of the entry
 
@@ -702,39 +704,57 @@ class AudioManager( ttk.Frame ):
 
 	def colorCode( self ):
 
-		lowEndColor = ( 0xb5, 0xeb, 0x0f ) # Yellow-ish green
-		highEndColor = ( 0xeb, 0x1d, 0x0f ) # Red
-		#steps = 10
+		""" Recolors items in the treeview based on their file size. Small files are 
+			given a green color, large files are given a red color, and files in-between 
+			are given a proportionally in-between color. """
+
+		lowEndColor = ( 0x78, 0xb0, 0x00 ) # Yellow-ish green
+		highEndColor = ( 0xb0, 0x2b, 0x00 ) # Red
 		minSize = 1000000000
-		print humansize(minSize)
 		maxSize = 0
 		totalFiles = 0
+		totalTrackSize = 0
+		minTrackName = ''
+		maxTrackName = ''
 
 		fileIids = self.fileTree.getItemsInSelection()[1]
 
+		# Scan for min/max/total file sizes
 		for iid in fileIids:
 			fileObj = globalData.disc.files.get( iid )
 			totalFiles += 1
+			totalTrackSize += fileObj.size
 
 			if fileObj.size < minSize:
 				minSize = fileObj.size
+				minTrackName = fileObj.description
 			if fileObj.size > maxSize:
 				maxSize = fileObj.size
+				maxTrackName = fileObj.description
 
-		print humansize(minSize)
-		print humansize(maxSize)
+		# Show some results of the above scan in the GUI
+		details = 'Smallest track:    {}   ({})'.format( humansize(minSize), minTrackName )
+		details += '\nLargest track:    {}   ({})'.format( humansize(maxSize), maxTrackName )
+		details += '\nAverage track size:    ' + humansize( totalTrackSize / totalFiles )
+		self.colorCodeDetails['text'] = details
 		
+		# Iterate over the file rows in the treeview
 		for iid in fileIids:
 			fileObj = globalData.disc.files.get( iid )
 
 			# Get percentage of the minSize to maxSize range (e.g. min=4 and max=8, fileSize of 6 would be 50%)
-			percentOfRange = float( fileObj.size - minSize ) / maxSize - minSize
+			percentOfRange = float( fileObj.size - minSize ) / ( maxSize - minSize )
 			newColor = []
 			for channel1, channel2 in zip( lowEndColor, highEndColor ):
 				channelDiff = channel2 - channel1
 				percentDiff = channelDiff * percentOfRange
 				newColor.append( int(channel1 + percentDiff) )
+			newColor = '#{:02x}{:02x}{:02x}'.format( *newColor )
 			
+			# Color this row
+			self.fileTree.addTag( iid, newColor )
+			self.fileTree.tag_configure( newColor, foreground=newColor )
+
 
 class LoopEditorWindow( BasicWindow ):
 

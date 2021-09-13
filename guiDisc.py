@@ -616,30 +616,30 @@ class DiscTab( ttk.Frame ):
 		else:
 			return isoPath
 
-	def getItemsInSelection( self, selectionTuple, recursive=True ):
+	# def getItemsInSelection( self, selectionTuple, recursive=True ):
 
-		""" Extends a selection in the treeview, which may contain folders, to include all files within those folders. 
-			"iid"s are unique "Item IDentifiers" given to file/folder items in treeview widgets to identify or select them. """
+	# 	""" Extends a selection in the treeview, which may contain folders, to include all files within those folders. 
+	# 		"iid"s are unique "Item IDentifiers" given to file/folder items in treeview widgets to identify or select them. """
 
-		fileIids = set()
-		folderIids = set()
+	# 	fileIids = set()
+	# 	folderIids = set()
 
-		# Separate sets/lists of file/folder isoPaths
-		for iid in selectionTuple:
-			itemType = self.isoFileTree.item( iid, 'values' )[1] # May be "file", "nFolder" (native folder), or "cFolder" (convenience folder)
+	# 	# Separate sets/lists of file/folder isoPaths
+	# 	for iid in selectionTuple:
+	# 		itemType = self.isoFileTree.item( iid, 'values' )[1] # May be "file", "nFolder" (native folder), or "cFolder" (convenience folder)
 
-			if itemType != 'file':
-				folderIids.add( iid )
+	# 		if itemType != 'file':
+	# 			folderIids.add( iid )
 
-				if recursive:
-					subFolderItems = self.isoFileTree.get_children( iid )
-					subFolders, subFiles = self.getItemsInSelection( subFolderItems, True )
-					folderIids.update( subFolders )
-					fileIids.update( subFiles )
-			else:
-				fileIids.add( iid )
+	# 			if recursive:
+	# 				subFolderItems = self.isoFileTree.get_children( iid )
+	# 				subFolders, subFiles = self.getItemsInSelection( subFolderItems, True )
+	# 				folderIids.update( subFolders )
+	# 				fileIids.update( subFiles )
+	# 		else:
+	# 			fileIids.add( iid )
 
-		return folderIids, fileIids
+	# 	return folderIids, fileIids
 
 	def exportItemsInSelection( self, selection, iidSelectionsTuple, isoBinary, directoryPath, exported, failedExports ):
 
@@ -782,7 +782,7 @@ class DiscTab( ttk.Frame ):
 			automatically be removed from a disc object if all files within it are removed. 
 			Note that the iids which the isoFileTree widget uses are isoPaths. """
 
-		folderIids, fileIids = self.getItemsInSelection( iids )
+		folderIids, fileIids = self.isoFileTree.getItemsInSelection( iids )
 		discFiles = globalData.disc.files
 		fileObjects = []
 		reloadAudioTab = False
@@ -1755,7 +1755,7 @@ class DiscMenu( Tk.Menu, object ):
 			# Update the new name in the treeview on this tab, as well as in the Stage Manager tab
 			if globalData.gui.stageManagerTab:
 				globalData.gui.stageManagerTab.renameTreeviewItem( self.fileObj.isoPath, newName ) # No error if not currently displayed
-			globalData.gui.discTab.isoFileTree.item( self.fileObj.isoPath, values=(newName, 'file'), tags='changed' )
+			#globalData.gui.discTab.isoFileTree.item( self.fileObj.isoPath, values=(newName, 'file'), tags='changed' )
 
 			if self.fileObj.__class__.__name__ == 'StageFile' and self.fileObj.isRandomNeutral():
 				globalData.gui.updateProgramStatus( 'Stage name updated in the CSS file', success=True )

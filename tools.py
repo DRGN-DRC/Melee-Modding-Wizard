@@ -283,8 +283,8 @@ class DolphinController( object ):
 			return # User may have canceled the prompt
 
 		# Make sure there are no prior instances of Dolphin running
-		# if self.isRunning:
-		# 	self.stop()
+		if self.isRunning:
+			self.stop()
 		self.stopAllDolphinInstances()
 
 		# print 'Booting', discObj.filePath
@@ -307,7 +307,7 @@ class DolphinController( object ):
 		""" Stop an existing Dolphin process that was spawned from this controller. """
 
 		self.process.terminate()
-		time.sleep( 3 )
+		time.sleep( 2 )
 
 	def stopAllDolphinInstances( self ):
 		# Check for a running instances of Dolphin
