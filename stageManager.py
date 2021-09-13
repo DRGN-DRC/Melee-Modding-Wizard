@@ -1024,19 +1024,6 @@ class StageManager( ttk.Frame ):
 		# toc = time.clock()
 		# print 'time to initialize:', toc - tic
 		
-		# tic = time.clock()
-		# sssFile.parseDataSection()
-		# toc = time.clock()
-		# print 'time to fully parse data section:', toc - tic
-
-		# Check the cursor icon to see if icon offsets need adjusting
-		# cursorIconData = sssFile.getStruct( 0xDEA0 ) # Offset relative to data section
-		# assert cursorIconData, 'Unable to initialize a structure for the cursor texture; unrecognized file.'
-		# if cursorIconData.length == 0x400: # Vanilla file/offsets
-		# 	dataShift = -0x20 # Removes displacement of the file header
-		# else: # Has a custom icon which shifts the other texture offsets
-		# 	dataShift = 0x420
-		
 		# Add the first two rows (Icicle Mountain through Flat Zone)
 		#tic = time.clock()
 		x = 50
@@ -1393,7 +1380,8 @@ class StageManager( ttk.Frame ):
 			newIntStageId = self.dol.getIntStageIdFromExt( newExtStageId )
 			if newIntStageId == 0x16: # i.e. external stage ID 0x1A, Icicle Mountain (anticipating no hacked stages of this); switch to current Target Test stage
 				print 'Unsupported; target test stage filename undetermined'
-				return -1, ()
+				self.stageVariationUnselected()
+				return
 
 		dolFilenameOffset, filenames = self.stageSwapTable.determineStageFiles( newIntStageId, canvas.pageNumber, byteReplacePointer, byteReplacement, randomByteValues )
 

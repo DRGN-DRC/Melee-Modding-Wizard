@@ -7,6 +7,8 @@ Bowser:
   sideImagesYOffset: -62
   sideImagesScaling: .48
   reverseSides: False
+  actionState: 0x15b
+  frame: 0x4120
   camX: 4172526c
   camY: c00727ed
   camZ: 426f382b
@@ -20,6 +22,8 @@ Captain Falcon:
   sideImagesYOffset: -64
   sideImagesScaling: .46
   reverseSides: False
+  actionState:  0x42
+  frame: 0x41c0
   camX: 42004ae7
   camY: 40c80aff
   camZ: 4197e801
@@ -33,8 +37,8 @@ DK:
   sideImagesYOffset: -134
   sideImagesScaling: .5
   reverseSides: False
-  actionState: 0x1B
-  targetFrame: 10
+  actionState: 0x1b
+  frame: 0x4000
   camX: 42726fbe
   camY: c17a10f1
   camZ: 420dc295
@@ -48,6 +52,8 @@ Doctor Mario:
   sideImagesYOffset: -55
   sideImagesScaling: .47
   reverseSides: False
+  actionState: 0x41
+  frame: 0x4100
   camX: 41058c79
   camY: 40a05ed7
   camZ: 41f53181
@@ -61,6 +67,8 @@ Falco:
   sideImagesYOffset: -40
   sideImagesScaling: .42
   reverseSides: False
+  actionState: 0x15a
+  frame: 0x40a0
   camX: 41ab0f1b
   camY: 3ebe90dd
   camZ: 4215f34b
@@ -74,6 +82,8 @@ Fox:
   sideImagesYOffset: -40
   sideImagesScaling: .42
   reverseSides: False
+  actionState: 0x15a
+  frame: 0x40a0
   camX: 4182015e
   camY: 3eb3cc4a
   camZ: 42152d9b
@@ -87,6 +97,8 @@ Game and Watch:
   sideImagesYOffset: -31
   sideImagesScaling: .42
   reverseSides: False
+  actionState: 0x45
+  frame: 0x41f0
   camX: 00000000
   camY: c09eee2b
   camZ: 423ef62b
@@ -100,6 +112,8 @@ Ganon:
   sideImagesYOffset: -89
   sideImagesScaling: .56
   reverseSides: False
+  actionState: 0x108
+  frame: 0x4248
   camX: 41363c41
   camY: 41009923
   camZ: 4242322f
@@ -113,6 +127,8 @@ Ice Climbers:
   sideImagesYOffset: 0
   sideImagesScaling: .3
   reverseSides: False
+  actionState: 0x158
+  frame: 0x4288
   camX: 41d68b54
   camY: 3e2d1618
   camZ: 41efe201
@@ -126,6 +142,8 @@ Jigglypuff:
   sideImagesYOffset: -96
   sideImagesScaling: .523
   reverseSides: True
+  actionState: 0x43
+  frame: 0x4110
   camX: 40596c6d
   camY: 3fd2f553
   camZ: 4209696b
@@ -139,6 +157,8 @@ Kirby:
   sideImagesYOffset: -24
   sideImagesScaling: .29
   reverseSides: False
+  actionState: 0x41
+  frame: 0x4230
   camX: 3fde0e18
   camY: 4068dce3
   camZ: 41ea3184
@@ -152,6 +172,8 @@ Link:
   sideImagesYOffset: -122
   sideImagesScaling: .65
   reverseSides: False
+  actionState: 0x165
+  frame: 0x41d0
   camX: c218dcf5
   camY: 40a0c470
   camZ: 420321bd
@@ -165,6 +187,8 @@ Luigi:
   sideImagesYOffset: -66
   sideImagesScaling: .47
   reverseSides: False
+  actionState: 0x156
+  frame: 0x41c0
   camX: 416a6406
   camY: 4092702e
   camZ: 420f905a
@@ -178,6 +202,8 @@ Mario:
   sideImagesYOffset: -50
   sideImagesScaling: .435
   reverseSides: False
+  actionState: 0x42
+  frame: 0x4040
   camX: 410ef8c5
   camY: 3fcee488
   camZ: 420cd983
@@ -191,6 +217,8 @@ Marth:
   sideImagesYOffset: -70
   sideImagesScaling: .49
   reverseSides: True
+  actionState: 0x156
+  frame: 0x4150
   camX: c134fc98
   camY: c05ec8b4
   camZ: 42250ad6
@@ -204,6 +232,8 @@ Mewtwo:
   sideImagesYOffset: -14
   sideImagesScaling: .35
   reverseSides: True
+  actionState: 0x2c
+  frame: 0x4120
   camX: c1a22fd1
   camY: 407e0820
   camZ: 420e4f45
@@ -217,6 +247,8 @@ Ness:
   sideImagesYOffset: -50
   sideImagesScaling: .44
   reverseSides: False
+  actionState: 0x155
+  frame: 0x40c0
   camX: 41702ee6
   camY: bf2987c7
   camZ: 41ed8c18
@@ -230,6 +262,8 @@ Peach:
   sideImagesYOffset: -130
   sideImagesScaling: .55
   reverseSides: True
+  actionState: 0x15a
+  frame: 0x4190
   camX: c04b69b1
   camY: c035324b
   camZ: 423828df
@@ -243,6 +277,8 @@ Pichu:
   sideImagesYOffset: -58
   sideImagesScaling: .45
   reverseSides: False
+  actionState: 0x15d
+  frame: 0x4040
   camX: c20b37a2
   camY: c02de0e6
   camZ: 402557b0
@@ -256,6 +292,8 @@ Pikachu:
   sideImagesYOffset: -5
   sideImagesScaling: .369
   reverseSides: False
+  actionState: 0x108
+  frame: 0x4260
   camX: c0361ee5
   camY: 40b85b80
   camZ: 41fd2549
@@ -269,6 +307,8 @@ Roy:
   sideImagesYOffset: -28
   sideImagesScaling: .42
   reverseSides: False
+  actionState: 0x108
+  frame: 0x4234
   camX: 418510f7
   camY: 400e6b44
   camZ: 41f61733
@@ -284,6 +324,8 @@ Sheik:
   sideImagesYOffset: -16
   sideImagesScaling: .40
   reverseSides: True
+  actionState: 0x15c
+  frame: 0x40a0
   camX: c1fa8fcb
   camY: c0436685
   camZ: 3fcd739a
@@ -297,6 +339,8 @@ Yoshi:
   sideImagesYOffset: -17
   sideImagesScaling: .35
   reverseSides: True
+  actionState: 0x35
+  frame: 0x4160
   camX: c04b69b1
   camY: 40905a28
   camZ: 42320264
@@ -310,6 +354,8 @@ Young Link:
   sideImagesYOffset: -164
   sideImagesScaling: .65
   reverseSides: False
+  actionState: 0x165
+  frame: 0x41d0
   camX: c218dcf5
   camY: 40a0c470
   camZ: 420321bd

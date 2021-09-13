@@ -727,7 +727,7 @@ class DiscTab( ttk.Frame ):
 			failedExports = 0
 
 			# Not using the disc's file export method so we can include the convenience folders in the save path
-			with open( globalData.disc.filePath, 'rb') as isoBinary:
+			with open( globalData.disc.filePath, 'rb' ) as isoBinary:
 				exported, failedExports = self.exportItemsInSelection( iidSelectionsTuple, iidSelectionsTuple, isoBinary, directoryPath, exported, failedExports )
 
 			if failedExports == 0:
