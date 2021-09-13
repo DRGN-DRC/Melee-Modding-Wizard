@@ -763,11 +763,13 @@ class Disc( object ):
 
 		if unsavedFiles:
 			lines.append( 'Files to update: {}'.format(len( unsavedFiles )) )
+		elif not basicSummary:
+			lines.append( 'No file changes' )
 
 		#if self.rebuildRequired:
 		if self.rebuildReason:
 			lines.append( 'Rebuild required ' + self.rebuildReason )
-		else:
+		elif not basicSummary:
 			lines.append( 'Rebuild not required' )
 		lines.append( '' )
 		
@@ -783,10 +785,17 @@ class Disc( object ):
 				elif mod.state == 'pendingDisable':
 					modsToUninstall += 1
 
-			if not modsToInstall and not modsToUninstall:
+			# Advanced Summary
+			if not basicSummary and not modsToInstall and not modsToUninstall:
 				lines.append( '0 code mods to install or uninstall\n' )
-			else:
+			elif not basicSummary:
 				lines.append( '{} code mods to install'.format(modsToInstall) )
+				lines.append( '{} code mods to uninstall\n'.format(modsToUninstall) )
+
+			# Basic Summary
+			elif modsToInstall:
+				lines.append( '{} code mods to install'.format(modsToInstall) )
+			elif modsToUninstall:
 				lines.append( '{} code mods to uninstall\n'.format(modsToUninstall) )
 
 		# for isoPath, (description, fileObj) in self.unsavedChanges.items():
@@ -1754,7 +1763,7 @@ class Disc( object ):
 		""" Checks the disc for Gecko codes (a file containing the codehandler and codelist). """
 
 		geckoCodesFile = self.files.get( self.gameId + '/gecko.bin' )
-		if not geckoCodesFile: return ()
+		if not geckoCodesFile: return bytearray()
 
 		return geckoCodesFile.getData()
 
@@ -1763,7 +1772,7 @@ class Disc( object ):
 		""" Checks the disc for the injection codes payload. """
 
 		injectionsCodeFile = self.files.get( self.gameId + '/codes.bin' )
-		if not injectionsCodeFile: return ()
+		if not injectionsCodeFile: return bytearray()
 
 		return injectionsCodeFile.getData()
 
@@ -1835,6 +1844,8 @@ class Disc( object ):
 						originalData = vanillaDisc.dol.getData( dolOffset, codeChange.getLength() )
 					else: # Just need 4 bytes for injection site code
 						originalData = vanillaDisc.dol.getData( dolOffset, 4 )
+
+					
 					if not originalData:
 						problematicMods.append( mod.name ) # Unable to uninstall this
 						break
@@ -1863,6 +1874,8 @@ class Disc( object ):
 		if problematicMods:
 			modsUninstalled = len( codeMods ) - problematicMods
 			msg( '{} code mods uninstalled. However, these mods could not be uninstalled:\n\n{}'.format(modsUninstalled, '\n'.join(problematicMods)) )
+		else:
+			modsUninstalled = len( codeMods )
 
 		# Update or add to the DOL's list of unsaved changes
 		for i, change in enumerate( self.dol.unsavedChanges ):
@@ -1884,29 +1897,31 @@ class Disc( object ):
 			Free space regions for injection code are organized independently and not considered by this."""
 
 		newCodeLength = len( code ) / 2 # in bytes
-		injectionEnd = address + newCodeLength
+		newCodeEnd = address + newCodeLength
 		conflictDetected = False
 
 		for regionStart, codeLength, modPurpose in self.modifiedRegions:
 			regionEnd = regionStart + codeLength
 
-			if address < regionEnd and regionStart < injectionEnd: # The regions overlap by some amount.
+			if address < regionEnd and regionStart < newCodeEnd: # The regions overlap by some amount.
 				conflictDetected = True
 				break
 
 		if conflictDetected:
 			if modName: # Case to silently fail when uninstalling a mod previously detected to have a problem
-				existingChangeRegion = 'Offset: ' + uHex(regionStart) + ',  Code End: ' + uHex(regionEnd)
-				newChangeRegion = 'Offset: ' + uHex(address) + ',  Code End: ' + uHex(injectionEnd)
+				oldCodeStart = self.dol.offsetInDOL( regionStart )
+				newCodeStart = self.dol.offsetInDOL( address )
+				oldChangeRegion = 'Code Start: 0x{:X},  Code End: 0x{:X}'.format( oldCodeStart, oldCodeStart + codeLength )
+				newChangeRegion = 'Code Start: 0x{:X},  Code End: 0x{:X}'.format( newCodeStart, newCodeStart + newCodeLength )
 
 				if requiredChange:
 					warningMsg = ( 'A conflict (writing overlap) was detected between the {} and a '
 								   'code change for {}: {}'
 								   '\n\nThe latter has been partially overwritten and will likely no longer function correctly. '
-								   "It's recommended to be uninstalled.".format(modName, modPurpose, existingChangeRegion) )
+								   "It's recommended to be uninstalled.".format(modName, modPurpose, oldChangeRegion) )
 				else:
 					warningMsg = ( 'A conflict (writing overlap) was detected between these two changes:\n\n"' + \
-									modPurpose + '"\n\t' + existingChangeRegion + '\n\n"' + \
+									modPurpose + '"\n\t' + oldChangeRegion + '\n\n"' + \
 									modName + '"\n\t' + newChangeRegion + \
 									'\n\nThese cannot both be enabled. "' + modName + '" will not be enabled. "' + \
 									modPurpose + '" may need to be reinstalled.' )
@@ -2004,7 +2019,7 @@ class Disc( object ):
 						 "from your library (or comment it out so it's not picked up by this program).", 'Aux Code Regions Conflict' )
 					return []
 
-		self.modifiedRegions = [] # Used to track static overwrites and to watch for conflicts
+		self.modifiedRegions = [] # Used to track data changes in the DOL and watch for conflicts
 		standaloneFunctionsUsed = [] # Tracks functions that will actually make it into the DOL
 		totalModsToInstall = len( codeMods )
 		totalModsInstalled = 0
@@ -2634,12 +2649,14 @@ class Disc( object ):
 			
 			vanillaDisc = Disc( vanillaDiscPath )
 			vanillaDisc.load()
-			self.files[self.gameId + '/Start.dol'] = copy.deepcopy( vanillaDisc.dol )
+			#self.files[self.gameId + '/Start.dol'] = copy.deepcopy( vanillaDisc.dol )
+			self.replaceFile( self.dol, vanillaDisc.dol )
 
 		elif not os.path.exists( dolPath ):
 			printStatus( 'Unable to restore the DOL; the source DOL could not be found', error=True )
 
 		else:
+			print 'not yet supported'
 			print dolPath
 
 	# def runInEmulator( self ): #todo: add support for root folders

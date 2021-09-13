@@ -156,7 +156,7 @@ class FileMenu( Tk.Menu, object ):
 					pendingCodeChanges = True
 					break
 		
-		if not not pendingCodeChanges and not unsavedFiles and not globalData.disc.unsavedChanges and not globalData.disc.rebuildReason:
+		if not pendingCodeChanges and not unsavedFiles and not globalData.disc.unsavedChanges and not globalData.disc.rebuildReason:
 			msg( 'There are no changes to be saved.' )
 		else:
 			msg( globalData.disc.concatUnsavedChanges(unsavedFiles, basicSummary=False) )
@@ -1010,6 +1010,7 @@ class MainGui( Tk.Frame, object ):
 			self.mainTabFrame.update_idletasks()
 		self.codeManagerTab.autoSelectCodeRegions()
 		self.codeManagerTab.scanCodeLibrary()
+		self.codeManagerTab.updateControls()
 
 		if globalData.disc.isMelee:
 			# If this is 20XX, add/initialize the Debug Menu Editor tab

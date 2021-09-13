@@ -85,8 +85,10 @@ class CodeManagerTab( ttk.Frame ):
 
 		ttk.Separator( self.controlPanel, orient='horizontal' ).pack( pady=7, ipadx=140 )
 
-		ttk.Button( self.controlPanel, text='Restore Original DOL', state='disabled', command=self.askRestoreDol, width=23 ).pack( pady=4 )
-		ttk.Button( self.controlPanel, text='Export DOL', state='disabled', command=self.exportDOL, width=23 ).pack( pady=4 )
+		self.restoreBtn = ttk.Button( self.controlPanel, text='Restore Original DOL', state='disabled', command=self.askRestoreDol, width=23 )
+		self.restoreBtn.pack( pady=4 )
+		self.exportBtn = ttk.Button( self.controlPanel, text='Export DOL', state='disabled', command=self.exportDOL, width=23 )
+		self.exportBtn.pack( pady=4 )
 
 		ttk.Separator( self.controlPanel, orient='horizontal' ).pack( pady=7, ipadx=120 )
 
@@ -112,6 +114,13 @@ class CodeManagerTab( ttk.Frame ):
 
 		self.bind( '<Configure>', self.alignControlPanel )
 
+	def updateControls( self ):
+
+		""" Set button enable/disable states. """
+
+		self.restoreBtn['state'] = 'normal'
+		self.exportBtn['state'] = 'normal'
+
 	def onTabChange( self, event=None, forceUpdate=False ):
 
 		""" Called whenever the selected tab in the library changes, or when a new tab is added. """
@@ -129,7 +138,7 @@ class CodeManagerTab( ttk.Frame ):
 		# Prevent focus on the tabs themselves (prevents appearance of selection box)
 		# currentTab = globalData.gui.root.nametowidget( self.codeLibraryNotebook.select() )
 		# currentTab.focus()
-		print 'tab changed; called with event:', event
+		#print 'tab changed; called with event:', event
 		#time.sleep(2)
 
 		# Remove existing ModModules, and only add those for the currently selected tab
@@ -714,6 +723,10 @@ class CodeManagerTab( ttk.Frame ):
 
 		""" Prompts the user to ensure they know what they're doing, and to confirm the action. """
 
+		if not globalData.disc:
+			msg( 'No disc has been loaded!' )
+			return
+		
 		dol = globalData.disc.dol
 		
 		restoreConfirmed = tkMessageBox.askyesno( 'Restoration Confirmation', 'This will revert the currently loaded DOL to be practically '
@@ -1040,10 +1053,10 @@ class CodeConfigWindow( BasicWindow ):
 
 			# Add the input widget to the interface and give it its initial value
 			inputWidget.option = optionName
+			inputWidget.optType = optType
 			if inputWidget.winfo_class() == 'TMenubutton': # This is actually the OptionMenu (dropdown) widget
 				inputWidget.grid( column=2, row=row, sticky='e', padx=28 )
 			else: # Entry
-				inputWidget.optType = optType
 				inputWidget.optRange = optRange
 				inputWidget.insert( 0, currentValue )
 				inputWidget.slider = None
@@ -1055,7 +1068,7 @@ class CodeConfigWindow( BasicWindow ):
 					#start, end = optRange
 					start, end = mod.parseConfigValue( optType, optRange[0] ), mod.parseConfigValue( optType, optRange[1] )
 					currentValue = mod.parseConfigValue( optType, currentValue )
-					print optionName, start, '-', end
+					#print optionName, start, '-', end
 					slider = ttk.Scale( self.optionsFrame.interior, from_=start, to=end, length=180, value=currentValue )
 					slider.configure( command=lambda v, w=inputWidget: self.sliderUpdated(v, w) )
 					slider.grid( column=1, row=row, padx=(14, 7), sticky='ew' )
@@ -1242,6 +1255,7 @@ class CodeConfigWindow( BasicWindow ):
 
 			# Update values from dropdown (OptionMenu) widgets
 			if widgetClass == 'TMenubutton':
+				members = optionDict.get( 'members', [] )
 				default = self.formatDropdownOptions( members, widget.optType, defaultValue )[1]
 				widget._variable.set( default )
 
