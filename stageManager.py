@@ -2643,19 +2643,17 @@ class StageSwapEditor( BasicWindow ):
 		# Get the Internal Stage ID of the stage to be loaded
 		if extStageId == 0: # No change; this will be the currently selected stage slot
 			newIntStageId = self.internalStageId
+			descriptiveText = 'N/A (No swap)'
 		else:
-			newIntStageId = self.stageManagerTab.dol.getIntStageIdFromExt( newExtStageId )
+			newIntStageId = self.stageManagerTab.dol.getIntStageIdFromExt( extStageId )
 			if newIntStageId == 0x16: # i.e. external stage ID 0x1A, Icicle Mountain (anticipating no hacked stages of this); switch to current Target Test stage
 				print 'Unsupported; target test stage filename undetermined'
 				return
-
-		# Update the text displaying the new stage to load
-		#newIntStageId = self.stageManagerTab.dol.getIntStageIdFromExt( extStageId )
-		if extStageId == 0:
-			descriptiveText = 'N/A (No swap)'
-		else:
+				
 			newStageName = globalData.externalStageIds.get( extStageId, 'Unknown' )
 			descriptiveText = '{} / 0x{:X} / 0x{:X}'.format( newStageName, newIntStageId, extStageId )
+
+		# Update the text displaying the new stage to load
 		self.newExtStageId = extStageId
 		self.extStageChoice.set( descriptiveText )
 
