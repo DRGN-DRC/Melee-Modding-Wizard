@@ -2649,7 +2649,7 @@ class StageSwapEditor( BasicWindow ):
 			if newIntStageId == 0x16: # i.e. external stage ID 0x1A, Icicle Mountain (anticipating no hacked stages of this); switch to current Target Test stage
 				print 'Unsupported; target test stage filename undetermined'
 				return
-				
+			
 			newStageName = globalData.externalStageIds.get( extStageId, 'Unknown' )
 			descriptiveText = '{} / 0x{:X} / 0x{:X}'.format( newStageName, newIntStageId, extStageId )
 

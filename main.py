@@ -31,7 +31,7 @@ from PIL import Image, ImageTk, ImageDraw, ImageFilter, ImageChops
 # Internal dependencies
 import globalData
 
-from tools import TriCspCreator
+from tools import TriCspCreator, AsmToHexConverter
 from disc import Disc, isExtractedDirectory
 from hsdFiles import StageFile, CharCostumeFile
 from basicFunctions import (
@@ -213,6 +213,8 @@ class ToolsMenu( Tk.Menu, object ):
 		super( ToolsMenu, self ).__init__( parent, tearoff=tearoff, *args, **kwargs )
 		self.open = False
 																								# Key shortcut (holding alt)
+		self.add_cascade( label="ASM <-> HEX Converter", command=lambda: AsmToHexConverter(), underline=0 )			# A
+		self.add_separator()
 		self.add_cascade( label="Test External Stage File", command=self.testStage, underline=14 )					# S
 		self.add_cascade( label="Test External Character File", command=self.testCharacter, underline=14 )			# C
 		self.add_separator()
@@ -221,6 +223,9 @@ class ToolsMenu( Tk.Menu, object ):
 		self.add_separator()
 		self.add_cascade( label="Create Tri-CSP", command=self.createTriCsp, underline=1 )							# T
 		self.add_cascade( label="Find Unused Stage Files", command=self.findUnusedStages, underline=0 )				# F
+
+	# def openAsmHexConverter( self ):
+
 
 	def notDone( self ):
 		print( 'not yet supported' )

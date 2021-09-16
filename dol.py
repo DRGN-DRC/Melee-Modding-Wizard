@@ -818,22 +818,23 @@ class Dol( FileBase ):
 
 			# Skip matching custom syntaxes
 			elif section.startswith( 'sbs__' ) or section.startswith( 'sym__' ):
-				optionOffset, optionWidth, codeLine, names = codeChange.syntaxInfo[customSyntaxIndex]
-				offset += optionWidth
+				# optionOffset, optionWidth, codeLine, names = codeChange.syntaxInfo[customSyntaxIndex]
+				# offset += optionWidth
+				offset += 4
 				customSyntaxIndex += 1
 
 				# If this section contains a configuration option, get the current value in the game
 			elif section.startswith( 'opt__' ):
-				optionOffset, optionWidth, codeLine, names = codeChange.syntaxInfo[customSyntaxIndex]
-				sectionStart = startingOffset + optionOffset # Need an absolute DOL offset. The option offset is relative to the code start
+				optionOffset, optionWidth, _, names = codeChange.syntaxInfo[customSyntaxIndex]
 
-				# Parse the custom code line and compare it to what's in the DOL
+				# Parse the custom code line and compare its non-option parts to what's in the DOL
 				codeMatches = self.compareCustomOptionCode( section, offset, freeSpaceCodeArea, codeChange.isAssembly, mod )
 				if not codeMatches:
 					matchOffset = -1
 					break # Mismatch detected, meaning this is not the same (custom) code in the DOL.
 
-				codeInDol = freeSpaceCodeArea[sectionStart:sectionStart+optionWidth]
+				absOffsetStart = startingOffset + optionOffset # Need an absolute DOL offset. The option offset is relative to the code start
+				codeInDol = freeSpaceCodeArea[absOffsetStart:absOffsetStart+optionWidth]
 				for name in names: # Last item in the list is a list of option names
 					optionType = mod.configurations[name]['type']
 					value = struct.unpack( ConfigurationTypes[optionType], codeInDol )[0]
@@ -871,16 +872,19 @@ class Dol( FileBase ):
 		return matchOffset
 
 	def compareCustomOptionCode( self, section, sectionStart, freeSpaceCodeArea, isAssembly, mod ):
+
+		""" Parses a section of custom code for its non-option/value parts, and compares 
+			them to what's in the DOL to see if the code matches and is installed. """
+
 		section = section[5:]
 		sectionChunks = section.split( '[[' )
 
-		if isAssembly: # Use the opCode to compare only
-
-			# Substitute names for values for the assembly process
+		if isAssembly: # This is expected to be one ASM command. Just use the opCode to compare
+			# Substitute name placeholders for values for the assembly process
 			for i, chunk in enumerate( sectionChunks ):
 				if ']]' in chunk:# Contains a config/variable name and maybe other code
 					optName, theRest = chunk.split( ']]' )
-					sectionChunks[i] = chunk.replace( varName + ']]', '0' )
+					sectionChunks[i] = chunk.replace( optName + ']]', '0' )
 
 			assemblyCode = ''.join( sectionChunks )
 			conversionOutput, errors = globalData.codeProcessor.assemble( assemblyCode, False, mod.includePaths, True, False )
@@ -900,23 +904,23 @@ class Dol( FileBase ):
 
 			for chunk in sectionChunks:
 				if ']]' in chunk: # Contains a config/variable name and maybe other code
-					_, theRest = chunk.split( ']]' )
+					_, chunk = chunk.split( ']]' )
 
 					# Return True if there are any non-hex characters (meaning assembly was found)
-					if not theRest: pass # Empty string
-					else:
-						chunkLength = len( theRest ) / 2
+					# if not theRest: pass # Empty string
+					# else:
+					# 	chunkLength = len( theRest ) / 2
 
-						# Check for DOL code mismatch
-						dolChunk = freeSpaceCodeArea[sectionPos:sectionPos+chunkLength]
-						if bytearray.fromhex( theRest ) != dolChunk:
-							return False
+					# 	# Check for DOL code mismatch
+					# 	dolChunkStart = sectionStart + sectionPos
+					# 	dolChunk = freeSpaceCodeArea[dolChunkStart:dolChunkStart+chunkLength]
+					# 	if bytearray.fromhex( theRest ) != dolChunk:
+					# 		return False
 
-						sectionPos += chunkLength
+					# 	sectionPos += chunkLength
 				
 				# No config/variable name in this chunk; expected to be hex at this point.
-				# Return True if there are any non-hex characters (meaning assembly was found)
-				elif not chunk: pass # Empty string
+				if not chunk: pass # Empty string
 				else:
 					chunkLength = len( chunk ) / 2
 

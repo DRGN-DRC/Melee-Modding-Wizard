@@ -1660,17 +1660,19 @@ class CommandProcessor( object ):
 				break
 
 	@staticmethod
-	def beautifyHex( rawHex ):
+	def beautifyHex( rawHex, blocksPerLine=2 ):
 
-		""" Rewrites a hex string to something more human-readable, 
-			displaying 8 bytes per line (2 blocks of 4 bytes, separated by a space). """
+		""" Rewrites a hex string to something more human-readable, displaying 
+			8 bytes per line (2 blocks of 4 bytes, separated by a space). """
+		
+		assert blocksPerLine > 0, 'Invalid blocksPerLine given to beautifyHex: ' + str( blocksPerLine )
 
 		code = []
+		divisor = blocksPerLine * 8
 
 		for block in xrange( 0, len(rawHex), 8 ):
 
-			# Check whether this is the first or second block (set of 4 bytes or 8 nibbles)
-			if block % 16 == 0: # Checks if evenly divisible by 16, meaning first block
+			if block == 0 or block % divisor != 0: # For blocksPerLine of 4, the modulo would be 0, 8, 16, 24, 0, 8...
 				code.append( rawHex[block:block+8] + ' ' )
 			else:
 				code.append( rawHex[block:block+8] + '\n' )
@@ -2673,7 +2675,7 @@ class CommandProcessor( object ):
 				sectionChunks = section.split( '[[' )
 				for j, chunk in enumerate( sectionChunks ):
 					if ']]' in chunk:
-						varName, theRest = chunk.split( ']]' )
+						varName, chunk = chunk.split( ']]' )
 
 						# Seek out the option name and its current value in the configurations list
 						# for configuration in configurations:
@@ -2690,11 +2692,11 @@ class CommandProcessor( object ):
 
 						#sectionChunks[j] = chunk.replace( varName+']]', currentValue )
 
-						if requiresAssembly: pass
-						elif all( char in hexdigits for char in theRest.replace(' ', '') ): pass
-						else: requiresAssembly = True
+						# if requiresAssembly: pass
+						# elif all( char in hexdigits for char in theRest.replace(' ', '') ): pass
+						# else: requiresAssembly = True
 						
-					elif requiresAssembly: pass
+					if requiresAssembly: pass
 					elif all( char in hexdigits for char in chunk.replace(' ', '') ): pass
 					else: requiresAssembly = True
 
@@ -2866,18 +2868,18 @@ class CommandProcessor( object ):
 			elif '[[' in line and ']]' in line: # Configuration option; code before/after these may be hex or asm
 				for chunk in line.split( '[[' ):
 					if ']]' in chunk: # Contains a config/variable name and maybe other code
-						_, theRest = chunk.split( ']]' )
+						_, chunk = chunk.split( ']]' )
 
 						# Return True if there are any non-hex characters (meaning assembly was found)
-						if not theRest: pass # Empty string
-						elif all( char in hexdigits for char in theRest.replace(' ', '') ): # Only hex characters found
-							onlySpecialSyntaxes = False
-						else: # Found assembly
-							return True
+						# if not theRest: pass # Empty string
+						# elif all( char in hexdigits for char in theRest.replace(' ', '') ): # Only hex characters found
+						# 	onlySpecialSyntaxes = False
+						# else: # Found assembly
+						# 	return True
 					
 					# No config/variable name in this chunk; may be asm or hex.
 					# Return True if there are any non-hex characters (meaning assembly was found)
-					elif not chunk: pass # Empty string
+					if not chunk: pass # Empty string
 					elif all( char in hexdigits for char in chunk.replace(' ', '') ): # Only hex characters found
 						onlySpecialSyntaxes = False
 					else: # Found assembly

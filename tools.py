@@ -12,11 +12,14 @@
 
 # External dependencies
 import os
+import ttk
 import time
 import codecs
 import psutil
 import subprocess
+import Tkinter as Tk
 from ruamel import yaml
+from ScrolledText import ScrolledText
 
 # Internal dependencies
 import globalData
@@ -209,6 +212,157 @@ class TriCspCreator( object ):
 						return line.split( '=' )[-1].strip()
 			
 		return '-1'
+
+
+class AsmToHexConverter( BasicWindow ):
+
+	""" Tool window to convert assembly to hex and vice-verca. """
+
+	def __init__( self, mod=None ):
+		BasicWindow.__init__( self, root, 'ASM <-> HEX Converter', offsets=(160, 100), resizable=True, topMost=False )
+		self.window.minsize( width=480, height=350 )
+
+		Label( self.window, text=('This assembles PowerPC assembly code into raw hex,\nor disassembles raw hex into PowerPC assembly.'
+			#"\n\nNote that this functionality is also built into the entry fields for new code in the 'Add New Mod to Library' interface. "
+			#'So you can use your assembly source code in those fields and it will automatically be converted to hex during installation. '
+			'\nComments preceded with "#" will be ignored.'), wraplength=480 ).grid( column=0, row=0, padx=40 )
+
+		self.lengthString = StringVar( value='' )
+		self.mod = mod
+
+		# Create the header row
+		headersRow = ttk.Frame( self.window )
+		Label( headersRow, text='ASM' ).grid( row=0, column=0, sticky='w' )
+		Label( headersRow, textvariable=self.lengthString ).grid( row=0, column=1 )
+		Label( headersRow, text='HEX' ).grid( row=0, column=2, sticky='e' )
+		headersRow.grid( column=0, row=1, padx=40, pady=(7, 0), sticky='ew' )
+
+		# Configure the header row, so it expands properly on window-resize
+		headersRow.columnconfigure( 'all', weight=1 )
+
+		# Create the text entry fields and center conversion buttons
+		entryFieldsRow = ttk.Frame( self.window )
+		self.sourceCodeEntry = ScrolledText( entryFieldsRow, width=30, height=20 )
+		self.sourceCodeEntry.grid( rowspan=2, column=0, row=0, padx=5, pady=7, sticky='news' )
+		ttk.Button( entryFieldsRow, text='->', command=self.asmToHexCode ).grid( column=1, row=0, pady=20, sticky='s' )
+		ttk.Button( entryFieldsRow, text='<-', command=self.hexCodeToAsm ).grid( column=1, row=1, pady=20, sticky='n' )
+		self.hexCodeEntry = ScrolledText( entryFieldsRow, width=30, height=20 )
+		self.hexCodeEntry.grid( rowspan=2, column=2, row=0, padx=5, pady=7, sticky='news' )
+		entryFieldsRow.grid( column=0, row=2, sticky='nsew' )
+		
+		# Configure the above columns, so that they expand proportionally upon window resizing
+		entryFieldsRow.columnconfigure( 0, weight=6 )
+		entryFieldsRow.columnconfigure( 1, weight=1 ) # Giving much less weight to this row, since it's just the buttons
+		entryFieldsRow.columnconfigure( 2, weight=6 )
+		entryFieldsRow.rowconfigure( 'all', weight=1 )
+
+		# Determine the include paths to be used here, and add a button at the bottom of the window to display them
+		self.detectContext()
+		ttk.Button( self.window, text='View Include Paths', command=self.viewIncludePaths ).grid( column=0, row=3, pady=(2, 6), ipadx=20 )
+
+		# Add the assembly time display (as an Entry widget so we can select text from it)
+		self.assemblyTimeDisplay = Tk.Entry( self.window, width=25, borderwidth=0 )
+		self.assemblyTimeDisplay.configure( state="readonly" )
+		self.assemblyTimeDisplay.grid( column=0, row=3, sticky='w', padx=(7, 0) )
+
+		# Configure this window's expansion as a whole, so that only the text entry row can expand when the window is resized
+		self.window.columnconfigure( 0, weight=1 )
+		self.window.rowconfigure( 0, weight=0 )
+		self.window.rowconfigure( 1, weight=0 )
+		self.window.rowconfigure( 2, weight=1 )
+		self.window.rowconfigure( 3, weight=0 )
+
+	def updateAssemblyDisplay( self, textInput ):
+		self.assemblyTimeDisplay.configure( state="normal" )
+		self.assemblyTimeDisplay.delete( 0, 'end' )
+		self.assemblyTimeDisplay.insert( 0, textInput )
+		self.assemblyTimeDisplay.configure( state="readonly" )
+
+	def asmToHexCode( self ):
+		# Clear the hex code field and info labels
+		self.hexCodeEntry.delete( '1.0', 'end' )
+		self.updateAssemblyDisplay( '' )
+		self.lengthString.set( 'Length: ' )
+
+		# Get the ASM to convert
+		asmCode = self.sourceCodeEntry.get( '1.0', 'end' )
+
+		# Assemble the code (this will also handle showing any warnings/errors to the user)
+		tic = time.clock()
+		#returnCode, hexCode = customCodeProcessor.preAssembleRawCode( asmCode, self.includePaths, discardWhitespace=False )
+		#returnCode, hexCode = globalData.codeProcessor.()
+		toc = time.clock()
+
+		if returnCode != 0:
+			return
+
+		hexCode = hexCode.replace( '|S|', '' ) # Removes special branch syntax separators
+
+		# Insert the new hex code
+		self.hexCodeEntry.insert( 'end', hexCode )
+
+		# Update the code length display
+		codeLength = getCustomCodeLength( hexCode, preProcess=True, includePaths=self.includePaths ) # requires pre-processing to remove whitespace
+		self.lengthString.set( 'Length: ' + uHex(codeLength) )
+
+		# Update the assembly time display with appropriate units
+		assemblyTime = round( toc - tic, 9 )
+		if assemblyTime > 1:
+			units = 's' # In seconds
+		else:
+			assemblyTime = assemblyTime * 1000
+			if assemblyTime > 1:
+				units = 'ms' # In milliseconds
+			else:
+				assemblyTime = assemblyTime * 1000
+				units = 'us' # In microseconds
+		self.updateAssemblyDisplay( 'Assembly Time:  {} {}'.format(assemblyTime, units) )
+
+	def hexCodeToAsm( self ):
+		# Delete the current assembly code, and clear the assembly time label
+		self.sourceCodeEntry.delete( '1.0', 'end' )
+		self.updateAssemblyDisplay( '' )
+
+		# Get the HEX code to disassemble
+		hexCode = self.hexCodeEntry.get( '1.0', 'end' )
+		
+		# Disassemble the code into assembly
+		returnCode, asmCode = customCodeProcessor.preDisassembleRawCode( hexCode, discardWhitespace=False )
+
+		if returnCode != 0:
+			self.lengthString.set( 'Length: ' )
+			return
+
+		# Replace the current assembly code
+		self.sourceCodeEntry.insert( 'end', asmCode )
+
+		# Update the code length display
+		codeLength = getCustomCodeLength( hexCode, preProcess=True, includePaths=self.includePaths )
+		self.lengthString.set( 'Length: ' + uHex(codeLength) )
+
+	def detectContext( self ):
+
+		""" This window should use the same .include context for whatever mod it was opened with. 
+			If an associated mod is not found, fall back on the default import directories. """
+
+		if self.mod:
+			self.includePaths = self.mod.includePaths
+		else:
+			libraryFolder = globalData.getModsFolderPath()
+			self.includePaths = [ os.path.join(libraryFolder, '.include'), os.path.join(globalData.scriptHomeFolder, '.include') ]
+
+	def viewIncludePaths( self ):
+		# Build the message to show the user
+		paths = [ os.getcwd() + '      <- Current Working Directory' ]
+		paths.extend( self.includePaths )
+		paths = '\n'.join( paths )
+
+		if self.mod:
+			contextMessage = '\n\nAssembly context (for ".include" file imports) has the following priority:\n\n{}\n\n    [Based on "{}"]'.format( paths, self.mod.name )
+		else:
+			contextMessage = '\n\nAssembly context (for ".include" file imports) has the following priority:\n\n{}\n\n    [Default paths]'.format( paths )
+
+		cmsg( contextMessage, 'Include Paths', 'left' )
 
 
 class DolphinController( object ):
