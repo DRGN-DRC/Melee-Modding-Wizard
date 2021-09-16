@@ -766,6 +766,7 @@ class Dol( FileBase ):
 
 		offset = 0
 		customSyntaxIndex = 0
+		matchOffset = 0
 
 		# Map each code section to the code in the DOL to see if they match up.
 		for section in customCode.split( '|S|' ):
@@ -787,8 +788,10 @@ class Dol( FileBase ):
 
 					if subMatchOffset != -1: # The full code was found
 						return subMatchOffset
+				else: # Loop above didn't return; no matches for this section found in the given code area
+					return matchOffset
 
-		return -1
+		return matchOffset
 
 	def customCodeInDOL( self, mod, codeChange, startingOffset, freeSpaceCodeArea, excludeLastCommand=False ):
 

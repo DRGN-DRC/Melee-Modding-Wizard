@@ -1367,7 +1367,6 @@ class NeoTreeview( ttk.Treeview, object ):
 			open folders, selections, and scroll position. """
 
 		self.openFolders = self.getOpenFolders()
-		print 'open folders:', self.openFolders
 
 		# Remember the selection, focus, and current scroll position of the treeview
 		self.selectionState = self.selection()
