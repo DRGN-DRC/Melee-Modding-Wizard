@@ -509,37 +509,24 @@ class CodeLibraryParser():
 		as well as the AMFS structure. The primary .include paths for import statements are also set here. 
 
 		Include Path Priority:
-			1) The current working directory (usually the MCM root folder)
+			1) The current working directory (usually the program root folder)
 			2) Directory of the mod's code file (or the code's root folder with AMFS)
-			3) The current Mods Library's ".include" directory
-			4) The MCM root folder's ".include" directory """
+			3) The current Code Library's ".include" directory
+			4) The program root folder's ".include" directory """
 
 	def __init__( self ):
 
-		#self.modModulesParent = None
 		self.stopToRescan = False
 		self.codeMods = []
 		self.modNames = set()
-		#self.errors = []
-		#self.includePaths = [ os.path.join(folderPath, '.include'), os.path.join(globalData.scriptHomeFolder, '.include') ]
 		self.includePaths = []
-
-		# Build the list of paths for .include script imports (this will be prepended by the folder housing each mod text file)
-		# self.codeLibraryPath = globalData.checkSetting( 'codeLibrary' )
-		# self.defaultIncludePaths = [ os.path.join(self.codeLibraryPath, '.include'), os.path.join(globalData.scriptHomeFolder, '.include') ]
 
 	def processDirectory( self, folderPath ):
 
-		#self.codeLibraryPath = folderPath
-		# self.defaultIncludePaths = [ os.path.join(folderPath, '.include'), os.path.join(globalData.scriptHomeFolder, '.include') ]
-
-		#self.codeMods = []
 		itemsInDir = os.listdir( folderPath ) # May be files or folders
 		includePaths = [ folderPath ] + self.includePaths
-		#totalCreated = len( self.codeMods )
-		#somethingCreated = False
 
-		# Check if this is AMFS
+		# Check if this folder is a mod in AMFS format
 		if 'codes.json' in itemsInDir:
 			self.parseAmfs( folderPath, includePaths )
 			return
@@ -555,9 +542,6 @@ class CodeLibraryParser():
 				break
 			elif item.startswith( '!' ) or item.startswith( '.' ): 
 				continue # User can optionally exclude these folders from parsing
-			# else:
-			# 	processItemInDir( folderPath, parentNotebook, item )
-			# 	somethingCreated = True
 			
 			itemPath = os.path.normpath( os.path.join(folderPath, item) )
 
@@ -565,19 +549,8 @@ class CodeLibraryParser():
 				self.processDirectory( itemPath ) # Recursive fun!
 
 			elif item.lower().endswith( '.txt' ):
-				# Add all mod definitions from this file to the GUI
-				#mods = 
+				# Collect all mod definitions from this file
 				self.parseModsLibraryFile( itemPath, includePaths )
-
-				#globalData.codeMods.extend( mods )
-
-				# if totalCreated != len( self.codeMods ):
-				# 	somethingCreated = True
-
-		# if not somethingCreated:
-		# 	# Nothing to be pulled from this folder. Add a label to convey this.
-		# 	Label( parentNotebook, text='No text files found here.', bg='white' ).place( relx=.5, rely=.5, anchor='center' )
-		# 	ttk.Label( parentNotebook, image=imageBank['randall'], background='white' ).place( relx=0.5, rely=0.5, anchor='n', y=15 )
 
 	def getModByName( self, name ):
 
@@ -1250,29 +1223,20 @@ class CodeLibraryParser():
 					for codeChangeDict in buildSet:
 						codeType = codeChangeDict['type']
 						
-						if codeType == 'replace': # Static Overwrite; basically an 04 Gecko codetype (hex from json)
-							# self.parseAmfsReplace( codeChangeDict, mod )
-							# if mod.assemblyError or mod.missingVanillaHex or mod.missingIncludes: break
-							# customCode = codeChangeDict['value']
-							# offset = codeChangeDict['address']
+						if codeType == 'replace': # Static Overwrite; basically an 02/04 Gecko codetype (hex from json)
 							mod.addStaticOverwrite( codeChangeDict['address'], codeChangeDict['value'].splitlines() )
 
 						elif codeType == 'inject': # Standard code injection
 							self.parseAmfsInject( codeChangeDict, mod )
-							# if mod.assemblyError or mod.parsingError or mod.missingVanillaHex or mod.missingIncludes: break
-							# elif mod.type == 'static': mod.type = 'injection' # 'static' is the only type that 'injection' can override.
 
 						elif codeType == 'replaceCodeBlock': # Static overwrite of variable length (hex from file)
 							self.parseAmfsReplaceCodeBlock( codeChangeDict, mod )
-							# if mod.assemblyError or mod.missingVanillaHex or mod.missingIncludes: break
 
 						elif codeType == 'branch' or codeType == 'branchAndLink':
 							mod.errors.append( 'The ' + codeType + ' AMFS code type is not yet supported' )
 
 						elif codeType == 'injectFolder':
 							self.parseAmfsInjectFolder( codeChangeDict, mod )
-							# if mod.assemblyError or mod.parsingError or mod.missingVanillaHex or mod.missingIncludes: break
-							# elif mod.type == 'static': mod.type = 'injection' # 'static' is the only type that 'injection' can override.
 
 						elif codeType == 'replaceBinary':
 							mod.errors.append( 'The replaceBinary AMFS code type is not yet supported' )
@@ -1282,20 +1246,6 @@ class CodeLibraryParser():
 
 						else:
 							mod.errors.append( 'Unrecognized AMFS code type: ' + codeType )
-
-					# Create a new code module, and add it to the GUI
-					#self.buildCodeModule( mod )
-					
-					# Disable the mod for certain cases
-					# if not mod.data:
-					# 	mod.state = 'unavailable'
-					# 	mod.stateDesc = 'Missing mod data'
-					# elif mod.name in self.modNames:
-					# 	mod.state = 'unavailable'
-					# 	mod.stateDesc = 'Duplicate Mod'
-
-					# globalData.codeMods.append( mod )
-					# self.modNames.add( mod.name )
 
 					self.storeMod( mod )
 
@@ -1311,71 +1261,6 @@ class CodeLibraryParser():
 
 			#self.errors.append( "No 'codes' section found in codes.json" ) #todo
 			msg( 'No "codes" section found in codes.json for the mod in "{}".'.format(folderPath) )
-
-	# def buildCodeModule( self, mod ):
-
-	# 	""" Builds a code module for the GUI, sets its status, and adds it to the interface. """
-
-	# 	# Create a new module in the GUI, both for user interaction and data storage
-	# 	newModModule = ModModule( self.modModulesParent, mod.name, mod.desc, mod.auth, mod.data, mod.type, mod.webLinks )
-	# 	newModModule.pack( fill='x', expand=1 )
-	# 	newModModule.sourceFile = mod.path
-	# 	newModModule.fileIndex = 0
-	# 	newModModule.includePaths = mod.includePaths
-	# 	genGlobals['allMods'].append( newModModule )
-
-	# 	# Set the mod widget's status and add it to the global allModNames list
-	# 	if mod.data == {}: newModModule.setState( 'unavailable', specialStatusText='Missing mod data.' )
-	# 	elif mod.parsingError: newModModule.setState( 'unavailable', specialStatusText='Error detected during parsing.' )
-	# 	elif mod.missingVanillaHex: newModModule.setState( 'unavailable', specialStatusText='Unable to get vanilla hex' )
-	# 	elif mod.assemblyError: newModModule.setState( 'unavailable', specialStatusText='Error during assembly' )
-	# 	elif mod.missingIncludes: newModModule.setState( 'unavailable', specialStatusText='Missing include file: ' + mod.missingIncludes )
-	# 	else:
-	# 		# No problems detected so far. Check if this is a duplicate mod, and add it to the list of all mods if it's not
-	# 		if mod.name in genGlobals['allModNames']:
-	# 			newModModule.setState( 'unavailable', specialStatusText='Duplicate Mod' )
-	# 		else:
-	# 			genGlobals['allModNames'].add( mod.name )
-
-	# 		if mod.type == 'gecko' and not overwriteOptions[ 'EnableGeckoCodes' ].get():
-	# 			newModModule.setState( 'unavailable' )
-	# 		elif settingsFile.alwaysEnableCrashReports and mod.name == "Enable OSReport Print on Crash":
-	# 			newModModule.setState( 'pendingEnable' )
-
-	# 	if self.errors:
-	# 		print '\nFinal errors:', '\n'.join( self.errors )
-
-	# def parseAmfsReplace( self, codeChangeDict, mod ):
-
-	# 	""" AMFS Static Overwrite of 4 bytes; custom hex code sourced from json file. """
-
-	# 	# Pre-process the custom code (make sure there's no whitespace, and/or assemble it)
-	# 	customCode = codeChangeDict['value']
-	# 	returnCode, preProcessedCustomCode = globalData.codeProcessor.preAssembleRawCode( customCode, mod.includePaths, suppressWarnings=True )
-	# 	if returnCode in ( 1, 2 ):
-	# 		mod.assemblyError = True
-	# 		self.errors.append( "Encountered a problem while assembling a 'replace' code change" )
-	# 		return
-	# 	elif returnCode == 3: # Missing an include file
-	# 		mod.missingIncludes = preProcessedCustomCode # The custom code string will be the name of the missing include file
-	# 		self.errors.append( "Unable to find this include file: " + preProcessedCustomCode )
-	# 		return
-		
-	# 	# Get the offset of the code change, and the original code at that location
-	# 	offset = codeChangeDict['address']
-	# 	# dolOffset = normalizeDolOffset( offset, dolObj=mod.vanillaDol )
-	# 	# origHex = getVanillaHex( dolOffset, revision=mod.revision, suppressWarnings=False )
-	# 	# if not origHex:
-	# 	# 	mod.missingVanillaHex = True
-	# 	# 	self.errors.append( "Unable to get original code for a 'replace' code change" )
-	# 	# 	return
-
-	# 	# Preserve the annotation using a comment
-	# 	annotation = codeChangeDict.get( 'annotation', None )
-	# 	if annotation:
-	# 		customCode += ' # ' + annotation
-
-	# 	mod.data[mod.currentRevision].append( ('static', 4, offset, '', customCode, preProcessedCustomCode, returnCode) )
 
 	def readInjectionAddressHeader( self, asmFile ):
 
@@ -1821,23 +1706,6 @@ class CommandProcessor( object ):
 
 		return ( ''.join(code).lstrip(), errors ) # Removes first line break if present
 
-	def parseBranchHex( self, hexCode ):
-
-		""" Gets the branch operand (branch distance), and normalizes it. Avoids weird results from EABI.
-			Essentially, this does two things: strip out the link and absolute flag bits,
-			and normalize the output value, e.g. -0x40 instead of 0xffffffc0. """
-
-		# Mask out bits 26-32 (opcode), bit 25 (sign bit) and bits 1 & 2 (branch link and absolute value flags)
-		intValue = int( hexCode, 16 )
-		branchDistance = intValue & 0b11111111111111111111111100
-
-		# Check the sign bit 0x2000000, i.e. 0x10000000000000000000000000
-		if intValue & 0x2000000:
-			# Sign bit is set; this is a negative number.
-			return hex( -( 0x4000000 - branchDistance ) )
-		else:
-			return hex( branchDistance )
-
 	def parseDisassemblerOutput( self, cmdOutput ):
 		code = []
 		errors = ''
@@ -1874,7 +1742,26 @@ class CommandProcessor( object ):
 
 		return ( '\n'.join(code), errors )
 
+	def parseBranchHex( self, hexCode ):
+
+		""" Gets the branch operand (branch distance), and normalizes it. Avoids weird results from EABI.
+			Essentially, this does two things: strip out the link and absolute flag bits,
+			and normalize the output value, e.g. -0x40 instead of 0xffffffc0. """
+
+		# Mask out bits 26-32 (opcode), bit 25 (sign bit) and bits 1 & 2 (branch link and absolute value flags)
+		intValue = int( hexCode, 16 )
+		branchDistance = intValue & 0b11111111111111111111111100
+
+		# Check the sign bit 0x2000000, i.e. 0x10000000000000000000000000
+		if intValue & 0x2000000:
+			# Sign bit is set; this is a negative number.
+			return hex( -( 0x4000000 - branchDistance ) )
+		else:
+			return hex( branchDistance )
+
 	def getOptionWidth( self, optionType ):
+
+		""" Returns how many bytes a configuration option of the given type is expected to fill. """
 
 		if optionType.endswith( '32' ) or optionType == 'float':
 			return 4
@@ -1904,7 +1791,7 @@ class CommandProcessor( object ):
 				5: Unrecognized configuration option type
 		"""
 
-		# Convert the input into a list of lines
+		# Convert the input into a list of lines and check if it's assembly or hex code
 		codeLinesList = codeLinesList.splitlines()
 		isAssembly = self.codeIsAssembly( codeLinesList )
 

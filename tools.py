@@ -24,7 +24,7 @@ from ScrolledText import ScrolledText
 # Internal dependencies
 import globalData
 from basicFunctions import msg, cmdChannel, printStatus
-from guiSubComponents import BasicWindow
+from guiSubComponents import BasicWindow, cmsg
 
 
 #class NumberConverter( BasicWindow ):
@@ -219,22 +219,22 @@ class AsmToHexConverter( BasicWindow ):
 	""" Tool window to convert assembly to hex and vice-verca. """
 
 	def __init__( self, mod=None ):
-		BasicWindow.__init__( self, root, 'ASM <-> HEX Converter', offsets=(160, 100), resizable=True, topMost=False )
+		BasicWindow.__init__( self, globalData.gui.root, 'ASM <-> HEX Converter', offsets=(160, 100), resizable=True, topMost=False )
 		self.window.minsize( width=480, height=350 )
 
-		Label( self.window, text=('This assembles PowerPC assembly code into raw hex,\nor disassembles raw hex into PowerPC assembly.'
+		ttk.Label( self.window, text=('This assembles PowerPC assembly code into raw hex,\nor disassembles raw hex into PowerPC assembly.'
 			#"\n\nNote that this functionality is also built into the entry fields for new code in the 'Add New Mod to Library' interface. "
 			#'So you can use your assembly source code in those fields and it will automatically be converted to hex during installation. '
 			'\nComments preceded with "#" will be ignored.'), wraplength=480 ).grid( column=0, row=0, padx=40 )
 
-		self.lengthString = StringVar( value='' )
+		self.lengthString = Tk.StringVar( value='' )
 		self.mod = mod
 
 		# Create the header row
 		headersRow = ttk.Frame( self.window )
-		Label( headersRow, text='ASM' ).grid( row=0, column=0, sticky='w' )
-		Label( headersRow, textvariable=self.lengthString ).grid( row=0, column=1 )
-		Label( headersRow, text='HEX' ).grid( row=0, column=2, sticky='e' )
+		ttk.Label( headersRow, text='ASM' ).grid( row=0, column=0, sticky='w' )
+		ttk.Label( headersRow, textvariable=self.lengthString ).grid( row=0, column=1 )
+		ttk.Label( headersRow, text='HEX' ).grid( row=0, column=2, sticky='e' )
 		headersRow.grid( column=0, row=1, padx=40, pady=(7, 0), sticky='ew' )
 
 		# Configure the header row, so it expands properly on window-resize
@@ -352,17 +352,28 @@ class AsmToHexConverter( BasicWindow ):
 			self.includePaths = [ os.path.join(libraryFolder, '.include'), os.path.join(globalData.scriptHomeFolder, '.include') ]
 
 	def viewIncludePaths( self ):
+
+		""" Build and display a message to the user on assembly context and current paths. """
+
 		# Build the message to show the user
-		paths = [ os.getcwd() + '      <- Current Working Directory' ]
+		paths = [ os.getcwd() + '          <- Current Working Directory' ]
 		paths.extend( self.includePaths )
 		paths = '\n'.join( paths )
 
-		if self.mod:
-			contextMessage = '\n\nAssembly context (for ".include" file imports) has the following priority:\n\n{}\n\n    [Based on "{}"]'.format( paths, self.mod.name )
-		else:
-			contextMessage = '\n\nAssembly context (for ".include" file imports) has the following priority:\n\n{}\n\n    [Default paths]'.format( paths )
+		message =	( 'Assembly context (for ".include" file imports) has the following priority:'
+					  "\n\n1) The current working directory (usually the program root folder)"
+					  "\n2) Directory of the mod's code file (or the code's root folder with AMFS)"
+					  """\n3) The current Code Library's ".include" directory"""
+					  """\n4) The program root folder's ".include" directory""" )
 
-		cmsg( contextMessage, 'Include Paths', 'left' )
+		if self.mod:
+			message += ( '\n\n\nThis instance of the converter is using assembly context for .include file imports based on {}. '
+					 'The exact paths are as follows:\n\n{}'.format( self.mod.name, paths ) )
+		else:
+			message += ( '\n\n\nThis instance of the converter is using default assembly context for .include file imports. '
+					 'The exact paths are as follows:\n\n' + paths )
+
+		cmsg( message, 'Include Paths', 'left' )
 
 
 class DolphinController( object ):

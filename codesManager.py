@@ -1023,7 +1023,7 @@ class CodeConfigWindow( BasicWindow ):
 			optComment = optionDict.get( 'annotation' )
 
 			# Add the option name, with a comment/annotation if one is available
-			nameLabel = ttk.Label( self.optionsFrame.interior, text=optionName + u'  \N{BLACK DOWN-POINTING TRIANGLE}' )
+			nameLabel = ttk.Label( self.optionsFrame.interior, text=optionName ) #  + u'  \N{BLACK DOWN-POINTING TRIANGLE}'
 			nameLabel.grid( column=0, row=row, sticky='w', padx=28 )
 
 			# Add a hover tooltip to the name
