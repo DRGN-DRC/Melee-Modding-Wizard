@@ -165,13 +165,17 @@ def grammarfyList( theList ):
 
 def findAll( stringToLookIn, subString, charIncrement=2 ):
 	
-	""" Finds ALL instances of a string in another string, and returns their indices. """
+	""" Finds ALL instances of a string or bytearray in another string or bytearray, 
+		and returns their indices. Use charIncrement to determine how many characters 
+		(or bytes if the arguments are bytearrays) to move forward before the next match. """
 
 	matches = []
 	i = stringToLookIn.find( subString )
+
 	while i >= 0:
 		matches.append( i )
 		i = stringToLookIn.find( subString, i + charIncrement ) # Change 2 to 1 if not going by bytes.
+
 	return matches
 
 

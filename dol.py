@@ -754,7 +754,7 @@ class Dol( FileBase ):
 	# 	else:
 	# 		return offset
 
-	def findCustomCode( self, mod, codeChange, freeSpaceCodeArea ):
+	def findCustomCode_( self, mod, codeChange, freeSpaceCodeArea ):
 
 		""" Occurs with Gecko codes & standalone functions, since we may not have a branch to locate them.
 			This is the first normal (non-special-branch) section for this code. Since the offset is unknown,
@@ -793,7 +793,7 @@ class Dol( FileBase ):
 
 		return matchOffset
 
-	def customCodeInDOL( self, mod, codeChange, startingOffset, freeSpaceCodeArea, excludeLastCommand=False ):
+	def customCodeInDOL_( self, mod, codeChange, startingOffset, freeSpaceCodeArea, excludeLastCommand=False ):
 
 		""" Checks if the given custom code (a hex string) is installed within the given code area (a bytearray).
 			Essentially tries to mismatch any of a code change's custom code with the custom code in the DOL. Besides simply
@@ -938,7 +938,225 @@ class Dol( FileBase ):
 
 			return True
 
+	@staticmethod
+	def getOptionWidth( optionType ):
+
+		""" Returns how many bytes a configuration option of the given type is expected to fill. """
+
+		if optionType.endswith( '32' ) or optionType == 'float':
+			return 4
+		elif optionType.endswith( '16' ):
+			return 2
+		elif optionType.endswith( '8' ):
+			return 1
+		else:
+			return -1
+
+	def findCustomCode( self, mod, codeChange, freeSpaceCodeArea ):
+
+		""" Occurs with Gecko codes and standalone functions, since we may not have a branch to locate them.
+			This is the first normal (non-special-branch) section for this code. Since the offset is unknown,
+			use this section to find all possible locations/matches for this code within the region. """
+		
+		customCode = codeChange.preProcessedCode
+		if not customCode: # Pre-processing may have failed
+			return -1
+			
+		elif not codeChange.syntaxInfo:
+			matches = findAll( freeSpaceCodeArea, bytearray.fromhex(customCode), charIncrement=1 ) # charIncrement set to 1 in order to increment by byte
+			
+			if matches:
+				return True
+			else:
+				return False
+
+		readOffset = 0
+		#customSyntaxIndex = 0
+		#matchOffset = 0
+
+		for syntaxOffset, length, _, _, _ in codeChange.syntaxInfo:
+
+			# Check for and process custom code preceding this custom syntax instance
+			if readOffset != syntaxOffset:
+				sectionLength = syntaxOffset - readOffset
+				# dolCodeStart = startingOffset + readOffset
+				# dolCodeEnd = dolCodeStart + sectionLength
+				assert sectionLength > 0, 'Read position error in .customCodeInDOL()! Read offset: {}, Next syntax offset: {}'.format( readOffset, syntaxOffset )
+
+				codeSection = customCode[readOffset:syntaxOffset]
+				
+				matches = findAll( freeSpaceCodeArea, bytearray.fromhex(codeSection), charIncrement=1 ) # charIncrement set to 1 in order to increment by byte
+				
+				#codeInDol = freeSpaceCodeArea[dolCodeStart:dolCodeEnd]
+				#lastSyntaxOffset = syntaxOffset + length
+
+				# Iterate over the possible locations/matches, and check if each may be the code we're looking for (note that starting offsets will be known in these checks)
+				for matchingOffset in matches:
+					codeStart = matchingOffset - readOffset # Accomodates for potential preceding special branches
+
+					if self.customCodeInDOL( mod, codeChange, codeStart, freeSpaceCodeArea ):
+						return codeStart
+				else: # Loop above didn't return; no matches for this section found in the given code area
+					return -1
+
+			# Skip matching custom syntaxes for now
+			#elif section.startswith( 'sbs__' ) or section.startswith( 'sym__' ) or section.startswith( 'opt__' ):
+				#offset += 4
+				#offset += getCustomSectionLength( section )
+				# readOffset += codeChange.syntaxInfo[customSyntaxIndex][1]
+				# customSyntaxIndex += 1
+			readOffset += length
+
+			# else: # First section of non-special syntax found
+			# 	matches = findAll( freeSpaceCodeArea, bytearray.fromhex(section), charIncrement=2 ) # charIncrement set to 2 so we increment by byte rather than by nibble
+
+			# 	# Iterate over the possible locations/matches, and check if each may be the code we're looking for (note that starting offsets will be known in these checks)
+			# 	for matchingOffset in matches:
+			# 		subMatchOffset = self.customCodeInDOL( mod, codeChange, matchingOffset - readOffset, freeSpaceCodeArea ) # "- readOffset" accomodates for potential preceding special branches
+
+			# 		if subMatchOffset != -1: # The full code was found
+			# 			return subMatchOffset
+			# 	else: # Loop above didn't return; no matches for this section found in the given code area
+			# 		return matchOffset
+
+		return 0 # If this is reached, the custom code is entirely special syntaxes; going to have to assume installed. todo: fix
+
 	#def getMask( self, syntaxInfo, mod ):
+
+	# def parseConfigurationOption( self, syntaxInfo, mod ):
+
+	# 	for syntaxOffset, length, syntaxType, codeLine, names in syntaxInfo:
+	# 		for name in names:
+	# 			optionDict = mod.getConfiguration( name )
+
+	def customCodeInDOL( self, mod, codeChange, startingOffset, freeSpaceCodeArea, excludeLastCommand=False ):
+
+		""" Checks if the given custom code (a hex string) is installed within the given code area (a bytearray).
+			Essentially tries to mismatch any of a code change's custom code with the custom code in the DOL. Besides simply
+			checking injection site code, this can check custom injection code, even if it includes unknown special branch syntaxes.
+
+			This is much more reliable than simply checking whether the hex at an injection site is vanilla or not because it's 
+			possible that more than one mod could target the same location (so we have to see which mod the installed custom code 
+			belongs to). If custom code is mostly or entirely composed of custom syntaxes, we'll have to give it the benefit of the 
+			doubt and assume it's installed (since at this point there is no way to know what bytes a custom syntax may resolve to). """
+
+		customCode = codeChange.preProcessedCode
+		if not customCode: # Pre-processing may have failed
+			return False
+
+		if excludeLastCommand: # Exclude the branch back on injection mods.
+			customCode = customCode[:-8] # Removing the last 4 bytes
+
+		# With no custum syntax, there is just one chunk of code to compare
+		if not codeChange.syntaxInfo:
+			codeLength = len( customCode ) / 2
+			codeInDol = freeSpaceCodeArea[startingOffset:startingOffset+codeLength]
+
+			if bytearray.fromhex( customCode ) == codeInDol: # Comparing bytearrays rather than strings prevents worrying about upper/lower-case
+				return True
+			else: # Mismatch detected, meaning this is not the same (custom) code in the DOL.
+				return False
+
+		readOffset = 0
+		for syntaxOffset, length, syntaxType, codeLine, names in codeChange.syntaxInfo:
+
+			# Check for and process custom code preceding this custom syntax instance
+			if readOffset != syntaxOffset:
+				sectionLength = syntaxOffset - readOffset
+				dolCodeStart = startingOffset + readOffset
+				dolCodeEnd = dolCodeStart + sectionLength
+				assert sectionLength > 0, 'Read position error in .customCodeInDOL()! Read offset: {}, Next syntax offset: {}'.format( readOffset, syntaxOffset )
+				
+				codeSection = customCode[readOffset:syntaxOffset]
+				codeInDol = freeSpaceCodeArea[dolCodeStart:dolCodeEnd]
+				#lastSyntaxOffset = syntaxOffset + length
+
+				if bytearray.fromhex( codeSection ) != codeInDol: # Comparing bytearrays rather than strings prevents worrying about upper/lower-case
+					# matchOffset = -1
+					# break # Mismatch detected, meaning this is not the same (custom) code in the DOL.
+					return False
+				else:
+					#readOffset += sectionLength
+					readOffset += syntaxOffset
+
+			#if section == '': continue
+
+			# Skip matching custom syntaxes
+			#elif section.startswith( 'sbs__' ) or section.startswith( 'sym__' ):
+			if syntaxType == 'sbs' or syntaxType == 'sym':
+				readOffset += 4
+				#customSyntaxIndex += 1
+
+			# If this section contains a configuration option, get the current value stored in the DOL
+			elif section.startswith( 'opt__' ):
+				#optionOffset, optionWidth, _, names = codeChange.syntaxInfo[customSyntaxIndex]
+
+				# Parse the custom code line and compare its non-option parts to what's in the DOL
+				# codeMatches = self.compareCustomOptionCode( section, readOffset, freeSpaceCodeArea, codeChange.isAssembly, mod )
+				# if not codeMatches:
+				# 	matchOffset = -1
+				# 	break # Mismatch detected, meaning this is not the same (custom) code in the DOL.
+
+				absOffsetStart = startingOffset + syntaxOffset # Need an absolute DOL offset. The option offset is relative to the code start
+				codeInDol = freeSpaceCodeArea[absOffsetStart:absOffsetStart+length]
+
+				if len( names ) == 1:
+					optionDict = mod.getConfiguration( names[0] )
+					optType = optionDict['type']
+					value = struct.unpack( ConfigurationTypes[optType], codeInDol )[0]
+					mod.configure( names[0], value )
+				else: # Multiple values were ANDed or ORed together here
+					for name in names:
+						optionDict = mod.getConfiguration( name )
+						optType = optionDict['type']
+						mask = optionDict.get( 'mask' )
+
+						tic = time.clock()
+
+						if mask:
+							maskValue = mod.parseConfigValue( optType, mask )
+							value = struct.unpack( '>I', codeInDol )[0]
+							maskedCodeInDol = struct.pack( '>I', value & maskValue )
+							value = struct.unpack( ConfigurationTypes[optType], maskedCodeInDol )[0]
+						else:
+							value = struct.unpack( ConfigurationTypes[optType], codeInDol )[0]
+							
+						mod.configure( name, value )
+						
+						toc = time.clock()
+						print 'method 1 value: ', value
+						print 'in', toc-tic
+						
+						tic = time.clock()
+
+						if mask:
+							maskValue = mod.parseConfigValue( optType, mask )
+							maskBytes = struct.pack( ConfigurationTypes[optType], maskValue )
+						
+							i = 0
+							for dolByte, maskByte in zip( codeInDol, maskBytes ):
+								codeInDol[i] = dolByte & maskByte
+						
+						value = struct.unpack( ConfigurationTypes[optType], codeInDol )[0]
+						
+						toc = time.clock()
+						print 'method 2 value: ', value
+						print 'in', toc-tic
+
+				readOffset += length
+				#customSyntaxIndex += 1
+
+			# else:
+			# 	sectionLength = len( section ) / 2
+			# 	codeInDol = freeSpaceCodeArea[readOffset:readOffset+sectionLength]
+
+			# 	if bytearray.fromhex( section ) != codeInDol: # Comparing bytearrays rather than strings prevents worrying about upper/lower-case
+			# 		matchOffset = -1
+			# 		break # Mismatch detected, meaning this is not the same (custom) code in the DOL.
+			# 	else:
+			# 		readOffset += sectionLength
+
+		return True
 
 	def checkForEnabledCodes( self, modsToCheckFor ):
 

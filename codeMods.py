@@ -206,7 +206,7 @@ class CodeChange( object ):
 			return self.processStatus
 
 		#rawCustomCode = '\n'.join( customCode ).strip() # Collapses the list of collected code lines into one string, removing leading & trailing whitespace
-		self.processStatus, self.length, codeOrErrorNote, self.syntaxInfo, self.isAssembly = globalData.codeProcessor.evaluateCustomCode( self.rawCode, self.mod.includePaths, self.mod.configurations )
+		self.processStatus, self.length, codeOrErrorNote, self.syntaxInfo, self.isAssembly = globalData.codeProcessor.evaluateCustomCode2( self.rawCode, self.mod.includePaths, self.mod.configurations )
 		
 		# if self.syntaxInfo:
 		# 	processStatus, length, codeOrErrorNote2, syntaxInfo, isAssembly = globalData.codeProcessor.evaluateCustomCode2( self.rawCode, self.mod.includePaths, self.mod.configurations )
@@ -261,7 +261,13 @@ class CodeChange( object ):
 
 		self.evaluate()
 
-		returnCode, finishedCode = globalData.codeProcessor.resolveCustomSyntaxes( targetAddress, self.rawCode, self.preProcessedCode, self.mod.includePaths, self.mod.configurations )
+		#returnCode, finishedCode = globalData.codeProcessor.resolveCustomSyntaxes( targetAddress, self.rawCode, self.preProcessedCode, self.mod.includePaths, self.mod.configurations )
+
+		if not self.syntaxInfo:
+			returnCode = 0
+			finishedCode = self.preProcessedCode
+		else:
+			returnCode, finishedCode = globalData.codeProcessor.resolveCustomSyntaxes2( targetAddress, self )
 
 		""" resolveCustomSyntaxes may have these return codes:
 				0: Success (or no processing was needed)
@@ -2358,7 +2364,7 @@ class CommandProcessor( object ):
 			
 			elif '<<' in codeLine and '>>' in codeLine: # Identifies symbols in the form of <<functionName>>
 				#customSyntaxRanges.append( [length, 4, 'sym__'+codeLine, ()] )
-				customSyntaxRanges.append( [length, 4, 'sym', codeLine, ()] )
+				customSyntaxRanges.append( [length, 4, 'sym', codeLine, CodeLibraryParser.containsPointerSymbol(codeLine)] )
 				#preProcessedLines.append( 'sym__'+codeLine )
 				preProcessedLines.append( '60000000' ) # Could be anything, soo... nop!
 				length += 4
@@ -2411,6 +2417,9 @@ class CommandProcessor( object ):
 
 						if '|' in varName:
 							names = varName.split( '|' )
+							names = [ name.strip() for name in names ] # Remove whitespace from start/end of names
+						elif '&' in varName:
+							names = varName.split( '&' )
 							names = [ name.strip() for name in names ] # Remove whitespace from start/end of names
 						else:
 							names = [ varName ]
@@ -3003,6 +3012,215 @@ class CommandProcessor( object ):
 			if debugging:
 				print 'resolved custom code using the preProcessedCustomCode lines'
 			
+			for i, section in enumerate( customCodeSections ):
+				if section[:5] in ( 'sbs__', 'sym__', 'opt__' ):
+					customCodeSections[i] = resolvedCodeLines.pop( 0 ).replace( ' ', '' )
+					if resolvedCodeLines == []: break
+
+			customCode = ''.join( customCodeSections )
+
+		return ( returnCode, customCode )
+
+	#def resolveCustomSyntaxes2( self, thisFunctionStartingOffset, rawCustomCode, preProcessedCustomCode, includePaths=None, configurations=None ):
+
+	def resolveCustomSyntaxes2( self, codeAddress, codeChange ):
+
+		#.rawCode, self.preProcessedCode, self.mod.includePaths, self.mod.configurations
+
+		""" Replaces any custom branch syntaxes that don't exist in the assembler with standard 'b_ [intDistance]' branches, 
+			and replaces function symbols with literal RAM addresses, of where that function will end up residing in memory. 
+
+			This process may require two passes. The first is always needed, in order to determine all addresses and syntax resolutions. 
+			The second may be needed for final assembly because some lines with custom syntaxes might need to reference other parts of 
+			the whole source code (raw custom code), such as for macros or label branch calculations. 
+			
+			May return these return codes:
+				0: Success (or no processing was needed)
+				2: Unable to assemble source code with custom syntaxes
+				3: Unable to assemble custom syntaxes (source is in hex form)
+				4: Unable to find a configuration option name
+				100: Success, and the last instruction is a custom syntax
+		"""
+
+		#customCodeSections = preProcessedCustomCode.split( '|S|' )
+		# rawCustomCodeLines = rawCustomCode.splitlines()
+		# rawCodeIsAssembly = self.codeIsAssembly( rawCustomCodeLines ) # Checking the form of the raw (initial) code input, not the pre-processed code
+		#dol = globalData.disc.dol
+		resolvedCodeLines = []
+		requiresAssembly = False
+		#errorDetails = ''
+		offset = 0
+		returnCode = 0
+
+		# Resolve individual syntaxes to finished assembly and/or hex
+		#for i, section in enumerate( customCodeSections ):
+		
+		for syntaxOffset, length, syntaxType, codeLine, names in codeChange.syntaxInfo:
+
+			# Check for code preceding this custom syntax instance
+			# if offset != syntaxOffset:
+			# 	offset += syntaxOffset - offset
+
+			if section.startswith( 'sbs__' ): # Something of the form 'bl 0x80001234' or 'bl <function>'; build a branch from this
+				section = section[5:] # Removes the 'sbs__' identifier
+
+				branchInstruction, branchDistance = self.parseSpecialBranchSyntax( section, codeAddress + offset )
+
+				# Remember in case reassembly is later determined to be required
+				resolvedCodeLines.append( '{} {}'.format(branchInstruction, branchDistance) ) 
+
+				# Replace this line with hex for the finished branch
+				if not requiresAssembly: # The preProcessed customCode won't be used if reassembly is required; so don't bother replacing those lines
+					customCodeSections[i] = self.assembleBranch( branchInstruction, branchDistance ) # Assembles these arguments into a finished hex string
+
+				# Check if this was the last section
+				if i + 1 == len( customCodeSections ):
+					returnCode = 100
+
+				#offset += 4
+
+			elif section.startswith( 'sym__' ): # Contains a function symbol; something like 'lis r3, (<<function>>+0x40)@h'; change the symbol to an address
+				section = section[5:]
+
+				#erroredFunctions = set()
+
+				# Determine the RAM addresses for the symbols, and replace them in the line
+				for name in CodeLibraryParser.containsPointerSymbol( section ):
+					# Get the dol offset and ultimate RAM address of the target function
+					targetFunctionAddress = globalData.standaloneFunctions[name][0]
+					# ramAddress = dol.offsetInRAM( targetFunctionAddress ) + 0x80000000
+					
+					# if ramAddress == -1: # Fatal error; probably an invalid function offset was given, pointing to an area outside of the DOL
+					# 	erroredFunctions.add( name )
+
+					#address = "0x{0:0{1}X}".format( ramAddress, 8 ) # e.g. 1234 (int) -> '0x800004D2' (string)
+					address = "0x{:08X}".format( targetFunctionAddress ) # e.g. 1234 (int) -> '0x800004D2' (string)
+
+					section = section.replace( '<<' + name + '>>', address )
+
+				# if erroredFunctions:
+				# 	errorDetails = 'Unable to calculate RAM addresses for the following function symbols:\n\n' + '\n'.join( erroredFunctions )
+				# 	break
+
+				requiresAssembly = True
+				resolvedCodeLines.append( section )
+
+				# Check if this was the last section
+				if i + 1 == len( customCodeSections ):
+					returnCode = 100
+
+				#offset += 4
+				
+			elif section.startswith( 'opt__' ): # Identifies configuration option placeholders
+				section = section[5:]
+
+				#optionPairs = {}
+				optionData = []
+
+				# Replace variable placeholders with the currently set option value
+				# Check if this section requires assembly, and collect option names/values
+				sectionChunks = section.split( '[[' )
+				for j, chunk in enumerate( sectionChunks ):
+					if ']]' in chunk:
+						varName, chunk = chunk.split( ']]' )
+
+						# Seek out the option name and its current value in the configurations list
+						# for configuration in configurations:
+						# 	if configuration['name'] == varName:
+						# 		#currentValue = str( configuration['value'] )
+						# 		optionData.append( (configuration['type'], configuration['value']) )
+						# 		break
+						# else: # Loop above didn't break; variable name not found!
+						# 	return ( 4, 'Unable to find the configuration option "{}" in the mod definition.'.format(varName) )
+						option = configurations.get( varName )
+						if not option:
+							return ( 4, 'Unable to find the configuration option "{}" in the mod definition.'.format(varName) )
+						optionData.append( (option['type'], option['value']) ) # Existance of type/value already verified
+
+						#sectionChunks[j] = chunk.replace( varName+']]', currentValue )
+
+						# if requiresAssembly: pass
+						# elif all( char in hexdigits for char in theRest.replace(' ', '') ): pass
+						# else: requiresAssembly = True
+						
+					if requiresAssembly: pass
+					elif all( char in hexdigits for char in chunk.replace(' ', '') ): pass
+					else: requiresAssembly = True
+
+				# Reiterate over the chunks to replace the names with values, now that we know whether they should be packed
+				for j, chunk in enumerate( sectionChunks ):
+					if ']]' in chunk:
+						varName, theRest = chunk.split( ']]' )
+
+						if requiresAssembly: # No need to pad the value
+							value = optionData.pop( 0 )[-1]
+							sectionChunks[j] = chunk.replace( varName+']]', str(value) )
+						else: # Needs to be packed to the appropriate length for the data type
+							optionType, value = optionData.pop( 0 )
+							# if type( value ) == str: # Need to typecast to int or float
+							# 	if optionType == 'float':
+							# 		value = float( value )
+							# 	elif '0x' in value:
+							# 		value = int( value, 16 )
+							# 	else:
+							# 		value = int( value )
+							value = CodeMod.parseConfigValue( optionType, value )
+							valueAsBytes = struct.pack( ConfigurationTypes[optionType], value )
+							sectionChunks[j] = chunk.replace( varName+']]', hexlify(valueAsBytes) )
+
+				# if not requiresAssembly:
+				# 	sectionChunks = [ chunk.replace(' ', '') for chunk in sectionChunks ]
+				resolvedCodeLines.append( ''.join(sectionChunks) )
+						
+				# Check if this was the last section
+				if i + 1 == len( customCodeSections ):
+					returnCode = 100
+
+				#offset += 4
+
+			# else: # This code should already be pre-processed hex (assembled, with whitespace removed)
+			# 	offset += len( section ) / 2
+
+		#if errorDetails: return ( 1, errorDetails )
+
+		# Assemble the final code using the full source (raw) code
+		if requiresAssembly and codeChange.isAssembly:
+			# Using the original, raw code, remove comments, replace the custom syntaxes, and assemble it into hex
+			rawCustomCodeLines = rawCustomCode.splitlines()
+			rawAssembly = []
+			for line in rawCustomCodeLines:
+				# Start off by filtering out comments and empty lines.
+				codeLine = line.split( '#' )[0].strip()
+					
+				if CodeLibraryParser.isSpecialBranchSyntax( codeLine ) or CodeLibraryParser.containsPointerSymbol( codeLine ) or CodeLibraryParser.containsCustomization( codeLine ):
+					# Replace with resolved code lines
+					rawAssembly.append( resolvedCodeLines.pop(0) )
+				else:
+					rawAssembly.append( codeLine )
+
+			customCode, errors = self.assemble( '\n'.join(rawAssembly), includePaths=includePaths, suppressWarnings=True )
+
+			if errors:
+				return ( 2, 'Unable to assemble source code with custom syntaxes.\n\n' + errors )
+
+		elif requiresAssembly: # Yet the raw code is in hex form; need to assemble just the lines with custom syntax
+			# Assemble the resolved lines in one group (doing it this way instead of independently in the customCodeSections loop for less IPC overhead)
+			assembledResolvedCode, errors = self.assemble( '\n'.join(resolvedCodeLines), beautify=True, suppressWarnings=True )
+			if errors:
+				return ( 3, 'Unable to assemble hex code with custom syntaxes.\n\n' + errors )
+
+			resolvedHexCodeLines = assembledResolvedCode.split() # Split on whitespace
+			newCustomCodeSections = preProcessedCustomCode.split( '|S|' ) # Need to re-split this, since customCodeSections may have been modified by now
+			
+			# Add the resolved, assembled custom syntaxes back into the full custom code string
+			for i, section in enumerate( newCustomCodeSections ):
+				if section[:5] in ( 'sbs__', 'sym__', 'opt__' ):
+					newCustomCodeSections[i] = resolvedHexCodeLines.pop( 0 )
+					if resolvedHexCodeLines == []: break
+
+			customCode = ''.join( newCustomCodeSections )
+
+		else: # Only hex should remain. Recombine the code lines back into one string. Special Branch Syntaxes have been assembled to hex
 			for i, section in enumerate( customCodeSections ):
 				if section[:5] in ( 'sbs__', 'sym__', 'opt__' ):
 					customCodeSections[i] = resolvedCodeLines.pop( 0 ).replace( ' ', '' )
