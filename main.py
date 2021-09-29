@@ -24,6 +24,8 @@ import argparse
 import Tkinter as Tk
 import ttk, tkMessageBox, tkFileDialog
 
+from threading import Thread
+from subprocess import Popen, PIPE, CalledProcessError
 from sys import argv as programArgs 	# Access command line arguments, and files given (drag-and-dropped) to the program icon
 from binascii import hexlify, unhexlify 	# Convert from bytearrays to strings (and vice verca via unhexlify)
 from PIL import Image, ImageTk, ImageDraw, ImageFilter, ImageChops
@@ -35,8 +37,8 @@ from tools import TriCspCreator, AsmToHexConverter
 from disc import Disc, isExtractedDirectory
 from hsdFiles import StageFile, CharCostumeFile
 from basicFunctions import (
-		#floatToHex, 
-		msg, uHex, humansize,
+		cmdChannel, msg, 
+		uHex, humansize,
 		openFolder, createFolders
 	)
 from guiSubComponents import (
@@ -211,6 +213,7 @@ class ToolsMenu( Tk.Menu, object ):
 
 	def __init__( self, parent, tearoff=True, *args, **kwargs ):
 		super( ToolsMenu, self ).__init__( parent, tearoff=tearoff, *args, **kwargs )
+		self.statusUpdateFrequency = 2000 # How frequent the GUI updates xDelta patch progress, in milliseconds
 		self.open = False
 																								# Key shortcut (holding alt)
 		# self.add_cascade( label="ASM <-> HEX Converter", command=lambda: AsmToHexConverter(), underline=0 )			# A
@@ -218,7 +221,7 @@ class ToolsMenu( Tk.Menu, object ):
 		self.add_cascade( label="Test External Stage File", command=self.testStage, underline=14 )					# S
 		self.add_cascade( label="Test External Character File", command=self.testCharacter, underline=14 )			# C
 		self.add_separator()
-		self.add_cascade( label="Build xDelta Patch", command=self.notDone, underline=6 )							# X
+		self.add_cascade( label="Build xDelta Patch", command=self.buildPatch, underline=6 )						# X
 		self.add_cascade( label="Build from Patch", command=self.notDone, underline=11 )							# P
 		self.add_separator()
 		self.add_cascade( label="Create Tri-CSP", command=self.createTriCsp, underline=1 )							# T
@@ -226,6 +229,107 @@ class ToolsMenu( Tk.Menu, object ):
 
 	# def openAsmHexConverter( self ):
 
+	def buildPatch( self ):
+
+		""" Builds an xDelta patch from a vanilla 1.02 disc and the disc currently loaded in the GUI. """
+
+		if not globalData.disc:
+			msg( 'No disc has been loaded!' )
+			return
+
+		# Get the vanilla disc path
+		vanillaDiscPath = globalData.getVanillaDiscPath()
+		if not vanillaDiscPath:
+			return
+
+		# Get the xDelta executable and path to the current disc
+		xDeltaPath = globalData.paths['xDelta']
+		currentDiscPath = globalData.disc.filePath
+		currentDiscFolder = os.path.dirname( currentDiscPath )
+
+		# Get the disc's short title from the banner file
+		bannerFile = globalData.disc.getBannerFile()
+		defaultPatchName = os.path.splitext( bannerFile.shortTitle )[0] + ' patch.xdelta'
+
+		# Get the output directory and file name for the patch
+		savePath = tkFileDialog.asksaveasfilename(
+			title="Where would you like to export the patch?",
+			parent=globalData.gui.root,
+			initialdir=currentDiscFolder,
+			initialfile=defaultPatchName,
+			defaultextension='.xdelta',
+			filetypes=[( "xDelta patch files", '*.xdelta' ), ( "All files", "*.*" )] )
+
+		if not savePath: # User canceled
+			return
+
+		# Send the build command to the xDelta executable
+		#command = '"{}" -V "{}" "{}" "{}"'.format( xDeltaPath, vanillaDiscPath, currentDiscPath, savePath )
+		command = '"{}" -B 1363148800 -e -9 -f -v -S djw -s "{}" "{}" "{}"'.format( xDeltaPath, vanillaDiscPath, currentDiscPath, savePath )
+		print(command)
+		
+		builderThread = Thread( target=self._patchBuilderHelper, args=(currentDiscPath, command) )
+		builderThread.daemon = True # Causes the thread to be stopped when the main program stops
+		builderThread.start()
+
+	def _patchBuilderHelper( self, currentDiscPath, command ):
+
+		""" Helper method to run the xDelta build command in a separate thread (so the GUI remains responsive). 
+			Build progress is captured from stderr (not stdout!) and updated to the GUI via event queue. """
+
+		process = Popen( command, shell=False, stderr=PIPE, creationflags=0x08000000, universal_newlines=True, bufsize=1 )
+
+		# Display initial build progress message in the program's status bar
+		globalData.gui.patchBuildProgress = 0
+		globalData.gui.root.after( 0, self.updatePatchBuildProgress )
+
+		# While the process is still running, read output from it to check its progress
+		discSize = os.path.getsize( currentDiscPath ) / 1048576 # Getting the size in MB
+		try:
+			while process.poll() is None:
+				# Read the line output from the program and get how many bytes have been processed so far
+				output = process.stderr.readline() # Looking for lines like "xdelta3: 127: in 8.00 MiB: out 18.7 KiB: total in 1.00 GiB: out 619 MiB: 41 ms"
+				if not output or 'total in' not in output:
+					continue
+
+				totalProcessed = output.split( 'total in' )[-1]
+				megaBytesProcessed, units, _ = totalProcessed.split( None, 2 )
+
+				# Check percentage of bytes processed to total bytes to process (the size of the current disc)
+				megaBytesProcessed = float( megaBytesProcessed )
+				if units == 'GiB:': # Units default to MB, and switch to GB if the current disc is >= 1 GB
+					megaBytesProcessed *= 1024
+				globalData.gui.patchBuildProgress = megaBytesProcessed / discSize * 100
+		except CalledProcessError:
+			pass
+		except: # Should be a parsing error
+			process.returncode = 101
+
+		if process.returncode == 0:
+			globalData.gui.patchBuildProgress = 100
+		else:
+			globalData.gui.patchBuildProgress = process.returncode * -1
+
+	# def updatePatchBuildProgress( self, event, progress ):
+	# 	event.message = 'Building xDelta patch ({}%)'.format( round(progress, 1) )
+	# 	globalData.gui.root.event_generate( '<<ProgressUpdate>>', when='tail' )
+	
+	def updatePatchBuildProgress( self ):
+		progress = globalData.gui.patchBuildProgress
+
+		if progress < 0: # Return code
+			message = 'Unable to build xDelta patch; return code {}'.format( abs(progress) )
+		elif progress == 0:
+			message = 'Initializing xDelta patch creation (this may take a minute)'
+			globalData.gui.root.after( 4000, self.updatePatchBuildProgress )
+		elif progress < 100:
+			message = 'Building xDelta patch ({}%)'.format( round(progress, 1) )
+			globalData.gui.root.after( 2000, self.updatePatchBuildProgress )
+		else: # Progress at or over 100%; operation complete
+			message = 'Building xDelta patch ({}%)'.format( round(progress, 1) )
+			globalData.gui.root.after( 3000, lambda m='xDelta patch complete': globalData.gui.updateProgramStatus( m ) )
+
+		globalData.gui.updateProgramStatus( message )
 
 	def notDone( self ):
 		print( 'not yet supported' )
@@ -580,6 +684,7 @@ class MainGui( Tk.Frame, object ):
 
 		self._imageBank = {} # Repository for all GUI related images
 		self.audioEngine = None
+		self.patchBuildProgress = -1
 
 		self.defaultWindowWidth = 1000
 		self.defaultWindowHeight = 750
@@ -638,6 +743,7 @@ class MainGui( Tk.Frame, object ):
 		self.root.unbind_class( 'Text', '<MouseWheel>' ) # Allows onMouseWheelScroll below to handle this
 		self.root.unbind_class( 'Treeview', '<MouseWheel>' ) # Allows onMouseWheelScroll below to handle this
 		self.root.bind_all( "<MouseWheel>", self.onMouseWheelScroll )
+		#self.root.bind( '<<ProgressUpdate>>', self.updateProgressDisplay )
 		
 		# Keyboard hotkeys
 		self.root.bind( '<Control-s>', lambda event: self.save() ) # Using lambda to prevent passing on the event arg to the method
@@ -659,6 +765,13 @@ class MainGui( Tk.Frame, object ):
 		self.menubar.bind( "<<MenuSelect>>", self.updateMainMenuOptions )
 
 		self.root.deiconify() # GUI has been minimized until rendering was complete. This brings it to the foreground
+
+	# def updateProgressDisplay( self, event ):
+
+	# 	""" Used to handle progress updates from other threads using the event queue.
+	# 		(Other threads should not directly update the GUI themselves.) """
+
+	# 	self.updateProgramStatus( event.message )
 
 	def updateProgramStatus( self, newStatus, warning=False, error=False, success=False ):
 

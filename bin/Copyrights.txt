@@ -1,4 +1,21 @@
 
+xdelta v3.0.11/3.1.0 is under a GPL copyright;
+
+	website: http://xdelta.org/
+	source:  https://github.com/jmacd/xdelta-gpl
+
+xdelta v3.0.11/3.1.0 was branch and re-licensed under the Apache Public License version 2.0;
+
+	source:  https://github.com/jmacd/xdelta
+
+
+=========================================================================
+
+	The rest of this document pertains to pngquant licensing.
+
+
+
+
 pngquant and libimagequant are derived from code by Jef Poskanzer and Greg Roelofs
 licensed under pngquant's original licenses (near the end of this file),
 and contain extensive changes and additions by Kornel Lesiński
