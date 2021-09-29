@@ -138,6 +138,9 @@ def fileFactory( *args, **kwargs ):
 	elif filename.endswith( '.hps' ):
 		return MusicFile( *args, **kwargs )
 
+	elif filename.startswith( 'opening' ) and filename.endswith( '.bnr' ): # May support openingUS.bnr, openingEU.bnr, etc. in the future
+		return BannerFile( *args, **kwargs )
+
 	# If this is initializing an external/standalone file, we shouldn't trust the file name
 	elif kwargs.get( 'extPath' ) and kwargs.get( 'source' ) == 'file': # A slower but more thorough check.
 
@@ -157,7 +160,7 @@ def fileFactory( *args, **kwargs ):
 		elif 'MnSelectChrDataTable' in fileObj.stringDict.values():
 			return CssFile( *args, **kwargs )
 
-	else: # A fast check that doesn't requiring getting the file data (ideal if the file name can be trusted)
+	else: # A fast check that doesn't require getting the file data (ideal if the file name can be trusted)
 		
 		if filename.startswith( 'Gr' ):
 			return StageFile( *args, **kwargs )
@@ -174,6 +177,10 @@ def fileFactory( *args, **kwargs ):
 
 	return DatFile( *args, **kwargs )
 
+
+					# = ----------------------- = #
+					#  [   Disc File Classes   ]  #
+					# = ----------------------- = #
 
 class FileBase( object ):
 
@@ -413,6 +420,53 @@ class FileBase( object ):
 			print 'Error saving yaml config;', err
 			msg( 'Unable to save the new stage nameThere was an error while saving the yaml config file:\n\n{}'.format(err) )
 			return 1
+
+
+class BannerFile( FileBase ):
+
+	""" Subclass for opening.bnr GCM disc files, which contain the 
+		disc banner and certain title and maker information. """
+
+	def __init__( self, *args, **kwargs ):
+		FileBase.__init__( self, *args, **kwargs )
+
+		# Determine encoding, prioritizing a given encoding, if present, or disc info
+		if 'encoding' in kwargs:
+			self.encoding = kwargs.pop( 'encoding' )
+		elif self.disc and self.disc.countryCode == 1:
+			self.encoding = 'latin_1'
+		elif self.disc:
+			self.encoding = 'shift_jis'
+		else:
+			self.encoding = 'latin_1'
+
+	@property
+	def shortTitle( self ):
+		titleBytes = self.getData( 0x1820, 0x20 ).split( '\x00' )[0]
+		return titleBytes.decode( self.encoding )
+
+	@property
+	def shortMaker( self ):
+		titleBytes = self.getData( 0x1840, 0x20 ).split( '\x00' )[0]
+		return titleBytes.decode( self.encoding )
+
+	@property
+	def longTitle( self ):
+		titleBytes = self.getData( 0x1860, 0x40 ).split( '\x00' )[0]
+		return titleBytes.decode( self.encoding )
+
+	@property
+	def longMaker( self ):
+		titleBytes = self.getData( 0x18A0, 0x40 ).split( '\x00' )[0]
+		return titleBytes.decode( self.encoding )
+
+	def validate( self ):
+
+		""" Checks the first 4 bytes of the file for a magic word. """
+
+		magicWord = self.getData( 0, 0x4 )
+
+		return ( magicWord == bytearray(b'BNR1') or magicWord == bytearray(b'BNR2') )
 
 
 					# = ---------------------- = #

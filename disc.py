@@ -446,6 +446,26 @@ class Disc( object ):
 	# 	cssFile = self.files.get( self.gameId + '/MnSlChr.0sd' )
 	# 	assert
 
+	def getBannerFile( self, filename='' ):
+
+		""" Look for and return a banner file (e.g. opening.bnr) from the disc filesystem. 
+			May get other variations if the standard opening.bnr file doesn't exist. """
+
+		if filename:
+			bannerFile = globalData.disc.files.get( globalData.disc.gameId + '/' + filename )
+		
+		else:
+			for filename in ( '/opening.bnr', '/openingUS.bnr', '/openingEU.bnr', '/openingJP.bnr' ):
+				bannerIsoPath = globalData.disc.gameId + filename
+				bannerFile = globalData.disc.files.get( bannerIsoPath )
+				if bannerFile: break
+
+		if not bannerFile:
+			printStatus( 'Unable to get banner file (opening__.bnr) from disc', error=True )
+			return None
+		else:
+			return bannerFile
+
 	def parseFST( self, fstData ):
 
 		""" Parses a GC disc's FST/TOC (File System Table/Table of Contents), and builds 
@@ -819,13 +839,13 @@ class Disc( object ):
 			fileDesc = fileObj.description if fileObj.description else fileObj.filename
 
 			if len( fileObj.unsavedChanges ) == 1:
-				lines.append( '{}: {}'.format(fileDesc, fileObj.unsavedChanges[0]) )
+				lines.append( u'{}: {}'.format(fileDesc, fileObj.unsavedChanges[0]) )
 
 			elif basicSummary:
-				lines.append( '{} changes in {}'.format(len(fileObj.unsavedChanges), fileDesc) )
+				lines.append( u'{} changes in {}'.format(len(fileObj.unsavedChanges), fileDesc) )
 
 			else:
-				lines.append( '{} changes in {}:'.format(len(fileObj.unsavedChanges), fileDesc) )
+				lines.append( u'{} changes in {}:'.format(len(fileObj.unsavedChanges), fileDesc) )
 				for fileChange in fileObj.unsavedChanges:
 					lines.append( '    ' + fileChange )
 				lines.append( '' )
@@ -2869,6 +2889,9 @@ class MicroMelee( Disc ):
 		# if musicFile:
 		# 	assetTest.configure( "Stage", externalStageId )
 
+		# Make sure Dolphin is stopped so we can save to the disc
+		globalData.dolphinController.stopAllDolphinInstances()
+
 		# Restore the DOL's data to vanilla and then install the necessary codes
 		self.restoreDol()
 		self.installCodeMods( codesToInstall )
@@ -2909,6 +2932,9 @@ class MicroMelee( Disc ):
 		assetTest.configure( "Player 1 Character", charObj.extCharId )
 		assetTest.configure( "P1 Costume ID", charObj.getCostumeId() )
 		codesToInstall.append( assetTest )
+
+		# Make sure Dolphin is stopped so we can save to the disc
+		globalData.dolphinController.stopAllDolphinInstances()
 
 		# Restore the DOL's data to vanilla and then install the necessary codes
 		self.restoreDol()
