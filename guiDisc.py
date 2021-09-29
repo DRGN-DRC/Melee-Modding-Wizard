@@ -24,9 +24,8 @@ import Tkinter as Tk
 import globalData
 from hsdFiles import fileFactory
 from basicFunctions import (
-		msg, copyToClipboard, uHex,
-		humansize, 
-		createFolders,
+		msg, printStatus, copyToClipboard, 
+		uHex, humansize, createFolders,
 		saveAndShowTempFileData
 	)
 from guiSubComponents import (
@@ -391,9 +390,11 @@ class DiscTab( ttk.Frame ):
 			discFile.getDescription( usingConvenienceFolders )
 
 		try:
+			if discFile.size < 0xc000 and discFile.size + 0x30 > 0xc000:
+				print discFile.description
 			self.isoFileTree.insert( parent, 'end', iid=discFile.isoPath, text=' ' + entryName, values=(discFile.description, 'file') )
 		except Exception as err:
-			print 'Unable to add {} to the Disc File Tree; {}'.format( discFile.description, err )
+			printStatus( 'Unable to add {} to the Disc File Tree; {}'.format(discFile.description, err) )
 
 	def scanDiscItemForStats( self, iidSelectionsTuple, folderContents ):
 

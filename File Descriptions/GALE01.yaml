@@ -271,10 +271,11 @@ GrNBa.2at: Ancient Battlefield
 GrNBa.3at: Battlefield Plaza
 GrNBa.4at: Matrix Battlefield            # Old 20XX
 GrNBa.bat: Battlefield Plaza
-GrNBa.lat: Brawl Battlefield
+GrNBa.lat: Battlefino Plaza
 GrNFg.0at: Trophy Collector (Two platforms)
 GrNFg.1at: Trophy Collector (Three platforms)
 GrNFg.2at: Trophy Collector Omega
+GrNKr.0at: Mushroom Kingdom Adventure
 GrNKr.1at: Mushroom Kingdom Adventure Hacked
 GrNKr.2at: Mushroom Kingdom Adventure Omega
 GrNLa.0at: Final Destination
@@ -329,3 +330,5 @@ GrTSk.cat: Castle Siege
 GrGd.0at: Jungle Japes [Garden]
 GrFs.0at: Fourside
 GrTSk.iat: SSB64 Intro Stage             # 20XXHP 5.0+
+GrNSr.0at: Underground Maze (original)
+GrEF2.rat: Ripple Star

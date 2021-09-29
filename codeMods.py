@@ -208,17 +208,17 @@ class CodeChange( object ):
 		#rawCustomCode = '\n'.join( customCode ).strip() # Collapses the list of collected code lines into one string, removing leading & trailing whitespace
 		self.processStatus, self.length, codeOrErrorNote, self.syntaxInfo, self.isAssembly = globalData.codeProcessor.evaluateCustomCode( self.rawCode, self.mod.includePaths, self.mod.configurations )
 		
-		if self.syntaxInfo:
-			processStatus, length, codeOrErrorNote2, syntaxInfo, isAssembly = globalData.codeProcessor.evaluateCustomCode2( self.rawCode, self.mod.includePaths, self.mod.configurations )
+		# if self.syntaxInfo:
+		# 	processStatus, length, codeOrErrorNote2, syntaxInfo, isAssembly = globalData.codeProcessor.evaluateCustomCode2( self.rawCode, self.mod.includePaths, self.mod.configurations )
 		
-			print '\nevaluation comparison: ({})'.format( self.mod.name )
-			print 'status:', self.processStatus, processStatus
-			print 'isAssembly:', self.isAssembly, isAssembly
-			print 'len:', hex(self.length), hex(length)
-			print codeOrErrorNote
-			print codeOrErrorNote2
-			print self.syntaxInfo
-			print syntaxInfo
+		# 	print '\nevaluation comparison: ({})'.format( self.mod.name )
+		# 	print 'status:', self.processStatus, processStatus
+		# 	print 'isAssembly:', self.isAssembly, isAssembly
+		# 	print 'len:', hex(self.length), hex(length)
+		# 	print 'origFormat:', codeOrErrorNote
+		# 	print 'newFormat :', codeOrErrorNote2
+		# 	print 'origSyntaxInfo:', self.syntaxInfo
+		# 	print 'newSyntaxInfo :', syntaxInfo
 
 		if self.processStatus == 0:
 			self.preProcessedCode = codeOrErrorNote

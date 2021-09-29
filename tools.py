@@ -439,17 +439,10 @@ class DolphinController( object ):
 			return 'N/A'
 	
 	def start( self, discObj ):
-		
-		# Get the path to the user's emulator of choice
-		#emulatorPath = globalData.getEmulatorPath() # Will also validate the path
-
-		#print 'is running:', self.isRunning
 		if not self.exePath:
 			return # User may have canceled the prompt
 
 		# Make sure there are no prior instances of Dolphin running
-		if self.isRunning:
-			self.stop()
 		self.stopAllDolphinInstances()
 
 		# print 'Booting', discObj.filePath
@@ -471,19 +464,20 @@ class DolphinController( object ):
 
 		""" Stop an existing Dolphin process that was spawned from this controller. """
 
-		self.process.terminate()
-		time.sleep( 2 )
+		if self.isRunning:
+			self.process.terminate()
+			time.sleep( 2 )
 
 	def stopAllDolphinInstances( self ):
-		# Check for a running instances of Dolphin
+		self.stop()
 
+		# Check for other running instances of Dolphin
 		processFound = False
-
 		for process in psutil.process_iter():
 			if process.name() == 'Dolphin.exe':
 				process.terminate()
 				processFound = True
-				printStatus( 'Stopped an older Dolphin process' )
+				printStatus( 'Stopped an older Dolphin process not started by this module' )
 		
 		if processFound:
 			time.sleep( 2 )

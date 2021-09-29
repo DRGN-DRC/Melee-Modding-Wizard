@@ -245,7 +245,7 @@ class Dol( FileBase ):
 	def checkIf20XX( self ):
 
 		""" 20XX has a version string in the DOL at 0x0x3F7158, preceded by an ASCII string of '20XX'.
-			Versions up to 4.07++ used an ASCII string for the version as well (v4.07/4.07+/4.07++ do not differ).
+			Versions up to 4.07++ used an ASCII string for the version as well (v4.07/4.07+/4.07++ have the same string).
 			Versions 5.x.x use a new method of project code, major version, minor version, and patch, respectively (one byte each). """
 
 		# Check for the '20XX' string
@@ -937,6 +937,8 @@ class Dol( FileBase ):
 					sectionPos += chunkLength
 
 			return True
+
+	#def getMask( self, syntaxInfo, mod ):
 
 	def checkForEnabledCodes( self, modsToCheckFor ):
 

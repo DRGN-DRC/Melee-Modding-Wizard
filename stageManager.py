@@ -214,6 +214,9 @@ class StageSwapTable( object ):
 
 		# One variation; no byte replacements
 		elif byteReplacePointer == 0:
+			if dolStageFilename == 'GrNSr.0at': # Not changed by stage swap table?!
+				dolStageFilename = 'GrNSr.1at'
+			
 			filenames = [dolStageFilename]
 
 		# Multiple variations; byte(s) will be replaced in the stage filename
@@ -541,6 +544,7 @@ class SongChooser( BasicWindow ):
 		# Initialize an ACM for this window
 		self.acm = AudioControlModule( self.window, globalData.gui.audioEngine )
 		self.acm.grid( column=0, columnspan=2, row=1, pady=4 )
+		self.listbox.bind( '<Double-1>', self.acm.playAudio )
 
 		# Select the current/initially set song
 		if lineToSelect != -1:
@@ -902,15 +906,14 @@ class StageManager( ttk.Frame ):
 			strings to be displayed in the GUI for the Stage Swap Details information display panel. """
 		
 		# Create a string for the original stage to load
-		stageName = globalData.internalStageIds[self.selectedStageId]
-		#filename = globalData.stageFileNames[self.selectedStageId]
+		origStageName = globalData.internalStageIds[self.selectedStageId]
 		filename = self.dol.getStageFileName( self.selectedStageId )[1]
-		origBaseStage = '0x{:X} | {} ({})'.format( self.selectedStageId, stageName, filename )
+		origBaseStage = '0x{:X} | {} ({})'.format( self.selectedStageId, origStageName, filename )
 		
 		# Create a string for the new stage to load
 		# Check if the new stage is the same as the original stage (no file swap on the base stage)
 		if self.selectedStageId == newIntStageId or newIntStageId == 0:
-			newBaseStage = '0x{:X} | {} (same)'.format( newIntStageId, stageName ) # Use the same file description as above
+			newBaseStage = '0x{:X} | {} (same)'.format( newIntStageId, origStageName ) # Use the same file description as above
 		elif newIntStageId == 0x1A: # i.e. external stage ID 0x15, Akaneia (a deleted stage)
 			newBaseStage = '0x1A | Akaneia (deleted stage)'
 		elif newIntStageId == 0x16: # i.e. external stage ID 0x1A, Icicle Mountain (anticipating no hacked stages of this); switch to current Target Test stage
@@ -1235,7 +1238,6 @@ class StageManager( ttk.Frame ):
 		# Load the icon texture and set it in the SSS file
 		imageDataOffset = self.getTextureOffset( internalStageId, icon=True )[0]
 		returnCode, _, _ = sssFile.setTexture( imageDataOffset, imagePath=imagePath, textureName='{} icon texture'.format(textureName) ) # Will also record the change
-		print 'returnCode:', returnCode
 
 		if returnCode == 0:
 			# Get the new texture data, so we can show it in the GUI
@@ -1257,8 +1259,14 @@ class StageManager( ttk.Frame ):
 			tabName = self.pagesNotebook.tab( selectedTabId, 'text' ).strip()
 			globalData.gui.updateProgramStatus( '{} icon texture updated in the {} file ({}), at offset 0x{:X}'.format(textureName, tabName, sssFile.filename, 0x20+imageDataOffset), success=True )
 
-		else: # Probably don't need to be too specific; low chance of problems here
-			globalData.gui.updateProgramStatus( 'Unable to set the icon texture', error=True )
+		elif returnCode == 1:
+			globalData.gui.updateProgramStatus( 'Unable to set the icon texture; unable to find palette information', error=True )
+		elif returnCode == 2:
+			globalData.gui.updateProgramStatus( 'Unable to set the icon texture; the new image data is too large', error=True )
+		elif returnCode == 3:
+			globalData.gui.updateProgramStatus( 'Unable to set the icon texture; the new palette data is too large', error=True )
+		else:
+			globalData.gui.updateProgramStatus( 'Unable to set the icon texture due to an unknown error', error=True )
 
 	def iconClicked( self, event ):
 
@@ -1299,12 +1307,13 @@ class StageManager( ttk.Frame ):
 
 		# Highlight the newly selected icon
 		selectionCoords = canvas.coords( itemId )
-		newX = selectionCoords[0] - 2
-		newY = selectionCoords[1] - 2
+		borderWidth = 3
+		newX = selectionCoords[0] - borderWidth
+		newY = selectionCoords[1] - borderWidth
 		if self.selectedStageId in ( 0x24, 0x25, 0x1C, 0x1D, 0x1E ): # These icons are 48x48 in size
-			canvas.create_rectangle( newX, newY, newX+52, newY+52, outline='gold', width=2, tags='selectionBorder' )
+			canvas.create_rectangle( newX, newY, newX+52, newY+52, outline='gold', width=borderWidth, tags='selectionBorder' )
 		else:
-			canvas.create_rectangle( newX, newY, newX+68, newY+60, outline='gold', width=2, tags='selectionBorder' )
+			canvas.create_rectangle( newX, newY, newX+68, newY+60, outline='gold', width=borderWidth, tags='selectionBorder' )
 		
 		# Delete the current items in the stage variations treeview
 		for item in self.variationsTreeview.get_children():
@@ -1320,12 +1329,17 @@ class StageManager( ttk.Frame ):
 		else:
 			self.clickedVanillaIcon( canvas )
 
-	def getVariationDisplayName( self, stageFile ):
+	def getVariationDisplayName( self, stageFile, pageNumber ):
 
+		if pageNumber == 1:
+			useShortNames = True
+		else:
+			useShortNames = False
+		
 		if stageFile.isRandomNeutral():
-			displayName = stageFile.getDescription( inConvenienceFolder=True, updateInternalRef=False ).lstrip() # Force simpler names
-		elif stageFile.filename[2] == 'T':
-			displayName = stageFile.getDescription( inConvenienceFolder=False, updateInternalRef=False ) # Force simpler names
+			displayName = stageFile.getDescription( inConvenienceFolder=useShortNames, updateInternalRef=False ).lstrip()
+		elif stageFile.filename[2] == 'T': # Target Test stage
+			displayName = stageFile.getDescription( inConvenienceFolder=False, updateInternalRef=False )
 		elif stageFile.description:
 			displayName = stageFile.description
 		else:
@@ -1345,7 +1359,7 @@ class StageManager( ttk.Frame ):
 		isoPath = globalData.disc.gameId + '/' + dolStageFilename
 		stageFile = globalData.disc.files.get( isoPath )
 		if stageFile:
-			displayName = self.getVariationDisplayName( stageFile )
+			displayName = self.getVariationDisplayName( stageFile, 1 )
 			self.variationsTreeview.insert( '', 'end', text=displayName, values=(dolStageFilename, isoPath) )
 		else:
 			self.variationsTreeview.insert( '', 'end', text='- No File -', values=(dolStageFilename, isoPath), tags='fileNotFound' )
@@ -1393,7 +1407,7 @@ class StageManager( ttk.Frame ):
 			stageFile = globalData.disc.files.get( isoPath )
 
 			if stageFile:
-				displayName = self.getVariationDisplayName( stageFile )
+				displayName = self.getVariationDisplayName( stageFile, canvas.pageNumber )
 
 				if isoPath in pathsAdded:
 					self.variationsTreeview.insert( '', 'end', text=displayName +' (duplicate)', values=(filename, isoPath), tags='warning' )
@@ -1899,7 +1913,9 @@ class StageManager( ttk.Frame ):
 
 		# Update the name shown in the Variations treeview
 		if selection:
-			self.variationsTreeview.item( selection[0], text=self.getVariationDisplayName(stageObj), tags=() )
+			canvas = self.getCurrentCanvas()
+			displayName = self.getVariationDisplayName( stageObj, canvas.pageNumber )
+			self.variationsTreeview.item( selection[0], text=displayName, tags=() )
 
 		# Show the new file in the Disc File Tree
 		if globalData.gui.discTab:
@@ -2738,7 +2754,12 @@ class ExternalStageIdChooser( BasicWindow ):
 			( 'Standard Stages', [ item for item in idList if item[0] >= 0 and item[0] <= 0x20 ] ),
 			( 'Target Test Stages', [ item for item in idList if item[0] > 0x20 and item[0] <= 0x3A ] ),
 			( 'Adventure Mode', [ item for item in idList if item[0] > 0x3A and item[0] <= 0x51 ] ),
-			( 'Classic Mode', [ item for item in idList if item[0] > 0x55 and item[0] <= 0x7C ] )
+			( 'Classic Mode (VS One)', [ item for item in idList if item[0] > 0x55 and item[0] <= 0x7C ] ),
+			( 'Classic Mode (VS Two)', [ item for item in idList if item[0] > 0x7C and item[0] <= 0x9A ] ),
+			( 'Classic Mode (Other)', [ item for item in idList if item[0] > 0x9A and item[0] <= 0xB0 ] ),
+			( 'All-Star', [ item for item in idList if item[0] > 0xB0 and item[0] <= 0xC9 ] ),
+			( 'Event Match', [ item for item in idList if item[0] > 0xC9 and item[0] <= 0x110 ] ),
+			( 'Other', [ item for item in idList if item[0] > 0x110 ] )
 		]
 		self.stageLists[0][1][0] = ( 0, 'N/A' )
 

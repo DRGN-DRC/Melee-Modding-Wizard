@@ -209,13 +209,14 @@ class AudioManager( ttk.Frame ):
 			self.fileTree.saveState()
 
 		self.clear()
+		#files = []
 
 		# Get the list of songs from the disc
 		filecount = 0
 		totalFilesize = 0
 		for musicFile in globalData.disc.files.itervalues():
 			# Ignore non music files
-			if not musicFile.__class__.__name__ == 'MusicFile':
+			if not musicFile.__class__ == MusicFile:
 				continue
 
 			filecount += 1
@@ -237,6 +238,13 @@ class AudioManager( ttk.Frame ):
 			self.fileTree.insert( parent, 'end', iid=musicFile.isoPath, text=musicFile.description, values=(musicFile.filename, 'file') )
 			# if musicFile.isHexTrack:
 			# 	print humansize(musicFile.size), '  \t', musicFile.description
+			#files.append( musicFile )
+
+		# files.sort( key=lambda item: item.musicId )
+		# for musicFile in files:
+		# 	musicFile.readBlocks()
+		# 	durationString = self.formatDuration( musicFile.duration )
+		# 	print '[tr][td]' + uHex(musicFile.musicId), '[/td][td][COLOR=rgb(97, 189, 109)]', musicFile.description, '[/COLOR][/td][td]', musicFile.filename, '[/td][td]', humansize(musicFile.size), '({})'.format( uHex(musicFile.size) ), '[/td][td]', durationString + '[/td][/tr]'
 
 		if restoreState:
 			self.fileTree.restoreState()
@@ -298,6 +306,16 @@ class AudioManager( ttk.Frame ):
 		
 		self.generalInfoLabel['text'] = '\n'.join( [str(filecount), humansize(totalFilesize), humansize(spaceRemaining) ] )
 
+	def formatDuration( self, duration ):
+
+		""" Creates a human-readable duration string (with minutes/seconds/milliseconds) from a given millisecond int.
+			This will pad minutes/seconds to 2 characters, and milliseconds to 3 """
+
+		seconds, milliseconds = divmod( duration, 1000 )
+		minutes, seconds = divmod( seconds, 60 )
+
+		return '{:02}:{:02}.{:03}'.format( int(minutes), int(seconds), int(milliseconds) )
+
 	def onFileTreeSelect( self, event=None ):
 
 		""" Called when an item (file or folder) in the Disc File Tree is selected. Iterates over 
@@ -343,18 +361,20 @@ class AudioManager( ttk.Frame ):
 
 		# Format file size and track duration strings
 		fileSizeString = '{}   (0x{:X})'.format( humansize(musicFile.size), musicFile.size ) # Displays as MB/KB, and full hex value
-		seconds, milliseconds = divmod( musicFile.duration, 1000 )
-		minutes, seconds = divmod( seconds, 60 )
-		durationString = '{:02}:{:02}.{:03}'.format( int(minutes), int(seconds), int(milliseconds) ) # Will pad minutes/seconds to 2 characters, and milliseconds to 3
+		# seconds, milliseconds = divmod( musicFile.duration, 1000 )
+		# minutes, seconds = divmod( seconds, 60 )
+		# durationString = '{:02}:{:02}.{:03}'.format( int(minutes), int(seconds), int(milliseconds) ) # Will pad minutes/seconds to 2 characters, and milliseconds to 3
+		durationString = self.formatDuration( musicFile.duration )
 
 		if musicFile.loopPoint == -1:
 			loopPointString = 'None'
 		elif musicFile.loopPoint == 0:
 			loopPointString = '00:00.000 (track start)'
 		else:
-			seconds, milliseconds = divmod( musicFile.loopPoint, 1000 )
-			minutes, seconds = divmod( seconds, 60 )
-			loopPointString = '{:02}:{:02}.{:03}'.format( int(minutes), int(seconds), int(milliseconds) ) # Will pad minutes/seconds to 2 characters, and milliseconds to 3
+			# seconds, milliseconds = divmod( musicFile.loopPoint, 1000 )
+			# minutes, seconds = divmod( seconds, 60 )
+			# loopPointString = '{:02}:{:02}.{:03}'.format( int(minutes), int(seconds), int(milliseconds) ) # Will pad minutes/seconds to 2 characters, and milliseconds to 3
+			loopPointString = self.formatDuration( musicFile.loopPoint )
 
 		# Update the Track Info label and clear the references list
 		self.trackInfoLabel['text'] = '\n'.join( [musicId, fileSizeString, '{:,} Hz'.format(musicFile.sampleRate), str(musicFile.channels), durationString, loopPointString] )

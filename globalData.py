@@ -45,12 +45,14 @@ def init( programArgs ):
 	paths = { # Special internal paths (other custom/user paths that should be remembered in the settings file should be in the other two settings dicts)
 		'fontsFolder': os.path.join( scriptHomeFolder, 'fonts' ),
 		'imagesFolder': os.path.join( scriptHomeFolder, 'imgs' ),
-		'tempFolder': os.path.join( scriptHomeFolder, 'bin', 'tempFiles' ),
 		'settingsFile': os.path.join( scriptHomeFolder, 'settings.ini' ),
+		
+		'tempFolder': os.path.join( scriptHomeFolder, 'bin', 'tempFiles' ),
 		'meleeMedia': os.path.join( scriptHomeFolder, 'bin', 'MeleeMedia', 'MeleeMedia.exe' ),
 		'microMelee': os.path.join( scriptHomeFolder, 'bin', 'Micro Melee.iso' ),
 		'eabi': os.path.join( scriptHomeFolder, 'bin', 'eabi' ),
 		'coreCodes': os.path.join( scriptHomeFolder, 'bin', 'Core Codes' ),
+		'xDelta': os.path.join( scriptHomeFolder, 'bin', 'xdelta3-3.0.11-x86_64.exe' ) # todo: make this dynamic
 	}
 
 	# These are default settings if they are not defined in the user's settings.ini file
@@ -606,7 +608,7 @@ charNameLookup = {
 # 	Falcon = 2
 
 
-charList = [ # In order of External Character ID
+charList = [ # Indexed by External Character ID
 	"Captain Falcon",	# 0x0
 	"DK",
 	"Fox",
@@ -643,7 +645,7 @@ charList = [ # In order of External Character ID
 ]
 
 
-charAbbrList = [ # By External Character ID
+charAbbrList = [ # Indexed by External Character ID
 	'Ca',	# 0x0
 	'Dk',
 	'Fx',
@@ -1107,7 +1109,6 @@ externalStageIds = { # Descriptions for External Stage ID (stkind)
 	0xFD: "Jungle Japes (DK Rap) (Event #10 - All-Star Match 1-2 /vs DK)",
 	0xFE: "Yoshi's Story (Event #10 - All-Star Match 1-3 /vs Yoshi)",
 	0xFF: "Princess Peach's Castle (Event #10 - All-Star Match 1-4 /vs Peach)",
-	
 	0x101: "Great Bay  (All-Star Match 2-2, vs Link)",
 	0x102: "Temple  (All-Star Match 2-3, vs Zelda)",
 	0x103: "Mute City (All-Star Match 2-4, vs Captain Falcon)",
