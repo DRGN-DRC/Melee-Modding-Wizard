@@ -1052,12 +1052,13 @@ class Dol( FileBase ):
 			codeLength = len( customCode ) / 2
 			codeInDol = freeSpaceCodeArea[startingOffset:startingOffset+codeLength]
 
-			if bytearray.fromhex( customCode ) == codeInDol: # Comparing bytearrays rather than strings prevents worrying about upper/lower-case
+			if bytearray.fromhex( customCode ) == codeInDol: # Comparing via bytearrays rather than strings prevents worrying about upper/lower-case
 				return True
 			else: # Mismatch detected, meaning this is not the same (custom) code in the DOL.
 				return False
 
 		readOffset = 0
+
 		for syntaxOffset, length, syntaxType, codeLine, names in codeChange.syntaxInfo:
 
 			# Check for and process custom code preceding this custom syntax instance
@@ -1067,25 +1068,20 @@ class Dol( FileBase ):
 				dolCodeEnd = dolCodeStart + sectionLength
 				assert sectionLength > 0, 'Read position error in .customCodeInDOL()! Read offset: {}, Next syntax offset: {}'.format( readOffset, syntaxOffset )
 				
-				codeSection = customCode[readOffset:syntaxOffset]
+				codeSection = customCode[readOffset*2:syntaxOffset*2] # This is a string, so *2 to splice by bytes rather than nibbles
 				codeInDol = freeSpaceCodeArea[dolCodeStart:dolCodeEnd]
-				#lastSyntaxOffset = syntaxOffset + length
+				test = hexlify( codeInDol )
 
-				if bytearray.fromhex( codeSection ) != codeInDol: # Comparing bytearrays rather than strings prevents worrying about upper/lower-case
+				if bytearray.fromhex( codeSection ) != codeInDol: # Comparing via bytearrays rather than strings prevents worrying about upper/lower-case
 					# matchOffset = -1
 					# break # Mismatch detected, meaning this is not the same (custom) code in the DOL.
 					return False
 				else:
-					#readOffset += sectionLength
-					readOffset += syntaxOffset
-
-			#if section == '': continue
+					readOffset += sectionLength
 
 			# Skip matching custom syntaxes
-			#elif section.startswith( 'sbs__' ) or section.startswith( 'sym__' ):
 			if syntaxType == 'sbs' or syntaxType == 'sym':
 				readOffset += 4
-				#customSyntaxIndex += 1
 
 			# If this section contains a configuration option, get the current value stored in the DOL
 			elif section.startswith( 'opt__' ):
@@ -1144,7 +1140,6 @@ class Dol( FileBase ):
 						print 'in', toc-tic
 
 				readOffset += length
-				#customSyntaxIndex += 1
 
 			# else:
 			# 	sectionLength = len( section ) / 2
@@ -1249,8 +1244,10 @@ class Dol( FileBase ):
 					codeChange.evaluate()
 
 					# Check whether the vanilla hex for this code change matches what's in the DOL
-					matchOffset = self.customCodeInDOL( mod, codeChange, offset, self.data )
-					if matchOffset == -1: included = False
+					# matchOffset = self.customCodeInDOL( mod, codeChange, offset, self.data )
+					# if matchOffset == -1: included = False
+					if not self.customCodeInDOL( mod, codeChange, offset, self.data ):
+						included = False
 					else:
 						# Check whether this overwrite would land in an area reserved for custom code. If so, assume it should be disabled.
 						for codeRegion in allEnabledCodeRegions:
@@ -1278,10 +1275,12 @@ class Dol( FileBase ):
 						inEnabledRegion, regionNameFoundIn = self.offsetInEnabledRegions( customCodeOffset )
 
 						if inEnabledRegion:
-							matchOffset = self.customCodeInDOL( mod, codeChange, customCodeOffset, self.data, excludeLastCommand=True ) #todo narrow search field to improve performance
+							# matchOffset = self.customCodeInDOL( mod, codeChange, customCodeOffset, self.data, excludeLastCommand=True ) #todo narrow search field to improve performance
 
-							# If there was a good match on the custom code, remember where this code change is for a summary on this mod's installation
-							if matchOffset == -1: included = False
+							# # If there was a good match on the custom code, remember where this code change is for a summary on this mod's installation
+							# if matchOffset == -1: included = False
+							if not self.customCodeInDOL( mod, codeChange, customCodeOffset, self.data, excludeLastCommand=True ): #todo narrow search field to improve performance?
+								included = False
 							else:
 								summaryReport.append( ('Branch', 'static', offset, 4) ) # changeName, changeType, dolOffset, changeLength
 								summaryReport.append( ('Injection code', codeChange.type, customCodeOffset, codeChange.length) )

@@ -216,8 +216,9 @@ class ToolsMenu( Tk.Menu, object ):
 		self.statusUpdateFrequency = 2000 # How frequent the GUI updates xDelta patch progress, in milliseconds
 		self.open = False
 																								# Key shortcut (holding alt)
-		# self.add_cascade( label="ASM <-> HEX Converter", command=lambda: AsmToHexConverter(), underline=0 )			# A
-		# self.add_separator()
+		self.add_cascade( label="ASM <-> HEX Converter", command=lambda: AsmToHexConverter(), underline=0 )			# A
+		#self.add_cascade( label="Number and Address Conversion", command=lambda: AsmToHexConverter(), underline=0 )	# N
+		self.add_separator()
 		self.add_cascade( label="Test External Stage File", command=self.testStage, underline=14 )					# S
 		self.add_cascade( label="Test External Character File", command=self.testCharacter, underline=14 )			# C
 		self.add_separator()
