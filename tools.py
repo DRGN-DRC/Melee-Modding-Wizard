@@ -23,8 +23,8 @@ from ScrolledText import ScrolledText
 
 # Internal dependencies
 import globalData
-from basicFunctions import msg, cmdChannel, printStatus
-from guiSubComponents import BasicWindow, cmsg
+from basicFunctions import msg, uHex, cmdChannel, printStatus
+from guiSubComponents import BasicWindow, cmsg, Dropdown
 
 
 #class NumberConverter( BasicWindow ):
@@ -222,13 +222,30 @@ class AsmToHexConverter( BasicWindow ):
 		BasicWindow.__init__( self, globalData.gui.root, 'ASM <-> HEX Converter', offsets=(160, 100), resizable=True, topMost=False )
 		self.window.minsize( width=480, height=350 )
 
-		ttk.Label( self.window, text=('This assembles PowerPC assembly code into raw hex,\nor disassembles raw hex into PowerPC assembly.'
+		# Display info and a few controls
+		topRow = ttk.Frame( self.window )
+		ttk.Label( topRow, text=('This assembles PowerPC assembly code into raw hex,\nor disassembles raw hex into PowerPC assembly.'
 			#"\n\nNote that this functionality is also built into the entry fields for new code in the 'Add New Mod to Library' interface. "
 			#'So you can use your assembly source code in those fields and it will automatically be converted to hex during installation. '
-			'\nComments preceded with "#" will be ignored.'), wraplength=480 ).grid( column=0, row=0, padx=40 )
+			'\nComments preceded with "#" will be ignored.'), wraplength=480 ).grid( column=0, row=0, rowspan=2 )
+
+		ttk.Label( topRow, text='Beautify Hex:' ).grid( column=1, row=0 )
+		options = [ '1 Word Per Line', '2 Words Per Line', '3 Words Per Line', '4 Words Per Line', '5 Words Per Line', '6 Words Per Line' 'No Whitespace' ]
+		Dropdown( topRow, options, default=options[1], command=self.beautifyChanged ).grid( column=1, row=1 )
+
+		# self.assembleSpecialSyntax = Tk.BooleanVar( value=False )
+		# ttk.Checkbutton( topRow, text='Assemble Special Syntax', variable=self.assembleSpecialSyntax ).grid( column=1, row=2 )
+
+		topRow.grid( column=0, row=0, padx=40, pady=(7, 7), sticky='ew' )
+		
+		# Configure the top row, so it expands properly on window-resize
+		topRow.columnconfigure( 'all', weight=1 )
 
 		self.lengthString = Tk.StringVar( value='' )
 		self.mod = mod
+		self.syntaxInfo = ''
+		self.isAssembly = False
+		self.blocksPerLine = 2
 
 		# Create the header row
 		headersRow = ttk.Frame( self.window )
@@ -290,19 +307,23 @@ class AsmToHexConverter( BasicWindow ):
 		# Assemble the code (this will also handle showing any warnings/errors to the user)
 		tic = time.clock()
 		#returnCode, hexCode = customCodeProcessor.preAssembleRawCode( asmCode, self.includePaths, discardWhitespace=False )
-		#returnCode, hexCode = globalData.codeProcessor.()
+		results = globalData.codeProcessor.evaluateCustomCode( asmCode, self.includePaths, validateConfigs=False )
+		returnCode, codeLength, hexCode, self.syntaxInfo, self.isAssembly = results
 		toc = time.clock()
 
 		if returnCode != 0:
+			cmsg( hexCode, 'Assembly Error' )
 			return
 
-		hexCode = hexCode.replace( '|S|', '' ) # Removes special branch syntax separators
+		#hexCode = hexCode.replace( '|S|', '' ) # Removes special branch syntax separators
 
-		# Insert the new hex code
+		# Beautify and insert the new hex code
+		if self.blocksPerLine > 0:
+			hexCode = globalData.codeProcessor.beautifyHex( hexCode, blocksPerLine=self.blocksPerLine )
 		self.hexCodeEntry.insert( 'end', hexCode )
 
 		# Update the code length display
-		codeLength = getCustomCodeLength( hexCode, preProcess=True, includePaths=self.includePaths ) # requires pre-processing to remove whitespace
+		#codeLength = getCustomCodeLength( hexCode, preProcess=True, includePaths=self.includePaths ) # requires pre-processing to remove whitespace
 		self.lengthString.set( 'Length: ' + uHex(codeLength) )
 
 		# Update the assembly time display with appropriate units
@@ -327,7 +348,7 @@ class AsmToHexConverter( BasicWindow ):
 		hexCode = self.hexCodeEntry.get( '1.0', 'end' )
 		
 		# Disassemble the code into assembly
-		returnCode, asmCode = customCodeProcessor.preDisassembleRawCode( hexCode, discardWhitespace=False )
+		returnCode, asmCode = globalData.codeProcessor.preDisassembleRawCode( hexCode.splitlines(), discardWhitespace=False )
 
 		if returnCode != 0:
 			self.lengthString.set( 'Length: ' )
@@ -374,6 +395,27 @@ class AsmToHexConverter( BasicWindow ):
 					 'The exact paths are as follows:\n\n' + paths )
 
 		cmsg( message, 'Include Paths', 'left' )
+
+	def beautifyChanged( self, widget, newValue ):
+
+		try:
+			self.blocksPerLine = int( newValue.split()[0] )
+		except:
+			self.blocksPerLine = 0
+
+		# Reformat hex code currently displayed if there is any
+		hexCode = self.hexCodeEntry.get( '1.0', 'end' )
+		if hexCode:
+			# Clear the hex code field and info labels
+			self.hexCodeEntry.delete( '1.0', 'end' )
+
+			# Reformat whitespace
+			hexCode = ''.join( hexCode.split() ) # Remove all whitespace
+			if self.blocksPerLine > 0:
+				hexCode = globalData.codeProcessor.beautifyHex( hexCode, blocksPerLine=self.blocksPerLine )
+			
+			# Reinsert new code
+			self.hexCodeEntry.insert( 'end', hexCode )
 
 
 class DolphinController( object ):

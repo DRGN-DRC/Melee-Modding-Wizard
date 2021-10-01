@@ -2826,7 +2826,7 @@ class MicroMelee( Disc ):
 	# 	# Customize the code mod to load the given stage
 	# 	assetTest = parser.getModByName( 'Asset Test' )
 	# 	if assetTest:
-	# 		return assetTest.getConfiguration( "Stage" )
+	# 		return assetTest.getConfigValue( "Stage" )
 	# 	else:
 	# 		printStatus( 'Unable to find the Asset Test mod in the Core Codes library!', warning=True )
 	# 		return -1

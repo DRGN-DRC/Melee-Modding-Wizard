@@ -1084,7 +1084,7 @@ class Dol( FileBase ):
 				readOffset += 4
 
 			# If this section contains a configuration option, get the current value stored in the DOL
-			elif section.startswith( 'opt__' ):
+			elif syntaxType == 'opt':
 				#optionOffset, optionWidth, _, names = codeChange.syntaxInfo[customSyntaxIndex]
 
 				# Parse the custom code line and compare its non-option parts to what's in the DOL
@@ -1101,7 +1101,7 @@ class Dol( FileBase ):
 					optType = optionDict['type']
 					value = struct.unpack( ConfigurationTypes[optType], codeInDol )[0]
 					mod.configure( names[0], value )
-				else: # Multiple values were ANDed or ORed together here
+				else: # Multiple values were ANDed or ORed into this space
 					for name in names:
 						optionDict = mod.getConfiguration( name )
 						optType = optionDict['type']
@@ -1150,6 +1150,9 @@ class Dol( FileBase ):
 			# 		break # Mismatch detected, meaning this is not the same (custom) code in the DOL.
 			# 	else:
 			# 		readOffset += sectionLength
+
+		# Test last section
+		#if
 
 		return True
 

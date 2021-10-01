@@ -27,7 +27,7 @@ from basicFunctions import msg, openFolder, validHex
 from codeMods import ConfigurationTypes, regionsOverlap, CodeLibraryParser
 from guiSubComponents import (
 	exportSingleFileWithGui, VerticalScrolledFrame, LabelButton, ToolTip, CodeLibrarySelector, 
-	CodeSpaceOptionsWindow, ColoredLabelButton, BasicWindow, DisguisedEntry, Dropdown
+	CodeSpaceOptionsWindow, ColoredLabelButton, BasicWindow, DisguisedEntry
 )
 
 

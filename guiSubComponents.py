@@ -414,18 +414,16 @@ class CharacterChooser( BasicWindow ):
 		self.close()
 
 
-def cmsg( *args, **kwargs ):
+def cmsg( message, title='', align='center', buttons=None, makeModal=False ):
 
 	""" Simple helper function to display a small, windowed message to the user, with text that can be selected/copied. 
 		This will instead print out to console if the GUI has not been initialized. 
-		With 1 argument provided, this simply displays a message with no window title. 
-		2nd optional argument adds a window title. 
-		3rd may be a string to change alignment (left/center/right). 
-		4th may be a list of (buttonText, buttonCommand) tuples 
-		5th may be a bool indicating whether the window should be modal """
+
+		Alignment may be left/center/right. Buttons may be a list of (buttonText, buttonCommand) tuples. 
+		If modal, the window will take program focus and not allow it to be returned until the window is closed. """
 	
 	if globalData.gui:
-		CopyableMessageWindow( globalData.gui.root, *args, **kwargs )
+		CopyableMessageWindow( globalData.gui.root, message, title, align, buttons, makeModal )
 	else:
 		if len( args ) > 1:
 			print '\t', args[1] + ':'
@@ -434,7 +432,10 @@ def cmsg( *args, **kwargs ):
 
 class CopyableMessageWindow( BasicWindow ):
 
-	""" Creates a modeless (non-modal) message window that allows the user to copy the presented text. """
+	""" Creates a modeless (non-modal) message window that allows the user to copy the presented text. 
+
+		Alignment may be left/center/right. Buttons may be a list of (buttonText, buttonCommand) tuples. 
+		If modal, the window will take program focus and not allow it to be returned until the window is closed. """
 
 	def __init__( self, topLevel, message, title='', align='center', buttons=None, makeModal=False ):
 		self.guiRoot = topLevel
@@ -1184,6 +1185,9 @@ class Dropdown( ttk.OptionMenu ):
 			ttk.OptionMenu.__init__( self, parent, variable, default, *options, **kwargs )
 
 	def callBack( self, newValue ):
+
+		""" Called when the OptionMenu (dropdown) selection is changed. """
+
 		self.command( self, newValue )
 
 
