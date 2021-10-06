@@ -85,7 +85,7 @@ class CodeManagerTab( ttk.Frame ):
 
 		ttk.Separator( self.controlPanel, orient='horizontal' ).pack( pady=7, ipadx=140 )
 
-		self.restoreBtn = ttk.Button( self.controlPanel, text='Restore Original DOL', state='disabled', command=self.askRestoreDol, width=23 )
+		self.restoreBtn = ttk.Button( self.controlPanel, text='Restore Vanilla DOL', state='disabled', command=self.askRestoreDol, width=23 )
 		self.restoreBtn.pack( pady=4 )
 		self.exportBtn = ttk.Button( self.controlPanel, text='Export DOL', state='disabled', command=self.exportDOL, width=23 )
 		self.exportBtn.pack( pady=4 )
@@ -295,6 +295,27 @@ class CodeManagerTab( ttk.Frame ):
 			selectedTab = root.nametowidget( selectedTab.select() )
 			
 		return selectedTab
+
+	def getAllTabs( self, notebook=None, tabsList=None ):
+
+		""" Returns all Code Library tabs. This will be a list of all of the upper-most ttk.Frame 
+			widgets in the tabs (exists for placement purposes), not the VerticalScrolledFrame. """
+
+		root = globalData.gui.root
+
+		if not notebook:
+			notebook = self.codeLibraryNotebook
+			tabsList = []
+		
+		for tabName in notebook.tabs():
+			tabWidget = root.nametowidget( tabName )
+
+			if tabWidget.winfo_class() == 'TFrame':
+				tabsList.append( tabWidget )
+			else: # It's a notebook; we have to go deeper
+				self.getAllTabs( tabWidget, tabsList )
+		
+		return tabsList
 
 	def selectCodeLibraryTab( self, targetTabWidget, notebook=None ):
 
@@ -613,10 +634,37 @@ class CodeManagerTab( ttk.Frame ):
 	def saveIniFile( self ): pass
 	def saveGctFile( self ): pass
 
-	def selectAllMods( self, event ): pass
-	def deselectAllMods( self, event ): pass
-	def selectWholeLibrary( self, event ): pass
-	def deselectWholeLibrary( self, event ): pass
+	def selectAllMods( self, event ):
+		currentTab = self.getCurrentTab()
+
+		for mod in currentTab.winfo_children()[0].mods:
+			if mod.state == 'pendingDisable': mod.setState( 'enabled' )
+			elif mod.state == 'disabled': mod.setState( 'pendingEnable' )
+
+		#playSound( 'menuChange' )
+
+	def deselectAllMods( self, event ):
+		currentTab = self.getCurrentTab()
+
+		for mod in currentTab.winfo_children()[0].mods:
+			if mod.state == 'pendingEnable': mod.setState( 'disabled' )
+			elif mod.state == 'enabled': mod.setState( 'pendingDisable' )
+
+		#playSound( 'menuChange' )
+
+	def selectWholeLibrary( self, event ):
+
+		for tab in self.getAllTabs():
+			for mod in tab.winfo_children()[0].mods:
+				if mod.state == 'pendingDisable': mod.setState( 'enabled' )
+				elif mod.state == 'disabled': mod.setState( 'pendingEnable' )
+
+	def deselectWholeLibrary( self, event ):
+
+		for tab in self.getAllTabs():
+			for mod in tab.winfo_children()[0].mods:
+				if mod.state == 'pendingEnable': mod.setState( 'disabled' )
+				elif mod.state == 'enabled': mod.setState( 'pendingDisable' )
 
 	def saveCodeChanges( self ):
 
@@ -633,6 +681,7 @@ class CodeManagerTab( ttk.Frame ):
 		modsToInstall = []
 		modsToUninstall = []
 		geckoCodesToInstall = []
+		newModsToInstall = False
 
 		# Scan the library for mods to be installed or uninstalled
 		for mod in globalData.codeMods:
@@ -661,6 +710,10 @@ class CodeManagerTab( ttk.Frame ):
 						continue
 
 				modsToInstall.append( mod )
+				newModsToInstall = True
+
+			elif mod.state == 'enabled':
+				modsToInstall.append( mod )
 		
 		modsNotUninstalled = []
 		modsNotInstalled = []
@@ -678,7 +731,7 @@ class CodeManagerTab( ttk.Frame ):
 		# Make sure the DOL has been initialized (header parsed and properties determined)
 		globalData.disc.dol.load()
 
-		if modsToInstall:
+		if newModsToInstall:
 			globalData.disc.restoreDol()
 
 			globalData.gui.updateProgramStatus( 'Installing {} codes'.format(len(modsToInstall)) )
@@ -729,10 +782,11 @@ class CodeManagerTab( ttk.Frame ):
 		
 		dol = globalData.disc.dol
 		
-		restoreConfirmed = tkMessageBox.askyesno( 'Restoration Confirmation', 'This will revert the currently loaded DOL to be practically '
-												'identical to a vanilla ' + dol.revision + ' DOL (loaded from your chosen vanilla disc). '
-												'"Free space" regions selected for use will still be zeroed-out. This process does not preserve '
-												'a copy of the current DOL, and any current changes will be lost.\n\nAre you sure you want to do this?' )
+		restoreConfirmed = tkMessageBox.askyesno( 'Restoration Confirmation', 'This will replace the currently loaded DOL to a '
+												'vanilla ' + dol.revision + ' DOL (loaded from your chosen vanilla disc). Free '
+												'space regions reserved for custom code (under Code-Space Options) will still '
+												'be zeroed-out. This process does not preserve a copy of the current DOL, '
+												'and any current changes will be lost.\n\nAre you sure you want to do this?' )
 
 		# See if we can get a reference to vanilla DOL code
 		vanillaDiscPath = globalData.getVanillaDiscPath()
@@ -740,7 +794,9 @@ class CodeManagerTab( ttk.Frame ):
 			printStatus( 'Unable to restore the DOL; no vanilla disc available for reference', warning=True )
 			return
 
+		# Restore the DOL and re-scan for installed codes
 		globalData.disc.restoreDol( vanillaDiscPath )
+		globalData.disc.dol.checkForEnabledCodes( globalData.codeMods )
 
 		globalData.gui.updateProgramStatus( 'Restoration Successful' )
 
