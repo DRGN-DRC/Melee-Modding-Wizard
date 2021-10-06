@@ -1211,7 +1211,8 @@ class Dol( FileBase ):
 
 			#for change.type, change.length, change.offset, change.origCode, _, change.preProcessedCode, _ in mod.getCodeChanges():
 			for codeChange in mod.getCodeChanges():
-				if functionsOnly and not codeChange.type == 'standalone': functionsOnly = False
+				if functionsOnly and not codeChange.type == 'standalone':
+					functionsOnly = False
 
 				# Piggy-back on the codeChange module to remember configuration options found while checking for custom code
 				#codeChange.options = {}
@@ -1357,7 +1358,7 @@ class Dol( FileBase ):
 				# 		mod.configure( optionName, value )
 
 			# Prepare special processing for the unique case of this module being composed of ONLY standalone functions (at least for this dol revision)
-			if included and functionsOnly:
+			if functionsOnly:
 				functionOnlyModules.append( (mod, functionsIncluded) )
 				continue
 
@@ -1369,7 +1370,7 @@ class Dol( FileBase ):
 					included = False
 					msg( 'These standalone functions required for "' + mod.name + '" could not be found in the Mods Library:\n\n' + grammarfyList(missingFunctions) )
 
-				else:
+				elif requiredStandaloneFunctions:
 					# First, check whether the required SFs can be found in the enabled custom code regions
 					for functionName in requiredStandaloneFunctions:
 						functionCodeChange = globalData.standaloneFunctions[ functionName ][1]
@@ -1410,7 +1411,6 @@ class Dol( FileBase ):
 			# elif codeChange.type == 'gecko' and not geckoCodesAllowed:
 			# 	mod.setState( 'unavailable' )
 
-			#elif settingsFile.alwaysEnableCrashReports and mod.name == "Enable OSReport Print on Crash":
 			elif globalData.checkSetting( 'alwaysEnableCrashReports' ) and mod.name == "Enable OSReport Print on Crash":
 				# Queue this to be installed
 				if mod.state != 'pendingEnable':
@@ -1452,13 +1452,19 @@ class Dol( FileBase ):
 				return
 
 		# Check modules that ONLY have standalone functions. Check if they have any functions that are installed
-		for mod, functionsThisModIncludes in functionOnlyModules:
-			for functionName in functionsThisModIncludes:
-				if functionName in standaloneFunctionsInstalled: # This module contains a used function!
+		for mod, functionNames in functionOnlyModules:
+			for name in functionNames:
+				if name in standaloneFunctionsInstalled: # This module contains a used function!
 					mod.setState( 'enabled' ) # Already automatically added to the Standalone Functions table in the Summary Tab
 					break # only takes one to make it count
 			else: # loop didn't break; no functions in this mod used
 				mod.setState( 'disabled' )
+
+		# print 'all SFs:', len(globalData.standaloneFunctions.keys()), globalData.standaloneFunctions.keys()
+		# print 'used:', len(standaloneFunctionsInstalled), standaloneFunctionsInstalled
+
+		# notUsed = set( globalData.standaloneFunctions.keys() ) - standaloneFunctionsInstalled
+		# print 'not used:', len(notUsed), notUsed
 
 		# Make sure a new scan isn't queued before finalizing
 		# if not modsLibraryNotebook.stopToRescan:
@@ -1477,5 +1483,3 @@ class Dol( FileBase ):
 		# else: # Default Game Settings can't be set
 		# 	mainNotebook.tab( 2, state='disabled' ) # The Default Game Settings tab
 		# 	mainNotebook.select( 0 )
-
-		#checkForPendingChanges()

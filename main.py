@@ -502,6 +502,7 @@ class ToolsMenu( Tk.Menu, object ):
 
 		# Cross reference stages defined in the DOL and SST with those found in the disc
 		nonReferencedFiles = discFiles.difference( referecedFiles )
+		test = discFiles - referecedFiles
 		print( 'files not referenced:', nonReferencedFiles )
 		if nonReferencedFiles:
 			msg( 'These stage files are in the disc, but do not appear to be referenced by the game:\n\n' + ', '.join(nonReferencedFiles), 'Non-Referenced Stage Files' )

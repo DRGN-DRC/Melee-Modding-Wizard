@@ -1025,10 +1025,10 @@ class Disc( object ):
 			
 			if newFileObj.filename == 'Start.dol':
 				newFileObj.load()
-				self.rebuildReason = 'to import a larger DOL'
+				self.rebuildReason = 'to import a DOL of a different size'
 
 			elif newFileObj.filename in self.systemFiles:
-				self.rebuildReason = 'to import system files larger than their original' # probably should make this illegal
+				self.rebuildReason = 'to import system files larger than their original' # probably should make this illegal?
 
 			# Check if it's the last file, in which case size its doesn't matter (also, the following loop would encounter an error if that's the case)
 			elif origFileObj.offset == self.fstEntries[-1][2]:
@@ -1051,10 +1051,6 @@ class Disc( object ):
 
 		elif newFileObj.filename == 'Start.dol':
 			newFileObj.load()
-
-		# Update the DOL reference if this is a DOL file
-		# if newFileObj.isoPath == self.gameId + '/Start.dol':
-		# 	self.dol = newFileObj
 
 	def determineInsertionKey( self, newIsoPath ):
 

@@ -426,35 +426,62 @@ class CodeMod( object ):
 
 		self.type = 'standalone'
 
-	def _parseCodeForStandalones( self, preProcessedCode, requiredFunctions, missingFunctions ):
+	def _parseCodeForStandalones( self, codeChange, requiredFunctions, missingFunctions ):
 
 		""" Recursive helper function for getRequiredStandaloneFunctionNames(). Checks 
 			one particular code change (injection/overwrite) for standalone functions. """
 
-		if '|S|' in preProcessedCode:
-			for section in preProcessedCode.split( '|S|' ):
+		# if '|S|' in preProcessedCode:
+		# 	for section in preProcessedCode.split( '|S|' ): codeChange.preProcessedCode
 
-				if section.startswith( 'sbs__' ) and '<' in section and '>' in section: # Special Branch Syntax; one name expected
-					newFunctionNames = ( section.split( '<' )[1].split( '>' )[0], ) # Second split prevents capturing comments following on the same line.
+		# 		if section.startswith( 'sbs__' ) and '<' in section and '>' in section: # Special Branch Syntax; one name expected
+		# 			newFunctionNames = ( section.split( '<' )[1].split( '>' )[0], ) # Second split prevents capturing comments following on the same line.
 
-				elif section.startswith( 'sym__' ): # Assume could have multiple names
-					newFunctionNames = []
-					for fragment in section.split( '<<' ):
-						if '>>' in fragment: # A symbol (function name) is in this string segment.
-							newFunctionNames.append( fragment.split( '>>' )[0] )
-				else: continue
+		# 		elif section.startswith( 'sym__' ): # Assume could have multiple names
+		# 			newFunctionNames = []
+		# 			for fragment in section.split( '<<' ):
+		# 				if '>>' in fragment: # A symbol (function name) is in this string segment.
+		# 					newFunctionNames.append( fragment.split( '>>' )[0] )
+		# 		else: continue
 
-				for functionName in newFunctionNames:
-					if functionName in requiredFunctions: continue # This function has already been analyzed
+		# 		for functionName in newFunctionNames:
+		# 			if functionName in requiredFunctions: continue # This function has already been analyzed
 
-					requiredFunctions.add( functionName )
+		# 			requiredFunctions.add( functionName )
 
-					# Recursively check for more functions that this function may reference
-					if functionName in globalData.standaloneFunctions:
-						codeChange = globalData.standaloneFunctions[functionName][1]
-						self._parseCodeForStandalones( codeChange.preProcessedCode, requiredFunctions, missingFunctions )
-					else:
-						missingFunctions.add( functionName )
+		# 			# Recursively check for more functions that this function may reference
+		# 			if functionName in globalData.standaloneFunctions:
+		# 				codeChange = globalData.standaloneFunctions[functionName][1]
+		# 				self._parseCodeForStandalones( codeChange.preProcessedCode, requiredFunctions, missingFunctions )
+		# 			else:
+		# 				missingFunctions.add( functionName )
+
+		for syntaxOffset, length, syntaxType, codeLine, names in codeChange.syntaxInfo:
+
+			if syntaxType == 'sbs' and '<' in codeLine and '>' in codeLine: # Special Branch Syntax; one name expected
+				newFunctionNames = ( codeLine.split( '<' )[1].split( '>' )[0], ) # Second split prevents capturing comments following on the same line.
+
+			elif syntaxType == 'sym': # These lines could have multiple names
+				newFunctionNames = []
+				for fragment in codeLine.split( '<<' ):
+					if '>>' in fragment: # A symbol (function name) is in this string segment.
+						newFunctionNames.append( fragment.split( '>>' )[0] )
+			else: continue
+
+			for functionName in newFunctionNames:
+				# Skip this function if it has already been analyzed
+				if functionName in requiredFunctions:
+					continue
+
+				requiredFunctions.append( functionName )
+
+				# Recursively check for more functions that this function may reference
+				functionMapping = globalData.standaloneFunctions.get( functionName )
+				if functionMapping:
+					codeChange = functionMapping[1] # First item is function address (if allocated; -1 if not)
+					self._parseCodeForStandalones( codeChange, requiredFunctions, missingFunctions )
+				elif functionName not in missingFunctions:
+					missingFunctions.append( functionName )
 
 		return requiredFunctions, missingFunctions
 
@@ -463,17 +490,17 @@ class CodeMod( object ):
 		""" Gets the names of all standalone functions a particular mod requires. 
 			Returns a list of these function names, as well as a list of any missing functions. """
 
-		functionNames = set()
-		missingFunctions = set()
+		functionNames = []
+		missingFunctions = []
 
 		# This loop will be over a list of tuples (code changes) for a specific game version.
 		for codeChange in self.getCodeChanges():
 			if codeChange.type != 'gecko': #todo allow gecko codes to have SFs
-				#preProcessedCode = codeChange.getPreProcessedCode()
 				codeChange.evaluate()
-				functionNames, missingFunctions = self._parseCodeForStandalones( codeChange.preProcessedCode, functionNames, missingFunctions )
+				if codeChange.syntaxInfo:
+					self._parseCodeForStandalones( codeChange, functionNames, missingFunctions )
 
-		return list( functionNames ), list( missingFunctions ) # functionNames will also include those that are missing
+		return functionNames, missingFunctions # functionNames will also include those that are missing
 
 	def configure( self, name, value ):
 
@@ -3197,8 +3224,8 @@ class CommandProcessor( object ):
 			lastSection = codeChange.preProcessedCode[offset*2:]
 			newHexCodeSections.append( lastSection )
 
-			sectionLength = len( lastSection )
-			assert offset + sectionLength == codeChange.length, 'Custom code length mismatch detected! \nMod: {}\nEvaluated: {}   Calc. in Code Resolution: {}'.format( codeChange.mod.name, codeChange.length, offset )
+			sectionLength = len( lastSection ) / 2
+			assert offset + sectionLength == codeChange.length, 'Custom code length mismatch detected! \nMod: {}\nEvaluated: {}   Calc. in Code Resolution: {}'.format( codeChange.mod.name, codeChange.length, offset + sectionLength )
 
 		# Assemble the final code using the full source (raw) code
 		if requiresAssembly and codeChange.isAssembly:
