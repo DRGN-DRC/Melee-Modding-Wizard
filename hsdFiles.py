@@ -124,41 +124,54 @@ def isValidReplacement( origFileObj, newFileObj ):
 def fileFactory( *args, **kwargs ):
 
 	""" Parse out the file name from isoPath, and use that to 
-		determine what class to initialize the file as. """
+		determine what class to initialize the file as. If the keyword 
+		argument "trustNames" is given, filenames will be trusted to 
+		determine what kind of file to initialize as. """
 
-	filename = os.path.basename( args[3] )
+	filepath, ext = os.path.splitext( args[3] )
+	filename = os.path.basename( filepath ) # Without extension
 
 	# Attempt to determine by file type
-	if filename.endswith( '.dol' ):
+	if ext == '.dol':
 		return dol.Dol( *args, **kwargs )
 
-	elif filename.endswith( '.bin' ):
+	elif ext == '.bin':
 		return FileBase( *args, **kwargs )
 
-	elif filename.endswith( '.hps' ):
+	elif ext == '.hps':
 		return MusicFile( *args, **kwargs )
 
-	elif filename.startswith( 'opening' ) and filename.endswith( '.bnr' ): # May support openingUS.bnr, openingEU.bnr, etc. in the future
+	elif filename.startswith( 'opening' ) and ext == '.bnr': # May support openingUS.bnr, openingEU.bnr, etc. in the future
 		return BannerFile( *args, **kwargs )
 
-	# If this is initializing an external/standalone file, we shouldn't trust the file name
-	elif kwargs.get( 'extPath' ) and kwargs.get( 'source' ) == 'file': # A slower but more thorough check.
+	elif ext in ( '.mth', '.ssm', '.sem', '.ini' ):
+		return FileBase( *args, **kwargs )
 
-		print 'file factory determining by contents'
+	# If this is initializing an external/standalone file, so we shouldn't trust the file name
+	elif not kwargs.get( 'trustNames' ) and kwargs.get( 'extPath' ) and kwargs.get( 'source' ) == 'file': # A slower but more thorough check.
 
-		# Assume it's a DAT file by this point
-		fileObj = DatFile( *args, **kwargs )
-		fileObj.initialize()
-		fileData = fileObj.getData()
+		try:
+			# Assume it's a DAT file by this point
+			fileObj = DatFile( *args, **kwargs )
+			fileObj.initialize()
+			fileData = fileObj.getData()
 
-		if 'map_head' in fileObj.stringDict.values():
-			return StageFile( *args, **kwargs )
+			if 'map_head' in fileObj.stringDict.values():
+				return StageFile( *args, **kwargs )
 
-		elif fileObj.rootNodes[0][1].endswith( '_Share_joint' ): # Indexing a list of tuples
-			return CharCostumeFile( *args, **kwargs )
+			elif fileObj.rootNodes[0][1].endswith( '_Share_joint' ): # Indexing a list of tuples
+				return CharCostumeFile( *args, **kwargs )
 
-		elif 'MnSelectChrDataTable' in fileObj.stringDict.values():
-			return CssFile( *args, **kwargs )
+			elif 'MnSelectChrDataTable' in fileObj.stringDict.values():
+				return CssFile( *args, **kwargs )
+			else:
+				return fileObj
+
+		except Exception as err:
+			print 'Unrecognized file:', kwargs['extPath']
+			print err
+			
+			return FileBase( *args, **kwargs )
 
 	else: # A fast check that doesn't require getting the file data (ideal if the file name can be trusted)
 		
@@ -2468,13 +2481,15 @@ class StageFile( DatFile ):
 		if self.isRandomNeutral():
 			# Get the CSS file (which may contain random neutral names)
 			cssFile = self.disc.files[self.disc.gameId + '/MnSlChr.0sd']
-			stageName = cssFile.getRandomNeutralName( self.filename )
+			
+			if cssFile.__class__ == CssFile:
+				stageName = cssFile.getRandomNeutralName( self.filename )
 
-			if stageName:
-				if inConvenienceFolder:
-					stageName = '    ' + stageName # Extra space added to indent the name from the stage folder name
-				else: # Get the vanilla stage name as a base for the descriptive name
-					stageName = self.longName + ', ' + stageName
+				if stageName:
+					if inConvenienceFolder:
+						stageName = '    ' + stageName # Extra space added to indent the name from the stage folder name
+					else: # Get the vanilla stage name as a base for the descriptive name
+						stageName = self.longName + ', ' + stageName
 		
 		# Check if there's a file explicitly defined in the file descriptions config file
 		if not stageName:

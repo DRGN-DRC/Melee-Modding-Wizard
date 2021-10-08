@@ -215,8 +215,8 @@ class Disc( object ):
 		self.gameId = ''
 		self.is20XX = ''				# Will be an empty string, or if 20XX, a string like '3.02' or 'BETA 04' (see method for details)
 		self.isMelee = ''				# Will be an empty string, or if Melee, a string of '02', '01', '00', or 'pal'
+		self.revision = 0				# Byte 7 of the disc
 		self.imageName = ''				# A string; the contents of 0x20 to 0x400 of the disc.
-		self.gameVersion = ''			# Byte 7 of the disc. Will be a string of something like '00', '01', '02', etc.
 		self.countryCode = 1			# Determines the encoding used in the banner (BNR) file. 1 = 'latin_1', anything else = 'shift_jis'
 		self.isRootFolder = False
 		self.rebuildReason = ''
@@ -264,7 +264,8 @@ class Disc( object ):
 
 		# Get the Game ID and version
 		self.gameId = bootFileData[:6].decode( 'utf-8' ) #todo: change to decoding with ascii?
-		self.gameVersion = struct.unpack( 'B', bootFileData[7] )[0] # Reading just byte 7
+		#self.revision = struct.unpack( 'B', bootFileData[7] )[0] # Reading just byte 7
+		self.revision = bootFileData[7]
 
 		# Double check that this is a gamecube disc image
 		if not bootFileData[0x1C:0x20] == b'\xC2\x33\x9F\x3D':
@@ -365,7 +366,7 @@ class Disc( object ):
 			# Get the Game ID and version, right at the start of the file
 			self.gameId = isoBinary.read( 6 ).decode( 'utf-8' ) #todo: change to decoding with ascii?
 			isoBinary.seek( 7 )
-			self.gameVersion = struct.unpack( 'B', isoBinary.read(1) )[0] # Reading just byte 7
+			self.revision = struct.unpack( 'B', isoBinary.read(1) )[0] # Reading just byte 7
 
 			# Check the disc's magic word to verify it's a GC disc
 			isoBinary.seek( 0x1C )
@@ -679,7 +680,7 @@ class Disc( object ):
 		totalPadding = discSize - totalFilesSize
 
 		string =  'Game ID:                ' + self.gameId
-		string += '\nGame Version:           ' + str( self.gameVersion )
+		string += '\nGame Version:           ' + str( self.revision )
 		string += '\nCountry Code:           ' + str( self.countryCode )
 		string += '\nImage Name:             ' + self.imageName
 		string += '\nDisc Size:              {} ({:,} bytes)'.format( humansize(discSize), discSize)
@@ -2722,7 +2723,7 @@ class MicroMelee( Disc ):
 		self.gameId = 'GALE01'
 		self.imageName = 'Micro Melee Test Disc'
 		self.isMelee = '02'
-		self.gameVersion = '02'
+		self.revision = 2
 
 	def buildFromVanilla( self, vanillaDiscPath ):
 

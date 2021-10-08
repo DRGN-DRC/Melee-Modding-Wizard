@@ -1195,8 +1195,8 @@ class DiscDetailsTab( ttk.Frame ):
 		globalData.gui.discTab.gameIdText.set( disc.gameId )
 		ntscRegions = ( 'A', 'E', 'J', 'K', 'R', 'W' )
 		if disc.gameId[3] in ntscRegions:
-			self.isoVersionText.set( 'NTSC 1.{0:0{1}}'.format(disc.gameVersion, 2) ) # Converts an int to string, padded to two zeros
-		else: self.isoVersionText.set( 'PAL 1.{0:0{1}}'.format(disc.gameVersion, 2) )
+			self.isoVersionText.set( 'NTSC 1.{0:0{1}}'.format(disc.revision, 2) ) # Converts an int to string, padded to two zeros
+		else: self.isoVersionText.set( 'PAL 1.{0:0{1}}'.format(disc.revision, 2) )
 
 		# Get Bi2.bin and check the country code (used to determine encoding for the banner file)
 		# bi2Iid = scanDiscForFile( 'bi2.bin' ) # This will try for 'iso.hdr' if bi2 doesn't exist

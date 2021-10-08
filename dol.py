@@ -305,8 +305,9 @@ class Dol( FileBase ):
 			else:
 				regionSuggestion = 'PAL'
 
-			if '.' in self.disc.gameVersion:
-				versionSuggestion = self.disc.gameVersion.split('.')[1]
+			# if '.' in self.disc.revision:
+			# 	versionSuggestion = self.disc.revision.split('.')[1]
+			versionSuggestion = '{:02}'.format( self.disc.revision )
 
 			userMessage = ( "The revision of the DOL within this disc is being predicted from the disc's details. Please verify them below. "
 								"(If this disc has not been altered, these predictions can be trusted.)" )
