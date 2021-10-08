@@ -1046,10 +1046,10 @@ class Dol( FileBase ):
 
 		if excludeLastCommand: # Exclude the branch back on injection mods.
 			customCode = customCode[:-8] # Removing the last 4 bytes
+		codeLength = len( customCode ) / 2
 
 		# With no custum syntax, there is just one chunk of code to compare
 		if not codeChange.syntaxInfo:
-			codeLength = len( customCode ) / 2
 			codeInDol = freeSpaceCodeArea[startingOffset:startingOffset+codeLength]
 
 			if bytearray.fromhex( customCode ) == codeInDol: # Comparing via bytearrays rather than strings prevents worrying about upper/lower-case
@@ -1068,7 +1068,7 @@ class Dol( FileBase ):
 				dolCodeEnd = dolCodeStart + sectionLength
 				assert sectionLength > 0, 'Read position error in .customCodeInDOL()! Read offset: {}, Next syntax offset: {}'.format( readOffset, syntaxOffset )
 				
-				codeSection = customCode[readOffset*2:syntaxOffset*2] # This is a string, so *2 to splice by bytes rather than nibbles
+				codeSection = customCode[readOffset*2:syntaxOffset*2] # Splicing a string, so *2 to splice by bytes rather than nibbles
 				codeInDol = freeSpaceCodeArea[dolCodeStart:dolCodeEnd]
 				test = hexlify( codeInDol )
 
@@ -1152,7 +1152,17 @@ class Dol( FileBase ):
 			# 		readOffset += sectionLength
 
 		# Test last section
-		#if
+		if readOffset != codeLength:
+			codeSection = customCode[readOffset*2:] # Splicing a string, so *2 to splice by bytes rather than nibbles
+			sectionLength = len( codeSection ) / 2
+			dolCodeStart = startingOffset + readOffset
+			dolCodeEnd = dolCodeStart + sectionLength
+
+			codeInDol = freeSpaceCodeArea[dolCodeStart:dolCodeEnd]
+
+			if not bytearray.fromhex( codeSection ) == codeInDol: # Comparing via bytearrays rather than strings prevents worrying about upper/lower-case
+				# Mismatch detected, meaning this is not the same (custom) code in the DOL.
+				return False
 
 		return True
 
