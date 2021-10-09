@@ -26,7 +26,7 @@ from disc import Disc
 from basicFunctions import msg, openFolder, validHex
 from codeMods import ConfigurationTypes, regionsOverlap, CodeLibraryParser
 from guiSubComponents import (
-	exportSingleFileWithGui, VerticalScrolledFrame, LabelButton, ToolTip, CodeLibrarySelector, 
+	cmsg, exportSingleFileWithGui, VerticalScrolledFrame, LabelButton, ToolTip, CodeLibrarySelector, 
 	CodeSpaceOptionsWindow, ColoredLabelButton, BasicWindow, DisguisedEntry
 )
 
@@ -869,6 +869,10 @@ class ModModule( Tk.Frame, object ):
 			icon.url = url
 			icon.pack( side='right', padx=5, pady=6 )
 
+		# Add a warnings info button if there are problems with this mod
+		if self.mod.parsingError or self.mod.assemblyError or self.mod.errors:
+			LabelButton( row3, 'warningsButton', self.showProblems, "View parsing or assembly errors" ).pack( side='right', padx=5, pady=6 )
+
 		row3.pack( side='top', fill='x', expand=1 )
 
 		# Initialize the GUI module's state with the mod's core state
@@ -1022,6 +1026,24 @@ class ModModule( Tk.Frame, object ):
 
 		# 	# Bring the new tab into view for the user.
 		# 	constructionNotebook.select( newTab )
+
+	def showProblems( self, event ):
+
+		errorMsg = []
+
+		if self.mod.parsingError:
+			errorMsg.append( 'Parsing Errors Detected: Yes' )
+		else:
+			errorMsg.append( 'Parsing Errors Detected: No' )
+
+		if self.mod.assemblyError:
+			errorMsg.append( 'Assembly Errors Detected: Yes\n' )
+		else:
+			errorMsg.append( 'Assembly Errors Detected: No\n' )
+		
+		errorMsg.extend( self.mod.errors )
+
+		cmsg( '\n'.join(errorMsg), 'Warning', 'left' )
 
 	def configureMod( self, event ):
 		

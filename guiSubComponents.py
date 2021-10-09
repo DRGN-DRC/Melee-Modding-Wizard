@@ -1137,6 +1137,8 @@ class LabelButton( Tk.Label ):
 		# Get the images needed
 		self.nonHoverImage = globalData.gui.imageBank( imageName + 'Gray', False )
 		self.hoverImage = globalData.gui.imageBank( imageName )
+		if not self.nonHoverImage:
+			self.nonHoverImage = self.hoverImage
 		# assert self.nonHoverImage, 'Unable to get the {} web link image.'.format( imageName )
 		# assert self.hoverImage, 'Unable to get the {}Gray web link image.'.format( imageName )
 

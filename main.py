@@ -42,7 +42,7 @@ from basicFunctions import (
 		openFolder, createFolders
 	)
 from guiSubComponents import (
-		importGameFiles, DisguisedEntry, VerticalScrolledFrame,
+		cmsg, importGameFiles, DisguisedEntry, VerticalScrolledFrame,
 		HexEditEntry, CharacterChooser
 	)
 from guiDisc import DiscTab, DiscDetailsTab
@@ -215,6 +215,13 @@ class ToolsMenu( Tk.Menu, object ):
 		super( ToolsMenu, self ).__init__( parent, tearoff=tearoff, *args, **kwargs )
 		self.statusUpdateFrequency = 2000 # How frequent the GUI updates xDelta patch progress, in milliseconds
 		self.open = False
+
+	def repopulate( self ):
+
+		# Clear all current population
+		self.delete( 0, 'last' )
+
+		""" This will refresh the 'Open Recent' files menu. """
 																								# Key shortcut (holding alt)
 		self.add_cascade( label="ASM <-> HEX Converter", command=lambda: AsmToHexConverter(), underline=0 )			# A
 		#self.add_cascade( label="Number and Address Conversion", command=lambda: AsmToHexConverter(), underline=0 )	# N
@@ -224,11 +231,11 @@ class ToolsMenu( Tk.Menu, object ):
 		self.add_separator()
 		self.add_cascade( label="Build xDelta Patch", command=self.buildPatch, underline=6 )						# X
 		self.add_cascade( label="Build from Patch", command=self.notDone, underline=11 )							# P
-		self.add_separator()
-		self.add_cascade( label="Create Tri-CSP", command=self.createTriCsp, underline=1 )							# T
-		self.add_cascade( label="Find Unused Stage Files", command=self.findUnusedStages, underline=0 )				# F
 
-	# def openAsmHexConverter( self ):
+		if globalData.disc and globalData.disc.is20XX:
+			self.add_separator()
+			self.add_cascade( label="Create Tri-CSP", command=self.createTriCsp, underline=1 )						# T
+			self.add_cascade( label="Find Unused Stage Files", command=self.findUnusedStages, underline=0 )			# F
 
 	def buildPatch( self ):
 
@@ -402,10 +409,6 @@ class ToolsMenu( Tk.Menu, object ):
 
 		""" Creates a Tri-CSP (Character Select Portrait) for the CSS. """
 
-		if not globalData.disc:
-			msg( 'No disc has been loaded!' )
-			return
-
 		cspCreator = TriCspCreator()
 		if not cspCreator.gimpExe or not cspCreator.cspConfig:
 			return # Unable to find GIMP, or unable to load the CSP configuration file
@@ -484,30 +487,22 @@ class ToolsMenu( Tk.Menu, object ):
 			if it's 20XX) to determine what file names are referenced, and checking if those stage 
 			files are present. """
 
-		if not globalData.disc:
-			msg( 'No disc has been loaded!' )
-			return
-		elif not globalData.disc.is20XX:
-			msg( 'This is a 20XX-only feature ATM' )
-			return
-
 		# Check for files referenced by the game
 		referecedFiles = globalData.disc.checkReferencedStageFiles()
 
 		# Check for stages in the disc
 		discFiles = set()
-		for fileObj in globalData.disc.files:
-			if fileObj.__class__.__name__ == 'StageFile':
+		for fileObj in globalData.disc.files.itervalues():
+			if fileObj.__class__ == StageFile:
 				discFiles.add( fileObj.filename )
 
 		# Cross reference stages defined in the DOL and SST with those found in the disc
-		nonReferencedFiles = discFiles.difference( referecedFiles )
-		test = discFiles - referecedFiles
-		print( 'files not referenced:', nonReferencedFiles )
+		nonReferencedFiles = discFiles - referecedFiles
 		if nonReferencedFiles:
-			msg( 'These stage files are in the disc, but do not appear to be referenced by the game:\n\n' + ', '.join(nonReferencedFiles), 'Non-Referenced Stage Files' )
+			message = 'These stage files are in the disc, but do\nnot appear to be referenced by the game:\n\n' + ', '.join( nonReferencedFiles )
+			cmsg( message, 'Non-Referenced Stage Files' )
 		else:
-			msg( 'No files were found in the disc that do not appear to be referenced by the game.', 'Non-Referenced Stage Files' )
+			cmsg( 'No files were found in the disc that do not appear to be referenced by the game.', 'Non-Referenced Stage Files' )
 
 
 class MainMenuCanvas( Tk.Canvas ):

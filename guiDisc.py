@@ -22,6 +22,7 @@ import Tkinter as Tk
 
 # Internal dependencies
 import globalData
+from disc import Disc
 from hsdFiles import fileFactory
 from basicFunctions import (
 		msg, printStatus, copyToClipboard, 
@@ -208,6 +209,7 @@ class DiscTab( ttk.Frame ):
 		disc = globalData.disc
 		rootParent = disc.gameId
 
+		# Add the root (GameID) entry
 		self.isoFileTree.insert( '', 'end', iid=rootParent, text=' ' + disc.gameId + '  (root)', open=True, image=globalData.gui.imageBank('meleeIcon'), values=('', 'cFolder') )
 		
 		# Add the disc's files to the Disc File Tree tab
@@ -390,8 +392,6 @@ class DiscTab( ttk.Frame ):
 			discFile.getDescription( usingConvenienceFolders )
 
 		try:
-			if discFile.size < 0xc000 and discFile.size + 0x30 > 0xc000:
-				print discFile.description
 			self.isoFileTree.insert( parent, 'end', iid=discFile.isoPath, text=' ' + entryName, values=(discFile.description, 'file') )
 		except Exception as err:
 			printStatus( 'Unable to add {} to the Disc File Tree; {}'.format(discFile.description, err) )
@@ -586,11 +586,12 @@ class DiscTab( ttk.Frame ):
 			self.internalFileSizeText.set( 'File Size:  {0:,} bytes'.format(totalFileSize) ) # Formatting in decimal with thousands delimiter commas
 			self.internalFileSizeLabelSecondLine.set( '    (Totaled from {0:,} files)'.format(fileCount) )
 
-	def getDiscPath( self, isoPath, includeRoot=True ):
+	def getDiscPath( self, isoPath, useConvenienceFolders, includeRoot=True, includeSysFolder=False ):
 
-		""" Builds a disc path, like isoPath, but includes convenience folders if they are turned on. """
+		""" Builds a disc path, like isoPath, but includes convenience folders if they are turned on. 
+			Only if not using convenience folders may the "sys" be included. """
 
-		if globalData.checkSetting( 'useDiscConvenienceFolders' ):
+		if useConvenienceFolders:
 			# Scan for 'convenience folders' (those not actually in the disc), and add them to the path; they won't exist in isoPath
 			rootIid = self.isoFileTree.get_children()[0]
 			isoParts = isoPath.split( '/' )
@@ -611,41 +612,30 @@ class DiscTab( ttk.Frame ):
 
 			return '/'.join( pathParts )
 
-		elif not includeRoot:
-			return '/'.join( isoPath.split('/')[1:] ) # Removes the GameID
+		elif not includeRoot: # Return the full path, but without the root (GameID)
+			pathParts = isoPath.split( '/' )
 
+			if pathParts[-1] in Disc.systemFiles and includeSysFolder:
+				return 'sys/' + pathParts[-1]
+			else:
+				return '/'.join( pathParts[1:] ) # Just removes the GameID
+
+		elif includeSysFolder: # Include root and sys folder for system files
+			pathParts = isoPath.split( '/' )
+
+			if pathParts[-1] in Disc.systemFiles:
+				return pathParts[0] + '/sys/' + pathParts[-1]
+			else:
+				return isoPath
 		else:
 			return isoPath
-
-	# def getItemsInSelection( self, selectionTuple, recursive=True ):
-
-	# 	""" Extends a selection in the treeview, which may contain folders, to include all files within those folders. 
-	# 		"iid"s are unique "Item IDentifiers" given to file/folder items in treeview widgets to identify or select them. """
-
-	# 	fileIids = set()
-	# 	folderIids = set()
-
-	# 	# Separate sets/lists of file/folder isoPaths
-	# 	for iid in selectionTuple:
-	# 		itemType = self.isoFileTree.item( iid, 'values' )[1] # May be "file", "nFolder" (native folder), or "cFolder" (convenience folder)
-
-	# 		if itemType != 'file':
-	# 			folderIids.add( iid )
-
-	# 			if recursive:
-	# 				subFolderItems = self.isoFileTree.get_children( iid )
-	# 				subFolders, subFiles = self.getItemsInSelection( subFolderItems, True )
-	# 				folderIids.update( subFolders )
-	# 				fileIids.update( subFiles )
-	# 		else:
-	# 			fileIids.add( iid )
-
-	# 	return folderIids, fileIids
 
 	def exportItemsInSelection( self, selection, iidSelectionsTuple, isoBinary, directoryPath, exported, failedExports ):
 
 		""" Basically just a recursive helper function to self.exportIsoFiles(). Passing the open isoBinary 
 			file object so that we can get file data from it directly, and avoid opening it multiple times. """
+
+		useConvenienceFolders = globalData.checkSetting( 'useDiscConvenienceFolders' )
 
 		for iid in selection: # The iids will be isoPaths
 			# Prevent files from being exported twice, depending on user selection
@@ -669,7 +659,7 @@ class DiscTab( ttk.Frame ):
 						datData = fileObj.getData()
 
 					# Construct a file path for saving, and destination folders if they don't exist
-					savePath = directoryPath + '/' + self.getDiscPath( fileObj.isoPath, includeRoot=False )
+					savePath = directoryPath + '/' + self.getDiscPath( fileObj.isoPath, useConvenienceFolders, includeRoot=False, includeSysFolder=True )
 					createFolders( os.path.split(savePath)[0] )
 
 					# Save the data to a new file.
@@ -687,8 +677,8 @@ class DiscTab( ttk.Frame ):
 
 	def exportIsoFiles( self ):
 
-		""" Called by the Export button and Export File(s) menu option. This doesn't use the 
-			disc's file export method so we can include the convenience folders in the save path. """
+		""" Called by the Export button and Export File(s) menu option. This doesn't use the disc's 
+			normal file export method so that we can include the convenience folders in the save path. """
 
 		# Check that there's something selected to export
 		iidSelectionsTuple = self.isoFileTree.selection()
@@ -1430,12 +1420,8 @@ class DiscMenu( Tk.Menu, object ):
 
 		# Determine the kind of file(s)/folder(s) we're working with, to determine menu options
 		self.discTab = globalData.gui.discTab
-		if self.discTab:
-			self.fileTree = self.discTab.isoFileTree
-		else:
-			self.fileTree = None
+		self.fileTree = self.discTab.isoFileTree
 		self.iidSelectionsTuple = self.fileTree.selection()
-		print 'selected', self.iidSelectionsTuple
 		self.selectionCount = len( self.iidSelectionsTuple )
 		if self.selectionCount == 1:
 			self.fileObj = globalData.disc.files.get( self.iidSelectionsTuple[0] )
@@ -1451,13 +1437,14 @@ class DiscMenu( Tk.Menu, object ):
 			self.entityName = ''
 		#lastSeperatorAdded = False
 
-		# Check if this is a version of 20XX, and if so, get its main build number
-		#self.orig20xxVersion = globalDiscDetails['is20XX'] # This is an empty string if the version is not detected or it's not 20XX
-		self.orig20xxVersion = globalData.disc.is20XX # This is an empty string if the version is not detected or it's not 20XX
-
 		# Add main import/export options																				# Keyboard shortcuts:
 		if self.iidSelectionsTuple:
-			self.add_command( label='Export File(s)', underline=0, command=self.discTab.exportIsoFiles )								# E
+			rootIid = self.fileTree.get_children()[0]
+			if self.selectionCount == 1 and self.entityName == rootIid:
+				self.add_command( label='Extract Root with Convenience Folders', underline=0, command=self.extractRootWithConvenience )	# E
+				self.add_command( label='Extract Root with Native Folders Only', underline=0, command=self.extractRootWithNative )		# E
+			else:
+				self.add_command( label='Export File(s)', underline=0, command=self.discTab.exportIsoFiles )							# E
 		# 	self.add_command( label='Export Textures From Selected', underline=1, command=exportSelectedFileTextures )					# X
 		if self.selectionCount == 1:
 		 	self.add_command( label='Import File', underline=0, command=self.discTab.importSingleIsoFile )								# I
@@ -1472,7 +1459,7 @@ class DiscMenu( Tk.Menu, object ):
 		 	if self.selectionCount == 1:
 
 				if self.entity == 'file':
-					self.add_command( label='Rename Disc Filesystem Name', underline=2, command=self.renameFilesystemEntry )					# N
+					self.add_command( label='Rename Disc Filesystem Name', underline=2, command=self.renameFilesystemEntry )			# N
 
 					if self.fileObj.__class__.__name__ == 'StageFile' and self.fileObj.isRandomNeutral():
 						self.add_command( label='Rename Stage Description (in CSS)', underline=2, command=self.renameDescription )		# N
@@ -1509,6 +1496,32 @@ class DiscMenu( Tk.Menu, object ):
 			else: # The loop above didn't break; only files here
 				self.add_separator()
 				self.add_command( label='Copy Offsets to Clipboard', underline=2, command=self.copyFileOffsetToClipboard )				# P
+
+	def extractRootWithConvenience( self ):
+
+		""" Turn on convenience folders before export, if they're not enabled. Restores setting afterwards. """
+
+		useConvenienceFolders = globalData.checkSetting( 'useDiscConvenienceFolders' )
+
+		if useConvenienceFolders:
+			self.discTab.exportIsoFiles()
+		else:
+			globalData.setSetting( 'useDiscConvenienceFolders', True )
+			self.discTab.exportIsoFiles()
+			globalData.setSetting( 'useDiscConvenienceFolders', False )
+
+	def extractRootWithNative( self ):
+
+		""" Turn off convenience folders before export, if they're enabled. Restores setting afterwards. """
+
+		useConvenienceFolders = globalData.checkSetting( 'useDiscConvenienceFolders' )
+
+		if useConvenienceFolders:
+			globalData.setSetting( 'useDiscConvenienceFolders', False )
+			self.discTab.exportIsoFiles()
+			globalData.setSetting( 'useDiscConvenienceFolders', True )
+		else:
+			self.discTab.exportIsoFiles()
 
 	def addFilesToIso( self ):
 
@@ -1644,18 +1657,21 @@ class DiscMenu( Tk.Menu, object ):
 		else:
 			globalData.gui.updateProgramStatus( '{} files added. '.format(len(filesToAdd)) + statusBarMsg )
 
+		# Check if this is a version of 20XX, and if so, get its main build number
+		#orig20xxVersion = globalData.disc.is20XX # This is an empty string if the version is not detected or it's not 20XX
+
 		# Add an option for CSP Trim Colors, if it's appropriate
-		# if self.iidSelectionsTuple and self.orig20xxVersion:
-		# 	if 'BETA' in self.orig20xxVersion:
-		# 		majorBuildNumber = int( self.orig20xxVersion[-1] )
-		# 	else: majorBuildNumber = int( self.orig20xxVersion[0] )
+		# if self.iidSelectionsTuple and orig20xxVersion:
+		# 	if 'BETA' in orig20xxVersion:
+		# 		majorBuildNumber = int( orig20xxVersion[-1] )
+		# 	else: majorBuildNumber = int( orig20xxVersion[0] )
 
 		# 	# Check if any of the selected files are an appropriate character alt costume file
 		# 	for iid in self.iidSelectionsTuple:
 		# 		entityName = os.path.basename( iid )
 		# 		thisEntity = self.fileTree.item( iid, 'values' )[1] # Will be a string of 'file' or 'folder'
 
-		# 		if thisEntity == 'file' and candidateForTrimColorUpdate( entityName, self.orig20xxVersion, majorBuildNumber ):
+		# 		if thisEntity == 'file' and candidateForTrimColorUpdate( entityName, orig20xxVersion, majorBuildNumber ):
 		# 			if not lastSeperatorAdded:
 		# 				self.add_separator()
 		# 				lastSeperatorAdded = True
@@ -1690,11 +1706,14 @@ class DiscMenu( Tk.Menu, object ):
 	# 		for iid in self.iidSelectionsTuple:
 	# 			entityName = os.path.basename( iid )
 	# 			thisEntity = self.fileTree.item( iid, 'values' )[1] # Will be a string of 'file' or 'folder'
+	
+				# Check if this is a version of 20XX, and if so, get its main build number
+				#orig20xxVersion = globalData.disc.is20XX # This is an empty string if the version is not detected or it's not 20XX
 
-	# 			if 'BETA' in self.orig20xxVersion: origMainBuildNumber = int( self.orig20xxVersion[-1] )
-	# 			else: origMainBuildNumber = int( self.orig20xxVersion[0] )
+	# 			if 'BETA' in orig20xxVersion: origMainBuildNumber = int( orig20xxVersion[-1] )
+	# 			else: origMainBuildNumber = int( orig20xxVersion[0] )
 
-	# 			if thisEntity == 'file' and candidateForTrimColorUpdate( entityName, self.orig20xxVersion, origMainBuildNumber ):
+	# 			if thisEntity == 'file' and candidateForTrimColorUpdate( entityName, orig20xxVersion, origMainBuildNumber ):
 	# 				generateTrimColors( iid, True ) # autonomousMode=True means it will not prompt the user to confirm its main color choices
 
 	# def cccSelectFromDisc( self, role ): # Select a file in a disc as input to the Character Color Converter

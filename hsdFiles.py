@@ -147,7 +147,7 @@ def fileFactory( *args, **kwargs ):
 	elif ext in ( '.mth', '.ssm', '.sem', '.ini' ):
 		return FileBase( *args, **kwargs )
 
-	# If this is initializing an external/standalone file, so we shouldn't trust the file name
+	# If this is initializing an external/standalone file, we may not be able to trust the file name
 	elif not kwargs.get( 'trustNames' ) and kwargs.get( 'extPath' ) and kwargs.get( 'source' ) == 'file': # A slower but more thorough check.
 
 		try:
@@ -179,13 +179,13 @@ def fileFactory( *args, **kwargs ):
 			return StageFile( *args, **kwargs )
 
 		# Character costume files; excludes 'PlBo.dat'/'PlCa.dat'/etc. and character animation files
-		elif filename.startswith( 'Pl' ) and len( filename ) > 8 and filename[-6:-3] != 'AJ.':
+		elif filename.startswith( 'Pl' ) and len( filename ) > 8 and filename[-2:] != 'AJ':
 
 			if filename[2:6] == 'KbCp': pass # Oh, Kirby.... (these are copy powers, ftData)
 			else:
 				return CharCostumeFile( *args, **kwargs )
 
-		elif filename.startswith( 'MnSlChr.' ):
+		elif filename.startswith( 'MnSlChr' ):
 			return CssFile( *args, **kwargs )
 
 	return DatFile( *args, **kwargs )
@@ -212,7 +212,7 @@ class FileBase( object ):
 		self.isoPath = isoPath			# e.g. 'GALE01/audio/1padv.ssm' if this is for a file in a disc
 		self.extPath = extPath			# External path. I.e. a full (absolute) system file path if this is a standalone file
 		self.origSize = size			# Should always be the original size of the file (even if its data changes size)
-		self.description = description #.encode( 'utf-8' )
+		self.description = description
 		#self.updateSummary = set()		# Summary of changes done to this file
 		self.unsavedChanges = []		# Detailed list of all specific changes to this file
 
@@ -2480,9 +2480,8 @@ class StageFile( DatFile ):
 		# Try to recognize stages within the set of 'Random Neutrals' (The sets of 16 stages for each legal neutral stage)
 		if self.isRandomNeutral():
 			# Get the CSS file (which may contain random neutral names)
-			cssFile = self.disc.files[self.disc.gameId + '/MnSlChr.0sd']
-			
-			if cssFile.__class__ == CssFile:
+			try:
+				cssFile = self.disc.files[self.disc.gameId + '/MnSlChr.0sd']
 				stageName = cssFile.getRandomNeutralName( self.filename )
 
 				if stageName:
@@ -2490,19 +2489,20 @@ class StageFile( DatFile ):
 						stageName = '    ' + stageName # Extra space added to indent the name from the stage folder name
 					else: # Get the vanilla stage name as a base for the descriptive name
 						stageName = self.longName + ', ' + stageName
+
+			except Exception as err:
+				print 'Unable to get Random Neutral stage name from CSS file;'
+				print err
 		
 		# Check if there's a file explicitly defined in the file descriptions config file
 		if not stageName:
 			stageName = self.yamlDescriptions.get( self.filename, '' )
-			# if stageName:
-			# 	stageName = stageName.encode( 'utf-8' )
 
 		# If this is a usd file, check if there's a dat equivalent description
 		if not stageName and self.ext == '.usd':
 			filenameOnly = os.path.splitext( self.filename )[0]
 			stageName = self.yamlDescriptions.get( filenameOnly + '.dat', '' )
 			if stageName:
-				# stageName = stageName.encode( 'utf-8' )
 				stageName += ' (English)'
 
 		# Check for Target Test stages
@@ -2536,19 +2536,20 @@ class StageFile( DatFile ):
 		if self.isRandomNeutral() and self.disc:
 			self.description = description
 
-			# Names for these are stored in the CSS file... update it there
-			cssFile = self.disc.files[self.disc.gameId + '/MnSlChr.0sd']
-			if not cssFile:
-				msg( 'Unable to find the CSS file (MnSlChr.0sd) in the disc!' )
-				return 2
-
 			try:
+				# Names for these are stored in the CSS file... update it there
+				cssFile = self.disc.files[self.disc.gameId + '/MnSlChr.0sd']
 				cssFile.setRandomNeutralName( self.filename, description )
 				returnCode = 0
+
+			except KeyError:
+				msg( 'Unable to find the CSS file (MnSlChr.0sd) in the disc!' )
+				return 2
 
 			except Exception as err:
 				msg( 'Unable to update the CSS file (MnSlChr.0sd) with the new name; ' + str(err) )
 				return 3
+		
 		else:
 			returnCode = super( StageFile, self ).setDescription( description, gameId )
 
@@ -2979,18 +2980,21 @@ class MusicFile( FileBase ):
 
 	def getDescription( self, inConvenienceFolder=True ):
 
+		description = ''
+
 		# For 20XX's hex tracks, get the track name from the CSS file
 		if self.isHexTrack:
-			trackNumber = int( self.filename[:2], 16 )
-			cssFile = self.disc.files[self.disc.gameId + '/MnSlChr.0sd']
-			self.description = cssFile.get20XXHexTrackName( trackNumber )
+			try:
+				cssFile = self.disc.files[self.disc.gameId + '/MnSlChr.0sd']
+				trackNumber = int( self.filename[:2], 16 )
+				description = cssFile.get20XXHexTrackName( trackNumber )
+			except: pass
 
-		else: # Check the yaml
-			# Check if there's a file explicitly defined in the file descriptions config file
+		else: # Check if there's a file explicitly defined in the file descriptions yaml config file
 			description = self.yamlDescriptions.get( self.filename, '' )
-			if description:
-				#self.description = description.encode( 'utf-8' )
-				self.description = description
+
+		if description:
+			self.description = description
 		
 		return self.description
 

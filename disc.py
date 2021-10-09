@@ -127,7 +127,7 @@ def isExtractedDirectory( folderPath, showError=True ): # Not part of the disc c
 			ISO.hdr			(i.e. boot.bin + bi2.bin)
 			Start.dol
 
-		Dolphin (as of ~v5.0-12716) extracts the folllowing system files in a "sys" folder:
+		Dolphin (as of at least v5.0-12716) extracts the folllowing system files in a "sys" folder:
 			apploader.img
 			bi2.bin
 			boot.bin
@@ -222,7 +222,7 @@ class Disc( object ):
 		self.rebuildReason = ''
 		#self.rebuildRequired = False
 		self.fstRebuildRequired = False
-		self.unsavedChanges = []		# Disc changes unrelated to a file, or regarding deleted files. Vestigial; remove?
+		self.unsavedChanges = []		# Disc changes unrelated to a file, such as deleted files
 		self.fstEntries = []			# A list of lists, each of the form [ folderFlag, stringOffset, entryOffset, entrySize, entryName, isoPath ]
 
 	def load( self ):
@@ -356,7 +356,7 @@ class Disc( object ):
 		# Get the file's size
 		fileSize = os.path.getsize( filePath )
 
-		fileFactory( self, -1, fileSize, isoPath, extPath=filePath, source='file' )
+		fileFactory( self, -1, fileSize, isoPath, extPath=filePath, source='file', trustNames=True )
 
 	def loadGameCubeMediaFile( self ):
 
@@ -390,7 +390,7 @@ class Disc( object ):
 			# Get the Apploader's size. The file starts in the disc at 0x2440; codeSize and trailerSize are at 0x14 and 0x18, respectively
 			isoBinary.seek( 0x2454 )
 			codeSize, trailerSize = struct.unpack( '>II', isoBinary.read(8) )
-			apploaderSize = roundTo32( codeSize + trailerSize )
+			apploaderSize = 0x20 + codeSize + trailerSize # 0x20 for the header
 
 			# Get the DOL's data, and check whether or not this is SSBM
 			isoBinary.seek( dolOffset )
@@ -818,21 +818,10 @@ class Disc( object ):
 				lines.append( '{} code mods to install'.format(modsToInstall) )
 			elif modsToUninstall:
 				lines.append( '{} code mods to uninstall\n'.format(modsToUninstall) )
-
-		# for isoPath, (description, fileObj) in self.unsavedChanges.items():
-		# 	if not fileObj or len( fileObj.unsavedChanges ) == 0:
-		# 		lines.append( description )
-		# 	elif len( fileObj.unsavedChanges ) == 1:
-		# 		lines.append( description + '. ' + fileObj.unsavedChanges[0] )
-		# 	else:
-		# 		lines.append( description + ':' )
-		# 		for fileChange in fileObj.unsavedChanges:
-		# 			lines.append( '    ' + fileChange )
-		# 		lines.append( '' )
-
+		
+		# Check disc changes not tied to an existing file
 		if self.unsavedChanges:
-			for change in self.unsavedChanges:
-				lines.append( change )
+			lines.extend( self.unsavedChanges )
 			lines.append( '' )
 
 		for fileObj in unsavedFiles:
@@ -1132,10 +1121,16 @@ class Disc( object ):
 				hexTracksRemoved = True
 			del self.files[fileObj.isoPath]
 
-		# Make sure the Music Name Pointer Table in 20XX is updated
+		# Make sure the Music Name Pointer Table in 20XX gets updated
 		if hexTracksRemoved:
 			cssFile = self.disc.files.get( self.disc.gameId + '/MnSlChr.0sd' )
 			cssFile.validateHexTrackNameTable()
+
+		# Remember this disc change
+		if len( fileObjects ) > 1:
+			self.unsavedChanges.append( '{} files deleted'.format(len(fileObjects)) )
+		else:
+			self.unsavedChanges.append( 'File deleted: {}'.format(fileObj.filename) )
 		
 		# Rebuild the FST Entries list, and mark that the disc needs to be rebuilt
 		self.buildFstEntries()
