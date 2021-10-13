@@ -23,7 +23,7 @@ from urlparse import urlparse 	# For validating and security checking URLs
 # Internal Dependencies
 import globalData
 from disc import Disc
-from basicFunctions import msg, openFolder, validHex
+from basicFunctions import msg, printStatus, openFolder, validHex
 from codeMods import ConfigurationTypes, regionsOverlap, CodeLibraryParser
 from guiSubComponents import (
 	cmsg, exportSingleFileWithGui, VerticalScrolledFrame, LabelButton, ToolTip, CodeLibrarySelector, 
@@ -132,7 +132,7 @@ class CodeManagerTab( ttk.Frame ):
 		currentTab = self.getCurrentTab()
 
 		if not forceUpdate and self.lastTabSelected == currentTab:
-			print 'already selected'
+			print 'already selected;', self.controlPanel.winfo_manager(), self.controlPanel.winfo_ismapped()
 			return
 
 		# Prevent focus on the tabs themselves (prevents appearance of selection box)
@@ -202,6 +202,7 @@ class CodeManagerTab( ttk.Frame ):
 		# Check if the Code Manager tab is selected (and thus if the control panel should be visible)
 		if globalData.gui.root.nametowidget( globalData.gui.mainTabFrame.select() ) != self:
 			self.controlPanel.place_forget() # Removes the control panel from GUI, without deleting it
+			print 'removing control panel'
 			return
 
 		#print 'aligning control panel; called with event:', (event)
@@ -217,9 +218,11 @@ class CodeManagerTab( ttk.Frame ):
 			globalData.gui.root.update_idletasks() # Force the GUI to update in order to get correct new widget positions & sizes.
 			currentTabWidth = currentTab.winfo_width()
 
+			print 'placing control panel with current tab'
 			self.controlPanel.place( in_=currentTab, x=currentTabWidth * .60, width=currentTabWidth * .40, height=modsPanel.winfo_height() )
 		else:
 			# Align and place according to the main library notebook instead
+			print 'placing control panel with topLevel notebook'
 			notebookWidth = self.codeLibraryNotebook.winfo_width()
 			self.controlPanel.place( in_=self.codeLibraryNotebook, x=notebookWidth * .60, width=notebookWidth * .40, height=self.codeLibraryNotebook.winfo_height() )
 			
@@ -271,8 +274,6 @@ class CodeManagerTab( ttk.Frame ):
 			
 			Thus, this method should be called after idle tasks from the main gui (which includes 
 			the tab change events) have finished. """
-
-		print 'reattaching for', notebook
 
 		notebook.bind( '<<NotebookTabChanged>>', self.onTabChange )
 		
@@ -641,6 +642,7 @@ class CodeManagerTab( ttk.Frame ):
 			if mod.state == 'pendingDisable': mod.setState( 'enabled' )
 			elif mod.state == 'disabled': mod.setState( 'pendingEnable' )
 
+		self.updateInstalledModsTabLabel( currentTab )
 		#playSound( 'menuChange' )
 
 	def deselectAllMods( self, event ):
@@ -650,6 +652,7 @@ class CodeManagerTab( ttk.Frame ):
 			if mod.state == 'pendingEnable': mod.setState( 'disabled' )
 			elif mod.state == 'enabled': mod.setState( 'pendingDisable' )
 
+		self.updateInstalledModsTabLabel( currentTab )
 		#playSound( 'menuChange' )
 
 	def selectWholeLibrary( self, event ):
@@ -659,12 +662,18 @@ class CodeManagerTab( ttk.Frame ):
 				if mod.state == 'pendingDisable': mod.setState( 'enabled' )
 				elif mod.state == 'disabled': mod.setState( 'pendingEnable' )
 
+		self.updateInstalledModsTabLabel()
+		#playSound( 'menuChange' )
+
 	def deselectWholeLibrary( self, event ):
 
 		for tab in self.getAllTabs():
 			for mod in tab.winfo_children()[0].mods:
 				if mod.state == 'pendingEnable': mod.setState( 'disabled' )
 				elif mod.state == 'enabled': mod.setState( 'pendingDisable' )
+
+		self.updateInstalledModsTabLabel()
+		#playSound( 'menuChange' )
 
 	def saveCodeChanges( self ):
 
@@ -673,10 +682,6 @@ class CodeManagerTab( ttk.Frame ):
 			code un-installations are required, those are performed on the DOL as-is. If code 
 			installations (with or without un-installations) are requested, the whole DOL will be 
 			restored to vanilla, and then only the requested codes will be installed to it. """
-
-		# Update the GUI
-		#clearSummaryTab() # Clears the summary tab's lists of installed mods/SFs.
-		#programStatus.set( 'Gathering Preliminary Data...' )
 
 		modsToInstall = []
 		modsToUninstall = []
@@ -732,7 +737,7 @@ class CodeManagerTab( ttk.Frame ):
 		globalData.disc.dol.load()
 
 		if newModsToInstall:
-			globalData.disc.restoreDol()
+			globalData.disc.restoreDol( countAsNewFile=False )
 
 			globalData.gui.updateProgramStatus( 'Installing {} codes'.format(len(modsToInstall)) )
 			modsNotInstalled = globalData.disc.installCodeMods( modsToInstall )
@@ -957,6 +962,10 @@ class ModModule( Tk.Frame, object ):
 						label['fg'] = textColor
 
 		self.mod.state = state
+
+		# Update the enabled count in the control panel
+		currentTab = self.master.master.master.master # self -> modsPanel.interior -> modsPanel -> VerticalScrolledFrame -> mainTabFrame
+		globalData.gui.codeManagerTab.updateInstalledModsTabLabel( currentTab )
 	
 	def clicked( self, event ):
 
@@ -1028,6 +1037,8 @@ class ModModule( Tk.Frame, object ):
 		# 	constructionNotebook.select( newTab )
 
 	def showProblems( self, event ):
+
+		""" Called by clicking on the warning icon/button. """
 
 		errorMsg = []
 

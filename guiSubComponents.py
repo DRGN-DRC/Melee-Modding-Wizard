@@ -188,9 +188,13 @@ def importSingleFileWithGui( origFileObj ):
 		globalData.gui.updateProgramStatus( 'Invalid file replacement. Operation canceled', warning=True )
 		return False
 
+	# Replace the file and update the program status bar
 	globalData.disc.replaceFile( origFileObj, newFileObj )
-	
-	globalData.gui.updateProgramStatus( 'File Replaced. Awaiting Save', success=True )
+	globalData.gui.updateProgramStatus( 'File Replaced. Awaiting Save' )
+
+	# Color the file in the Disc File Tree if that tab is open
+	if globalData.gui.discTab:
+		globalData.gui.discTab.isoFileTree.item( newFileObj.isoPath, tags='changed' )
 
 	return True
 
@@ -1308,7 +1312,7 @@ class NeoTreeview( ttk.Treeview, object ):
 		else:
 			self.scrollbar = None
 
-	def getItemsInSelection( self, selectionTuple='', recursive=True ):
+	def getItemsInSelection( self, selectionTuple='', recursive=True, selectAll=False ):
 
 		""" Extends a selection in the treeview, which may contain folders, to include all files within those folders. 
 			"iid"s are unique "Item IDentifiers" given to file/folder items in treeview widgets to identify or select them. 
@@ -1318,24 +1322,15 @@ class NeoTreeview( ttk.Treeview, object ):
 		fileIids = set()
 		folderIids = set()
 
-		if not selectionTuple: # Start with root level items and get everything
-			selectionTuple = self.get_children()
+		# If this is the first-level iteration and no selection was given
+		if not selectionTuple:
+			if selectAll: # Start with root level items and get everything
+				selectionTuple = self.get_children()
+			else: # Just extend what is already selected in the treeview
+				selectionTuple = self.selection()
 
 		# Separate sets/lists of file/folder isoPaths
 		for iid in selectionTuple:
-			# itemType = self.isoFileTree.item( iid, 'values' )[1] # May be "file", "nFolder" (native folder), or "cFolder" (convenience folder)
-
-			# if itemType != 'file':
-			# 	folderIids.add( iid )
-
-			# 	if recursive:
-			# 		subFolderItems = self.isoFileTree.get_children( iid )
-			# 		subFolders, subFiles = self.getItemsInSelection( subFolderItems, True )
-			# 		folderIids.update( subFolders )
-			# 		fileIids.update( subFiles )
-			# else:
-			# 	fileIids.add( iid )
-
 			children = self.get_children( iid )
 
 			# If the item has children, it's a folder

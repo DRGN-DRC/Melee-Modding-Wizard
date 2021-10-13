@@ -7,21 +7,6 @@ version = 5.0
 from collections import OrderedDict
 
 
-# The value below affects the Code Offset Converter in the Tools tab. If set to False, the search will be much slower, but 
-# will also have a little better chance of finding a match.
-#quickSearch = True
-
-# globalFontSize can set the default size of the program's font, even apart from your system's (OS dependant) settings.
-# Negative values indicate pixel size, while positive values are standard font points.
-#globalFontSize = -12
-
-# So far, the value below is only used for determining a default revision when adding new code changes for a mod in the Mod Construction tab.
-#defaultRevision = 'NTSC 1.02' # Should follow the revision string convention of "[region] [version]"
-
-# The following will ensure that the mod "Enable OSReport Print on Crash" is always installed in your game, as
-# long as it's also found in your Mods Library. Change this to False if you don't want this behavior.
-#alwaysEnableCrashReports = True
-
 # Below are hex ranges that indicate safe areas (free space) for custom code. Between each set of parenthesis, you have the start of a region, followed 
 # by the end of that region. You may add new regions, as long as you follow the same formatting that you see here.
 #
@@ -60,11 +45,11 @@ customCodeRegions = OrderedDict([
 										#( 0x2254C0, 0x225644 ),				# 0x184; Using for flags
 										#( 0x329584, 0x329640 ),				# Not much space
 										#( 0x32A8E8, 0x32A9A0 ),				# Not much space
-										#( 0x32B96C, 0x32C208 ),				# Area 4 of USB/MCC 		(0x89C)		< Can be included if you remove the PAL FSM List (which is currently empty)
+										( 0x32BA70, 0x32C208 ),					# Most of Area 4 of USB/MCC (0x798)
 	 									( 0x32C998, 0x332834 ), 				# Extra USB/MCC Region 		(0x5E9C)
 										#( 0x39063C, 0x3907F4 ), ] ),			# Area 5 of USB/MCC 		(0x1B8)
 										( 0x39063C, 0x39078C ), ] ),			# Area 5 of USB/MCC 		(0x150) # Ended early for space for codes with static location
-																						# Total space = 0x10740 Bytes (Or 0x10FDC if you add Area 4 of MCC)
+																						# Total space = 0x10E70 Bytes
 
 	# The following regions are used for the multiplayer tournament mode (which of course will no longer be functional if you use this space). 
 	# If you use this space, you may want to add a code that prevents people from accessing this mode so that the game doesn't crash when someone tries to use it.

@@ -236,6 +236,7 @@ class ToolsMenu( Tk.Menu, object ):
 			self.add_separator()
 			self.add_cascade( label="Create Tri-CSP", command=self.createTriCsp, underline=1 )						# T
 			self.add_cascade( label="Find Unused Stage Files", command=self.findUnusedStages, underline=0 )			# F
+			self.add_cascade( label="Parse FSM List", command=self.parseFsmList, underline=0 )			# F
 
 	def buildPatch( self ):
 
@@ -463,16 +464,16 @@ class ToolsMenu( Tk.Menu, object ):
 		codesToInstall.append( actionStateStart )
 		
 		# Customize Action State Freeze
-		actionStateFreeze = parser.getModByName( 'Action State Freeze' )
-		if not actionStateFreeze:
-			msg( 'Unable to find the Action State Freeze mod in the Core Codes library!', warning=True )
-			return
-		actionStateFreeze.configure( 'Action State ID', actionState )
-		actionStateFreeze.configure( 'Frame ID', targetFrameId )
-		codesToInstall.append( actionStateFreeze )
+		# actionStateFreeze = parser.getModByName( 'Action State Freeze' )
+		# if not actionStateFreeze:
+		# 	msg( 'Unable to find the Action State Freeze mod in the Core Codes library!', warning=True )
+		# 	return
+		# actionStateFreeze.configure( 'Action State ID', actionState )
+		# actionStateFreeze.configure( 'Frame ID', targetFrameId )
+		# codesToInstall.append( actionStateFreeze )
 
 		# Restore the disc's DOL data to vanilla and then install the necessary codes
-		microMelee.restoreDol()
+		microMelee.restoreDol( countAsNewFile=False )
 		microMelee.installCodeMods( codesToInstall )
 		microMelee.save()
 
@@ -487,6 +488,15 @@ class ToolsMenu( Tk.Menu, object ):
 			if it's 20XX) to determine what file names are referenced, and checking if those stage 
 			files are present. """
 
+		# The following set of stages are some that are referenced/enabled by 20XX codes (some available in Debug Menu)
+		stagesFromCodes = set([
+			'GrNFg.0at', 'GrNFg.1at', 'GrNFg.2at', # Mount Olympus (FigureGet/Greece) variations
+			'GrGd.1at', 'GrGd.2at', # Jungle Japes Hacked variations
+			'GrNKr.1at', 'GrNKr.2at', # Mushroom Kingdom Adventure variations
+		])
+		
+		# GrHr.dat, GrPs1.dat, GrPs3.dat, GrPs2.dat, GrCn.dat, GrVe.dat, GrOt.dat, GrPs4.dat, GrMc.pat
+
 		# Check for files referenced by the game
 		referecedFiles = globalData.disc.checkReferencedStageFiles()
 
@@ -497,12 +507,35 @@ class ToolsMenu( Tk.Menu, object ):
 				discFiles.add( fileObj.filename )
 
 		# Cross reference stages defined in the DOL and SST with those found in the disc
-		nonReferencedFiles = discFiles - referecedFiles
+		nonReferencedFiles = discFiles - referecedFiles - stagesFromCodes
+
 		if nonReferencedFiles:
 			message = 'These stage files are in the disc, but do\nnot appear to be referenced by the game:\n\n' + ', '.join( nonReferencedFiles )
 			cmsg( message, 'Non-Referenced Stage Files' )
 		else:
 			cmsg( 'No files were found in the disc that do not appear to be referenced by the game.', 'Non-Referenced Stage Files' )
+
+	def parseFsmList( self ):
+		print( 'FSM List at 0x19D0' )
+		fsmList = globalData.disc.dol.getData( 0x19D0, 0x498 )
+		offset = 0
+
+		while True:
+			entry = fsmList[offset:offset+8]
+			if not entry:
+				break
+			offset += 8
+
+			charId, timerStart, actionInfo, speedMultiplier = struct.unpack( '>BBHf', entry )
+			actionTag = actionInfo & 0xF000
+			actionId = actionInfo & 0xFFF
+
+			if charId == 0xFF:
+				charName = 'All'
+			else:
+				charName = globalData.charList[charId] # Using external character ID
+
+			print( charName, '', timerStart, actionTag, actionId, speedMultiplier )
 
 
 class MainMenuCanvas( Tk.Canvas ):
@@ -770,7 +803,7 @@ class MainGui( Tk.Frame, object ):
 
 	# 	self.updateProgramStatus( event.message )
 
-	def updateProgramStatus( self, newStatus, warning=False, error=False, success=False ):
+	def updateProgramStatus( self, newStatus, warning=False, error=False, success=False, forceUpdate=False ):
 
 		""" Updates the status bar at the very bottom of the interface. """
 
@@ -786,6 +819,10 @@ class MainGui( Tk.Frame, object ):
 		# Update the label widget's color and message
 		self.statusLabel['foreground'] = statusColor
 		self.statusLabel['text'] = newStatus
+
+		# Force the GUI to update now rather than waiting for idle tasks
+		if forceUpdate:
+			self.statusLabel.update()
 
 	def imageBank( self, imageName, showWarnings=True ):
 

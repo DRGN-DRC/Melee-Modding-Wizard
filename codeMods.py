@@ -22,7 +22,8 @@ from subprocess import Popen, PIPE
 
 # Internal Dependencies
 import globalData
-from basicFunctions import toHex, validHex, msg
+import disc
+from basicFunctions import toHex, validHex, msg, printStatus
 from guiSubComponents import cmsg
 
 
@@ -141,12 +142,15 @@ class CodeChange( object ):
 				return
 			
 			# Load the vanilla disc
-			vanillaDisc = Disc( vanillaDiscPath )
+			vanillaDisc = disc.Disc( vanillaDiscPath )
 			vanillaDisc.load()
 
 			# Get the DOL file, normalize the offset string, and get the target file data
 			dol = vanillaDisc.dol
-			dolOffset = dol.normalizeDolOffset( self.offset )
+			dolOffset, error = dol.normalizeDolOffset( self.offset )
+			if error:
+				printStatus( error )
+				return
 			self._origCode = dol.getData( dolOffset, self.getLength() )
 
 		return self._origCode
@@ -1110,6 +1114,10 @@ class CodeLibraryParser():
 			mod.state = 'unavailable'
 			mod.stateDesc = 'Duplicate mod'
 			mod.errors.append( 'Duplicate mod; more than one by this name in library')
+
+		# Check for conflicts
+		#for change in mod.getCodeChanges():
+
 
 		self.codeMods.append( mod )
 		self.modNames.add( mod.name )
@@ -2403,7 +2411,7 @@ class CommandProcessor( object ):
 				sectionChunks = codeLine.split( '[[' )
 				for chunk in sectionChunks:
 					if ']]' in chunk:
-						varName, theRest = chunk.split( ']]' ) # Not expecting multiple ']]' delimiters in this chunk
+						varName, chunk = chunk.split( ']]' ) # Not expecting multiple ']]' delimiters in this chunk
 
 						if validateConfigs:
 							# Attempt to get the configuration name (and size if the code is already assembled)
@@ -2430,16 +2438,6 @@ class CommandProcessor( object ):
 								return 5, -1, optionType, []
 						else:
 							optionWidth = 4 - sectionLength
-						#optionInfo.append( (length, '[[' + varName + ']]', optionWidth) )
-						#newRanges.append( [length+sectionLength, optionWidth, 'opt__'+codeLine, [varName]] )
-						#names.append( varName )
-
-						# Add another name to the last names list if this option has the same offset as the last syntax
-						# if lastSyntaxOffset == length + sectionLength:
-						# 	newRanges[-1][-1].append( varName )
-						# else:
-						# 	lastSyntaxOffset = length + sectionLength
-						# 	newRanges.append( [lastSyntaxOffset, optionWidth, 'opt', codeLine, [varName]] )
 
 						if '|' in varName:
 							names = varName.split( '|' )
@@ -2453,25 +2451,19 @@ class CommandProcessor( object ):
 						customSyntaxRanges.append( [length+sectionLength, optionWidth, 'opt', codeLine, names] )
 
 						# If the custom code following the option is entirely raw hex, get its length
-						#if isAssembly: pass
-						if not theRest:
-							sectionLength += optionWidth
-							preProcessedLines.append( '00' * optionWidth )
-						#elif all( char in hexdigits for char in theRest.replace(' ', '') ):
-						else:
-							filteredChunk = ''.join( chunk.split() ) # Filtering out whitespace
-							#theRestLength = len( filteredChunk ) / 2
-							sectionLength += optionWidth + len( filteredChunk ) / 2
-							preProcessedLines.append( filteredChunk )
-							#lineOffset += optionWidth + theRestLength
+						# if not theRest:
+						# 	sectionLength += optionWidth
+						preProcessedLines.append( '00' * optionWidth )
+						sectionLength += optionWidth
 						# else:
-						# 	isAssembly = True
+						# 	filteredChunk = ''.join( theRest.split() ) # Filtering out whitespace
+						# 	sectionLength += optionWidth + len( filteredChunk ) / 2
+						# 	preProcessedLines.append( filteredChunk )
 
-						#customSyntaxRanges.append( [length, optionWidth, 'opt__'+codeLine] )
 
 					# If other custom code in this line is raw hex, get its length
 					#elif isAssembly or not chunk: pass
-					elif not chunk: pass
+					if not chunk: pass
 					#elif all( char in hexdigits for char in chunk.replace(' ', '') ):
 					else:
 						#chunkLength = len( chunk.replace(' ', '') ) / 2
@@ -3099,8 +3091,8 @@ class CommandProcessor( object ):
 					newHexCodeSections.append( finishedBranch )
 
 				# Check if this was the last section
-				if syntaxOffset == codeChange.length - length:
-					returnCode = 100
+				# if syntaxOffset == codeChange.length - length:
+				# 	returnCode = 100
 
 			elif syntaxType == 'sym': # Contains a function symbol; something like 'lis r3, (<<function>>+0x40)@h'; change the symbol to an address
 				# Determine the RAM addresses for the symbols, and replace them in the line
@@ -3116,8 +3108,8 @@ class CommandProcessor( object ):
 				newHexCodeSections.append( '60000000' ) # Placeholder
 
 				# Check if this was the last section
-				if syntaxOffset == codeChange.length - length:
-					returnCode = 100
+				# if syntaxOffset == codeChange.length - length:
+				# 	returnCode = 100
 				
 			elif syntaxType == 'opt': # Identifies configuration option placeholders
 				#optionPairs = {}
@@ -3207,8 +3199,8 @@ class CommandProcessor( object ):
 					newHexCodeSections.append( newHex )
 						
 				# Check if this was the last section
-				if syntaxOffset == codeChange.length - length:
-					returnCode = 100
+				# if syntaxOffset == codeChange.length - length:
+				# 	returnCode = 100
 
 			# else: # This code should already be pre-processed hex (assembled, with whitespace removed)
 			# 	offset += len( section ) / 2
@@ -3216,21 +3208,19 @@ class CommandProcessor( object ):
 				print 'Unrecognized syntax type!: ', syntaxType
 
 			offset += length
-		
-		if not codeChange.isAssembly and offset != codeChange.length:
-			lastSection = codeChange.preProcessedCode[offset*2:]
-			newHexCodeSections.append( lastSection )
 
-			sectionLength = len( lastSection ) / 2
-			assert offset + sectionLength == codeChange.length, 'Custom code length mismatch detected! \nMod: {}\nEvaluated: {}   Calc. in Code Resolution: {}'.format( codeChange.mod.name, codeChange.length, offset + sectionLength )
+		# Check if this was the last section
+		if syntaxOffset == codeChange.length - length:
+			returnCode = 100
 
 		# Assemble the final code using the full source (raw) code
 		if requiresAssembly and codeChange.isAssembly:
 			# Using the original, raw code: remove comments, replace the custom syntaxes, and assemble it into hex
 			rawAssembly = []
-			for line in codeChange.rawCode:
+			for line in codeChange.rawCode.splitlines():
 				# Start off by filtering out comments and empty lines.
 				codeLine = line.split( '#' )[0].strip()
+				if not codeLine: continue
 					
 				if CodeLibraryParser.isSpecialBranchSyntax( codeLine ) or CodeLibraryParser.containsPointerSymbol( codeLine ) or CodeLibraryParser.containsConfiguration( codeLine ):
 					# Replace with resolved code lines
@@ -3242,27 +3232,29 @@ class CommandProcessor( object ):
 
 			if errors:
 				return ( 2, 'Unable to assemble source code with custom syntaxes.\n\n' + errors )
+			else:
+				return ( 0, customCode )
 
-		elif requiresAssembly: # Yet the user's raw code is in hex form; need to assemble just the lines with custom syntax
+		# Grab the last code section if present
+		if offset != codeChange.length:
+			lastSection = codeChange.preProcessedCode[offset*2:]
+			newHexCodeSections.append( lastSection )
+
+			sectionLength = len( lastSection ) / 2
+			assert offset + sectionLength == codeChange.length, 'Custom code length mismatch detected! \nMod: {}\nEvaluated: {}   Calc. in Code Resolution: {}'.format( codeChange.mod.name, codeChange.length, offset + sectionLength )
+
+		if requiresAssembly: # Yet the user's raw code is in hex form; need to assemble just the lines with custom syntax
 			# Assemble the resolved lines in one group (doing it this way instead of independently in the customCodeSections loop for less IPC overhead)
 			assembledResolvedCode, errors = self.assemble( '\n'.join(resolvedLinesForAssembly), beautify=True, suppressWarnings=True )
 			if errors:
 				return ( 3, 'Unable to assemble hex code with custom syntaxes.\n\n' + errors )
 
 			resolvedHexCodeLines = assembledResolvedCode.split() # Split on whitespace
-			# newCustomCodeSections = preProcessedCustomCode.split( '|S|' ) # Need to re-split this, since customCodeSections may have been modified by now
-			
-			# # Add the resolved, assembled custom syntaxes back into the full custom code string
-			# for i, section in enumerate( newCustomCodeSections ):
-			# 	if section[:5] in ( 'sbs__', 'sym__', 'opt__' ):
-			# 		newCustomCodeSections[i] = resolvedHexCodeLines.pop( 0 )
-			# 		if resolvedHexCodeLines == []: break
-
 			offset = 0
 			i = 0
 
+			# Replace the code section placeholders with the newly assembled lines above
 			for syntaxOffset, length, syntaxType, codeLine, names in codeChange.syntaxInfo:
-
 				if syntaxOffset != offset:
 					offset += syntaxOffset - offset
 					i += 1
@@ -3274,11 +3266,6 @@ class CommandProcessor( object ):
 			customCode = ''.join( newHexCodeSections )
 
 		else: # All Special Branch Syntaxes should have been assembled and only hex should remain. Combine the new code lines back into one string
-			# for i, section in enumerate( customCodeSections ):
-			# 	if section[:5] in ( 'sbs__', 'sym__', 'opt__' ):
-			# 		customCodeSections[i] = resolvedLinesForAssembly.pop( 0 ).replace( ' ', '' )
-			# 		if resolvedLinesForAssembly == []: break
-
 			customCode = ''.join( newHexCodeSections )
 
 		return ( returnCode, customCode )
@@ -3299,13 +3286,14 @@ class CommandProcessor( object ):
 			branchDistance += 1
 		elif branchInstruction == 'bal' or branchInstruction == 'bla': # Interpret the address as absolute and store the link register
 			branchDistance += 3
-		else: useAssembler == True # Last resort, since this will take much longer
+		else:
+			useAssembler = True # Last resort, since this will take much longer
 
 		if useAssembler:
 			fullInstruction = branchInstruction + ' ' + str( branchDistance ) + '\n' # newLine char prevents an assembly error message.
 			branch, errors = self.assemble( fullInstruction )
 			if errors or len( branch ) != 8:
-				return '48000000' # Failsafe, to prevent dol data from being corrupted with non-hex data
+				return '60000000' # Failsafe, to prevent dol data from being corrupted with non-hex data
 		else:
 			# Determine if the branch is going forward or backward in RAM, and determine the appropriate op-code to use
 			if branchDistance >= 0x1000000:

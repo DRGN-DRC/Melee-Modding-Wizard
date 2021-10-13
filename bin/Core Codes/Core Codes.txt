@@ -47,6 +47,9 @@ Version -- DOL Offset ------ Hex to Replace ---------- ASM Code
 40810008 C027219C
 FFA00890 00000000
 
+	-==-
+!
+
 ---------- 0x8016e9a8 --- 887F0000 -> Branch
 
 # Set code values on match start

@@ -12,7 +12,7 @@
 """ Container for global data that all scripts may access. 
 	Contains settings, settings-related load/save functions, and look-up tables. """
 
-programVersion = '0.8.8'
+programVersion = '0.8.9'
 
 # External Dependencies
 import os
@@ -336,7 +336,7 @@ def setLastUsedDir( savePath, category='default', saveSettings=True ):
 				category = 'hps'
 			elif fileExt in ( 'iso', 'gcm' ): # Discs
 				category = 'iso'
-			elif fileExt.endswith( 'at' ) or fileExt.endswith( 'sd' ): # To match .dat/.usd as well as .0at/etc variants
+			elif fileExt.endswith( 'at' ) or fileExt.endswith( 'sd' ): # To match .dat/.usd as well as .0sd/.1at etc. variants
 				category = 'dat'
 			elif fileExt in ( 'mth', 'thp' ): # Video files
 				category = 'mth'

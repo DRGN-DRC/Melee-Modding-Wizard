@@ -392,9 +392,12 @@ class DiscTab( ttk.Frame ):
 			discFile.getDescription( usingConvenienceFolders )
 
 		try:
+			# altPath = 'GALE01/' + discFile.filename.replace( '.usd', '.dat' )
+			# if discFile.filename.endswith( '.usd' ) and altPath in globalData.disc.files:
+			# 	print discFile.filename
 			self.isoFileTree.insert( parent, 'end', iid=discFile.isoPath, text=' ' + entryName, values=(discFile.description, 'file') )
 		except Exception as err:
-			printStatus( 'Unable to add {} to the Disc File Tree; {}'.format(discFile.description, err) )
+			printStatus( u'Unable to add {} to the Disc File Tree; {}'.format(discFile.description, err) )
 
 	def scanDiscItemForStats( self, iidSelectionsTuple, folderContents ):
 
@@ -586,10 +589,10 @@ class DiscTab( ttk.Frame ):
 			self.internalFileSizeText.set( 'File Size:  {0:,} bytes'.format(totalFileSize) ) # Formatting in decimal with thousands delimiter commas
 			self.internalFileSizeLabelSecondLine.set( '    (Totaled from {0:,} files)'.format(fileCount) )
 
-	def getDiscPath( self, isoPath, useConvenienceFolders, includeRoot=True, includeSysFolder=False ):
+	def getDiscPath( self, isoPath, useConvenienceFolders, includeRoot=True, addDolphinSubs=False ):
 
 		""" Builds a disc path, like isoPath, but includes convenience folders if they are turned on. 
-			Only if not using convenience folders may the "sys" be included. """
+			Only if not using convenience folders may the "sys"/"files" folders be included. """
 
 		if useConvenienceFolders:
 			# Scan for 'convenience folders' (those not actually in the disc), and add them to the path; they won't exist in isoPath
@@ -615,22 +618,24 @@ class DiscTab( ttk.Frame ):
 		elif not includeRoot: # Return the full path, but without the root (GameID)
 			pathParts = isoPath.split( '/' )
 
-			if pathParts[-1] in Disc.systemFiles and includeSysFolder:
-				return 'sys/' + pathParts[-1]
-			else:
-				return '/'.join( pathParts[1:] ) # Just removes the GameID
+			# if addDolphinSubs and pathParts[-1] in Disc.systemFiles:
+			# 	return 'sys/' + pathParts[-1]
+			# elif addDolphinSubs:
+			# 	return 'files/' + pathParts[-1]
+			# else:
+			return '/'.join( pathParts[1:] ) # Just removes the GameID
 
-		elif includeSysFolder: # Include root and sys folder for system files
-			pathParts = isoPath.split( '/' )
+		# elif addDolphinSubs: # Include root and sys folder for system files
+		# 	pathParts = isoPath.split( '/' )
 
-			if pathParts[-1] in Disc.systemFiles:
-				return pathParts[0] + '/sys/' + pathParts[-1]
-			else:
-				return isoPath
+		# 	if pathParts[-1] in Disc.systemFiles:
+		# 		return pathParts[0] + '/sys/' + pathParts[-1]
+		# 	else:
+		# 		return pathParts[0] + '/files/' + pathParts[-1]
 		else:
 			return isoPath
 
-	def exportItemsInSelection( self, selection, iidSelectionsTuple, isoBinary, directoryPath, exported, failedExports ):
+	def exportItemsInSelection( self, selection, isoBinary, directoryPath, exported, failedExports, addDolphinSubs ):
 
 		""" Basically just a recursive helper function to self.exportIsoFiles(). Passing the open isoBinary 
 			file object so that we can get file data from it directly, and avoid opening it multiple times. """
@@ -639,14 +644,14 @@ class DiscTab( ttk.Frame ):
 
 		for iid in selection: # The iids will be isoPaths
 			# Prevent files from being exported twice, depending on user selection
-			if (selection != iidSelectionsTuple) and iid in iidSelectionsTuple:
-				continue
+			# if (selection != iidSelectionsTuple) and iid in iidSelectionsTuple:
+			# 	continue
 
 			# Attempt to get a file for this iid (isoPath)
 			fileObj = globalData.disc.files.get( iid )
 
 			if fileObj:
-				globalData.gui.updateProgramStatus( 'Exporting File ' + str(exported + failedExports + 1) + '....' )
+				globalData.gui.updateProgramStatus( 'Exporting File ' + str(exported + failedExports + 1) + '....', forceUpdate=True )
 
 				try:
 					# Retrieve the file data.
@@ -659,7 +664,12 @@ class DiscTab( ttk.Frame ):
 						datData = fileObj.getData()
 
 					# Construct a file path for saving, and destination folders if they don't exist
-					savePath = directoryPath + '/' + self.getDiscPath( fileObj.isoPath, useConvenienceFolders, includeRoot=False, includeSysFolder=True )
+					if addDolphinSubs and fileObj.filename in Disc.systemFiles:
+						savePath = directoryPath + '/sys/' + self.getDiscPath( fileObj.isoPath, useConvenienceFolders, includeRoot=False )
+					elif addDolphinSubs:
+						savePath = directoryPath + '/files/' + self.getDiscPath( fileObj.isoPath, useConvenienceFolders, includeRoot=False )
+					else:
+						savePath = directoryPath + '/' + self.getDiscPath( fileObj.isoPath, useConvenienceFolders, includeRoot=False )
 					createFolders( os.path.split(savePath)[0] )
 
 					# Save the data to a new file.
@@ -671,18 +681,19 @@ class DiscTab( ttk.Frame ):
 					failedExports += 1
 
 			else: # Item is a folder.
-				exported, failedExports = self.exportItemsInSelection( self.isoFileTree.get_children(iid), iidSelectionsTuple, isoBinary, directoryPath, exported, failedExports )
+				print 'unable to get this file!:', iid
+			# 	exported, failedExports = self.exportItemsInSelection( self.isoFileTree.get_children(iid), iidSelectionsTuple, isoBinary, directoryPath, exported, failedExports )
 
 		return exported, failedExports
 
-	def exportIsoFiles( self ):
+	def exportIsoFiles( self, addDolphinSubs=False ):
 
 		""" Called by the Export button and Export File(s) menu option. This doesn't use the disc's 
 			normal file export method so that we can include the convenience folders in the save path. """
 
 		# Check that there's something selected to export
-		iidSelectionsTuple = self.isoFileTree.selection()
-		if not iidSelectionsTuple:
+		iidSelections = self.isoFileTree.getItemsInSelection()[1] # Extends selection to also include all files within folders that may be selected
+		if not iidSelections:
 			globalData.gui.updateProgramStatus( 'Hm?' )
 			msg( 'Please first select a file or folder to export.' )
 			return
@@ -697,10 +708,12 @@ class DiscTab( ttk.Frame ):
 				msg( "Unable to find the disc image. Be sure that the file path is correct and that the file hasn't been moved or deleted.", 'Disc Not Found' )
 			return
 		
-		fileObj = globalData.disc.files.get( iidSelectionsTuple[0] )
+		#fileObj = globalData.disc.files.get( iidSelections[0] )
+		iid = next( iter(iidSelections) )
+		fileObj = globalData.disc.files.get( iid )
 
 		# Check the selection to determine if a single or multiple files need to be exported
-		if len( iidSelectionsTuple ) == 1 and fileObj:
+		if len( iidSelections ) == 1 and fileObj:
 			# Prompt for a place to save the file, save it, and update the GUI
 			exportSingleFileWithGui( fileObj )
 
@@ -719,10 +732,10 @@ class DiscTab( ttk.Frame ):
 
 			# Not using the disc's file export method so we can include the convenience folders in the save path
 			with open( globalData.disc.filePath, 'rb' ) as isoBinary:
-				exported, failedExports = self.exportItemsInSelection( iidSelectionsTuple, iidSelectionsTuple, isoBinary, directoryPath, exported, failedExports )
+				exported, failedExports = self.exportItemsInSelection( iidSelections, isoBinary, directoryPath, exported, failedExports, addDolphinSubs )
 
 			if failedExports == 0:
-				globalData.gui.updateProgramStatus( 'Files exported successfully.' )
+				globalData.gui.updateProgramStatus( 'Files exported successfully.', success=True )
 			elif exported > 0: # Had some exports fail
 				globalData.gui.updateProgramStatus( '{} file(s) exported successfully. However, {} file(s) failed to export.'.format(exported, failedExports), error=True )
 			else:
@@ -1441,8 +1454,8 @@ class DiscMenu( Tk.Menu, object ):
 		if self.iidSelectionsTuple:
 			rootIid = self.fileTree.get_children()[0]
 			if self.selectionCount == 1 and self.entityName == rootIid:
+				self.add_command( label='Extract Root for Dolphin', underline=0, command=self.extractRootWithNative )				# E
 				self.add_command( label='Extract Root with Convenience Folders', underline=0, command=self.extractRootWithConvenience )	# E
-				self.add_command( label='Extract Root with Native Folders Only', underline=0, command=self.extractRootWithNative )		# E
 			else:
 				self.add_command( label='Export File(s)', underline=0, command=self.discTab.exportIsoFiles )							# E
 		# 	self.add_command( label='Export Textures From Selected', underline=1, command=exportSelectedFileTextures )					# X
@@ -1497,19 +1510,6 @@ class DiscMenu( Tk.Menu, object ):
 				self.add_separator()
 				self.add_command( label='Copy Offsets to Clipboard', underline=2, command=self.copyFileOffsetToClipboard )				# P
 
-	def extractRootWithConvenience( self ):
-
-		""" Turn on convenience folders before export, if they're not enabled. Restores setting afterwards. """
-
-		useConvenienceFolders = globalData.checkSetting( 'useDiscConvenienceFolders' )
-
-		if useConvenienceFolders:
-			self.discTab.exportIsoFiles()
-		else:
-			globalData.setSetting( 'useDiscConvenienceFolders', True )
-			self.discTab.exportIsoFiles()
-			globalData.setSetting( 'useDiscConvenienceFolders', False )
-
 	def extractRootWithNative( self ):
 
 		""" Turn off convenience folders before export, if they're enabled. Restores setting afterwards. """
@@ -1518,10 +1518,23 @@ class DiscMenu( Tk.Menu, object ):
 
 		if useConvenienceFolders:
 			globalData.setSetting( 'useDiscConvenienceFolders', False )
-			self.discTab.exportIsoFiles()
+			self.discTab.exportIsoFiles( addDolphinSubs=True )
 			globalData.setSetting( 'useDiscConvenienceFolders', True )
-		else:
+		else: # No need to change the setting
+			self.discTab.exportIsoFiles( addDolphinSubs=True )
+
+	def extractRootWithConvenience( self ):
+
+		""" Turn on convenience folders before export, if they're not enabled. Restores setting afterwards. """
+
+		useConvenienceFolders = globalData.checkSetting( 'useDiscConvenienceFolders' )
+
+		if useConvenienceFolders: # No need to change the setting
 			self.discTab.exportIsoFiles()
+		else:
+			globalData.setSetting( 'useDiscConvenienceFolders', True )
+			self.discTab.exportIsoFiles()
+			globalData.setSetting( 'useDiscConvenienceFolders', False )
 
 	def addFilesToIso( self ):
 

@@ -984,7 +984,7 @@ class Disc( object ):
 
 			return failedExports
 
-	def replaceFile( self, origFileObj, newFileObj ):
+	def replaceFile( self, origFileObj, newFileObj, countAsNewFile=True ):
 
 		""" An import operation. Replaces an existing file in the disc with a new external/standalone file. """
 
@@ -999,7 +999,8 @@ class Disc( object ):
 		newFileObj.disc = self
 		newFileObj.offset = origFileObj.offset
 		newFileObj.isoPath = origFileObj.isoPath
-		newFileObj.unsavedChanges.append( 'New file' )
+		if countAsNewFile:
+			newFileObj.unsavedChanges.append( 'New file' )
 
 		# If this is a MusicFile, copy over extra properties
 		if newFileObj.__class__ == MusicFile:
@@ -1942,15 +1943,19 @@ class Disc( object ):
 									modName + '"\n\t' + newChangeRegion + \
 									'\n\nThese cannot both be enabled. "' + modName + '" will not be enabled. "' + \
 									modPurpose + '" may need to be reinstalled.' )
+				
 				msg( warningMsg, 'Conflicting Changes Detected' )
 		
 		else: # No problems; save the code change to the DOL and remember this change
 			dolOffset = self.dol.offsetInDOL( address )
 
 			if dolOffset == -1: # Not in the DOL. Belongs in the codes.bin file
+				print 'Address not in the DOL:', hex(address)
+
 				# Prepend the data to the beginning of codes.bin
 				_, arenaEnd, arenaSpaceUsed = self.allocationMatrix[-1]
 				fileStartAddress = arenaEnd - arenaSpaceUsed - newCodeLength
+
 				if address != fileStartAddress:
 					conflictDetected = True
 				else:
@@ -2214,23 +2219,19 @@ class Disc( object ):
 		#standaloneFunctions = genGlobals['allStandaloneFunctions'] # Dictionary. Key='functionName', value=( functionAddress, functionCustomCode, functionPreProcessedCustomCode )
 		customCodeProcessor = globalData.codeProcessor
 		standaloneFunctions = globalData.standaloneFunctions
-		modInstallationAttempt = 0
+		installCount = 0
 		#noSpaceRemaining = False
 
 		for mod in codeMods:
-			#if mod.state == 'unavailable' or mod.type == 'gecko': continue # Gecko codes have already been processed.
-
-			#elif mod.state == 'enabled' or mod.state == 'pendingEnable':
-			modInstallationAttempt += 1
-			# programStatus.set( 'Installing Mods (' + str( round( (float(modInstallationAttempt) / totalModsToInstall) * 100, 1 ) ) + '%)' )
-			# programStatusLabel.update()
-			self.updateProgressDisplay( 'Installing Mods', -1, modInstallationAttempt, totalModsToInstall )
+			installCount += 1
+			self.updateProgressDisplay( 'Installing Mods', -1, installCount, totalModsToInstall )
 
 			problemWithMod = False
 			#dolSpaceUsedBackup = dolSpaceUsed.copy() # This copy is used to revert changes in case there is a problem with saving this mod.
 			allocationMatrixBackup = copy.deepcopy( self.allocationMatrix ) # This copy is used to revert changes in case there is a problem with saving this mod.
 			newlyMappedStandaloneFunctions = [] # Tracked so that if this mod fails any part of installation, the standalone functions dictionary can be restored (installation offsets restored to -1).
 			summaryReport = []
+			codeChangesMade = 0 # Counts changes made to the DOL for this mod, so they can be removed from the modifiedRegions list if installation fails
 
 			# Allocate space for required standalone functions
 			#if not noSpaceRemaining:
@@ -2287,7 +2288,9 @@ class Disc( object ):
 							problemWithMod = self.storeCodeChange( functionAddress, finishedCode, mod.name + ' standalone function' )
 
 						if problemWithMod: break
-						else: summaryReport.append( ('SF: ' + functionName, 'standalone', functionAddress, len(finishedCode)/2) )
+						else:
+							summaryReport.append( ('SF: ' + functionName, 'standalone', functionAddress, len(finishedCode)/2) )
+							codeChangesMade += 1
 			
 			# Add this mod's code changes & custom code (non-SFs) to the dol.
 			if not problemWithMod:
@@ -2311,7 +2314,9 @@ class Disc( object ):
 							problemWithMod = self.storeCodeChange( ramAddress, finishedCode, mod.name + ' static overwrite' )
 
 						if problemWithMod: break
-						else: summaryReport.append( ('Code overwrite', codeChange.type, ramAddress, customCodeLength) )
+						else:
+							summaryReport.append( ('Code overwrite', codeChange.type, ramAddress, customCodeLength) )
+							codeChangesMade += 1
 
 					elif codeChange.type == 'injection':
 						#injectionSite = self.dol.normalizeDolOffset( codeChange.offset )
@@ -2358,8 +2363,11 @@ class Disc( object ):
 						# if branch == -1: problemWithMod = True
 						# else:
 						problemWithMod = self.storeCodeChange( injectionSite, branch, mod.name + ' injection site' )
-						if problemWithMod: break
-						else: summaryReport.append( ('Branch', 'static', injectionSite, 4) ) # changeName, changeType, dolOffset, customCodeLength
+						if problemWithMod:
+							break
+						else:
+							summaryReport.append( ('Branch', 'static', injectionSite, 4) ) # changeName, changeType, dolOffset, customCodeLength
+							codeChangesMade += 1
 
 						# Replace custom syntax, and perform any final processing on the code
 						returnCode, finishedCode = codeChange.finalizeCode( customCodeAddress )
@@ -2383,10 +2391,16 @@ class Disc( object ):
 
 							# Add the injection code to the DOL.
 							problemWithMod = self.storeCodeChange( customCodeAddress, finishedCode, mod.name + ' injection code' )
-							if problemWithMod: break
-							else: summaryReport.append( ('Injection code', codeChange.type, customCodeAddress, customCodeLength) )
+							if problemWithMod:
+								break
+							else:
+								summaryReport.append( ('Injection code', codeChange.type, customCodeAddress, customCodeLength) )
+								codeChangesMade += 1
 
 			if problemWithMod:
+				# Remove submissions from this mod to the modifiedRegions list
+				self.modifiedRegions = self.modifiedRegions[:-codeChangesMade]
+
 				# Revert all changes associated with this mod to the game's vanilla code.
 				for codeChange in mod.getCodeChanges():
 					if codeChange.type == 'static' or codeChange.type == 'injection':
@@ -2494,6 +2508,16 @@ class Disc( object ):
 		# 			# Update the stage and items selections windows (if they're open) with the new values.
 		# 			if widgetSettingID == 'stageToggleSetting' and root.stageSelectionsWindow: root.stageSelectionsWindow.updateStates( selectedValue, True, False )
 		# 			elif widgetSettingID == 'itemToggleSetting' and root.itemSelectionsWindow: root.itemSelectionsWindow.updateStates( selectedValue, True, False )
+
+		# For debug. Print code space usage
+		totalSpace = 0
+		totalSpaceUsed = 0
+		for areaStart, areaEnd, spaceUsed in self.allocationMatrix[:-1]:
+			totalSpace += areaEnd - areaStart
+			totalSpaceUsed += spaceUsed
+		print 'total space available:', hex(totalSpace)
+		print 'total space used:', hex(totalSpaceUsed)
+		print 'total space remaining:', hex(totalSpace-totalSpaceUsed)
 
 		# If the injection code file was used, add codes to the game required to load it on boot
 		if self.injectionsCodeFile and self.injectionsCodeFile.data:
@@ -2649,7 +2673,7 @@ class Disc( object ):
 		
 		return 0
 
-	def restoreDol( self, vanillaDiscPath='' ):
+	def restoreDol( self, vanillaDiscPath='', countAsNewFile=True ):
 
 		""" Replaces the Start.dol file with a vanilla copy from a vanilla disc. 
 			Or, if a path is given for the 'dolSource' setting, that DOL is used. """
@@ -2667,7 +2691,7 @@ class Disc( object ):
 			vanillaDisc = Disc( vanillaDiscPath )
 			vanillaDisc.load()
 			#self.files[self.gameId + '/Start.dol'] = copy.deepcopy( vanillaDisc.dol )
-			self.replaceFile( self.dol, vanillaDisc.dol )
+			self.replaceFile( self.dol, vanillaDisc.dol, countAsNewFile=countAsNewFile )
 
 		elif not os.path.exists( dolPath ):
 			printStatus( 'Unable to restore the DOL; the source DOL could not be found', error=True )
@@ -2885,7 +2909,7 @@ class MicroMelee( Disc ):
 		globalData.dolphinController.stopAllDolphinInstances()
 
 		# Restore the DOL's data to vanilla and then install the necessary codes
-		self.restoreDol()
+		self.restoreDol( countAsNewFile=False )
 		self.installCodeMods( codesToInstall )
 		self.save()
 
@@ -2929,7 +2953,7 @@ class MicroMelee( Disc ):
 		globalData.dolphinController.stopAllDolphinInstances()
 
 		# Restore the DOL's data to vanilla and then install the necessary codes
-		self.restoreDol()
+		self.restoreDol( countAsNewFile=False )
 		self.installCodeMods( codesToInstall )
 		self.save()
 

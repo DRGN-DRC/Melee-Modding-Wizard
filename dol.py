@@ -446,7 +446,7 @@ class Dol( FileBase ):
 
 		if problemDetails:
 			#msg( 'Problem detected while processing the offset 0x' + offsetString + '; it could not be converted to a DOL offset' + problemDetails )
-			return -1, 'Problem detected while processing the offset 0x' + offsetString + '; it could not be converted to a DOL offset' + problemDetails
+			return -1, 'Problem detected with offset 0x' + offsetString + '; it could not be converted to a DOL offset' + problemDetails
 
 		return dolOffset, ''
 

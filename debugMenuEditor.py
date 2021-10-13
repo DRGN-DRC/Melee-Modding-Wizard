@@ -87,14 +87,14 @@ class DebugMenuEditor( ttk.Frame ):
 		leftColumn.grid( column=0, row=0, sticky='ew', padx=(26, 18) )
 		
 		menuDisplayBorder = Tk.Frame( self, background='black' ) # Adds space between top and left side of the text lines and the edge (via padx/pady below)
-		self.menuDisplay = Tk.Text( menuDisplayBorder, background='black', foreground='white', borderwidth=0, width=60, height=25 )
+		self.menuDisplay = Tk.Text( menuDisplayBorder, background='black', foreground='white', borderwidth=0, width=60, height=28 )
 		self.menuDisplay.tag_configure( 'itemType0', foreground='green' )
 		self.menuDisplay.tag_configure( 'selected', background='#334033' )
 		self.menuDisplay.tag_bind( 'menuItem', '<Button-1>', self.menuDisplayClicked )
 		self.menuDisplay.tag_bind( 'menuItem', '<Double-1>', self.menuDisplayDoubleClicked )
 		self.menuDisplay.bind( "<Key>", lambda e: "break" ) # Prevents key strokes from propagating
 		self.menuDisplay.bind( "<Double-1>", lambda e: "break" ) # Prevents double-clicks from propagating
-		self.menuDisplay.pack( padx=(16, 70), pady=(16, 37) )
+		self.menuDisplay.pack( padx=(16, 70), pady=(16, 16) )
 		self.backButton = ttk.Label( menuDisplayBorder, image=mainGui.imageBank('bButton'), text='Back', compound='left', background='black', foreground='white', cursor='hand2' )
 		self.backButton.bind( '<Button-1>', self.backUpOneMenu )
 		menuDisplayBorder.grid( column=1, row=0, rowspan=2, pady=35 )

@@ -251,31 +251,6 @@ class AudioManager( ttk.Frame ):
 
 		self.updateGeneralInfo( filecount, totalFilesize )
 
-	# def getItemsInSelection( self, selectionTuple, recursive=True ):
-
-	# 	""" Extends a selection in the treeview, which may contain folders, to include all files within those folders. 
-	# 		"iid"s are unique "Item IDentifiers" given to file/folder items in treeview widgets to identify or select them. """
-
-	# 	fileIids = set()
-	# 	folderIids = set()
-
-	# 	# Separate sets/lists of file/folder isoPaths
-	# 	for iid in selectionTuple:
-	# 		itemType = self.fileTree.item( iid, 'values' )[1] # May be "file", "nFolder" (native folder), or "cFolder" (convenience folder)
-
-	# 		if itemType != 'file':
-	# 			folderIids.add( iid )
-
-	# 			if recursive:
-	# 				subFolderItems = self.fileTree.get_children( iid )
-	# 				subFolders, subFiles = self.getItemsInSelection( subFolderItems, True )
-	# 				folderIids.update( subFolders )
-	# 				fileIids.update( subFiles )
-	# 		else:
-	# 			fileIids.add( iid )
-
-	# 	return folderIids, fileIids
-
 	def getSelectedFile( self ):
 
 		iidSelectionsTuple = self.fileTree.selection()
@@ -556,12 +531,9 @@ class AudioManager( ttk.Frame ):
 		""" Removes (deletes) files from the disc, and from the fileTree. 
 			Note that the iids which the fileTree widget uses are isoPaths. """
 
-		iidSelectionsTuple = self.fileTree.selection()
-		if not iidSelectionsTuple: # Failsafe; not possible?
-			return
-
 		# Get all folder and file iids currently selected (the file iids will be isoPaths)
-		folderIids, fileIids = self.fileTree.getItemsInSelection( iidSelectionsTuple )
+		folderIids, fileIids = self.fileTree.getItemsInSelection()
+		if not fileIids: return # Failsafe; not possible?
 		discFiles = globalData.disc.files
 		fileObjects = []
 
@@ -737,7 +709,7 @@ class AudioManager( ttk.Frame ):
 		minTrackName = ''
 		maxTrackName = ''
 
-		fileIids = self.fileTree.getItemsInSelection()[1]
+		fileIids = self.fileTree.getItemsInSelection( selectAll=True )[1]
 
 		# Scan for min/max/total file sizes
 		for iid in fileIids:
