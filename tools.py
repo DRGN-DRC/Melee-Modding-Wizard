@@ -147,11 +147,15 @@ class TriCspCreator( object ):
 
 		""" Determines the absolute file path to the GIMP console executable 
 			(the exe itself varies based on program version). """
+
+		dirs = ( "C:\\Program Files\\GIMP 2\\bin", "{}\\Programs\\GIMP 2\\bin".format(os.environ['LOCALAPPDATA']) )
 		
-		# Check for the expected program folder
-		directory = "C:\\Program Files\\GIMP 2\\bin"
-		if not os.path.exists( directory ):
-			msg( 'GIMP does not appear to be installed; unable to find the GIMP program directory at "{}".'.format(directory) )
+		# Check for the GIMP program folder
+		for directory in dirs:
+			if os.path.exists( directory ):
+				break
+		else:
+			msg( 'GIMP does not appear to be installed; unable to find program folder among these paths:\n\n' + '\n'.join(dirs) )
 			self.gimpDir = ''
 			self.gimpExe = ''
 			return
