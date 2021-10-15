@@ -1,0 +1,113 @@
+
+
+	On boot:
+
+8000522c	__start
+80005340	__init_registers
+8000541C	__init_hardware
+8000535c	__init_data
+80335EC0	DBInit
+80342FC8	OSInit
+8034C410		__OSGetSystemTime
+800051EC	__check_pad3
+8034CABC	__init_user
+8015feb4	main
+80342FC8		OSInit
+			VIInit
+			DVDInit
+			PADInit
+			CARDInit
+			OSInitAlarm
+			zz_0225374_
+
+
+
+
+
+
+
+
+	on micro melee start:
+
+801a4510	Scene_Main
+801a43a0		Scene_ProcessMajor 	(r27=MajorSceneID, r30=MajorSceneTable, r31=SceneController)
+801a4014			Scene_ProcessMinor 	(r25=MinorSceneData, r26=MinorSceneFuncList, r27=MinorSceneTable, r28=MajorSceneTable)
+					Heap_UpdatePersistentHeapsOnSceneChange
+					Scene_MinorIDToMinorSceneFunctionTable
+801a4bd4				ScenePrep_Common
+						GObjList_Initialize
+						Develop_InitCamera
+						loadFile_LbRb.dat
+
+8016e934				SceneLoad_InGame
+8016e730	-	-	-	-	StartMelee
+802254b8						DevelopMode_DbCo.dat_Load&More
+							SetGameEngineRunSpeed(r3=?,r4=speed)
+							CameraInfo_Init
+							InitalizeCamera
+							InitializeMatchInfo+ThinkStruct
+								Playerblock_Initialize		(called multiple times, for each player)
+							Load_LbRf.dat
+							loadFile_EfData.dat			(called multiple times)
+							loadFile_PdPm.dat
+801c0378	-	-	-	-	-	Stage_SetupSomething
+802251E8						Stages_LoadStagePrefunction
+							CountPlayersInMatch
+							checkToLoadItems
+							InitializeItemStructSkeleton
+							Items_InitItemSpawnThinkStruct
+							Audio_LoadStageAndCharAudio (andSetDSPEchoLevel)
+							StageInitialization_Prefunction
+							CameraIno_GetDefaultFOV
+							CameraInfo_FOVStore
+							PlayerBlock_LoadPlayers / MatchStartRead/WriteValues
+80036da4							CreatePlayerBlockAllocationSkeleton?_Pre_Prefunction
+									CreatePlayerBlockAllocationSkeleton?_Prefunction
+										CreatePlayerBlockAllocationSkeleton?
+											UnloadCharacterDATFiles
+											FileLoad_PlCo.dat
+								Player_InitializeSpawnPositions?
+									Playerblock_LoadSlotType
+									SpawnPoint_GetXYZFromIDInput
+								Playerblock_LoadSlotType
+								SpawnPoint_GetXYZFromIDInput
+800327dc	-	-	-	-	-	-	PlayerBlock_StoreInitialX/YCoords
+								PlayerBlock_LoadControllerIndex
+80031AD0							SetupPlayerSlot
+80225298						Stage_RunOnLoadFunction_Prefunction
+801c5800						Pause_UnpauseStoreCameraType
+8002f3ac						Camera_CorrectPosition
+802F390C						InitHUD
+							StartMelee_LoadMusic
+
+	(back to SceneLoad_InGame <-)		HUD_Timer_Initialize
+						HUD_Create
+							HUD_SpacingAdjust
+							HUD_PlayerCreate
+
+	[breakpoint 8016e94c for line just after StartMelee call.]
+
+	[at 801a40d8 sceneMinor may blrl to SceneLoad_InGame (will do so at first hit). And then returns to 801a40e8.]
+
+
+801a4d34				updateFunction			(back to Scene_ProcessMinor)
+						HSD_PadFlushQueue
+						DisplayMemcardSaveBanner
+						USBScreenshot_InitMCC?
+						RunDiscCheck		(checks for memory card for saving?)
+							DiscError_DisplayMessageMain
+							MemoryCard_CheckToSaveData
+						HSD_PadGetResetSwitch
+						HSD_PerfSetStartTime
+80019900					ButtonPresses_CopyInputsToStruct
+
+
+
+
+
+
+
+800311ec	RenderPlayerModels
+
+
+
