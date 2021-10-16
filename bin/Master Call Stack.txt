@@ -109,9 +109,11 @@
 									MatchInfo_ItemFrequencyLoad
 8027870c								fileLoad_ItCo
 										Language_CheckIfEnglish
-										loadFile_GameEngineFiles_Prefunction
-8001819c										Preload_LoadGameEngineFiles
+80017040									loadFile_GameEngineFiles_Prefunction	(prepares loading files collected above)
+8001819c										Preload_LoadGameEngineFiles	(loads LbRb, LbRf, EfCoData, EfMnData, 
+															 PdPm, [stage], TyDatai, ItCo, PlCo, [charFiles])
 												File_AppendExtension
+										[8001711C: Pl__.dat file loaded and initialized. pointer to file start in r6]
 								InitializeItemStructSkeleton
 								Items_InitItemSpawnThinkStruct
 								Audio_LoadStageAndCharAudio (andSetDSPEchoLevel)
