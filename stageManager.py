@@ -2117,6 +2117,10 @@ class StageManager( ttk.Frame ):
 			# Remove the file from the disc
 			globalData.disc.removeFiles( [stageObj] )
 
+			# Update random neutral stage name in MnSlChr
+			if globalData.disc.is20XX and stageObj.isRandomNeutral():
+				stageObj.setDescription( 'Custom {}'.format(stageObj.randomNeutralId) )
+
 			# Update the GUI
 			self.stageVariationUnselected()
 			self.variationsTreeview.item( iid, text='- No File -', tags='fileNotFound' )

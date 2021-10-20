@@ -24,6 +24,7 @@ import argparse
 import Tkinter as Tk
 import ttk, tkMessageBox, tkFileDialog
 
+from shutil import copy
 from threading import Thread
 from subprocess import Popen, PIPE, CalledProcessError
 from sys import argv as programArgs 	# Access command line arguments, and files given (drag-and-dropped) to the program icon
@@ -63,7 +64,8 @@ class FileMenu( Tk.Menu, object ):
 		self.recentFilesMenu = Tk.Menu( self, tearoff=True ) # tearoff is the ability to basically turn the menu into a tools window
 
 		self.add_cascade( label="Open Recent", menu=self.recentFilesMenu )												# Key shortcut (holding alt)
-		self.add_command( label='Open Last Used Directory', underline=5, command=self.openLastUsedDir ) 							# L
+		self.add_command( label='Open Last Used Directory', underline=5, command=self.openLastUsedDir )								# L
+		self.add_command( label='Open Dolphin Screenshots Folder', underline=15, command=self.openDolphinScreenshots )				# R
 		self.add_command( label='Open Disc (ISO/GCM)', underline=11, command=lambda: globalData.gui.promptToOpenFile('iso') )		# I
 		self.add_command( label='Open Root (Disc Directory)', underline=6, command=lambda: globalData.gui.promptToOpenRoot() )		# O		(lambda required)
 		self.add_command( label='Open DAT (or USD, etc.)', underline=5, command=lambda: globalData.gui.promptToOpenFile('dat') )	# D
@@ -124,7 +126,15 @@ class FileMenu( Tk.Menu, object ):
 
 	def openLastUsedDir( self ):
 		openFolder( globalData.getLastUsedDir() )
-		
+
+	def openDolphinScreenshots( self ):
+		if globalData.disc:
+			targetFolder = os.path.join( globalData.dolphinController.userFolder, 'ScreenShots', globalData.disc.gameId )
+		else:
+			targetFolder = os.path.join( globalData.dolphinController.userFolder, 'ScreenShots' )
+
+		openFolder( targetFolder )
+
 	def browseCodeLibrary( self ):
 
 		""" Loads the Code Manager tab if it's not already present. """
@@ -238,6 +248,69 @@ class ToolsMenu( Tk.Menu, object ):
 			self.add_cascade( label="Find Unused Stage Files", command=self.findUnusedStages, underline=0 )			# F
 			self.add_cascade( label="Parse FSM List", command=self.parseFsmList, underline=0 )			# F
 
+	def testStage( self ):
+
+		""" Asset Test feature. Prompts the user to choose an external stage file, initializes it, 
+			fetches the Micro Melee disc build, and then sends the stage file to it for testing (booting). """
+
+		# Prompt the user to choose a file, and get its filepath
+		fileTypeOptions = [ ('Stage files', '*.dat *.usd *.0at *.1at *.2at *.3at *.4at *.5at *.6at *.7at *.8at *.9at *.aat *.bat *.cat *.dat *.eat'),
+							('All files', '*.*') ]
+		stageFilePath = importGameFiles( title='Choose a stage', fileTypeOptions=fileTypeOptions, category='dat' )
+		if not stageFilePath: return # User canceled
+		globalData.setLastUsedDir( stageFilePath, 'dat' )
+
+		# Initialize the file and verify it's a stage
+		try:
+			newFileObj = StageFile( None, -1, -1, '', extPath=stageFilePath, source='file' )
+			newFileObj.validate()
+
+		except Exception as err:
+			if ';' in str( err ):
+				details = err.split( ';' )[1]
+				msg( 'This does not appear to be a valid stage file; {}'.format(details), 'Invalid file' )
+				globalData.gui.updateProgramStatus( str(err), error=True )
+			else:
+				msg( 'This does not appear to be a valid stage file!', 'Invalid file' )
+				globalData.gui.updateProgramStatus( 'Unable to load file; ' + str(err), error=True )
+			return
+
+		# Get the micro melee disc object, and use it to test the stage
+		microMelee = globalData.getMicroMelee()
+		if not microMelee: return # User may have canceled the vanilla melee disc prompt
+		microMelee.testStage( newFileObj )
+
+	def testCharacter( self ):
+
+		""" Asset Test feature. Prompts the user to choose an external character file, initializes it, 
+			fetches the Micro Melee disc build, and then sends the character file to it for testing (booting). """
+
+		# Prompt the user to choose a file, and get its filepath
+		fileTypeOptions = [ ('Character files', '*.dat *.usd *.lat *.rat'), ('All files', '*.*') ]
+		charFilePath = importGameFiles( title='Choose your character', fileTypeOptions=fileTypeOptions, category='dat' )
+		if not charFilePath: return # User canceled
+		globalData.setLastUsedDir( charFilePath, 'dat' )
+
+		# Initialize the file and verify it's a character
+		try:
+			newFileObj = CharCostumeFile( None, -1, -1, '', extPath=charFilePath, source='file' )
+			newFileObj.validate()
+
+		except Exception as err:
+			if ';' in str( err ):
+				details = err.split( ';' )[1]
+				msg( 'This does not appear to be a valid character costume file; {}'.format(details), 'Invalid file' )
+				globalData.gui.updateProgramStatus( str(err), error=True )
+			else:
+				msg( 'This does not appear to be a valid character costume file!', 'Invalid file' )
+				globalData.gui.updateProgramStatus( 'Unable to load file; ' + str(err), error=True )
+			return
+
+		# Get the micro melee disc object, and use it to test the character
+		microMelee = globalData.getMicroMelee()
+		if not microMelee: return # User may have canceled the vanilla melee disc prompt
+		microMelee.testCharacter( newFileObj )
+
 	def buildPatch( self ):
 
 		""" Builds an xDelta patch from a vanilla 1.02 disc and the disc currently loaded in the GUI. """
@@ -343,94 +416,40 @@ class ToolsMenu( Tk.Menu, object ):
 	def notDone( self ):
 		print( 'not yet supported' )
 
-	def testStage( self ):
-
-		""" Asset Test feature. Prompts the user to choose an external stage file, initializes it, 
-			fetches the Micro Melee disc build, and then sends the stage file to it for testing (booting). """
-
-		# Prompt the user to choose a file, and get its filepath
-		fileTypeOptions = [ ('Stage files', '*.dat *.usd *.0at *.1at *.2at *.3at *.4at *.5at *.6at *.7at *.8at *.9at *.aat *.bat *.cat *.dat *.eat'),
-							('All files', '*.*') ]
-		stageFilePath = importGameFiles( title='Choose a stage', fileTypeOptions=fileTypeOptions, category='dat' )
-		if not stageFilePath: return # User canceled
-		globalData.setLastUsedDir( stageFilePath, 'dat' )
-
-		# Initialize the file and verify it's a stage
-		try:
-			newFileObj = StageFile( None, -1, -1, '', extPath=stageFilePath, source='file' )
-			newFileObj.validate()
-
-		except Exception as err:
-			if ';' in str( err ):
-				details = err.split( ';' )[1]
-				msg( 'This does not appear to be a valid stage file; {}'.format(details), 'Invalid file' )
-				globalData.gui.updateProgramStatus( str(err), error=True )
-			else:
-				msg( 'This does not appear to be a valid stage file!', 'Invalid file' )
-				globalData.gui.updateProgramStatus( 'Unable to load file; ' + str(err), error=True )
-			return
-
-		# Get the micro melee disc object, and use it to test the stage
-		microMelee = globalData.getMicroMelee()
-		if not microMelee: return # User may have canceled the vanilla melee disc prompt
-		microMelee.testStage( newFileObj )
-
-	def testCharacter( self ):
-
-		""" Asset Test feature. Prompts the user to choose an external character file, initializes it, 
-			fetches the Micro Melee disc build, and then sends the character file to it for testing (booting). """
-
-		# Prompt the user to choose a file, and get its filepath
-		fileTypeOptions = [ ('Character files', '*.dat *.usd *.lat *.rat'), ('All files', '*.*') ]
-		charFilePath = importGameFiles( title='Choose your character', fileTypeOptions=fileTypeOptions, category='dat' )
-		if not charFilePath: return # User canceled
-		globalData.setLastUsedDir( charFilePath, 'dat' )
-
-		# Initialize the file and verify it's a character
-		try:
-			newFileObj = CharCostumeFile( None, -1, -1, '', extPath=charFilePath, source='file' )
-			newFileObj.validate()
-
-		except Exception as err:
-			if ';' in str( err ):
-				details = err.split( ';' )[1]
-				msg( 'This does not appear to be a valid character costume file; {}'.format(details), 'Invalid file' )
-				globalData.gui.updateProgramStatus( str(err), error=True )
-			else:
-				msg( 'This does not appear to be a valid character costume file!', 'Invalid file' )
-				globalData.gui.updateProgramStatus( 'Unable to load file; ' + str(err), error=True )
-			return
-
-		# Get the micro melee disc object, and use it to test the character
-		microMelee = globalData.getMicroMelee()
-		if not microMelee: return # User may have canceled the vanilla melee disc prompt
-		microMelee.testCharacter( newFileObj )
-
 	def createTriCsp( self ):
 
 		""" Creates a Tri-CSP (Character Select Portrait) for the CSS. """
 
 		cspCreator = TriCspCreator()
-		if not cspCreator.gimpExe or not cspCreator.cspConfig:
+		if not cspCreator.gimpExe or not cspCreator.config:
 			return # Unable to find GIMP, or unable to load the CSP configuration file
 			
 		# Get the micro melee disc object
 		microMelee = globalData.getMicroMelee()
 		if not microMelee: return # User may have canceled the vanilla melee disc prompt
 
+		# Prompt the user to choose a character to update
+		selectionWindow = CharacterChooser( "Select a character and costume color for CSP creation:" ) # References External ID
+		if selectionWindow.charId == -1: return # User may have canceled selection
+
 		# Get target action states and frames for the screenshots
-		actionState = 0x1B
-		targetFrame = 10.0
+		# actionState = 0x1B
+		# targetFrame = 10.0
+		try:
+			actionState = cspCreator.config[selectionWindow.charId]['actionState']
+			targetFrame = cspCreator.config[selectionWindow.charId]['frame']
+			targetFrameId = targetFrame >> 16 # Just need the first two bytes of the float for this
+		except KeyError as err:
+			if err.message in ( 'actionState', 'frame' ): # Found the character dictionary, but couldn't find the sub-key
+				msg( 'Unable to find CSP "{}" info for character ID {} in "CSP Configuration.yml".'.format(err.message, selectionWindow.charId), 'CSP Config Error' )
+			else: # Couldn't find the character dictionary
+				msg( 'Unable to find CSP configuration info for external character ID {} in "CSP Configuration.yml".'.format(selectionWindow.charId), 'CSP Config Error' )
+			return
 
 		# Convert the target frame to Frame ID (for the Action State Freeze code) and the raw value for a float
 		#targetFrameId = hex( floatToHex( targetFrame ).replace( '0x', '' )[:4], 16 ) # Just the first 4 characters of a float string
-		floatBytes = struct.pack( '<f', targetFrame )
-		targetFrameFloat = struct.unpack( '<I', floatBytes )[0]
-		targetFrameId = struct.unpack( '<H', floatBytes[2:] )[0] # Only want two bytes from this
-
-		# Prompt the user to choose a character to update
-		selectionWindow = CharacterChooser( "Select a character and costume color for CSP creation:" )
-		if selectionWindow.charId == -1: return # User may have canceled selection
+		# floatBytes = struct.pack( '>f', targetFrame )
+		# targetFrameId = struct.unpack( '>H', floatBytes[:2] )[0] # Only want two bytes from this
 
 		# Parse the Core Codes library for the codes needed for booting to match and setting up a pose
 		parser = CodeLibraryParser()
@@ -446,8 +465,8 @@ class ToolsMenu( Tk.Menu, object ):
 			return
 		assetTest.configure( "Player 1 Character", selectionWindow.charId )
 		assetTest.configure( "P1 Costume ID", selectionWindow.costumeId )
-		# assetTest.configure( "Player 2 Character", selectionWindow.charId )
-		# assetTest.configure( "P2 Costume ID", selectionWindow.costumeId )
+		assetTest.configure( "Player 2 Character", selectionWindow.charId )
+		assetTest.configure( "P2 Costume ID", selectionWindow.costumeId )
 		if selectionWindow.charId == 0x13: # Special case for Sheik (for different lighting direction)
 			assetTest.configure( "Stage", 3 ) # Selecting Pokemon Stadium
 		else:
@@ -460,26 +479,55 @@ class ToolsMenu( Tk.Menu, object ):
 			msg( 'Unable to find the Enter Action State On Match Start mod in the Core Codes library!', warning=True )
 			return
 		actionStateStart.configure( 'Action State ID', actionState )
-		actionStateStart.configure( 'Start Frame', targetFrameFloat )
+		actionStateStart.configure( 'Start Frame', 0 )
 		codesToInstall.append( actionStateStart )
 		
 		# Customize Action State Freeze
-		# actionStateFreeze = parser.getModByName( 'Action State Freeze' )
-		# if not actionStateFreeze:
-		# 	msg( 'Unable to find the Action State Freeze mod in the Core Codes library!', warning=True )
-		# 	return
-		# actionStateFreeze.configure( 'Action State ID', actionState )
-		# actionStateFreeze.configure( 'Frame ID', targetFrameId )
-		# codesToInstall.append( actionStateFreeze )
+		actionStateFreeze = parser.getModByName( 'Action State Freeze' )
+		if not actionStateFreeze:
+			msg( 'Unable to find the Action State Freeze mod in the Core Codes library!', warning=True )
+			return
+		actionStateFreeze.configure( 'Action State ID', actionState )
+		actionStateFreeze.configure( 'Frame ID', targetFrameId )
+		codesToInstall.append( actionStateFreeze )
+
+		codesToInstall.append( parser.getModByName('Zero-G Mode') )
 
 		# Restore the disc's DOL data to vanilla and then install the necessary codes
 		microMelee.restoreDol( countAsNewFile=False )
 		microMelee.installCodeMods( codesToInstall )
 		microMelee.save()
 
+		# Get current Dolphin settings, so they can be restored afterwards
+		# priorSettings = dict.fromkeys( cspCreator.dolphinSettings ) # Initializes with values set to None
+		# globalData.dolphinController.getSettings( priorSettings )
+
+		# Set Dolphin's graphics settings for CSP creation
+		#globalData.dolphinController.setSettings( cspCreator.dolphinSettings )
+
+		# Backup Dolphin's current settings files
+		settingsFolder = os.path.join( globalData.dolphinController.userFolder, 'Config' )
+		generalSettingsFile = os.path.join( settingsFolder, 'Dolphin.ini' )
+		gfxSettingsFile = os.path.join( settingsFolder, 'GFX.ini' )
+		os.rename( generalSettingsFile, generalSettingsFile + '.bak' )
+		os.rename( gfxSettingsFile, gfxSettingsFile + '.bak' )
+
+		# Copy over the Dolphin settings files for CSP creation
+		copy( cspCreator.dolphinSettingsFile, generalSettingsFile )
+		copy( cspCreator.gfxSettingsFile, gfxSettingsFile )
+
 		# Engage emulation
-		#self.runInEmulator()
 		globalData.dolphinController.start( microMelee )
+
+		# Stop emulation
+		globalData.dolphinController.stop()
+
+		# Remove previous settings
+		os.remove( generalSettingsFile )
+		os.remove( gfxSettingsFile )
+		os.rename( generalSettingsFile + '.bak', generalSettingsFile )
+		os.rename( gfxSettingsFile + '.bak', gfxSettingsFile )
+
 
 	def findUnusedStages( self ):
 

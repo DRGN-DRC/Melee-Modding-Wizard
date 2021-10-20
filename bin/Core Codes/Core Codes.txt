@@ -20,8 +20,8 @@ A rework of Dan Salvato's action state hack using internal player data offsets:
 0x21A0 - new action state ID (int)
 This instance of the code is designed to set the beginning states for P1 & P2.
 Configurations:
-    uint32 Action State ID = 0; 0-0x10000
     float Start Frame = 0.0; 0-0x10000
+    uint32 Action State ID = 0; 0-0x10000
 <https://smashboards.com/threads/internal-action-state-hack.440318/>
 [Dan Salvato, Punkline, DRGN]
 Version -- DOL Offset ------ Hex to Replace ---------- ASM Code
@@ -47,13 +47,18 @@ Version -- DOL Offset ------ Hex to Replace ---------- ASM Code
 40810008 C027219C
 FFA00890 00000000
 
-	-==-
-! temp separated from above
+---------- 0x801a4d9c --- 38000000 -> Branch
 
----------- 0x8016e9a8 --- 887F0000 -> Branch
+# Injects into "updateFunction", just after the start of its loop.
+# Should execute just once, once the scene reaches the specified frame.
+# Check the scene's current frame to see if we should execute
+lis r15, 0x80479D30@h		# Load address of scene controller
+ori r15, r15, 0x80479D30@l
+lwz r14, 0x2C(r15)		# Load GX frame count
+cmpwi r14, 0x47			# Takes 71 (0x47) frames for both characters to leave entry platform
+bne-	OrigLine
 
-# Set code values on match start
-# Injecting into SceneLoad_Melee
+# Set Start Frame and Action State IDs for both players
 lis r14, 0x80453130@h		# Load pointer to P1 Player Entity Struct (0x80453080 + 0xB0)
 lwz r14, 0x80453130@l(r14)
 lwz r14, 0x2C(r14)		# Load pointer to P1 Player Character Data (at 0x2C of P1 Player Entity Struct) to r14
@@ -72,7 +77,14 @@ stw r15, 0x219C(r14)		# Store start frame to 0x219C of P2 Player Character Data
 li r15, [[Action State ID]]	# Load the action state ID
 stw r15, 0x21A0(r14)		# Store action state ID to 0x21A0 of P2 Player Character Data
 
-lbz r3, 0(r31)	# Original code line
+# Set the camera mode to paused
+lis r14, 0x80452C6C@h		# Load pointer to P2 Player Entity Struct
+lwz r14, 0x80452C6C@l(r14)
+li r15, 1
+stw r15, 0(r14)
+
+OrigLine:
+li r0, 0	# Original code line
 b 0		# Placeholder for branch back
 
 
@@ -209,3 +221,13 @@ flags: xori r0, r0, 0x0000
   
 sth r0, 0x398(r31)
 .long 0
+
+
+	-==-
+
+
+Zero-G Mode
+No gravity on characters.
+[DRGN]
+Revision ---- DOL Offset ---- Hex to Replace ---------- ASM Code -
+NTSC 1.02 --- 0x80084dec ---- C03E005C -> FC20F890

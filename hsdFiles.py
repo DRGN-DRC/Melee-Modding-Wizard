@@ -128,6 +128,7 @@ def fileFactory( *args, **kwargs ):
 		argument "trustNames" is given, filenames will be trusted to 
 		determine what kind of file to initialize as. """
 
+	trustyFilenames = kwargs.pop( 'trustNames', None ) # Also removes it from kwargs
 	filepath, ext = os.path.splitext( args[3] )
 	filename = os.path.basename( filepath ) # Without extension
 
@@ -148,7 +149,7 @@ def fileFactory( *args, **kwargs ):
 		return FileBase( *args, **kwargs )
 
 	# If this is initializing an external/standalone file, we may not be able to trust the file name
-	elif not kwargs.get( 'trustNames' ) and kwargs.get( 'extPath' ) and kwargs.get( 'source' ) == 'file': # A slower but more thorough check.
+	elif not trustyFilenames and kwargs.get( 'extPath' ) and kwargs.get( 'source' ) == 'file': # A slower but more thorough check.
 
 		try:
 			# Assume it's a DAT file by this point
@@ -2338,6 +2339,7 @@ class StageFile( DatFile ):
 		self._randomNeutralChecked = False
 		self._isRandomNeutralStage = False
 		self._stageInfoStruct = None
+		self._randomNeutralId = -1
 
 	@property
 	def externalId( self ):
@@ -2353,6 +2355,13 @@ class StageFile( DatFile ):
 			self._externalId = musicTableStruct.getValues()[0]
 
 		return self._externalId
+
+	@property
+	def randomNeutralId( self ):
+		if not self.isRandomNeutral():
+			return -1
+		else:
+			return self._randomNeutralId
 
 	@property
 	def initFunction( self ):
@@ -2438,11 +2447,13 @@ class StageFile( DatFile ):
 
 		# Check for Stadium first, since that stage's file naming is handled differently
 		if self.filename.startswith( 'GrP' ) and self.filename[3] in hexdigits: # Latter part checking for, e.g., "GrP2.usd"
+			self._randomNeutralId = int( self.filename[3], 16 )
 			shortName = 'GrP'
 			longName = 'Pokemon Stadium'
 
 		# Check the other tournament neutral stages
 		elif self.ext[1] in hexdigits: # e.g. a file extension of ".2at"
+			self._randomNeutralId = int( self.ext[1], 16 )
 			stageNameLookup = { 'GrNBa': 'Battlefield', 
 								'GrNLa': 'Final Destination', 
 								'GrSt': "Yoshi's Story", 

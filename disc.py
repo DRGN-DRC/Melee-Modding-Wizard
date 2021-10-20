@@ -761,7 +761,7 @@ class Disc( object ):
 			else:
 				projectedDiscSize = defaultGameCubeMediaSize
 		else:
-			projectedDiscSize = totalSystemFileSpace + totalNonSystemFileSpace + interFilePaddingLength * totalNonSystemFiles
+			projectedDiscSize = totalSystemFileSpace + totalNonSystemFileSpace + ( interFilePaddingLength * totalNonSystemFiles )
 		
 		# print 'totalNonSystemFiles determined:', totalNonSystemFiles
 		# print 'interFilePaddingLength:', hex(interFilePaddingLength)
@@ -1434,7 +1434,7 @@ class Disc( object ):
 		# print 'total system file space:', hex(totalSystemFileSpace)
 		# print 'total non-system file space:', hex(totalNonSystemFileSpace)
 		# print 'padding:', hex(interFilePaddingLength), 'paddingSetting:', paddingSetting
-		print 'projected disc size:', hex(projectedDiscSize), projectedDiscSize
+		# print 'projected disc size:', hex(projectedDiscSize), projectedDiscSize
 
 		dataCopiedSinceLastUpdate = 0
 		fileWriteSuccessful = False
@@ -2032,7 +2032,7 @@ class Disc( object ):
 		# Notify the user of incompatibility between the crash printout code and the Aux Code Regions, if they're both enabled
 		if globalData.checkSetting( 'alwaysEnableCrashReports' ) and globalData.checkRegionOverwrite( 'Aux Code Regions' ):
 			for mod in codeMods:
-				if mod.name == "Enable OSReport Print on Crash":
+				if mod and mod.name == "Enable OSReport Print on Crash":
 					msg( 'The Aux Code Regions are currently enabled for custom code, however this area is required for the "Enable '
 						 'OSReport Print on Crash" code to function, which is very useful for debugging crashes and is therefore '
 						 'enabled by default. \n\nYou can easily resolve this by one of three ways: 1) disable use of the Aux Code '
@@ -2223,6 +2223,8 @@ class Disc( object ):
 		#noSpaceRemaining = False
 
 		for mod in codeMods:
+			if not mod: continue # May be 'None' if a mod wasn't found
+
 			installCount += 1
 			self.updateProgressDisplay( 'Installing Mods', -1, installCount, totalModsToInstall )
 

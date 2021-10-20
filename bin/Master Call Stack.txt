@@ -154,6 +154,7 @@
 							HSD_PadFlushQueue
 							DisplayMemcardSaveBanner
 							USBScreenshot_InitMCC?
+		[801a4d98 = start of updateFunction loop]
 							RunDiscCheck		(checks for memory card for saving?)
 								DiscError_DisplayMessageMain
 								MemoryCard_CheckToSaveData
@@ -209,12 +210,6 @@
 							HSD_PerfSetTotalTime
 							HSD_PerfInitStat
 8022892c						DevelopMode_CheckForUSBScreenshot
-
-
-
-
-
-
 
 
 

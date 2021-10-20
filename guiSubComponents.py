@@ -343,14 +343,14 @@ class BasicWindow( object ):
 
 class CharacterChooser( BasicWindow ):
 
-	""" Prompts the user to choose a character. This references 
-		internal character ID and costume ID, which will be stored 
-		to "self.charId" and "self.costumeId", respectively. 
+	""" Prompts the user to choose a character. This references external character ID and 
+		costume ID, which will be stored to "self.charId" and "self.costumeId", respectively. 
 		This window will block the main interface until a selection is made. """
 
 	def __init__( self, message='', includeSpecialCharacters=False ):
 
 		BasicWindow.__init__( self, globalData.gui.root, 'Select a Character', offsets=(300, 300) )
+		
 		self.emptySelection = '---'
 		self.charId = -1
 		self.costumeId = -1

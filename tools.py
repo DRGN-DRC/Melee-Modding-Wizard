@@ -107,11 +107,21 @@ class ImageDataLengthCalculator( BasicWindow ):
 
 class TriCspCreator( object ):
 
+	# dolphinSettings = {
+	# 	# In Dolphin.ini
+	# 	'ConfirmStop': 'False',				# Prevent pop-up to confirm stopping emulation
+	# 	'FullscreenResolution': 'Auto',
+	# 	'Fullscreen': 'True',
+
+	# 	# In GFX.ini
+	# 	'wideScreenHack': 'True',
+	# }
+
 	def __init__( self ):
 
+		self.config = {}
 		self.gimpDir = ''
 		self.gimpExe = ''
-		self.cspConfig = {}
 
 		# Analyze the version of GIMP installed, and check for needed plugins
 		self.determineGimpPath()
@@ -134,12 +144,15 @@ class TriCspCreator( object ):
 		
 		# Load the CSP Configuration file
 		try:
-			cspConfigFilePath = os.path.join( globalData.paths['coreCodes'], 'CSP Configuration.yml' )
-			with codecs.open( cspConfigFilePath, 'r', encoding='utf-8' ) as stream: # Using a different read method to accommodate UTF-8 encoding
+			coreCodesFolder = globalData.paths['coreCodes']
+			configFilePath = os.path.join( coreCodesFolder, 'CSP Configuration.yml' )
+			with codecs.open( configFilePath, 'r', encoding='utf-8' ) as stream: # Using a different read method to accommodate UTF-8 encoding
 				#cls.yamlDescriptions = yaml.safe_load( stream ) # Vanilla yaml module method (loses comments when saving/dumping back to file)
-				self.cspConfig = yaml.load( stream, Loader=yaml.RoundTripLoader )
+				self.config = yaml.load( stream, Loader=yaml.RoundTripLoader )
+			self.dolphinSettingsFile = os.path.join( coreCodesFolder, 'csp-Dolphin.ini' )
+			self.gfxSettingsFile = os.path.join( coreCodesFolder, 'csp-GFX.ini' )
 		except IOError: # Couldn't find the file
-			msg( "Couldn't find the CSP config file at " + cspConfigFilePath, warning=True )
+			msg( "Couldn't find the CSP config file at " + configFilePath, warning=True )
 		except Exception as err: # Problem parsing the file
 			msg( 'There was an error while parsing the yaml config file:\n\n{}'.format(err) )
 
@@ -216,6 +229,11 @@ class TriCspCreator( object ):
 						return line.split( '=' )[-1].strip()
 			
 		return '-1'
+
+	# def getConfigInfo( self, option ):
+	# 	with codecs.open( descriptionsFile, 'r' ) as stream: # Using a different read method to accommodate UTF-8 encoding
+	# 		#cls.yamlDescriptions = yaml.safe_load( stream ) # Vanilla yaml module method (loses comments when saving/dumping back to file)
+	# 		cls.yamlDescriptions = yaml.load( stream, Loader=yaml.RoundTripLoader )
 
 
 class AsmToHexConverter( BasicWindow ):
@@ -429,8 +447,8 @@ class DolphinController( object ):
 
 	def __init__( self ):
 		self._exePath = ''
-		self.rootFolder = ''
-		self.userFolder = ''
+		self._rootFolder = ''
+		self._userFolder = ''
 		self.process = None
 
 	@property
@@ -443,11 +461,11 @@ class DolphinController( object ):
 			return self._exePath
 		
 		self._exePath = globalData.getEmulatorPath()
-		self.rootFolder = os.path.dirname( self._exePath )
-		self.userFolder = os.path.join( self.rootFolder, 'User' )
+		self._rootFolder = os.path.dirname( self._exePath )
+		self._userFolder = os.path.join( self._rootFolder, 'User' )
 
 		# Make sure that Dolphin is in 'portable' mode
-		portableFile = os.path.join( self.rootFolder, 'portable.txt' )
+		portableFile = os.path.join( self._rootFolder, 'portable.txt' )
 		if not os.path.exists( portableFile ):
 			print 'Dolphin is not in portable mode! Attempting to create portable.txt'
 			try:
@@ -458,12 +476,28 @@ class DolphinController( object ):
 					 "has write permissions in the Dolphin root directory.", 'Non-portable Dolphin', globalData.gui.root, warning=True )
 				return
 
-		if not os.path.exists( self.userFolder ):
+		if not os.path.exists( self._userFolder ):
 			self.start( '' ) # Will open, create the user folder, and close? todo: needs testing
 			# time.sleep( 4 )
 			# self.stop()
 
 		return self._exePath
+
+	@property
+	def rootFolder( self ):
+		if not self._rootFolder:
+			self.exePath
+		return self._rootFolder
+
+	@property
+	def userFolder( self ):
+		if not self._userFolder:
+			self.exePath
+		return self._userFolder
+
+	# @property
+	# def screenshotFolder( self ):
+	# 	return os.path.join( self.userFolder, 'ScreenShots' )
 
 	@property
 	def isRunning( self ):
@@ -527,3 +561,80 @@ class DolphinController( object ):
 		
 		if processFound:
 			time.sleep( 2 )
+
+	def getLatestScreenshot( self, gameId ):
+		screenshotFolder = os.path.join( self.userFolder, 'ScreenShots', gameId )
+
+	def getSettings( self, settingsDict ):
+
+		""" Read the main Dolphin settings file and graphics settings 
+			file to collect and return current settings. """
+
+		# Check the general settings file
+		settingsFilePath = os.path.join( self.userFolder, 'Config', 'Dolphin.ini' )
+		with open( settingsFilePath, 'r' ) as settingsFile:
+			for line in settingsFile.readlines():
+				if not '=' in line: continue
+
+				name, value = line.split( '=' )
+				name = name.strip()
+				value = value.strip()
+
+				if name in settingsDict:
+					settingsDict['name'] = value
+		
+		# Check the general settings file
+		settingsFilePath = os.path.join( self.userFolder, 'Config', 'GFX.ini' )
+		with open( settingsFilePath, 'r' ) as settingsFile:
+			for line in settingsFile.readlines():
+				if not '=' in line: continue
+
+				name, value = line.split( '=' )
+				name = name.strip()
+				value = value.strip()
+
+				if name in settingsDict:
+					settingsDict['name'] = value
+
+		return settingsDict
+	
+	def setSettings( self, settingsDict ):
+
+		""" Open the main Dolphin settings file and graphics settings 
+			and change settings to those given. """
+
+		# Read the general settings file
+		settingsFilePath = os.path.join( self.userFolder, 'Config', 'Dolphin.ini' )
+		with open( settingsFilePath, 'r' ) as settingsFile:
+			fileContents = settingsFile.read()
+		
+		with open( settingsFilePath, 'w' ) as settingsFile:
+			for line in fileContents.readlines():
+				if not '=' in line: continue
+
+				name, _ = line.split( '=' )
+				name = name.strip()
+
+				newValue = settingsDict.get( name )
+				if newValue:
+					settingsFile.write( '{} = {}'.format(name, newValue) )
+				else:
+					settingsFile.write( line )
+					
+		# Read the graphics settings file
+		settingsFilePath = os.path.join( self.userFolder, 'Config', 'GFX.ini' )
+		with open( settingsFilePath, 'r' ) as settingsFile:
+			fileContents = settingsFile.read()
+		
+		with open( settingsFilePath, 'w' ) as settingsFile:
+			for line in fileContents.readlines():
+				if not '=' in line: continue
+
+				name, _ = line.split( '=' )
+				name = name.strip()
+
+				newValue = settingsDict.get( name )
+				if newValue:
+					settingsFile.write( '{} = {}'.format(name, newValue) )
+				else:
+					settingsFile.write( line )

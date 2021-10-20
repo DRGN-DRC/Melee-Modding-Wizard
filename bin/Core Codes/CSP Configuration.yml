@@ -1,4 +1,4 @@
-Bowser:
+0x05: # Bowser
   threshold: 40
   centerImageXOffset: -34
   centerImageYOffset: 186
@@ -13,7 +13,7 @@ Bowser:
   camY: c00727ed
   camZ: 426f382b
 
-Captain Falcon: 
+0x00: # C. Falcon
   threshold: 40
   centerImageXOffset: 0
   centerImageYOffset: 124
@@ -22,13 +22,13 @@ Captain Falcon:
   sideImagesYOffset: -64
   sideImagesScaling: .46
   reverseSides: False
-  actionState:  0x42
-  frame: 0x41c0
+  actionState: 0x42
+  frame: 0x41c00000
   camX: 42004ae7
   camY: 40c80aff
   camZ: 4197e801
 
-DK:
+0x01: # DK
   threshold: 40
   centerImageXOffset: -307
   centerImageYOffset: 169
@@ -43,7 +43,7 @@ DK:
   camY: c17a10f1
   camZ: 420dc295
 
-Doctor Mario: 
+0x16: 
   threshold: 40
   centerImageXOffset: 23
   centerImageYOffset: 207
