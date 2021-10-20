@@ -78,9 +78,9 @@ li r15, [[Action State ID]]	# Load the action state ID
 stw r15, 0x21A0(r14)		# Store action state ID to 0x21A0 of P2 Player Character Data
 
 # Set the camera mode to paused
-lis r14, 0x80452C6C@h		# Load pointer to P2 Player Entity Struct
+lis r14, 0x80452C6C@h		# Load address for the current camera mode
 lwz r14, 0x80452C6C@l(r14)
-li r15, 1
+li r15, 1			# Use camera mode 1  (Paused)
 stw r15, 0(r14)
 
 OrigLine:
