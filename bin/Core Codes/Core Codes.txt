@@ -79,13 +79,50 @@ stw r15, 0x21A0(r14)		# Store action state ID to 0x21A0 of P2 Player Character D
 
 # Set the camera mode to paused
 lis r14, 0x80452C6C@h		# Load address for the current camera mode
-lwz r14, 0x80452C6C@l(r14)
+ori r14, r14, 0x80452C6C@l
 li r15, 1			# Use camera mode 1  (Paused)
 stw r15, 0(r14)
 
 OrigLine:
 li r0, 0	# Original code line
 b 0		# Placeholder for branch back
+
+
+	-==-
+
+
+CSP Camera Configuration
+Sets up the camera for taking CSP screenshots. On pause, the camera
+should go to the coordinates specified (supplied by CSP Creator).
+Configurations: # To be taken from the CSP Configuration file
+    uint32 X Coord = 0
+    uint32 Y Coord = 0
+    uint32 Z Coord = 0
+[DRGN]
+Revision ---- DOL Offset ---- Hex to Replace ---------- ASM Code -
+NTSC 1.02 --- 0x8016cb50 ---- 41820068 -> 60000000 # Enable regular VS Pause Camera in Debug Mode
+------------- 0x8000d8f4 ---- 9421FFD8 -> 4E800020 # Unrestricted camera
+------------- 0x8002f678 ---- D03F0320 -> Branch
+
+# Injecting into Camera_PauseScreenInitialize
+# While in the process of pausing, set custom X/Y/Z camera coords
+# Load and store the X/Y/Z coords
+lis r15, 0x80452f88@h			# Load address for storage (Cam1 X/Y/Z target)
+ori r15, r15, 0x80452f88@l
+lis r14, [[X Coord]]@h
+ori r14, r14, [[X Coord]]@l
+stw r14, 0(r15)
+lis r14, [[Y Coord]]@h
+ori r14, r14, [[Y Coord]]@l
+stw r14, 4(r15)
+lis r14, [[Z Coord]]@h
+ori r14, r14, [[Z Coord]]@l
+stw r14, 8(r15)
+
+# Return to normal execution
+#lis r15, 0x80452f88@h
+#ori r15, r15, 0x80452f88@l
+b 0x8002f68c
 
 
 	-==-

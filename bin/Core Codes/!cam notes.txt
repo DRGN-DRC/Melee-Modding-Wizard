@@ -6,6 +6,53 @@
 
 
 
+falcon
+80452f88 42004ae7
+80452f8c 40c80aff
+80452f90 4197e801
+
+
+cam 1 range ~ 80452f30 - 80452fb0
+
+written to by Camera_PauseScreenInitialize
+
+
+
+stack:
+
+8016ca68	Pause_IngameCheckPauseOnOff	(if 8046b6a4 == 0 and 8046b6a5 != 0: initiate pause)
+8016bc74		Pause_CheckButtonInputsToPause		(for scene 0xE, runs to 8016bd94 before real work)
+				[loops through all players; r30 holds current player index]
+				[break on 8016be40 to break on pause]
+				[can force pause by setting r3 to 0 (or another player index) at the end of this function]
+			MatchController_FreezeScreen_SetBool
+			[nop 8016cb50 to initialize normal pause camera]
+80165108		Pause_InitializeVSPauseCamera
+8002f73c			Camera_PauseScreenInitializeBegin_R5=0
+8002F4D4				Camera_PauseScreenInitialize
+						StageInfo_PauseInitialZPosition_Load
+
+
+
+		Pause_Camera_Translation&More_PerFrame
+8000d8f4		Math_Camera_CorrectPositionFromBoundaries
+
+
+
+lbz	r0, 0x24CC (r29)
+r29 = 8046b6a0
+
+first write in this function: 8002f55c
+
+	r31 = 80452C68
+
+
+major checks occur at 8002f5cc
+
+	calls StageInfo_PauseInitialZPosition_Load
+
+
+
 
 8016e730 00000204 8016e730 0 StartMelee
 

@@ -47,7 +47,6 @@ from guiSubComponents import (
 		HexEditEntry, CharacterChooser
 	)
 from guiDisc import DiscTab, DiscDetailsTab
-from codeMods import CodeLibraryParser
 from codesManager import CodeManagerTab
 from debugMenuEditor import DebugMenuEditor
 from stageManager import StageManager
@@ -432,97 +431,27 @@ class ToolsMenu( Tk.Menu, object ):
 		selectionWindow = CharacterChooser( "Select a character and costume color for CSP creation:" ) # References External ID
 		if selectionWindow.charId == -1: return # User may have canceled selection
 
-		# Get target action states and frames for the screenshots
-		# actionState = 0x1B
-		# targetFrame = 10.0
-		try:
-			actionState = cspCreator.config[selectionWindow.charId]['actionState']
-			targetFrame = cspCreator.config[selectionWindow.charId]['frame']
-			targetFrameId = targetFrame >> 16 # Just need the first two bytes of the float for this
-		except KeyError as err:
-			if err.message in ( 'actionState', 'frame' ): # Found the character dictionary, but couldn't find the sub-key
-				msg( 'Unable to find CSP "{}" info for character ID {} in "CSP Configuration.yml".'.format(err.message, selectionWindow.charId), 'CSP Config Error' )
-			else: # Couldn't find the character dictionary
-				msg( 'Unable to find CSP configuration info for external character ID {} in "CSP Configuration.yml".'.format(selectionWindow.charId), 'CSP Config Error' )
-			return
-
-		# Convert the target frame to Frame ID (for the Action State Freeze code) and the raw value for a float
-		#targetFrameId = hex( floatToHex( targetFrame ).replace( '0x', '' )[:4], 16 ) # Just the first 4 characters of a float string
-		# floatBytes = struct.pack( '>f', targetFrame )
-		# targetFrameId = struct.unpack( '>H', floatBytes[:2] )[0] # Only want two bytes from this
-
-		# Parse the Core Codes library for the codes needed for booting to match and setting up a pose
-		parser = CodeLibraryParser()
-		coreCodesFolder = globalData.paths['coreCodes']
-		parser.includePaths = [ os.path.join(coreCodesFolder, '.include'), os.path.join(globalData.scriptHomeFolder, '.include') ]
-		parser.processDirectory( coreCodesFolder )
-		codesToInstall = []
-
-		# Customize the Asset Test mod to load the chosen characters/costumes
-		assetTest = parser.getModByName( 'Asset Test' )
-		if not assetTest:
-			msg( 'Unable to find the Asset Test mod in the Core Codes library!', warning=True )
-			return
-		assetTest.configure( "Player 1 Character", selectionWindow.charId )
-		assetTest.configure( "P1 Costume ID", selectionWindow.costumeId )
-		assetTest.configure( "Player 2 Character", selectionWindow.charId )
-		assetTest.configure( "P2 Costume ID", selectionWindow.costumeId )
-		if selectionWindow.charId == 0x13: # Special case for Sheik (for different lighting direction)
-			assetTest.configure( "Stage", 3 ) # Selecting Pokemon Stadium
-		else:
-			assetTest.configure( "Stage", 32 ) # Selecting FD
-		codesToInstall.append( assetTest )
-
-		# Customize Enter Action State On Match Start
-		actionStateStart = parser.getModByName( 'Enter Action State On Match Start' )
-		if not actionStateStart:
-			msg( 'Unable to find the Enter Action State On Match Start mod in the Core Codes library!', warning=True )
-			return
-		actionStateStart.configure( 'Action State ID', actionState )
-		actionStateStart.configure( 'Start Frame', 0 )
-		codesToInstall.append( actionStateStart )
-		
-		# Customize Action State Freeze
-		actionStateFreeze = parser.getModByName( 'Action State Freeze' )
-		if not actionStateFreeze:
-			msg( 'Unable to find the Action State Freeze mod in the Core Codes library!', warning=True )
-			return
-		actionStateFreeze.configure( 'Action State ID', actionState )
-		actionStateFreeze.configure( 'Frame ID', targetFrameId )
-		codesToInstall.append( actionStateFreeze )
-
-		codesToInstall.append( parser.getModByName('Zero-G Mode') )
-
-		# Restore the disc's DOL data to vanilla and then install the necessary codes
-		microMelee.restoreDol( countAsNewFile=False )
-		microMelee.installCodeMods( codesToInstall )
-		microMelee.save()
-
-		# Get current Dolphin settings, so they can be restored afterwards
-		# priorSettings = dict.fromkeys( cspCreator.dolphinSettings ) # Initializes with values set to None
-		# globalData.dolphinController.getSettings( priorSettings )
-
-		# Set Dolphin's graphics settings for CSP creation
-		#globalData.dolphinController.setSettings( cspCreator.dolphinSettings )
-
 		# Backup Dolphin's current settings files
 		settingsFolder = os.path.join( globalData.dolphinController.userFolder, 'Config' )
 		generalSettingsFile = os.path.join( settingsFolder, 'Dolphin.ini' )
 		gfxSettingsFile = os.path.join( settingsFolder, 'GFX.ini' )
-		os.rename( generalSettingsFile, generalSettingsFile + '.bak' )
-		os.rename( gfxSettingsFile, gfxSettingsFile + '.bak' )
+		try:
+			os.rename( generalSettingsFile, generalSettingsFile + '.bak' )
+			os.rename( gfxSettingsFile, gfxSettingsFile + '.bak' )
+		except WindowsError: # Likely the backup files already exist
+			pass # Keep the old backup files; do not replace
 
 		# Copy over the Dolphin settings files for CSP creation
 		copy( cspCreator.dolphinSettingsFile, generalSettingsFile )
 		copy( cspCreator.gfxSettingsFile, gfxSettingsFile )
 
-		# Engage emulation
-		globalData.dolphinController.start( microMelee )
+		# Generate the Left/Right screenshots
+		globalData.gui.updateProgramStatus( 'Generating left-side screenshot...' )
+		leftScreenshot = cspCreator.createLeftScreenshot( microMelee, selectionWindow.charId, selectionWindow.costumeId, 'lat' )
+		# globalData.gui.updateProgramStatus( 'Generating right-side screenshot...' )
+		# leftScreenshot = cspCreator.createLeftScreenshot( microMelee, selectionWindow.charId, selectionWindow.costumeId, 'rat' )
 
-		# Stop emulation
-		globalData.dolphinController.stop()
-
-		# Remove previous settings
+		# Restore previous Dolphin settings
 		os.remove( generalSettingsFile )
 		os.remove( gfxSettingsFile )
 		os.rename( generalSettingsFile + '.bak', generalSettingsFile )

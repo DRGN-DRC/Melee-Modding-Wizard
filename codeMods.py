@@ -3233,7 +3233,7 @@ class CommandProcessor( object ):
 			if errors:
 				return ( 2, 'Unable to assemble source code with custom syntaxes.\n\n' + errors )
 			else:
-				return ( 0, customCode )
+				return ( returnCode, customCode )
 
 		# Grab the last code section if present
 		if offset != codeChange.length:

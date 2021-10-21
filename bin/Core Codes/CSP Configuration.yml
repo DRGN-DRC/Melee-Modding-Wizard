@@ -9,9 +9,9 @@
   reverseSides: False
   actionState: 0x15b
   frame: 0x4120
-  camX: 4172526c
-  camY: c00727ed
-  camZ: 426f382b
+  camX: 0x4172526c
+  camY: 0xc00727ed
+  camZ: 0x426f382b
 
 0x00: # C. Falcon
   threshold: 40
@@ -24,9 +24,9 @@
   reverseSides: False
   actionState: 0x42
   frame: 0x41c00000
-  camX: 42004ae7
-  camY: 40c80aff
-  camZ: 4197e801
+  camX: 0x42004ae7
+  camY: 0x40c80aff
+  camZ: 0x4197e801
 
 0x01: # DK
   threshold: 40
@@ -39,9 +39,9 @@
   reverseSides: False
   actionState: 0x1b
   frame: 0x4000
-  camX: 42726fbe
-  camY: c17a10f1
-  camZ: 420dc295
+  camX: 0x42726fbe
+  camY: 0xc17a10f1
+  camZ: 0x420dc295
 
 0x16: 
   threshold: 40
@@ -54,9 +54,9 @@
   reverseSides: False
   actionState: 0x41
   frame: 0x4100
-  camX: 41058c79
-  camY: 40a05ed7
-  camZ: 41f53181
+  camX: 0x41058c79
+  camY: 0x40a05ed7
+  camZ: 0x41f53181
 
 Falco:
   threshold: 40
@@ -69,9 +69,9 @@ Falco:
   reverseSides: False
   actionState: 0x15a
   frame: 0x40a0
-  camX: 41ab0f1b
-  camY: 3ebe90dd
-  camZ: 4215f34b
+  camX: 0x41ab0f1b
+  camY: 0x3ebe90dd
+  camZ: 0x4215f34b
 
 Fox:
   threshold: 40
@@ -84,9 +84,9 @@ Fox:
   reverseSides: False
   actionState: 0x15a
   frame: 0x40a0
-  camX: 4182015e
-  camY: 3eb3cc4a
-  camZ: 42152d9b
+  camX: 0x4182015e
+  camY: 0x3eb3cc4a
+  camZ: 0x42152d9b
 
 Game and Watch:
   threshold: 40
@@ -99,9 +99,9 @@ Game and Watch:
   reverseSides: False
   actionState: 0x45
   frame: 0x41f0
-  camX: 00000000
-  camY: c09eee2b
-  camZ: 423ef62b
+  camX: 0x00000000
+  camY: 0xc09eee2b
+  camZ: 0x423ef62b
 
 Ganon:
   threshold: 40
@@ -114,9 +114,9 @@ Ganon:
   reverseSides: False
   actionState: 0x108
   frame: 0x4248
-  camX: 41363c41
-  camY: 41009923
-  camZ: 4242322f
+  camX: 0x41363c41
+  camY: 0x41009923
+  camZ: 0x4242322f
 
 Ice Climbers:
   threshold: 30
@@ -129,9 +129,9 @@ Ice Climbers:
   reverseSides: False
   actionState: 0x158
   frame: 0x4288
-  camX: 41d68b54
-  camY: 3e2d1618
-  camZ: 41efe201
+  camX: 0x41d68b54
+  camY: 0x3e2d1618
+  camZ: 0x41efe201
 
 Jigglypuff:
   threshold: 40
@@ -144,9 +144,9 @@ Jigglypuff:
   reverseSides: True
   actionState: 0x43
   frame: 0x4110
-  camX: 40596c6d
-  camY: 3fd2f553
-  camZ: 4209696b
+  camX: 0x40596c6d
+  camY: 0x3fd2f553
+  camZ: 0x4209696b
 
 Kirby:
   threshold: 40
@@ -159,9 +159,9 @@ Kirby:
   reverseSides: False
   actionState: 0x41
   frame: 0x4230
-  camX: 3fde0e18
-  camY: 4068dce3
-  camZ: 41ea3184
+  camX: 0x3fde0e18
+  camY: 0x4068dce3
+  camZ: 0x41ea3184
 
 Link:
   threshold: 0
@@ -174,9 +174,9 @@ Link:
   reverseSides: False
   actionState: 0x165
   frame: 0x41d0
-  camX: c218dcf5
-  camY: 40a0c470
-  camZ: 420321bd
+  camX: 0xc218dcf5
+  camY: 0x40a0c470
+  camZ: 0x420321bd
 
 Luigi:
   threshold: 0
@@ -189,9 +189,9 @@ Luigi:
   reverseSides: False
   actionState: 0x156
   frame: 0x41c0
-  camX: 416a6406
-  camY: 4092702e
-  camZ: 420f905a
+  camX: 0x416a6406
+  camY: 0x4092702e
+  camZ: 0x420f905a
 
 Mario:
   threshold: 0
@@ -204,9 +204,9 @@ Mario:
   reverseSides: False
   actionState: 0x42
   frame: 0x4040
-  camX: 410ef8c5
-  camY: 3fcee488
-  camZ: 420cd983
+  camX: 0x410ef8c5
+  camY: 0x3fcee488
+  camZ: 0x420cd983
 
 Marth: 
   threshold: 40
@@ -219,9 +219,9 @@ Marth:
   reverseSides: True
   actionState: 0x156
   frame: 0x4150
-  camX: c134fc98
-  camY: c05ec8b4
-  camZ: 42250ad6
+  camX: 0xc134fc98
+  camY: 0xc05ec8b4
+  camZ: 0x42250ad6
 
 Mewtwo:
   threshold: 40
@@ -234,9 +234,9 @@ Mewtwo:
   reverseSides: True
   actionState: 0x2c
   frame: 0x4120
-  camX: c1a22fd1
-  camY: 407e0820
-  camZ: 420e4f45
+  camX: 0xc1a22fd1
+  camY: 0x407e0820
+  camZ: 0x420e4f45
 
 Ness:
   threshold: 40
@@ -249,9 +249,9 @@ Ness:
   reverseSides: False
   actionState: 0x155
   frame: 0x40c0
-  camX: 41702ee6
-  camY: bf2987c7
-  camZ: 41ed8c18
+  camX: 0x41702ee6
+  camY: 0xbf2987c7
+  camZ: 0x41ed8c18
 
 Peach:
   threshold: 40
@@ -264,9 +264,9 @@ Peach:
   reverseSides: True
   actionState: 0x15a
   frame: 0x4190
-  camX: c04b69b1
-  camY: c035324b
-  camZ: 423828df
+  camX: 0xc04b69b1
+  camY: 0xc035324b
+  camZ: 0x423828df
 
 Pichu:
   threshold: 40
@@ -279,9 +279,9 @@ Pichu:
   reverseSides: False
   actionState: 0x15d
   frame: 0x4040
-  camX: c20b37a2
-  camY: c02de0e6
-  camZ: 402557b0
+  camX: 0xc20b37a2
+  camY: 0xc02de0e6
+  camZ: 0x402557b0
 
 Pikachu:
   threshold: 40
@@ -294,9 +294,9 @@ Pikachu:
   reverseSides: False
   actionState: 0x108
   frame: 0x4260
-  camX: c0361ee5
-  camY: 40b85b80
-  camZ: 41fd2549
+  camX: 0xc0361ee5
+  camY: 0x40b85b80
+  camZ: 0x41fd2549
 
 Roy:
   threshold: 30
@@ -309,9 +309,9 @@ Roy:
   reverseSides: False
   actionState: 0x108
   frame: 0x4234
-  camX: 418510f7
-  camY: 400e6b44
-  camZ: 41f61733
+  camX: 0x418510f7
+  camY: 0x400e6b44
+  camZ: 0x41f61733
 
 Samus:
 
@@ -326,9 +326,9 @@ Sheik:
   reverseSides: True
   actionState: 0x15c
   frame: 0x40a0
-  camX: c1fa8fcb
-  camY: c0436685
-  camZ: 3fcd739a
+  camX: 0xc1fa8fcb
+  camY: 0xc0436685
+  camZ: 0x3fcd739a
 
 Yoshi:
   threshold: 40
@@ -341,9 +341,9 @@ Yoshi:
   reverseSides: True
   actionState: 0x35
   frame: 0x4160
-  camX: c04b69b1
-  camY: 40905a28
-  camZ: 42320264
+  camX: 0xc04b69b1
+  camY: 0x40905a28
+  camZ: 0x42320264
 
 Young Link:
   threshold: 30
@@ -356,7 +356,7 @@ Young Link:
   reverseSides: False
   actionState: 0x165
   frame: 0x41d0
-  camX: c218dcf5
-  camY: 40a0c470
-  camZ: 420321bd
+  camX: 0xc218dcf5
+  camY: 0x40a0c470
+  camZ: 0x420321bd
 

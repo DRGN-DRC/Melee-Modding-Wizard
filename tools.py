@@ -23,6 +23,7 @@ from ScrolledText import ScrolledText
 
 # Internal dependencies
 import globalData
+from codeMods import CodeLibraryParser
 from basicFunctions import msg, uHex, cmdChannel, printStatus
 from guiSubComponents import BasicWindow, cmsg, Dropdown
 
@@ -106,16 +107,6 @@ class ImageDataLengthCalculator( BasicWindow ):
 
 
 class TriCspCreator( object ):
-
-	# dolphinSettings = {
-	# 	# In Dolphin.ini
-	# 	'ConfirmStop': 'False',				# Prevent pop-up to confirm stopping emulation
-	# 	'FullscreenResolution': 'Auto',
-	# 	'Fullscreen': 'True',
-
-	# 	# In GFX.ini
-	# 	'wideScreenHack': 'True',
-	# }
 
 	def __init__( self ):
 
@@ -235,6 +226,100 @@ class TriCspCreator( object ):
 	# 		#cls.yamlDescriptions = yaml.safe_load( stream ) # Vanilla yaml module method (loses comments when saving/dumping back to file)
 	# 		cls.yamlDescriptions = yaml.load( stream, Loader=yaml.RoundTripLoader )
 
+	def createLeftScreenshot( self, microMelee, charId, costumeId, charExtension ):
+
+		# Get target action states and frames for the screenshots
+		try:
+			characterDict = self.config[charId]
+			actionState = characterDict['actionState']
+			targetFrame = characterDict['frame']
+			camX = characterDict['camX']
+			camY = characterDict['camY']
+			camZ = characterDict['camZ']
+			targetFrameId = targetFrame >> 16 # Just need the first two bytes of the float for this
+		except KeyError as err:
+			if err.message in ( 'actionState', 'frame' ): # Found the character dictionary, but couldn't find the sub-key
+				msg( 'Unable to find CSP "{}" info for character ID {} in "CSP Configuration.yml".'.format(err.message, charId), 'CSP Config Error' )
+			else: # Couldn't find the character dictionary
+				msg( 'Unable to find CSP configuration info for external character ID {} in "CSP Configuration.yml".'.format(charId), 'CSP Config Error' )
+			return
+
+		# Replace the character in the Micro Melee disc with the 20XX skin
+		charAbbr = globalData.charAbbrList[charId]
+		colorAbbr = globalData.costumeSlots[charAbbr][costumeId]
+		fileName = 'Pl{}{}.{}'.format( charAbbr, colorAbbr, charExtension )
+		origFile = globalData.disc.files[globalData.disc.gameId + '/' + fileName]
+		newFile = microMelee.files[globalData.disc.gameId + '/' + fileName.replace( '.' + charExtension, '.dat' )]
+		microMelee.replaceFile( origFile, newFile )
+		print( 'Char ID: {} ({}), Color ID: {} ({})'.format(charId, charAbbr, costumeId, colorAbbr) )
+		print( 'File to be replaced: ' + globalData.disc.gameId + '/' + fileName )
+
+		# Convert the target frame to Frame ID (for the Action State Freeze code) and the raw value for a float
+		#targetFrameId = hex( floatToHex( targetFrame ).replace( '0x', '' )[:4], 16 ) # Just the first 4 characters of a float string
+		# floatBytes = struct.pack( '>f', targetFrame )
+		# targetFrameId = struct.unpack( '>H', floatBytes[:2] )[0] # Only want two bytes from this
+
+		# Parse the Core Codes library for the codes needed for booting to match and setting up a pose
+		parser = CodeLibraryParser()
+		coreCodesFolder = globalData.paths['coreCodes']
+		parser.includePaths = [ os.path.join(coreCodesFolder, '.include'), os.path.join(globalData.scriptHomeFolder, '.include') ]
+		parser.processDirectory( coreCodesFolder )
+		codesToInstall = []
+
+		# Customize the Asset Test mod to load the chosen characters/costumes
+		assetTest = parser.getModByName( 'Asset Test' )
+		if not assetTest:
+			msg( 'Unable to find the Asset Test mod in the Core Codes library!', warning=True )
+			return
+		assetTest.configure( "Player 1 Character", charId )
+		assetTest.configure( "P1 Costume ID", costumeId )
+		assetTest.configure( "Player 2 Character", charId )
+		assetTest.configure( "P2 Costume ID", costumeId )
+		if charId == 0x13: # Special case for Sheik (for different lighting direction)
+			assetTest.configure( "Stage", 3 ) # Selecting Pokemon Stadium
+		else:
+			assetTest.configure( "Stage", 32 ) # Selecting FD
+		codesToInstall.append( assetTest )
+
+		# Customize Enter Action State On Match Start
+		actionStateStart = parser.getModByName( 'Enter Action State On Match Start' )
+		if not actionStateStart:
+			msg( 'Unable to find the Enter Action State On Match Start mod in the Core Codes library!', warning=True )
+			return
+		actionStateStart.configure( 'Action State ID', actionState )
+		actionStateStart.configure( 'Start Frame', 0 )
+		codesToInstall.append( actionStateStart )
+		
+		# Customize Action State Freeze
+		actionStateFreeze = parser.getModByName( 'Action State Freeze' )
+		if not actionStateFreeze:
+			msg( 'Unable to find the Action State Freeze mod in the Core Codes library!', warning=True )
+			return
+		actionStateFreeze.configure( 'Action State ID', actionState )
+		actionStateFreeze.configure( 'Frame ID', targetFrameId )
+		codesToInstall.append( actionStateFreeze )
+
+		codesToInstall.append( parser.getModByName('Zero-G Mode') )
+
+		# Configure the camera
+		cameraMod = parser.getModByName('CSP Camera Configuration')
+		cameraMod.configure( 'X Coord', camX )
+		cameraMod.configure( 'Y Coord', camY )
+		cameraMod.configure( 'Z Coord', camZ )
+		codesToInstall.append( cameraMod )
+
+		# Restore the disc's DOL data to vanilla and then install the necessary codes
+		microMelee.restoreDol( countAsNewFile=False )
+		microMelee.installCodeMods( codesToInstall )
+		microMelee.save()
+
+		# Engage emulation
+		globalData.dolphinController.start( microMelee )
+
+		time.sleep( 25 ) # Expecting to get to pause state in 20s
+
+		# Stop emulation
+		globalData.dolphinController.stop()
 
 class AsmToHexConverter( BasicWindow ):
 
