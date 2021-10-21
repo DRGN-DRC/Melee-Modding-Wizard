@@ -1334,13 +1334,15 @@ class Disc( object ):
 
 		try:
 			for updateIndex, fileObj in enumerate( filesToSave, start=1 ):
-				if not fileObj.data:
+				# Get the file's data
+				fileData = fileObj.getData()
+				if not fileData:
 					print 'Unable to update', fileObj.isoPath + '; no file data found'
 					continue
 
 				# Navigate to the location of the file in the disc and write the new data
 				isoBinary.seek( fileObj.offset )
-				isoBinary.write( fileObj.getData() )
+				isoBinary.write( fileData )
 
 				# Check if padding should be added after the file (i.e. the new file is smaller, and it's not the DOL
 				# If it's the DOL, the FST should be moved/placed right after it, without padding.)

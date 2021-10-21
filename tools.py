@@ -300,9 +300,10 @@ class TriCspCreator( object ):
 		codesToInstall.append( actionStateFreeze )
 
 		codesToInstall.append( parser.getModByName('Zero-G Mode') )
+		codesToInstall.append( parser.getModByName('Modified Camera Info Flag Initialization') )
 
 		# Configure the camera
-		cameraMod = parser.getModByName('CSP Camera Configuration')
+		cameraMod = parser.getModByName( 'CSP Camera Configuration' )
 		cameraMod.configure( 'X Coord', camX )
 		cameraMod.configure( 'Y Coord', camY )
 		cameraMod.configure( 'Z Coord', camZ )

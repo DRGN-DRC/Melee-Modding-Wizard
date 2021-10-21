@@ -446,7 +446,7 @@ class ToolsMenu( Tk.Menu, object ):
 		copy( cspCreator.gfxSettingsFile, gfxSettingsFile )
 
 		# Generate the Left/Right screenshots
-		globalData.gui.updateProgramStatus( 'Generating left-side screenshot...' )
+		globalData.gui.updateProgramStatus( 'Generating left-side screenshot...', forceUpdate=True )
 		leftScreenshot = cspCreator.createLeftScreenshot( microMelee, selectionWindow.charId, selectionWindow.costumeId, 'lat' )
 		# globalData.gui.updateProgramStatus( 'Generating right-side screenshot...' )
 		# leftScreenshot = cspCreator.createLeftScreenshot( microMelee, selectionWindow.charId, selectionWindow.costumeId, 'rat' )

@@ -43,7 +43,7 @@
   camY: 0xc17a10f1
   camZ: 0x420dc295
 
-0x16: 
+0x16: # Dr. Mario
   threshold: 40
   centerImageXOffset: 23
   centerImageYOffset: 207
@@ -58,7 +58,7 @@
   camY: 0x40a05ed7
   camZ: 0x41f53181
 
-Falco:
+0x14: # Falco
   threshold: 40
   centerImageXOffset: 102
   centerImageYOffset: 166
@@ -73,7 +73,7 @@ Falco:
   camY: 0x3ebe90dd
   camZ: 0x4215f34b
 
-Fox:
+0x02: # Fox
   threshold: 40
   centerImageXOffset: 72
   centerImageYOffset: 164

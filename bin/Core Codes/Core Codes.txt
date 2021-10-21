@@ -78,10 +78,10 @@ li r15, [[Action State ID]]	# Load the action state ID
 stw r15, 0x21A0(r14)		# Store action state ID to 0x21A0 of P2 Player Character Data
 
 # Set the camera mode to paused
-lis r14, 0x80452C6C@h		# Load address for the current camera mode
-ori r14, r14, 0x80452C6C@l
-li r15, 1			# Use camera mode 1  (Paused)
-stw r15, 0(r14)
+#lis r14, 0x80452C6C@h		# Load address for the current camera mode
+#ori r14, r14, 0x80452C6C@l
+#li r15, 1			# Use camera mode 1  (Paused)
+#stw r15, 0(r14)
 
 OrigLine:
 li r0, 0	# Original code line
@@ -102,7 +102,7 @@ Configurations: # To be taken from the CSP Configuration file
 Revision ---- DOL Offset ---- Hex to Replace ---------- ASM Code -
 NTSC 1.02 --- 0x8016cb50 ---- 41820068 -> 60000000 # Enable regular VS Pause Camera in Debug Mode
 ------------- 0x8000d8f4 ---- 9421FFD8 -> 4E800020 # Unrestricted camera
-------------- 0x8002f678 ---- D03F0320 -> Branch
+------------- 0x8002bfd8 ---- 907e0000 -> Branch
 
 # Injecting into Camera_PauseScreenInitialize
 # While in the process of pausing, set custom X/Y/Z camera coords
@@ -119,10 +119,11 @@ lis r14, [[Z Coord]]@h
 ori r14, r14, [[Z Coord]]@l
 stw r14, 8(r15)
 
+# An original line
+lwz	r0, 0x0018 (sp)
+
 # Return to normal execution
-#lis r15, 0x80452f88@h
-#ori r15, r15, 0x80452f88@l
-b 0x8002f68c
+b 0x8002bfec
 
 
 	-==-
@@ -228,13 +229,25 @@ lwz r0, 0x001C (sp)
 .long 0
 
 
--==-
+	-==-
   
  
-ASM - Modified Camera Info Flag Initialization
+Modified Camera Info Flag Initialization
 Allows you to specify new default flag states for the camera info struct. The default state does  
  not require developer mode to be enabled, and can still be modified freely by the usual developer  
  controller mode hotkeys.
+Customizations:
+    mask16 Camera Flags = 0x3C04 # No Players and Show ECB enabled by default	
+	0x8000 : Hide players
+	0x2000 : Disable Background
+	0x1000 : Disable Background Particles
+	0x0800 : Disable Background Lights (?)
+	0x0400 : Disable Background Color Effects
+	0x0010 : Enable ECB, stage geometry, and other visualizations
+ 	0x0008 : Enable camera facing orientation visualizations
+	0x0004 : Disable Background and stage geometry display
+	0x0002 : ?
+	0x0001 : Disable Ground Textures (?)
 [Punkline]
 Revision ---- DOL Offset ---- Hex to Replace ---------- ASM Code -
 NTSC 1.02 --- 0x80028dc8 ---- 981F039A -> Branch
@@ -243,7 +256,7 @@ stb r0, 0x039A (r31)
 # original instruction
   
 li r0, 0                # default base
-flags: xori r0, r0, 0x0000   
+flags: xori r0, r0, [[Camera Flags]]  
 # modifiable bools at flags+2:
 # + 0x8000 : hide players
 # + 0x2000 : Disable Background
@@ -257,7 +270,7 @@ flags: xori r0, r0, 0x0000
 # + 0x0001 : Disable Ground Textures (?)
   
 sth r0, 0x398(r31)
-.long 0
+b 0
 
 
 	-==-

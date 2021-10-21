@@ -2,7 +2,7 @@
 *.pyc
 
 # Ignore the settings.ini file (user settings)
-*.ini
+/*.ini
 
 # Ignore directories output by build operations
 /[Bb]uild*/
