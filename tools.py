@@ -248,8 +248,8 @@ class TriCspCreator( object ):
 		charAbbr = globalData.charAbbrList[charId]
 		colorAbbr = globalData.costumeSlots[charAbbr][costumeId]
 		fileName = 'Pl{}{}.{}'.format( charAbbr, colorAbbr, charExtension )
-		origFile = globalData.disc.files[globalData.disc.gameId + '/' + fileName]
-		newFile = microMelee.files[globalData.disc.gameId + '/' + fileName.replace( '.' + charExtension, '.dat' )]
+		origFile = microMelee.files[globalData.disc.gameId + '/' + fileName.replace( '.' + charExtension, '.dat' )]
+		newFile = globalData.disc.files[globalData.disc.gameId + '/' + fileName]
 		microMelee.replaceFile( origFile, newFile )
 		print( 'Char ID: {} ({}), Color ID: {} ({})'.format(charId, charAbbr, costumeId, colorAbbr) )
 		print( 'File to be replaced: ' + globalData.disc.gameId + '/' + fileName )

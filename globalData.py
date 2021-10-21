@@ -512,7 +512,6 @@ def getMicroMelee():
 
 	# Check if a Micro Melee disc already exists
 	if os.path.exists( microMeleePath ):
-		print 'using existing MM'
 		microMelee = MicroMelee( microMeleePath )
 		microMelee.loadGameCubeMediaFile()
 
