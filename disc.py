@@ -994,6 +994,10 @@ class Disc( object ):
 		if newFileObj.size == -1:
 			newFileObj.size = newFileObj.origSize = len( newFileObj.getData() )
 
+		# Ensure there is data for the file before changing disc source
+		if newFileObj.disc and not newFileObj.data:
+			newFileObj.getData()
+
 		# Replace the file
 		self.files[origFileObj.isoPath] = newFileObj
 		newFileObj.disc = self
@@ -1327,9 +1331,9 @@ class Disc( object ):
 			isoBinary = open( self.filePath, 'r+b' )
 		except Exception as err:
 			if os.path.exists( self.filePath ):
-				msg( 'Unable to open the original disc binary. Be sure that it has not been moved or deleted.', 'Unable to Save', warning=True )
+				msg( 'Unable to open the original disc file. Be sure that it has not been moved or deleted.', 'Unable to Save', warning=True )
 			else:
-				msg( 'Unable to open the original disc binary. Be sure that the file is not being used by another program (like Dolphin :P).', 'Unable to Save', warning=True )
+				msg( 'Unable to open the original disc file. Be sure that the file is not being used by another program (like Dolphin :P).', 'Unable to Save', warning=True )
 			return 4, []
 
 		try:
@@ -1337,7 +1341,7 @@ class Disc( object ):
 				# Get the file's data
 				fileData = fileObj.getData()
 				if not fileData:
-					print 'Unable to update', fileObj.isoPath + '; no file data found'
+					print 'Unable to update', fileObj.isoPath + '; unable to retrieve file data'
 					continue
 
 				# Navigate to the location of the file in the disc and write the new data
@@ -2226,6 +2230,9 @@ class Disc( object ):
 
 		for mod in codeMods:
 			if not mod: continue # May be 'None' if a mod wasn't found
+			elif mod.errors:
+				msg( 'Skipping installation of "{}" due to the following errors:\n\n{}'.format(mod.name, '\n'.join(mod.errors)) )
+				continue
 
 			installCount += 1
 			self.updateProgressDisplay( 'Installing Mods', -1, installCount, totalModsToInstall )

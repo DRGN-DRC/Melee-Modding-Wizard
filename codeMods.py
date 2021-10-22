@@ -27,7 +27,10 @@ from basicFunctions import toHex, validHex, msg, printStatus
 from guiSubComponents import cmsg
 
 
-ConfigurationTypes = { 'int8': 'b', 'uint8': 'B', 'int16': '>h', 'uint16': '>H', 'int32': '>i', 'uint32': '>I', 'float': '>f' }
+ConfigurationTypes = { 	'int8':   'b',	'uint8':   'B',	'mask8':   'B',
+						'int16': '>h',	'uint16': '>H',	'mask16': '>H',
+						'int32': '>i',	'uint32': '>I',	'mask32': '>I',
+						'float': '>f' }
 
 
 # def getCustomCodeLength( customCode, preProcess=False, includePaths=None, configurations=None ):
@@ -134,6 +137,16 @@ class CodeChange( object ):
 			however it's not expected to be available from the AMFS format. This method will retrieve it from 
 			a vanilla DOL if that is available. """
 
+		# If there's an original hex value, validate it
+		if self._origCode and not validHex( self._origCode ): # Should just be a hex string of the game's original code
+			msg( 'Problem detected while parsing "' + self.mod.name + '" in the mod library file "'
+				+ os.path.basename( self.mod.path ) + '" (index ' + str(self.mod.fileIndex+1) + ').\n\n'
+				'There is an invalid (non-hex) original hex value: ' + self._origCode, 'Incorrect Mod Formatting (Error Code 04.2)' )
+			self.mod.parsingError = True
+			self.mod.errors.append( 'Invalid original hex value: ' + self._origCode )
+			self._origCode = ''
+
+		# If no original hexcode, try to get it from the vanilla disc
 		if not self._origCode:
 			# Retrieve the vanilla disc path
 			vanillaDiscPath = globalData.getVanillaDiscPath()
@@ -234,20 +247,24 @@ class CodeChange( object ):
 			self.mod.errors.append( 'Assembly error with custom code change at {}:\n{}'.format(self.offset, codeOrErrorNote) )
 		elif self.processStatus == 2:
 			self.mod.parsingError = True
-			self.mod.stateDesc = 'Missing include file: ' + codeOrErrorNote
+			self.mod.stateDesc = 'Missing include file: {}'.format(codeOrErrorNote)
 			self.mod.errors.append( 'Missing include file: {}'.format(codeOrErrorNote) )
 			#self.mod.missingIncludes.append( preProcessedCustomCode ) # todo: implement a way to show these to the user (maybe warning icon & interface)
 		elif self.processStatus == 3:
 			self.mod.parsingError = True
-			self.mod.stateDesc = 'Configuration option not found: ' + codeOrErrorNote
-			self.mod.errors.append( 'Configuration option not found: {}'.format(codeOrErrorNote) )
+			if not self.mod.configurations:
+				self.mod.stateDesc = 'Unable to find configurations'
+				self.mod.errors.append( 'Unable to find configurations' )
+			else:
+				self.mod.stateDesc = 'Configuration option not found: {}'.format(codeOrErrorNote)
+				self.mod.errors.append( 'Configuration option not found: {}'.format(codeOrErrorNote) )
 		elif self.processStatus == 4:
 			self.mod.parsingError = True
 			self.mod.stateDesc = 'Configuration option "{}" missing type parameter'.format( codeOrErrorNote )
 			self.mod.errors.append( 'Configuration option "{}" missing type parameter'.format(codeOrErrorNote) )
 		elif self.processStatus == 5:
 			self.mod.parsingError = True
-			self.mod.stateDesc = 'Unrecognized configuration option type: ' + codeOrErrorNote
+			self.mod.stateDesc = 'Unrecognized configuration option type: {}'.format(codeOrErrorNote)
 			self.mod.errors.append( 'Unrecognized configuration option type: {}'.format(codeOrErrorNote) )
 
 		if self.processStatus != 0:
@@ -989,36 +1006,18 @@ class CodeLibraryParser():
 						elif totalValues == 2: # Should have an offset and an origHex value; e.g. from a line like "1.02 ------ 804D7A4C --- 00000000 ->"
 							origHex = ''.join( hexCodes[1].replace('0x', '').split() ) # Remove whitespace
 
-							# if not validHex( origHex ): # This is the game's original code, so it should just be hex.
-							# 	msg( 'Problem detected while parsing "' + mod.name + '" in the mod library file "' 
-							# 		+ os.path.basename( filepath ) + '" (index ' + str(fileIndex+1) + ').\n\n'
-							# 		'There is an invalid (non-hex) original hex value: ' + origHex, 'Incorrect Mod Formatting (Error Code 04.2)' )
-							# 	mod.parsingError = True
-							# 	customCode = []
-							# 	break
-
 						elif totalValues > 2: # Could be a standard static overwrite (1-liner), long static overwrite, or an injection mod
 							origHex = ''.join( hexCodes[1].replace('0x', '').split() ) # Remove whitespace
 							newHex = hexCodes[2]
 
 							if newHex.lower() == 'branch':
-								# isInjectionCode = True # Will later be switched back off, which is why this is separate from the modType variable below
-								# if mod.type == 'static': mod.type = 'injection' # 'static' is the only type that 'injection' can override.
 								changeType = 'injection'
-								
 							else: 
 								# If the values exist and are valid, add a codeChange tuple to the current game version changes list.
 								# if not validHex( offsetString.replace( '0x', '' ) ): # Should just be a hex offset.
 								# 	msg( 'Problem detected while parsing "' + mod.name + '" in the mod library file "' 
 								# 		+ os.path.basename( filepath ) + '" (index ' + str(fileIndex+1) + ').\n\n'
 								# 		'There is an invalid (non-hex) offset value: ' + offsetString, 'Incorrect Mod Formatting (Error Code 04.1)' )
-								# 	mod.parsingError = True
-								# 	customCode = []
-								# 	break
-								# elif not validHex( origHex ): # This is the game's original code, so it should just be hex.
-								# 	msg( 'Problem detected while parsing "' + mod.name + '" in the mod library file "' 
-								# 		+ os.path.basename( filepath ) + '" (index ' + str(fileIndex+1) + ').\n\n'
-								# 		'There is an invalid (non-hex) original hex value: ' + origHex, 'Incorrect Mod Formatting (Error Code 04.2)' )
 								# 	mod.parsingError = True
 								# 	customCode = []
 								# 	break
@@ -3044,8 +3043,6 @@ class CommandProcessor( object ):
 
 	def resolveCustomSyntaxes2( self, codeAddress, codeChange ):
 
-		#codeChange.rawCode, codeChange.preProcessedCode, codeChange.mod.includePaths, codeChange.mod.configurations
-
 		""" Replaces any custom branch syntaxes that don't exist in the assembler with standard 'b_ [intDistance]' branches, 
 			and replaces function symbols with literal RAM addresses, of where that function will end up residing in memory. 
 
@@ -3090,10 +3087,6 @@ class CommandProcessor( object ):
 					finishedBranch = self.assembleBranch( branchInstruction, branchDistance )
 					newHexCodeSections.append( finishedBranch )
 
-				# Check if this was the last section
-				# if syntaxOffset == codeChange.length - length:
-				# 	returnCode = 100
-
 			elif syntaxType == 'sym': # Contains a function symbol; something like 'lis r3, (<<function>>+0x40)@h'; change the symbol to an address
 				# Determine the RAM addresses for the symbols, and replace them in the line
 				for name in CodeLibraryParser.containsPointerSymbol( codeLine ):
@@ -3106,10 +3099,6 @@ class CommandProcessor( object ):
 				requiresAssembly = True
 				resolvedLinesForAssembly.append( codeLine )
 				newHexCodeSections.append( '60000000' ) # Placeholder
-
-				# Check if this was the last section
-				# if syntaxOffset == codeChange.length - length:
-				# 	returnCode = 100
 				
 			elif syntaxType == 'opt': # Identifies configuration option placeholders
 				#optionPairs = {}
@@ -3197,13 +3186,7 @@ class CommandProcessor( object ):
 					#newHex = hex( newHexValue )[2:]
 					newHex = "{:0{}X}".format( newHexValue, length*2 ) # Casting to string and padding left to [second arg] zeros
 					newHexCodeSections.append( newHex )
-						
-				# Check if this was the last section
-				# if syntaxOffset == codeChange.length - length:
-				# 	returnCode = 100
 
-			# else: # This code should already be pre-processed hex (assembled, with whitespace removed)
-			# 	offset += len( section ) / 2
 			else:
 				print 'Unrecognized syntax type!: ', syntaxType
 

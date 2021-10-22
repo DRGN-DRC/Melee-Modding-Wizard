@@ -432,18 +432,18 @@ class ToolsMenu( Tk.Menu, object ):
 		if selectionWindow.charId == -1: return # User may have canceled selection
 
 		# Backup Dolphin's current settings files
-		settingsFolder = os.path.join( globalData.dolphinController.userFolder, 'Config' )
-		generalSettingsFile = os.path.join( settingsFolder, 'Dolphin.ini' )
-		gfxSettingsFile = os.path.join( settingsFolder, 'GFX.ini' )
-		try:
-			os.rename( generalSettingsFile, generalSettingsFile + '.bak' )
-			os.rename( gfxSettingsFile, gfxSettingsFile + '.bak' )
-		except WindowsError: # Likely the backup files already exist
-			pass # Keep the old backup files; do not replace
+		# settingsFolder = os.path.join( globalData.dolphinController.userFolder, 'Config' )
+		# generalSettingsFile = os.path.join( settingsFolder, 'Dolphin.ini' )
+		# gfxSettingsFile = os.path.join( settingsFolder, 'GFX.ini' )
+		# try:
+		# 	os.rename( generalSettingsFile, generalSettingsFile + '.bak' )
+		# 	os.rename( gfxSettingsFile, gfxSettingsFile + '.bak' )
+		# except WindowsError: # Likely the backup files already exist
+		# 	pass # Keep the old backup files; do not replace
 
 		# Copy over the Dolphin settings files for CSP creation
-		copy( cspCreator.dolphinSettingsFile, generalSettingsFile )
-		copy( cspCreator.gfxSettingsFile, gfxSettingsFile )
+		# copy( cspCreator.dolphinSettingsFile, generalSettingsFile )
+		# copy( cspCreator.gfxSettingsFile, gfxSettingsFile )
 
 		# Generate the Left/Right screenshots
 		globalData.gui.updateProgramStatus( 'Generating left-side screenshot...', forceUpdate=True )
@@ -452,10 +452,10 @@ class ToolsMenu( Tk.Menu, object ):
 		# leftScreenshot = cspCreator.createLeftScreenshot( microMelee, selectionWindow.charId, selectionWindow.costumeId, 'rat' )
 
 		# Restore previous Dolphin settings
-		os.remove( generalSettingsFile )
-		os.remove( gfxSettingsFile )
-		os.rename( generalSettingsFile + '.bak', generalSettingsFile )
-		os.rename( gfxSettingsFile + '.bak', gfxSettingsFile )
+		# os.remove( generalSettingsFile )
+		# os.remove( gfxSettingsFile )
+		# os.rename( generalSettingsFile + '.bak', generalSettingsFile )
+		# os.rename( gfxSettingsFile + '.bak', gfxSettingsFile )
 
 
 	def findUnusedStages( self ):

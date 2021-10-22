@@ -16,6 +16,7 @@ import ttk
 import time
 import codecs
 import psutil
+import win32gui
 import subprocess
 import Tkinter as Tk
 from ruamel import yaml
@@ -221,11 +222,6 @@ class TriCspCreator( object ):
 			
 		return '-1'
 
-	# def getConfigInfo( self, option ):
-	# 	with codecs.open( descriptionsFile, 'r' ) as stream: # Using a different read method to accommodate UTF-8 encoding
-	# 		#cls.yamlDescriptions = yaml.safe_load( stream ) # Vanilla yaml module method (loses comments when saving/dumping back to file)
-	# 		cls.yamlDescriptions = yaml.load( stream, Loader=yaml.RoundTripLoader )
-
 	def createLeftScreenshot( self, microMelee, charId, costumeId, charExtension ):
 
 		# Get target action states and frames for the screenshots
@@ -321,6 +317,15 @@ class TriCspCreator( object ):
 
 		# Stop emulation
 		globalData.dolphinController.stop()
+
+	def getScreenshot( self, processId ):
+
+		""" Tells a running Dolphin instance to take a screenshot, 
+			and then gets/returns the filepath to that screenshot. """
+
+		pass
+
+
 
 class AsmToHexConverter( BasicWindow ):
 
@@ -624,7 +629,7 @@ class DolphinController( object ):
 			command = '"{}" --batch --exec="{}"'.format( self.exePath, discObj.filePath )
 		self.process = subprocess.Popen( command, stderr=subprocess.STDOUT, creationflags=0x08000000 )
 
-		#print 'is running:', self.isRunning
+		print 'Dolphin started; with process ID', self.process
 
 	def stop( self ):
 
@@ -724,3 +729,24 @@ class DolphinController( object ):
 					settingsFile.write( '{} = {}'.format(name, newValue) )
 				else:
 					settingsFile.write( line )
+
+	def somePrint( self ):
+		pass
+
+	def _windowEnumsCallback( self, windowId, someList ):
+
+		threadId, processId = win32process.GetWindowThreadProcessId( windowId )
+
+		if processId == self.process.pid and win32gui.IsWindowEnabled( windowId ):
+				print win32gui.EnumChildWindows(windowId, None, None )
+				print win32gui.GetParent(windowId)
+		
+		return True
+
+	def getDolphinRenderWindow( self ):
+
+		if not self.isRunning:
+			print 'Unable to get Dolphin render window; Dolphin is not running.'
+			return
+
+		win32gui.EnumWindows( callback, someList )

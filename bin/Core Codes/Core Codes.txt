@@ -236,8 +236,8 @@ Modified Camera Info Flag Initialization
 Allows you to specify new default flag states for the camera info struct. The default state does  
  not require developer mode to be enabled, and can still be modified freely by the usual developer  
  controller mode hotkeys.
-Customizations:
-    mask16 Camera Flags = 0x3C04 # No Players and Show ECB enabled by default	
+Configurations:
+    mask16 Camera Flags = 0x3404 # No Players and Show ECB enabled by default	
 	0x8000 : Hide players
 	0x2000 : Disable Background
 	0x1000 : Disable Background Particles
@@ -254,7 +254,7 @@ NTSC 1.02 --- 0x80028dc8 ---- 981F039A -> Branch
  
 stb r0, 0x039A (r31)
 # original instruction
-  
+
 li r0, 0                # default base
 flags: xori r0, r0, [[Camera Flags]]  
 # modifiable bools at flags+2:
