@@ -644,6 +644,29 @@ class Disc( object ):
 		else:
 			return False
 
+	def constructCharFileName( self, charId, colorId, ext='dat', defaultToUsd=True ):
+
+		""" Takes character and costume color IDs and converts them to a disc filesystem filename. """
+
+		# Convert the IDs to string abbreviations
+		charAbbr = globalData.charAbbrList[charId]
+		colorAbbr = globalData.costumeSlots[charAbbr][colorId]
+		print 'Char ID: {} ({}), Color ID: {} ({})'.format(charId, charAbbr, colorId, colorAbbr)
+
+		if len( charAbbr ) == 4: # Kirby copy power costumes
+			filename = 'PlKb{}Cp{}.{}'.format( colorAbbr, charAbbr[2:], ext )
+		elif charAbbr == 'Ca' and colorAbbr == 'Re': # Falcon's Red Costume
+			if self.is20XX:
+				filename = 'PlCaR{}.usd'.format( ext[0] )
+			elif defaultToUsd or self.countryCode == 1:
+				filename = 'PlCaRe.usd'
+			else:
+				filename = 'PlCaRe.dat'
+		else:
+			filename = 'Pl{}{}.{}'.format( charAbbr, colorAbbr, ext )
+
+		return filename
+
 	# def getFolderContents( self, folderIsoPath, recursive=True ):
 
 	# 	""" Returns all isoPaths for items in the given folder (also an isoPath). """

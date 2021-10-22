@@ -18,6 +18,7 @@ import codecs
 import psutil
 import win32gui
 import subprocess
+import win32process
 import Tkinter as Tk
 from ruamel import yaml
 from ScrolledText import ScrolledText
@@ -241,14 +242,16 @@ class TriCspCreator( object ):
 			return
 
 		# Replace the character in the Micro Melee disc with the 20XX skin
-		charAbbr = globalData.charAbbrList[charId]
-		colorAbbr = globalData.costumeSlots[charAbbr][costumeId]
-		fileName = 'Pl{}{}.{}'.format( charAbbr, colorAbbr, charExtension )
-		origFile = microMelee.files[globalData.disc.gameId + '/' + fileName.replace( '.' + charExtension, '.dat' )]
-		newFile = globalData.disc.files[globalData.disc.gameId + '/' + fileName]
+		# charAbbr = globalData.charAbbrList[charId]
+		# colorAbbr = globalData.costumeSlots[charAbbr][costumeId]
+		# fileName = 'Pl{}{}.{}'.format( charAbbr, colorAbbr, charExtension )
+		# origFile = microMelee.files[globalData.disc.gameId + '/' + fileName.replace( '.' + charExtension, '.dat' )]
+		# newFile = globalData.disc.files[globalData.disc.gameId + '/' + fileName]
+		#fileName = globalData.disc.constructCharFileName(charId, costumeId, 'lat')
+		origFile = microMelee.files[microMelee.gameId + '/' + microMelee.constructCharFileName(charId, costumeId, 'dat')]
+		newFile = globalData.disc.files[globalData.disc.gameId + '/' + globalData.disc.constructCharFileName(charId, costumeId, 'lat')]
 		microMelee.replaceFile( origFile, newFile )
-		print( 'Char ID: {} ({}), Color ID: {} ({})'.format(charId, charAbbr, costumeId, colorAbbr) )
-		print( 'File to be replaced: ' + globalData.disc.gameId + '/' + fileName )
+		print( 'File to be replaced: ' + globalData.disc.gameId + '/' + newFile.isoPath )
 
 		# Convert the target frame to Frame ID (for the Action State Freeze code) and the raw value for a float
 		#targetFrameId = hex( floatToHex( targetFrame ).replace( '0x', '' )[:4], 16 ) # Just the first 4 characters of a float string
@@ -313,18 +316,13 @@ class TriCspCreator( object ):
 		# Engage emulation
 		globalData.dolphinController.start( microMelee )
 
-		time.sleep( 25 ) # Expecting to get to pause state in 20s
+		time.sleep( 5 ) # Expecting to get to pause state in 20s
+		screenshotPath = globalData.dolphinController.getScreenshot()
 
 		# Stop emulation
 		globalData.dolphinController.stop()
 
-	def getScreenshot( self, processId ):
-
-		""" Tells a running Dolphin instance to take a screenshot, 
-			and then gets/returns the filepath to that screenshot. """
-
-		pass
-
+		return screenshotPath
 
 
 class AsmToHexConverter( BasicWindow ):
@@ -730,23 +728,63 @@ class DolphinController( object ):
 				else:
 					settingsFile.write( line )
 
-	def somePrint( self ):
-		pass
+	def getScreenshot( self ):
 
-	def _windowEnumsCallback( self, windowId, someList ):
+		""" Tells a running Dolphin instance to take a screenshot, 
+			and then gets/returns the filepath to that screenshot. """
 
-		threadId, processId = win32process.GetWindowThreadProcessId( windowId )
+		try:
+			renderWindow0 = self.getDolphinRenderWindow()
+			renderWindow = win32gui.FindWindow( None, 'Dolphin 5.0-3977' )
+			windowDeviceContext = win32gui.GetWindowDC( renderWindow )
+		except Exception as err:
+			printStatus( 'Unable to target the Dolphin render window; {}'.format(err) )
+			return ''
 
-		if processId == self.process.pid and win32gui.IsWindowEnabled( windowId ):
-				print win32gui.EnumChildWindows(windowId, None, None )
-				print win32gui.GetParent(windowId)
+		timeout = 30
+		bgColor = 0
+
+		while timeout > 0:
+			bgColor = win32gui.GetPixel( windowDeviceContext, 0, 0 )
+			time.sleep( 1 )
+			timeout -= 1
+
+	def _windowEnumsCallback( self, windowId, processList ):
+
+		""" Helper for EnumWindows to search for the Dolphin render window. 
+			There will be multiple threads under the current process ID, but 
+			it's expected to be the only 'Enabled' window with a parent. """
+
+		processId = win32process.GetWindowThreadProcessId( windowId )[1]
+		parentWindow = win32gui.GetParent( windowId )
+
+		# Check if this has the target process ID, and is a child (i.e. has a parent)
+		if processId == self.process.pid and win32gui.IsWindowEnabled( windowId ) and parentWindow:
+			processList.append( windowId )
+			return False
 		
 		return True
 
 	def getDolphinRenderWindow( self ):
 
-		if not self.isRunning:
-			print 'Unable to get Dolphin render window; Dolphin is not running.'
-			return
+		""" Searches all windows which share the current Dolphin process ID 
+			and finds/returns the main render window. """
 
-		win32gui.EnumWindows( callback, someList )
+		if not self.isRunning:
+			raise Exception( 'Dolphin is not running.' )
+
+		processList = []
+		try:
+			win32gui.EnumWindows( self._windowEnumsCallback, processList )
+		except Exception as err:
+			# With normal operation, the callback will return False
+			# and EnumWindows will raise an exception.
+			if err.args[0] != 0:
+				raise err
+
+		if not processList:
+			raise Exception( 'no processes found' )
+		elif len( processList ) != 1:
+			raise Exception( 'too many processes found' )
+
+		return processList[0]

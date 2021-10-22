@@ -2762,7 +2762,7 @@ class CharCostumeFile( DatFile ):
 
 		return colorAbbr
 
-	def buildDiscFileName( self, defaultToUsd=True ):
+	def buildDiscFileName( self, defaultToUsd=True ):	# todo: depricate in favor of disc.constructCharFileName( self, charId, colorId, ext='dat', defaultToUsd=True )
 
 		""" Determines the disc file name for this file, using the root nodes / string table. """
 
