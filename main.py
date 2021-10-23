@@ -428,8 +428,11 @@ class ToolsMenu( Tk.Menu, object ):
 		if not microMelee: return # User may have canceled the vanilla melee disc prompt
 
 		# Prompt the user to choose a character to update
-		selectionWindow = CharacterChooser( "Select a character and costume color for CSP creation:" ) # References External ID
-		if selectionWindow.charId == -1: return # User may have canceled selection
+		# selectionWindow = CharacterChooser( "Select a character and costume color for CSP creation:" ) # References External ID
+		# if selectionWindow.charId == -1: return # User may have canceled selection
+		# charAbbr = globalData.charAbbrList[charId]
+		# colorAbbr = globalData.costumeSlots[charAbbr][colorId]
+		# print 'Char ID: {} ({}), Color ID: {} ({})'.format(charId, charAbbr, colorId, colorAbbr)
 
 		# Backup Dolphin's current settings files
 		# settingsFolder = os.path.join( globalData.dolphinController.userFolder, 'Config' )
@@ -446,10 +449,12 @@ class ToolsMenu( Tk.Menu, object ):
 		# copy( cspCreator.gfxSettingsFile, gfxSettingsFile )
 
 		# Generate the Left/Right screenshots
-		globalData.gui.updateProgramStatus( 'Generating left-side screenshot...', forceUpdate=True )
-		leftScreenshot = cspCreator.createLeftScreenshot( microMelee, selectionWindow.charId, selectionWindow.costumeId, 'lat' )
-		# globalData.gui.updateProgramStatus( 'Generating right-side screenshot...' )
-		# leftScreenshot = cspCreator.createLeftScreenshot( microMelee, selectionWindow.charId, selectionWindow.costumeId, 'rat' )
+		#leftScreenshot = cspCreator.createSideImage( microMelee, selectionWindow.charId, selectionWindow.costumeId, 'lat' )
+		leftScreenshot = cspCreator.createSideImage( microMelee, 0, 0, 'lat' )
+		centerScreenshotFilename = globalData.disc.constructCharFileName( selectionWindow.charId, selectionWindow.costumeId )[:-4] + '.png'
+		centerScreenshot = os.path.join( globalData.paths['imagesFolder'], 'CSP Center Images', centerScreenshotFilename )
+		rightScreenshot = cspCreator.createSideImage( microMelee, 0, 0, 'rat' )
+		# leftScreenshot = cspCreator.createSideImage( microMelee, selectionWindow.charId, selectionWindow.costumeId, 'rat' )
 
 		# Restore previous Dolphin settings
 		# os.remove( generalSettingsFile )
@@ -457,6 +462,8 @@ class ToolsMenu( Tk.Menu, object ):
 		# os.rename( generalSettingsFile + '.bak', generalSettingsFile )
 		# os.rename( gfxSettingsFile + '.bak', gfxSettingsFile )
 
+		# Assemble arguments for the external Tri-CSP Creator executable
+		args = ''
 
 	def findUnusedStages( self ):
 

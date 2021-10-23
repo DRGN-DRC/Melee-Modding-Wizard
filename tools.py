@@ -22,6 +22,7 @@ import win32process
 import Tkinter as Tk
 from ruamel import yaml
 from ScrolledText import ScrolledText
+from PIL import ImageGrab
 
 # Internal dependencies
 import globalData
@@ -223,7 +224,7 @@ class TriCspCreator( object ):
 			
 		return '-1'
 
-	def createLeftScreenshot( self, microMelee, charId, costumeId, charExtension ):
+	def createSideImage( self, microMelee, charId, costumeId, charExtension ):
 
 		# Get target action states and frames for the screenshots
 		try:
@@ -242,21 +243,9 @@ class TriCspCreator( object ):
 			return
 
 		# Replace the character in the Micro Melee disc with the 20XX skin
-		# charAbbr = globalData.charAbbrList[charId]
-		# colorAbbr = globalData.costumeSlots[charAbbr][costumeId]
-		# fileName = 'Pl{}{}.{}'.format( charAbbr, colorAbbr, charExtension )
-		# origFile = microMelee.files[globalData.disc.gameId + '/' + fileName.replace( '.' + charExtension, '.dat' )]
-		# newFile = globalData.disc.files[globalData.disc.gameId + '/' + fileName]
-		#fileName = globalData.disc.constructCharFileName(charId, costumeId, 'lat')
 		origFile = microMelee.files[microMelee.gameId + '/' + microMelee.constructCharFileName(charId, costumeId, 'dat')]
-		newFile = globalData.disc.files[globalData.disc.gameId + '/' + globalData.disc.constructCharFileName(charId, costumeId, 'lat')]
+		newFile = globalData.disc.files[globalData.disc.gameId + '/' + globalData.disc.constructCharFileName(charId, costumeId, charExtension)]
 		microMelee.replaceFile( origFile, newFile )
-		print( 'File to be replaced: ' + globalData.disc.gameId + '/' + newFile.isoPath )
-
-		# Convert the target frame to Frame ID (for the Action State Freeze code) and the raw value for a float
-		#targetFrameId = hex( floatToHex( targetFrame ).replace( '0x', '' )[:4], 16 ) # Just the first 4 characters of a float string
-		# floatBytes = struct.pack( '>f', targetFrame )
-		# targetFrameId = struct.unpack( '>H', floatBytes[:2] )[0] # Only want two bytes from this
 
 		# Parse the Core Codes library for the codes needed for booting to match and setting up a pose
 		parser = CodeLibraryParser()
@@ -308,19 +297,23 @@ class TriCspCreator( object ):
 		cameraMod.configure( 'Z Coord', camZ )
 		codesToInstall.append( cameraMod )
 
+		# Shut down all instances of Dolphin so that it can be saved to
+		dc = globalData.dolphinController
+		dc.stopAllDolphinInstances()
+
 		# Restore the disc's DOL data to vanilla and then install the necessary codes
 		microMelee.restoreDol( countAsNewFile=False )
 		microMelee.installCodeMods( codesToInstall )
 		microMelee.save()
 
 		# Engage emulation
-		globalData.dolphinController.start( microMelee )
+		dc.start( microMelee )
 
-		time.sleep( 5 ) # Expecting to get to pause state in 20s
-		screenshotPath = globalData.dolphinController.getScreenshot()
+		time.sleep( 5 )
+		screenshotPath = dc.getScreenshot( charExtension )
 
 		# Stop emulation
-		globalData.dolphinController.stop()
+		dc.stop()
 
 		return screenshotPath
 
@@ -627,7 +620,7 @@ class DolphinController( object ):
 			command = '"{}" --batch --exec="{}"'.format( self.exePath, discObj.filePath )
 		self.process = subprocess.Popen( command, stderr=subprocess.STDOUT, creationflags=0x08000000 )
 
-		print 'Dolphin started; with process ID', self.process
+		print 'Dolphin started; with process ID', self.process.pid
 
 	def stop( self ):
 
@@ -728,26 +721,55 @@ class DolphinController( object ):
 				else:
 					settingsFile.write( line )
 
-	def getScreenshot( self ):
+	def getScreenshot( self, charExtension ):
 
-		""" Tells a running Dolphin instance to take a screenshot, 
-			and then gets/returns the filepath to that screenshot. """
+		""" Seeks out the Dolphin rendering window, waits for the game to start, takes
+			a screenshot, and then gets/returns the filepath to that screenshot. """
 
+		# Update program status and construct a file save/output path
+		if charExtension[0] == 'l':
+			printStatus( 'Generating left-side screenshot...', forceUpdate=True )
+			savePath = os.path.join( globalData.paths['tempFolder'], 'left.png' )
+		else:
+			printStatus( 'Generating right-side screenshot...', forceUpdate=True )
+			savePath = os.path.join( globalData.paths['tempFolder'], 'right.png' )
+
+		# Seek out the Dolphin rendering window and wait for the game to start
 		try:
-			renderWindow0 = self.getDolphinRenderWindow()
-			renderWindow = win32gui.FindWindow( None, 'Dolphin 5.0-3977' )
+			renderWindow = self.getDolphinRenderWindow()
 			windowDeviceContext = win32gui.GetWindowDC( renderWindow )
 		except Exception as err:
-			printStatus( 'Unable to target the Dolphin render window; {}'.format(err) )
+			printStatus( 'Unable to target the Dolphin render window; {}'.format(err), error=True )
 			return ''
 
 		timeout = 30
-		bgColor = 0
+		bgColor = -1
 
-		while timeout > 0:
-			bgColor = win32gui.GetPixel( windowDeviceContext, 0, 0 )
+		print 'Waiting for game start...'
+		while bgColor != 0:
+			try:
+				bgColor = win32gui.GetPixel( windowDeviceContext, 10, 80 ) # Must measure a ways below the title bar and edge
+			except Exception as err:
+				# With normal operation, the method may raise an exception 
+				# if the window can't be found or is minimized.
+				if err.args[0] != 0:
+					raise err
+
+			if timeout < 0:
+				printStatus( 'Game start-up was not detected', error=True )
+				return ''
+
 			time.sleep( 1 )
 			timeout -= 1
+
+		# Start-up detected. Wait a few moments and take a screenshot (need to wait for character to enter target pose)
+		print 'Game start detected.'
+		time.sleep( 3 )
+		dimensions = win32gui.GetWindowRect( renderWindow )
+		image = ImageGrab.grab( dimensions )
+		image.save( savePath )
+
+		return savePath
 
 	def _windowEnumsCallback( self, windowId, processList ):
 
@@ -756,12 +778,15 @@ class DolphinController( object ):
 			it's expected to be the only 'Enabled' window with a parent. """
 
 		processId = win32process.GetWindowThreadProcessId( windowId )[1]
-		parentWindow = win32gui.GetParent( windowId )
 
 		# Check if this has the target process ID, and is a child (i.e. has a parent)
-		if processId == self.process.pid and win32gui.IsWindowEnabled( windowId ) and parentWindow:
-			processList.append( windowId )
-			return False
+		if processId == self.process.pid and win32gui.IsWindowEnabled( windowId ):
+			# Parse the title to determine if it's the render window
+			title = win32gui.GetWindowText( windowId )
+
+			if 'Dolphin' in title and '|' in title:
+				processList.append( windowId )
+				return False
 		
 		return True
 

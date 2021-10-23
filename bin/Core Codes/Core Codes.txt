@@ -55,8 +55,10 @@ FFA00890 00000000
 lis r15, 0x80479D30@h		# Load address of scene controller
 ori r15, r15, 0x80479D30@l
 lwz r14, 0x2C(r15)		# Load GX frame count
-cmpwi r14, 0x47			# Takes 71 (0x47) frames for both characters to leave entry platform
-bne-	OrigLine
+cmpwi r14, 0x48			# Takes 72 (0x48) frames for both characters to leave entry platform
+blt+	OrigLine
+cmpwi r14, 0xFC			# 3 seconds (180 frames) later from leaving entry platform (should be done entering pose)
+bge-	PauseGame
 
 # Set Start Frame and Action State IDs for both players
 lis r14, 0x80453130@h		# Load pointer to P1 Player Entity Struct (0x80453080 + 0xB0)
@@ -104,9 +106,9 @@ NTSC 1.02 --- 0x8016cb50 ---- 41820068 -> 60000000 # Enable regular VS Pause Cam
 ------------- 0x8000d8f4 ---- 9421FFD8 -> 4E800020 # Unrestricted camera
 ------------- 0x8002bfd8 ---- 907e0000 -> Branch
 
-# Injecting into Camera_PauseScreenInitialize
+# Injecting into Camera_AdjustPosition (last function to adjust pause camera coords)
 # While in the process of pausing, set custom X/Y/Z camera coords
-# Load and store the X/Y/Z coords
+# Load and store the X/Y/Z coords of the pause camera
 lis r15, 0x80452f88@h			# Load address for storage (Cam1 X/Y/Z target)
 ori r15, r15, 0x80452f88@l
 lis r14, [[X Coord]]@h

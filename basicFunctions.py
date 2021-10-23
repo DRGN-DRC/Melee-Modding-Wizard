@@ -103,6 +103,17 @@ def toBytes( input, byteLength=4, cType='' ):
 	return struct.pack( cType, input )
 
 
+def intToRgb( integer ):
+
+	""" Converts a single-integer, 24-bit color to an RGB tuple. """
+
+	r = integer >> 16
+	g = ( integer & 0xFF00 ) >> 8
+	b = integer & 0xFF
+
+	return ( r, g, b )
+
+
 def validHex( offset ):
 
 	""" Accepts a string. Returns Boolean. Whitespace will result in a False """
@@ -265,14 +276,14 @@ def msg( message, title='', parent=None, warning=False, error=False ):
 		else: print message
 
 
-def printStatus( message, warning=False, error=False, success=False ):
+def printStatus( message, warning=False, error=False, success=False, forceUpdate=False ):
 
 	""" Displays a short message at the bottom of the GUI (in the status bar), 
 		or prints out to console if the GUI has not been initialized. 
 		May be decorated with warning/error/success=True. """
 
 	if globalData.gui: # Display a pop-up message
-		globalData.gui.updateProgramStatus( message, warning, error, success )
+		globalData.gui.updateProgramStatus( message, warning, error, success, forceUpdate )
 
 	else: # Write to stdout
 		if error: print 'ERROR! ' + message
