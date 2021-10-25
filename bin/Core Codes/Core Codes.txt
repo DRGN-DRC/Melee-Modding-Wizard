@@ -14,11 +14,42 @@ PAL 1.00 ---- 0x803977A0 ---- 801E0000 -> 4800020C
 	-==-
 
 
+Auto-Pause
+Automatically pauses the game on a specific frame of a scene.
+Configurations:
+    uint16 Target Frame = 240 # The frame to pause on
+    uint16 Who = 0; 0-5 # Player index for who paused
+[DRGN]
+Revision ---- DOL Offset ---- Hex to Replace ---------- ASM Code -
+NTSC 1.02 --- 0x8016be60 --- 3860FFFF -> Branch
+
+# Injects into the end of Pause_CheckButtonInputsToPause
+# Should execute just once, once the scene reaches the specified frame.
+
+# Check the scene's current frame to see if we should execute
+lis r15, 0x80479D30@h		# Load address of scene controller
+ori r15, r15, 0x80479D30@l
+lwz r14, 0x2C(r15)		# Load GX frame count
+cmpwi r14, [[Target Frame]]
+bne+ OrigLine
+
+# Make the game think a player paused the match
+li r3, [[Who]]			# Fool into thinking the game was paused
+b END
+
+OrigLine:
+li r3, -1
+END:
+b 0
+
+	-==-
+
+
 Enter Action State On Match Start
 A rework of Dan Salvato's action state hack using internal player data offsets:
 0x219C - new starting frame (float)
 0x21A0 - new action state ID (int)
-This instance of the code is designed to set the beginning states for P1 & P2.
+This variation of the code is designed to set animation states for P1 & P2 on match start.
 Configurations:
     float Start Frame = 0.0; 0-0x10000
     uint32 Action State ID = 0; 0-0x10000
@@ -56,10 +87,13 @@ lis r15, 0x80479D30@h		# Load address of scene controller
 ori r15, r15, 0x80479D30@l
 lwz r14, 0x2C(r15)		# Load GX frame count
 cmpwi r14, 0x48			# Takes 72 (0x48) frames for both characters to leave entry platform
-blt+	OrigLine
-cmpwi r14, 0xFC			# 3 seconds (180 frames) later from leaving entry platform (should be done entering pose)
-bge-	PauseGame
+#beq-	SetStates
+#cmpwi r14, 0xFC			# 3 seconds (180 frames) later from leaving entry platform (should be done entering pose)
+#beq-	PauseGame
+#b OrigLine
+bne+	OrigLine
 
+#SetStates:
 # Set Start Frame and Action State IDs for both players
 lis r14, 0x80453130@h		# Load pointer to P1 Player Entity Struct (0x80453080 + 0xB0)
 lwz r14, 0x80453130@l(r14)
@@ -78,11 +112,13 @@ ori r15, r15, [[Start Frame]]@l
 stw r15, 0x219C(r14)		# Store start frame to 0x219C of P2 Player Character Data
 li r15, [[Action State ID]]	# Load the action state ID
 stw r15, 0x21A0(r14)		# Store action state ID to 0x21A0 of P2 Player Character Data
+#b OrigLine
 
-# Set the camera mode to paused
-#lis r14, 0x80452C6C@h		# Load address for the current camera mode
-#ori r14, r14, 0x80452C6C@l
-#li r15, 1			# Use camera mode 1  (Paused)
+#PauseGame:
+# Simulate pressing start to pause the game
+#lis r14, 0x804c1fac@h		# Load address for the input struct
+#ori r14, r14, 0x804c1fac@l
+#li r15, 0x1000			# Set bit for start button; 8000344c
 #stw r15, 0(r14)
 
 OrigLine:
@@ -94,12 +130,12 @@ b 0		# Placeholder for branch back
 
 
 CSP Camera Configuration
-Sets up the camera for taking CSP screenshots. On pause, the camera
-should go to the coordinates specified (supplied by CSP Creator).
+Sets up the camera coordinates and background color for taking CSP screenshots.
 Configurations: # To be taken from the CSP Configuration file
     uint32 X Coord = 0
     uint32 Y Coord = 0
     uint32 Z Coord = 0
+    uint32 BG Color = 0xFF00FF # Default is magenta
 [DRGN]
 Revision ---- DOL Offset ---- Hex to Replace ---------- ASM Code -
 NTSC 1.02 --- 0x8016cb50 ---- 41820068 -> 60000000 # Enable regular VS Pause Camera in Debug Mode
@@ -121,11 +157,52 @@ lis r14, [[Z Coord]]@h
 ori r14, r14, [[Z Coord]]@l
 stw r14, 8(r15)
 
+# Set background color
+.set BG_Color, [[BG Color]] << 8
+lis r15, 0x80452C70@h
+ori r15, r15, 0x80452C70@l
+lis r14, BG_Color@h
+ori r14, r14, BG_Color@l
+stw r14, 0(r15)
+
 # An original line
 lwz	r0, 0x0018 (sp)
 
 # Return to normal execution
 b 0x8002bfec
+
+## Set background color
+##------------- 0x801c1fb8 ---- 887d0018 ->
+## Red
+##.set BG_Color, [[BG Color]]
+##li r3, BG_Color >> 16
+##------------- 0x801c1fd0 ---- 38600000 ->
+## Red
+##.set BG_Color, [[BG Color]]
+##li r3, BG_Color >> 16
+##------------- 0x801c1fbc ---- 889d0019 ->
+## Green
+##.set BG_Color, [[BG Color]]
+##li r3, (BG_Color >> 8 ) & 0xFF
+##------------- 0x801c1fd4 ---- 38800000 ->
+## Green
+##.set BG_Color, [[BG Color]]
+##li r3, (BG_Color >> 8 ) & 0xFF
+##------------- 0x801c1fc0 ---- 88bd001a ->
+## Blue
+##.set BG_Color, [[BG Color]]
+##li r3, BG_Color & 0xFF
+##------------- 0x801c1fd8 ---- 38a00000 ->
+## Blue
+##.set BG_Color, [[BG Color]]
+##li r3, BG_Color & 0xFF
+
+##------------- 0x80030748 ---- 98660008 98860009 98a6000a ->
+
+##.set BG_Color, [[BG Color]] << 8
+##lis r3, BG_Color@h
+##ori r3, r3, BG_Color@l
+##stw r3, 8(r6)
 
 
 	-==-
@@ -239,7 +316,7 @@ Allows you to specify new default flag states for the camera info struct. The de
  not require developer mode to be enabled, and can still be modified freely by the usual developer  
  controller mode hotkeys.
 Configurations:
-    mask16 Camera Flags = 0x3404 # No Players and Show ECB enabled by default	
+    mask16 Camera Flags = 0x3004 # No Players and Show ECB enabled by default	
 	0x8000 : Hide players
 	0x2000 : Disable Background
 	0x1000 : Disable Background Particles

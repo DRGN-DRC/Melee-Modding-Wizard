@@ -284,6 +284,7 @@ def printStatus( message, warning=False, error=False, success=False, forceUpdate
 
 	if globalData.gui: # Display a pop-up message
 		globalData.gui.updateProgramStatus( message, warning, error, success, forceUpdate )
+		print 'printStatus mirror:', message
 
 	else: # Write to stdout
 		if error: print 'ERROR! ' + message

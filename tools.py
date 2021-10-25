@@ -236,10 +236,7 @@ class TriCspCreator( object ):
 			camZ = characterDict['camZ']
 			targetFrameId = targetFrame >> 16 # Just need the first two bytes of the float for this
 		except KeyError as err:
-			if err.message in ( 'actionState', 'frame' ): # Found the character dictionary, but couldn't find the sub-key
-				msg( 'Unable to find CSP "{}" info for character ID {} in "CSP Configuration.yml".'.format(err.message, charId), 'CSP Config Error' )
-			else: # Couldn't find the character dictionary
-				msg( 'Unable to find CSP configuration info for external character ID {} in "CSP Configuration.yml".'.format(charId), 'CSP Config Error' )
+			msg( 'Unable to find CSP "{}" info for character ID {} in "CSP Configuration.yml".'.format(err.message, charId), 'CSP Config Error' )
 			return
 
 		# Replace the character in the Micro Melee disc with the 20XX skin
@@ -296,6 +293,11 @@ class TriCspCreator( object ):
 		cameraMod.configure( 'Y Coord', camY )
 		cameraMod.configure( 'Z Coord', camZ )
 		codesToInstall.append( cameraMod )
+
+		# Configure the camera
+		pauseMod = parser.getModByName( 'Auto-Pause' )
+		pauseMod.configure( 'Target Frame', 252 ) # 72 + 180
+		codesToInstall.append( pauseMod )
 
 		# Shut down all instances of Dolphin so that it can be saved to
 		dc = globalData.dolphinController
@@ -734,7 +736,7 @@ class DolphinController( object ):
 			printStatus( 'Generating right-side screenshot...', forceUpdate=True )
 			savePath = os.path.join( globalData.paths['tempFolder'], 'right.png' )
 
-		# Seek out the Dolphin rendering window and wait for the game to start
+		# Seek out the Dolphin rendering window and wait for the game to pause
 		try:
 			renderWindow = self.getDolphinRenderWindow()
 			windowDeviceContext = win32gui.GetWindowDC( renderWindow )
@@ -743,10 +745,10 @@ class DolphinController( object ):
 			return ''
 
 		timeout = 30
-		bgColor = -1
+		bgColor = 0
 
 		print 'Waiting for game start...'
-		while bgColor != 0:
+		while bgColor == 0:
 			try:
 				bgColor = win32gui.GetPixel( windowDeviceContext, 10, 80 ) # Must measure a ways below the title bar and edge
 			except Exception as err:
@@ -756,15 +758,15 @@ class DolphinController( object ):
 					raise err
 
 			if timeout < 0:
-				printStatus( 'Game start-up was not detected', error=True )
+				printStatus( 'Timed out while waiting for the game to start', error=True )
 				return ''
 
 			time.sleep( 1 )
 			timeout -= 1
 
-		# Start-up detected. Wait a few moments and take a screenshot (need to wait for character to enter target pose)
+		# Start-up detected. The character should be posed, and game paused
+		# todo: edit to work on multiple monitors. code here: https://github.com/python-pillow/Pillow/issues/1547
 		print 'Game start detected.'
-		time.sleep( 3 )
 		dimensions = win32gui.GetWindowRect( renderWindow )
 		image = ImageGrab.grab( dimensions )
 		image.save( savePath )
@@ -784,7 +786,8 @@ class DolphinController( object ):
 			# Parse the title to determine if it's the render window
 			title = win32gui.GetWindowText( windowId )
 
-			if 'Dolphin' in title and '|' in title:
+			# Parse the title. Will be just "Dolphin" until the game is done booting
+			if title == 'Dolphin' or ( 'Dolphin' in title and '|' in title ):
 				processList.append( windowId )
 				return False
 		

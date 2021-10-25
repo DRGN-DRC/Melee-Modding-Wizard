@@ -1151,7 +1151,7 @@ class Disc( object ):
 
 		# Make sure the Music Name Pointer Table in 20XX gets updated
 		if hexTracksRemoved:
-			cssFile = self.disc.files.get( self.disc.gameId + '/MnSlChr.0sd' )
+			cssFile = self.files.get( self.gameId + '/MnSlChr.0sd' )
 			cssFile.validateHexTrackNameTable()
 
 		# Remember this disc change

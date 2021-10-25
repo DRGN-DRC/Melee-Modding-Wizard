@@ -21,10 +21,12 @@ written to by Camera_PauseScreenInitialize
 stack:
 
 8016ca68	Pause_IngameCheckPauseOnOff	(if 8046b6a4 == 0 and 8046b6a5 != 0: initiate pause)
-8016bc74		Pause_CheckButtonInputsToPause		(for scene 0xE, runs to 8016bd94 before real work)
+8016bc74		Pause_CheckButtonInputsToPause
+				[for scene 0xE, runs to 8016bd94 before real work]
 				[loops through all players; r30 holds current player index]
 				[break on 8016be40 to break on pause]
-				[can force pause by setting r3 to 0 (or another player index) at the end of this function]
+				[8016be60: can force pause by setting r3 to 0 
+				 (or another player index) at the end of this function]
 			MatchController_FreezeScreen_SetBool
 			[nop 8016cb50 to initialize normal pause camera]
 80165108		Pause_InitializeVSPauseCamera

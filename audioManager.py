@@ -275,7 +275,7 @@ class AudioManager( ttk.Frame ):
 					continue
 				
 				filecount += 1
-				totalFilesize += fileObj.size
+				totalFilesize += musicFile.size
 
 		spaceRemaining = disc.defaultGameCubeMediaSize - globalData.disc.getSize()
 		

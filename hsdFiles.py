@@ -2276,13 +2276,13 @@ class CssFile( DatFile ):
 		# Unpack the pointer values so we can iterate over them
 		pointers = struct.unpack( '>256I', self.getData(0x3EDD88, 0x400) )
 
-		for i, nameAddress in enumerate( pointers ):
-			isoPath = '{}/audio/{:02X}.hps'.format( self.disc.gameId, i )
+		for trackNumber, nameAddress in enumerate( pointers ):
+			isoPath = '{}/audio/{:02X}.hps'.format( self.disc.gameId, trackNumber )
 			hpsFile = self.disc.files.get( isoPath )
 			if not hpsFile:
 				# There shouldn't be a corresponding pointer
 				if nameAddress:
-					namePointerOffset = 0x3EDD88 + ( i * 4 )
+					namePointerOffset = 0x3EDD88 + ( trackNumber * 4 )
 					nullPointer = bytearray( 4 )
 					self.setData( namePointerOffset, nullPointer )
 					self.recordChange( 'Hex Track name pointer removed for track 0x{:02X}'.format(trackNumber) )

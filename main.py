@@ -422,17 +422,18 @@ class ToolsMenu( Tk.Menu, object ):
 		cspCreator = TriCspCreator()
 		if not cspCreator.gimpExe or not cspCreator.config:
 			return # Unable to find GIMP, or unable to load the CSP configuration file
-			
+		
 		# Get the micro melee disc object
 		microMelee = globalData.getMicroMelee()
 		if not microMelee: return # User may have canceled the vanilla melee disc prompt
 
 		# Prompt the user to choose a character to update
-		# selectionWindow = CharacterChooser( "Select a character and costume color for CSP creation:" ) # References External ID
-		# if selectionWindow.charId == -1: return # User may have canceled selection
-		# charAbbr = globalData.charAbbrList[charId]
-		# colorAbbr = globalData.costumeSlots[charAbbr][colorId]
-		# print 'Char ID: {} ({}), Color ID: {} ({})'.format(charId, charAbbr, colorId, colorAbbr)
+		selectionWindow = CharacterChooser( "Select a character and costume color for CSP creation:" ) # References External ID
+		if selectionWindow.charId == -1: return # User may have canceled selection
+		charConfigDict = cspCreator.config.get( selectionWindow.charId )
+		if not charConfigDict: # Couldn't find the character dictionary
+			msg( 'Unable to find CSP configuration info for external character ID {} in "CSP Configuration.yml".'.format(selectionWindow.charId), 'CSP Config Error' )
+			return
 
 		# Backup Dolphin's current settings files
 		# settingsFolder = os.path.join( globalData.dolphinController.userFolder, 'Config' )
@@ -448,13 +449,14 @@ class ToolsMenu( Tk.Menu, object ):
 		# copy( cspCreator.dolphinSettingsFile, generalSettingsFile )
 		# copy( cspCreator.gfxSettingsFile, gfxSettingsFile )
 
-		# Generate the Left/Right screenshots
-		#leftScreenshot = cspCreator.createSideImage( microMelee, selectionWindow.charId, selectionWindow.costumeId, 'lat' )
-		leftScreenshot = cspCreator.createSideImage( microMelee, 0, 0, 'lat' )
+		# Construct the path to the center screenshot
 		centerScreenshotFilename = globalData.disc.constructCharFileName( selectionWindow.charId, selectionWindow.costumeId )[:-4] + '.png'
 		centerScreenshot = os.path.join( globalData.paths['imagesFolder'], 'CSP Center Images', centerScreenshotFilename )
-		rightScreenshot = cspCreator.createSideImage( microMelee, 0, 0, 'rat' )
-		# leftScreenshot = cspCreator.createSideImage( microMelee, selectionWindow.charId, selectionWindow.costumeId, 'rat' )
+
+		# Generate the Left/Right screenshots
+		leftScreenshot = cspCreator.createSideImage( microMelee, selectionWindow.charId, selectionWindow.costumeId, 'lat' )
+		#rightScreenshot = cspCreator.createSideImage( microMelee, selectionWindow.charId, selectionWindow.costumeId, 'rat' )
+		rightScreenshot = 'TEST'
 
 		# Restore previous Dolphin settings
 		# os.remove( generalSettingsFile )
@@ -462,8 +464,38 @@ class ToolsMenu( Tk.Menu, object ):
 		# os.rename( generalSettingsFile + '.bak', generalSettingsFile )
 		# os.rename( gfxSettingsFile + '.bak', gfxSettingsFile )
 
+		"""	'-l', '--leftImagePaths', required=True, nargs='+', help='File paths for the left image.' )
+			'-c', '--centerImagePaths', required=True, nargs='+', help='File paths for the center image.' )
+			'-r', '--rightImagePaths', required=True, nargs='+', help='File paths for the right image.' )
+			'-t', '--threshold', required=True, default=50, help="Selection threshold for identifying a screenshot's magenta background." )
+			'-re', '--reverseSides', default=False, help='Horizontally flip the side images.' )
+			'-cx', '--centerImageXOffset', required=True, default=0, help="X coordinate of the center image." )
+			'-cy', '--centerImageYOffset', required=True, default=0, help="Y coordinate of the center image." )
+			'-cs', '--centerImageScaling', required=True, default=1.0, help="Scale of the center image (a float)." )
+			'-sx', '--sideImagesXOffset', required=True, default=0, help="X offset, relative to the side of the CSP, for both side images." )
+			'-sy', '--sideImagesYOffset', required=True, default=0, help="Y offset, relative to the top of the CSP, for both side images." )
+			'-ss', '--sideImagesScaling', required=True, default=1.0, help="Scale of both side images (a float)." )
+			'-shr', '--saveHighRes', action='store_true', help="If true, this will create a large, high-res version of the CSP, instead of the vanilla 136x188. This can't be imported into a disc though." )
+			'-m', '--maskImagePath', default='', help='Use a different layer for use in removing the background.' )
+			'-o', '--outputPath'
+		"""
+
 		# Assemble arguments for the external Tri-CSP Creator executable
-		args = ''
+		outputPath = os.path.join( globalData.paths['tempFolder'], 'csp.png' )
+		try:
+			args = '"{}" -l "{}" -c "{}" -r "{}" -t {} -cx {} -cy {} -cs {} -sx {} -sy {} -ss {} -o "{}"'.format( 
+				globalData.paths['triCspCreator'], leftScreenshot, centerScreenshot, rightScreenshot, charConfigDict['threshold'], 
+				charConfigDict['centerImageXOffset'], charConfigDict['centerImageYOffset'], charConfigDict['centerImageScaling'], 
+				charConfigDict['sideImagesXOffset'], charConfigDict['sideImagesYOffset'], charConfigDict['sideImagesScaling'], outputPath )
+			if charConfigDict['reverseSides']:
+				args += ' -re'
+			# if saveHighRes:
+			# 	args += ' -shr'
+		except KeyError as err:
+			msg( 'Unable to find CSP "{}" info for character ID {} in "CSP Configuration.yml".'.format(err.message, selectionWindow.charId), 'CSP Config Error' )
+			return
+
+		print( args )
 
 	def findUnusedStages( self ):
 
