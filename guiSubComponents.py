@@ -1272,7 +1272,9 @@ class VerticalScrolledFrame( Tk.Frame ):
 			self.vscrollbar.grid( column=1, row=0, sticky='ns' )
 		else:
 			# remove the scrollbar and disable scrolling
-			self.vscrollbar.grid_forget()
+			try:
+				self.vscrollbar.grid_forget()
+			except: pass # May have been deleted
 			self.canvas.itemconfigure( self.interior_id, width=self.canvas.winfo_width() )
 
 	def yview_scroll( self, number, what ):

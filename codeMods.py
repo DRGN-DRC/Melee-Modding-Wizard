@@ -23,7 +23,7 @@ from subprocess import Popen, PIPE
 # Internal Dependencies
 import globalData
 import disc
-from basicFunctions import toHex, validHex, msg, printStatus
+from basicFunctions import roundTo32, toHex, validHex, msg, printStatus
 from guiSubComponents import cmsg
 
 
@@ -2543,7 +2543,7 @@ class CommandProcessor( object ):
 		compilationPlaceholder = 'stfdu f21,-16642(r13)' # Equivalent of 'deadbefe' (doesn't actually matter what this is, but must be in ASM in case of conversion)
 		branchMarker = 'DEADBEFE'
 
-		needsConversion = False
+		assemblyRequired = False
 		allSpecialSyntaxes = True
 		filteredLines = []
 		customSyntax = []
@@ -2591,8 +2591,8 @@ class CommandProcessor( object ):
 				allSpecialSyntaxes = False
 
 				# Check whether this line indicates that this code requires conversion.
-				if not needsConversion and codeLine != '' and not validHex( codeLine.replace(' ', '') ):
-					needsConversion = True
+				if not assemblyRequired and codeLine != '' and not validHex( codeLine.replace(' ', '') ):
+					assemblyRequired = True
 
 		if allSpecialSyntaxes: # No real processing needed; it will be done when resolving these syntaxes
 			if discardWhitespace:
@@ -2603,7 +2603,7 @@ class CommandProcessor( object ):
 		filteredCode = '\n'.join( filteredLines ) # Joins the filtered lines with linebreaks.
 
 		# If this is ASM, convert it to hex.
-		if needsConversion:
+		if assemblyRequired:
 			conversionOutput, errors = self.assemble( filteredCode, beautify=True, includePaths=includePaths, suppressWarnings=suppressWarnings )
 			
 			if errors:
@@ -2689,11 +2689,12 @@ class CommandProcessor( object ):
 		# if type( codeLinesList ) == str:
 		# 	codeLinesList = codeLinesList.splitlines()
 
-		# Filter out comments and special syntaxes
-		needsConversion = False
+		# disassemblyRequired = False
 		allSpecialSyntaxes = True
 		filteredLines = []
 		customSyntax = []
+		length = 0
+
 		for rawLine in codeLinesList:
 			# Remove comments and skip empty lines
 			codeLine = rawLine.split( '#' )[0].strip()
@@ -2707,43 +2708,64 @@ class CommandProcessor( object ):
 			if CodeLibraryParser.isSpecialBranchSyntax( codeLine ): # e.g. "bl 0x80001234" or "bl <testFunction>"
 				customSyntax.append( codeLine )
 				filteredLines.append( compilationPlaceholder )
+				length += 8
 
 			elif CodeLibraryParser.containsPointerSymbol( codeLine ): # Identifies symbols in the form of <<functionName>>
 				customSyntax.append( codeLine )
 				filteredLines.append( compilationPlaceholder )
+				length += 8
 
 			elif '[[' in codeLine and ']]' in codeLine: # Identifies configuration option placeholders
 				customSyntax.append( codeLine )
 				filteredLines.append( compilationPlaceholder )
+				
+				# Try to determine the nibble length of the code on this line
+				sectionLength = 0
+				sectionChunks = codeLine.split( '[[' )
+				for chunk in sectionChunks:
+					if ']]' in chunk:
+						_, chunk = chunk.split( ']]' ) # Not expecting multiple ']]' delimiters in this chunk
+
+					if not chunk: pass
+					else:
+						filteredChunk = ''.join( chunk.split() ) # Filtering out whitespace
+						sectionLength += len( filteredChunk )
+
+				# Round up to closest multiple of 4 bytes
+				length += roundTo32( sectionLength, 8 )
 
 			else:
 				# Whether it's hex or not, re-add the line to filteredLines.
 				filteredLines.append( codeLine )
 				allSpecialSyntaxes = False
 
+				length += len( ''.join(codeLine.split()) )
+
 				# Check whether this line indicates that this code requires conversion.
-				if not needsConversion and validHex( codeLine.replace(' ', '') ):
-					needsConversion = True
+				# if not disassemblyRequired and validHex( codeLine.replace(' ', '') ):
+				# 	disassemblyRequired = True
+
+		length = length / 2 # Convert count from nibbles to bytes
 
 		if allSpecialSyntaxes: # No real processing needed; it will be done when resolving these syntaxes
 			if discardWhitespace:
-				return ( 0, ''.join(customSyntax) )
+				return ( 0, ''.join(customSyntax), length )
 			else:
-				return ( 0, '\n'.join(customSyntax) )
+				return ( 0, '\n'.join(customSyntax), length )
 
 		filteredCode = '\n'.join( filteredLines ) # Joins the lines with linebreaks.
 
 		# If this is hex, convert it to ASM.
-		if needsConversion:
-			conversionOutput, errors = self.disassemble( filteredCode, whitespaceNeedsRemoving=True )
-			
-			if errors:
-				cmsg( errors, 'Disassembly Error 02' )
-				return ( 2, '' )
-			else:
-				newCode = conversionOutput
+		# if disassemblyRequired:
+		conversionOutput, errors = self.disassemble( filteredCode, whitespaceNeedsRemoving=True )
+		
+		if errors:
+			cmsg( errors, 'Disassembly Error 02' )
+			return ( 2, '', -1 )
 		else:
-			newCode = filteredCode.replace( 'DEADBEFE', 'stfdu f21,-16642(r13)' )
+			newCode = conversionOutput
+		# else:
+		# 	newCode = filteredCode.replace( 'DEADBEFE', 'stfdu f21,-16642(r13)' )
 
 		# If any special commands were filtered out, add them back in.
 		if newCode != '' and customSyntax != []:
@@ -2782,7 +2804,7 @@ class CommandProcessor( object ):
 		# Replace a few choice ASM commands with an alternate syntax
 		#newCode = newCode.replace( 'lwz r0,0(r1)', 'lwz r0,0(sp)' ).replace( 'lwz r0,0(r2)', 'lwz r0,0(rtoc)' )
 
-		return ( 0, newCode.strip() )
+		return ( 0, newCode.strip(), length )
 
 	# def resolveCustomSyntaxes( self, thisFunctionStartingOffset, rawCustomCode, preProcessedCustomCode, includePaths=None, configurations=None ):
 

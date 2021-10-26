@@ -395,7 +395,7 @@ class AsmToHexConverter( BasicWindow ):
 		self.window.rowconfigure( 2, weight=1 )
 		self.window.rowconfigure( 3, weight=0 )
 
-	def updateAssemblyDisplay( self, textInput ):
+	def updateAssemblyTimeDisplay( self, textInput ):
 		self.assemblyTimeDisplay.configure( state="normal" )
 		self.assemblyTimeDisplay.delete( 0, 'end' )
 		self.assemblyTimeDisplay.insert( 0, textInput )
@@ -404,7 +404,7 @@ class AsmToHexConverter( BasicWindow ):
 	def asmToHexCode( self ):
 		# Clear the hex code field and info labels
 		self.hexCodeEntry.delete( '1.0', 'end' )
-		self.updateAssemblyDisplay( '' )
+		self.updateAssemblyTimeDisplay( '' )
 		self.lengthString.set( 'Length: ' )
 
 		# Get the ASM to convert
@@ -420,8 +420,6 @@ class AsmToHexConverter( BasicWindow ):
 		if returnCode != 0:
 			cmsg( hexCode, 'Assembly Error' )
 			return
-
-		#hexCode = hexCode.replace( '|S|', '' ) # Removes special branch syntax separators
 
 		# Beautify and insert the new hex code
 		if self.blocksPerLine > 0:
@@ -443,18 +441,18 @@ class AsmToHexConverter( BasicWindow ):
 			else:
 				assemblyTime = assemblyTime * 1000
 				units = 'us' # In microseconds
-		self.updateAssemblyDisplay( 'Assembly Time:  {} {}'.format(assemblyTime, units) )
+		self.updateAssemblyTimeDisplay( 'Assembly Time:  {} {}'.format(assemblyTime, units) )
 
 	def hexCodeToAsm( self ):
 		# Delete the current assembly code, and clear the assembly time label
 		self.sourceCodeEntry.delete( '1.0', 'end' )
-		self.updateAssemblyDisplay( '' )
+		self.updateAssemblyTimeDisplay( '' )
 
 		# Get the HEX code to disassemble
 		hexCode = self.hexCodeEntry.get( '1.0', 'end' )
 		
 		# Disassemble the code into assembly
-		returnCode, asmCode = globalData.codeProcessor.preDisassembleRawCode( hexCode.splitlines(), discardWhitespace=False )
+		returnCode, asmCode, codeLength = globalData.codeProcessor.preDisassembleRawCode( hexCode.splitlines(), discardWhitespace=False )
 
 		if returnCode != 0:
 			self.lengthString.set( 'Length: ' )
@@ -464,7 +462,7 @@ class AsmToHexConverter( BasicWindow ):
 		self.sourceCodeEntry.insert( 'end', asmCode )
 
 		# Update the code length display
-		codeLength = getCustomCodeLength( hexCode, preProcess=True, includePaths=self.includePaths )
+		#codeLength = getCustomCodeLength( hexCode, preProcess=True, includePaths=self.includePaths )
 		self.lengthString.set( 'Length: ' + uHex(codeLength) )
 
 	def detectContext( self ):
