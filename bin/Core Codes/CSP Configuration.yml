@@ -1,3 +1,6 @@
+# Ordered Alphabetically
+# Key = External Character ID
+
 0x05: # Bowser
   threshold: 40
   centerImageXOffset: -34
@@ -88,7 +91,7 @@
   camY: 0x3eb3cc4a
   camZ: 0x42152d9b
 
-Game and Watch:
+0x03: # Game and Watch
   threshold: 40
   centerImageXOffset: -266
   centerImageYOffset: 48
@@ -103,7 +106,7 @@ Game and Watch:
   camY: 0xc09eee2b
   camZ: 0x423ef62b
 
-Ganon:
+0x19: # Ganon
   threshold: 40
   centerImageXOffset: -10
   centerImageYOffset: 167
@@ -118,7 +121,7 @@ Ganon:
   camY: 0x41009923
   camZ: 0x4242322f
 
-Ice Climbers:
+0x0E: # Ice Climbers
   threshold: 30
   centerImageXOffset: 0
   centerImageYOffset: 208
@@ -133,7 +136,7 @@ Ice Climbers:
   camY: 0x3e2d1618
   camZ: 0x41efe201
 
-Jigglypuff:
+0x0F: # Jigglypuff
   threshold: 40
   centerImageXOffset: 47
   centerImageYOffset: 165
@@ -148,7 +151,7 @@ Jigglypuff:
   camY: 0x3fd2f553
   camZ: 0x4209696b
 
-Kirby:
+0x04: # Kirby
   threshold: 40
   centerImageXOffset: 32
   centerImageYOffset: 204
@@ -163,7 +166,7 @@ Kirby:
   camY: 0x4068dce3
   camZ: 0x41ea3184
 
-Link:
+0x06: # Link
   threshold: 0
   centerImageXOffset: 38
   centerImageYOffset: 159
@@ -178,7 +181,7 @@ Link:
   camY: 0x40a0c470
   camZ: 0x420321bd
 
-Luigi:
+0x07: # Luigi
   threshold: 0
   centerImageXOffset: 64
   centerImageYOffset: 191
@@ -193,7 +196,7 @@ Luigi:
   camY: 0x4092702e
   camZ: 0x420f905a
 
-Mario:
+0x08: # Mario
   threshold: 0
   centerImageXOffset: 148
   centerImageYOffset: 191
@@ -208,7 +211,7 @@ Mario:
   camY: 0x3fcee488
   camZ: 0x420cd983
 
-Marth: 
+0x09: # Marth
   threshold: 40
   centerImageXOffset: -324
   centerImageYOffset: 140
@@ -223,7 +226,7 @@ Marth:
   camY: 0xc05ec8b4
   camZ: 0x42250ad6
 
-Mewtwo:
+0x0A: # Mewtwo
   threshold: 40
   centerImageXOffset: 17
   centerImageYOffset: 170
@@ -238,7 +241,7 @@ Mewtwo:
   camY: 0x407e0820
   camZ: 0x420e4f45
 
-Ness:
+0x0B: # Ness
   threshold: 40
   centerImageXOffset: 70
   centerImageYOffset: 152
@@ -253,7 +256,7 @@ Ness:
   camY: 0xbf2987c7
   camZ: 0x41ed8c18
 
-Peach:
+0x0C: # Peach
   threshold: 40
   centerImageXOffset: 30
   centerImageYOffset: 140
@@ -268,7 +271,7 @@ Peach:
   camY: 0xc035324b
   camZ: 0x423828df
 
-Pichu:
+0x18: # Pichu
   threshold: 40
   centerImageXOffset: -174
   centerImageYOffset: 220
@@ -283,7 +286,7 @@ Pichu:
   camY: 0xc02de0e6
   camZ: 0x402557b0
 
-Pikachu:
+0x0D: # Pikachu
   threshold: 40
   centerImageXOffset: -38
   centerImageYOffset: 42
@@ -298,7 +301,7 @@ Pikachu:
   camY: 0x40b85b80
   camZ: 0x41fd2549
 
-Roy:
+0x17: # Roy
   threshold: 30
   centerImageXOffset: -4
   centerImageYOffset: 185
@@ -313,9 +316,9 @@ Roy:
   camY: 0x400e6b44
   camZ: 0x41f61733
 
-Samus:
+#0x10: # Samus
 
-Sheik:
+0x13: # Sheik
   threshold: 40
   centerImageXOffset: 13
   centerImageYOffset: 124
@@ -330,7 +333,7 @@ Sheik:
   camY: 0xc0436685
   camZ: 0x3fcd739a
 
-Yoshi:
+0x11: # Yoshi
   threshold: 40
   centerImageXOffset: 20
   centerImageYOffset: 164
@@ -345,7 +348,7 @@ Yoshi:
   camY: 0x40905a28
   camZ: 0x42320264
 
-Young Link:
+0x15: # Young Link
   threshold: 30
   centerImageXOffset: 64
   centerImageYOffset: 160

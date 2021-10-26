@@ -436,18 +436,18 @@ class ToolsMenu( Tk.Menu, object ):
 			return
 
 		# Backup Dolphin's current settings files
-		# settingsFolder = os.path.join( globalData.dolphinController.userFolder, 'Config' )
-		# generalSettingsFile = os.path.join( settingsFolder, 'Dolphin.ini' )
-		# gfxSettingsFile = os.path.join( settingsFolder, 'GFX.ini' )
-		# try:
-		# 	os.rename( generalSettingsFile, generalSettingsFile + '.bak' )
-		# 	os.rename( gfxSettingsFile, gfxSettingsFile + '.bak' )
-		# except WindowsError: # Likely the backup files already exist
-		# 	pass # Keep the old backup files; do not replace
+		settingsFolder = os.path.join( globalData.dolphinController.userFolder, 'Config' )
+		generalSettingsFile = os.path.join( settingsFolder, 'Dolphin.ini' )
+		gfxSettingsFile = os.path.join( settingsFolder, 'GFX.ini' )
+		try:
+			os.rename( generalSettingsFile, generalSettingsFile + '.bak' )
+			os.rename( gfxSettingsFile, gfxSettingsFile + '.bak' )
+		except WindowsError: # Likely the backup files already exist
+			pass # Keep the old backup files; do not replace
 
 		# Copy over the Dolphin settings files for CSP creation
-		# copy( cspCreator.dolphinSettingsFile, generalSettingsFile )
-		# copy( cspCreator.gfxSettingsFile, gfxSettingsFile )
+		copy( cspCreator.dolphinSettingsFile, generalSettingsFile )
+		copy( cspCreator.gfxSettingsFile, gfxSettingsFile )
 
 		# Construct the path to the center screenshot
 		centerScreenshotFilename = globalData.disc.constructCharFileName( selectionWindow.charId, selectionWindow.costumeId )[:-4] + '.png'
@@ -459,10 +459,10 @@ class ToolsMenu( Tk.Menu, object ):
 		rightScreenshot = 'TEST'
 
 		# Restore previous Dolphin settings
-		# os.remove( generalSettingsFile )
-		# os.remove( gfxSettingsFile )
-		# os.rename( generalSettingsFile + '.bak', generalSettingsFile )
-		# os.rename( gfxSettingsFile + '.bak', gfxSettingsFile )
+		os.remove( generalSettingsFile )
+		os.remove( gfxSettingsFile )
+		os.rename( generalSettingsFile + '.bak', generalSettingsFile )
+		os.rename( gfxSettingsFile + '.bak', gfxSettingsFile )
 
 		"""	'-l', '--leftImagePaths', required=True, nargs='+', help='File paths for the left image.' )
 			'-c', '--centerImagePaths', required=True, nargs='+', help='File paths for the center image.' )
@@ -481,10 +481,11 @@ class ToolsMenu( Tk.Menu, object ):
 		"""
 
 		# Assemble arguments for the external Tri-CSP Creator executable
+		cspCreatorExe = globalData.paths['triCspCreator']
 		outputPath = os.path.join( globalData.paths['tempFolder'], 'csp.png' )
 		try:
 			args = '"{}" -l "{}" -c "{}" -r "{}" -t {} -cx {} -cy {} -cs {} -sx {} -sy {} -ss {} -o "{}"'.format( 
-				globalData.paths['triCspCreator'], leftScreenshot, centerScreenshot, rightScreenshot, charConfigDict['threshold'], 
+				cspCreatorExe, leftScreenshot, centerScreenshot, rightScreenshot, charConfigDict['threshold'], 
 				charConfigDict['centerImageXOffset'], charConfigDict['centerImageYOffset'], charConfigDict['centerImageScaling'], 
 				charConfigDict['sideImagesXOffset'], charConfigDict['sideImagesYOffset'], charConfigDict['sideImagesScaling'], outputPath )
 			if charConfigDict['reverseSides']:
