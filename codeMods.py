@@ -164,7 +164,8 @@ class CodeChange( object ):
 			if error:
 				printStatus( error )
 				return
-			self._origCode = dol.getData( dolOffset, self.getLength() )
+			origData = dol.getData( dolOffset, self.getLength() )
+			self._origCode = hexlify( origData )
 
 		return self._origCode
 

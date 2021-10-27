@@ -601,6 +601,7 @@ class TriCspCreator( object ):
 
 		codesToInstall.append( parser.getModByName('Zero-G Mode') )
 		codesToInstall.append( parser.getModByName('Modified Camera Info Flag Initialization') )
+		codesToInstall.append( parser.getModByName('Standard Pause Camera in Dev-Mode Match') )
 
 		# Configure the camera
 		cameraMod = parser.getModByName( 'CSP Camera Configuration' )

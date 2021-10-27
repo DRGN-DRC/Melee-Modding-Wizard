@@ -2926,6 +2926,8 @@ class MicroMelee( Disc ):
 				codesToInstall.append( osReport )
 			else:
 				printStatus( 'Unable to find the Enable OSReport Print on Crash mod in the Core Codes library!', warning=True )
+
+		codesToInstall.append( parser.getModByName('Standard Pause Camera in Dev-Mode Match') )
 		
 		# Get the music table struct and the default song ID
 		# grGroundParamStruct = stageObj.getStructByLabel( 'grGroundParam' )
@@ -2982,6 +2984,8 @@ class MicroMelee( Disc ):
 		assetTest.configure( "Player 1 Character", charObj.extCharId )
 		assetTest.configure( "P1 Costume ID", charObj.getCostumeId() )
 		codesToInstall.append( assetTest )
+		
+		codesToInstall.append( parser.getModByName('Standard Pause Camera in Dev-Mode Match') )
 
 		# Make sure Dolphin is stopped so we can save to the disc
 		globalData.dolphinController.stopAllDolphinInstances()
