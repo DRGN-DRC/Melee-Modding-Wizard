@@ -124,7 +124,7 @@ class CodeChange( object ):
 		self.length = -1
 		self.offset = offset		# String; may be a DOL offset or RAM address. Should be interpreted by one of the DOL normalization methods
 		self.isAssembly = False
-		self.syntaxInfo = []		# A list of lists. Each sub-list is of the form [ offset, optionWidth, originalLine, name ]
+		self.syntaxInfo = []		# A list of lists. Each sub-list is of the form [ offset, length, syntaxType, codeLine, names ]
 		self._origCode = origCode
 		self.rawCode = rawCustomCode
 		self.preProcessedCode = preProcessedCode
@@ -2524,164 +2524,168 @@ class CommandProcessor( object ):
 
 		return 0, length, preProcessedCode, customSyntaxRanges
 
-	def preAssembleRawCode( self, codeLinesList, includePaths=None, discardWhitespace=True, suppressWarnings=False ):
+	# def preAssembleRawCode( self, codeLinesList, includePaths=None, discardWhitespace=True, suppressWarnings=False ):
 
-		""" This method takes assembly or hex code, filters out custom MCM syntaxes and comments, and assembles the code 
-			using the PowerPC EABI if it was assembly. Once that is done, the custom syntaxes are added back into the code, 
-			which will be replaced (compiled to hex) later. If the option to include whitespace is enabled, then the resulting 
-			code will be formatted with spaces after every 4 bytes and line breaks after every 8 bytes (like a Gecko code). 
-			The 'includePaths' option specifies a list of [full/absolute] directory paths for .include imports. 
+	# 	""" This method takes assembly or hex code, filters out custom MCM syntaxes and comments, and assembles the code 
+	# 		using the PowerPC EABI if it was assembly. Once that is done, the custom syntaxes are added back into the code, 
+	# 		which will be replaced (compiled to hex) later. If the option to include whitespace is enabled, then the resulting 
+	# 		code will be formatted with spaces after every 4 bytes and line breaks after every 8 bytes (like a Gecko code). 
+	# 		The 'includePaths' option specifies a list of [full/absolute] directory paths for .include imports. 
 
-			Return codes from this method are:
-				0: Success
-				1: Compilation placeholder or branch marker detected in original code
-				2: Error during assembly
-				3: Include file(s) could not be found
-		"""
+	# 		Return codes from this method are:
+	# 			0: Success
+	# 			1: Compilation placeholder or branch marker detected in original code
+	# 			2: Error during assembly
+	# 			3: Include file(s) could not be found
+	# 	"""
 
-		# Define placeholders for special syntaxes
-		compilationPlaceholder = 'stfdu f21,-16642(r13)' # Equivalent of 'deadbefe' (doesn't actually matter what this is, but must be in ASM in case of conversion)
-		branchMarker = 'DEADBEFE'
+	# 	# Define placeholders for special syntaxes
+	# 	compilationPlaceholder = 'stfdu f21,-16642(r13)' # Equivalent of 'deadbefe' (doesn't actually matter what this is, but must be in ASM in case of conversion)
+	# 	branchMarker = 'DEADBEFE'
 
-		assemblyRequired = False
-		allSpecialSyntaxes = True
-		filteredLines = []
-		customSyntax = []
+	# 	assemblyRequired = False
+	# 	allSpecialSyntaxes = True
+	# 	filteredLines = []
+	# 	customSyntax = []
 
-		# if type( codeLinesList ) != list:
-		# 	codeLinesList = codeLinesList.splitlines()
+	# 	# if type( codeLinesList ) != list:
+	# 	# 	codeLinesList = codeLinesList.splitlines()
 
-		# Filter out special syntaxes and remove comments
-		for rawLine in codeLinesList:
-			# Start off by filtering out comments
-			codeLine = rawLine.split( '#' )[0].strip()
+	# 	# Filter out special syntaxes and remove comments
+	# 	for rawLine in codeLinesList:
+	# 		# Start off by filtering out comments
+	# 		codeLine = rawLine.split( '#' )[0].strip()
+	# 		if codeLine == '': continue
 
-			if compilationPlaceholder in codeLine or branchMarker in codeLine:
-				# This should be a very rare problem, so I'm not going to bother with suppressing this
-				msg( 'There was an error while assembling this code (compilation placeholder detected):\n\n' + '\n'.join(codeLinesList), 'Assembly Error 01' )
-				return ( 1, '' )
+	# 		elif compilationPlaceholder in codeLine or branchMarker in codeLine:
+	# 			# This should be a very rare problem, so I'm not going to bother with suppressing this
+	# 			msg( 'There was an error while assembling this code (compilation placeholder detected):\n\n' + '\n'.join(codeLinesList), 'Assembly Error 01' )
+	# 			return ( 1, '' )
 
-			elif CodeLibraryParser.isSpecialBranchSyntax( codeLine ): # e.g. "bl 0x80001234" or "bl <testFunction>"
-				# Store the original command.
-				if discardWhitespace: customSyntax.append( '|S|sbs__' + codeLine + '|S|' ) # Add parts for internal processing
-				else: customSyntax.append( codeLine ) # Keep the finished string human-readable
+	# 		elif CodeLibraryParser.isSpecialBranchSyntax( codeLine ): # e.g. "bl 0x80001234" or "bl <testFunction>"
+	# 			# Store the original command.
+	# 			if discardWhitespace: customSyntax.append( '|S|sbs__' + codeLine + '|S|' ) # Add parts for internal processing
+	# 			else: customSyntax.append( codeLine ) # Keep the finished string human-readable
 
-				# Add a placeholder for compilation (important for other branch calculations). It will be replaced with the original command after the code is assembled to hex.
-				filteredLines.append( compilationPlaceholder )
+	# 			# Add a placeholder for compilation (important for other branch calculations). It will be replaced with the original command after the code is assembled to hex.
+	# 			filteredLines.append( compilationPlaceholder )
 
-			elif CodeLibraryParser.containsPointerSymbol( codeLine ): # Identifies symbols in the form of <<functionName>>
-				# Store the original command.
-				if discardWhitespace: customSyntax.append( '|S|sym__' + codeLine + '|S|' ) # Add parts for internal processing
-				else: customSyntax.append( codeLine ) # Keep the finished string human-readable
+	# 		elif CodeLibraryParser.containsPointerSymbol( codeLine ): # Identifies symbols in the form of <<functionName>>
+	# 			# Store the original command.
+	# 			if discardWhitespace: customSyntax.append( '|S|sym__' + codeLine + '|S|' ) # Add parts for internal processing
+	# 			else: customSyntax.append( codeLine ) # Keep the finished string human-readable
 
-				# Add a placeholder for compilation (important for other branch calculations). It will be replaced with the original command after the code is assembled to hex.
-				filteredLines.append( compilationPlaceholder )
+	# 			# Add a placeholder for compilation (important for other branch calculations). It will be replaced with the original command after the code is assembled to hex.
+	# 			filteredLines.append( compilationPlaceholder )
 
-			elif '[[' in codeLine and ']]' in codeLine: # Identifies configuration option placeholders
-				# Store the original command.
-				if discardWhitespace: customSyntax.append( '|S|opt__' + codeLine + '|S|' ) # Add parts for internal processing
-				else: customSyntax.append( codeLine ) # Keep the finished string human-readable
+	# 		elif '[[' in codeLine and ']]' in codeLine: # Identifies configuration option placeholders
+	# 			# Store the original command.
+	# 			if discardWhitespace: customSyntax.append( '|S|opt__' + codeLine + '|S|' ) # Add parts for internal processing
+	# 			else: customSyntax.append( codeLine ) # Keep the finished string human-readable
 
-				# Add a placeholder for compilation (important for other branch calculations). It will be replaced with the original command after the code is assembled to hex.
-				filteredLines.append( compilationPlaceholder )
+	# 			# Add a placeholder for compilation (important for other branch calculations). It will be replaced with the original command after the code is assembled to hex.
+	# 			filteredLines.append( compilationPlaceholder )
 
-			else:
-				# Whether it's hex or not, re-add the line to filteredLines.
-				filteredLines.append( codeLine )
-				allSpecialSyntaxes = False
+	# 		else:
+	# 			# Whether it's hex or not, re-add the line to filteredLines.
+	# 			filteredLines.append( codeLine )
+	# 			allSpecialSyntaxes = False
 
-				# Check whether this line indicates that this code requires conversion.
-				if not assemblyRequired and codeLine != '' and not validHex( codeLine.replace(' ', '') ):
-					assemblyRequired = True
+	# 			# Check whether this line indicates that this code requires conversion.
+	# 			if not assemblyRequired and codeLine != '' and not validHex( codeLine.replace(' ', '') ):
+	# 				assemblyRequired = True
 
-		if allSpecialSyntaxes: # No real processing needed; it will be done when resolving these syntaxes
-			if discardWhitespace:
-				return ( 0, ''.join(customSyntax) )
-			else:
-				return ( 0, '\n'.join(customSyntax) )
+	# 	if allSpecialSyntaxes: # No real processing needed; it will be done when resolving these syntaxes
+	# 		if discardWhitespace:
+	# 			return ( 0, ''.join(customSyntax) )
+	# 		else:
+	# 			return ( 0, '\n'.join(customSyntax) )
 
-		filteredCode = '\n'.join( filteredLines ) # Joins the filtered lines with linebreaks.
+	# 	filteredCode = '\n'.join( filteredLines ) # Joins the filtered lines with linebreaks.
 
-		# If this is ASM, convert it to hex.
-		if assemblyRequired:
-			conversionOutput, errors = self.assemble( filteredCode, beautify=True, includePaths=includePaths, suppressWarnings=suppressWarnings )
+	# 	# If this is ASM, convert it to hex.
+	# 	if assemblyRequired:
+	# 		conversionOutput, errors = self.assemble( filteredCode, beautify=True, includePaths=includePaths, suppressWarnings=suppressWarnings )
 			
-			if errors:
-				# If suppressWarnings is True, there shouldn't be warnings in the error text; but there may still be actual errors reported
-				if not suppressWarnings:
-					cmsg( errors, 'Assembly Error 02' )
+	# 		if errors:
+	# 			# If suppressWarnings is True, there shouldn't be warnings in the error text; but there may still be actual errors reported
+	# 			if not suppressWarnings:
+	# 				cmsg( errors, 'Assembly Error 02' )
 
-				# Parse the error message for missing include files
-				missingIncludeFile = ''
-				for line in errors.splitlines():
-					splitLine = line.split( "Error: can't open" )
-					if len( splitLine ) == 2 and line.endswith( "No such file or directory" ):
-						missingIncludeFile = splitLine[1].split( 'for reading:' )[0].strip()
-						break
+	# 			# Parse the error message for missing include files
+	# 			missingIncludeFile = ''
+	# 			for line in errors.splitlines():
+	# 				splitLine = line.split( "Error: can't open" )
+	# 				if len( splitLine ) == 2 and line.endswith( "No such file or directory" ):
+	# 					missingIncludeFile = splitLine[1].split( 'for reading:' )[0].strip()
+	# 					break
 
-				if missingIncludeFile:
-					return ( 3, missingIncludeFile )
-				else:
-					return ( 2, '' )
+	# 			if missingIncludeFile:
+	# 				return ( 3, missingIncludeFile )
+	# 			else:
+	# 				return ( 2, '' )
 
-			else:
-				newCode = conversionOutput.strip()
-		else:
-			newCode = filteredCode.replace( 'stfdu f21,-16642(r13)', 'DEADBEFE' ).strip()
+	# 		else:
+	# 			newCode = conversionOutput.strip()
+	# 	else:
+	# 		newCode = filteredCode.replace( 'stfdu f21,-16642(r13)', 'DEADBEFE' ).strip()
 
-		# If any special commands were filtered out, add them back in.
-		if newCode and customSyntax:
-			# The code should be in hex at this point, with whitespace
-			commandArray = newCode.split() # Split by whitespace
+	# 	# If any special commands were filtered out, add them back in.
+	# 	if newCode and customSyntax:
+	# 		# The code should be in hex at this point, with whitespace
+	# 		commandArray = newCode.split() # Split by whitespace
 
-			commandLineArray = []
-			specialBranchIndex = 0
+	# 		commandLineArray = []
+	# 		specialBranchIndex = 0
 
-			if discardWhitespace:
-				for command in commandArray:
+	# 		if discardWhitespace:
+	# 			for command in commandArray:
 
-					# Add the previously saved special command(s).
-					if command == branchMarker: 
-						commandLineArray.append( customSyntax[specialBranchIndex] )
-						specialBranchIndex += 1
+	# 				# Add the previously saved special command(s).
+	# 				if command == branchMarker: 
+	# 					commandLineArray.append( customSyntax[specialBranchIndex] )
+	# 					specialBranchIndex += 1
 
-					# Add just this command to this line.
-					else: commandLineArray.append( command )
+	# 				# Add just this command to this line.
+	# 				else: commandLineArray.append( command )
 
-				newCode = ''.join( commandLineArray ).strip()
+	# 			newCode = ''.join( commandLineArray ).strip()
 
-			else: # Add some extra formatting for the user.
-				skip = False
-				i = 1
-				for command in commandArray:
-					if skip:
-						skip = False
-						i += 1
-						continue
+	# 		else: # Add some extra formatting for the user.
+	# 			skip = False
+	# 			i = 1
+	# 			for command in commandArray:
+	# 				if skip:
+	# 					skip = False
+	# 					i += 1
+	# 					continue
 
-					# Add the previously saved special command(s).
-					if command == branchMarker: # This line was a special syntax
-						commandLineArray.append( customSyntax[specialBranchIndex] )
-						specialBranchIndex += 1
+	# 				# Add the previously saved special command(s).
+	# 				if command == branchMarker: # This line was a special syntax
+	# 					commandLineArray.append( customSyntax[specialBranchIndex] )
+	# 					specialBranchIndex += 1
 
-					# Add this command and the next on the same line if neither is a special syntax.
-					elif i < len( commandArray ) and commandArray[i] != 'DEADBEFE':
-						commandLineArray.append( command + ' ' + commandArray[i] )
-						skip = True
+	# 				# Add this command and the next on the same line if neither is a special syntax.
+	# 				elif i < len( commandArray ) and commandArray[i] != 'DEADBEFE':
+	# 					commandLineArray.append( command + ' ' + commandArray[i] )
+	# 					skip = True
 
-					# Add just this command to this line.
-					else: commandLineArray.append( command )
+	# 				# Add just this command to this line.
+	# 				else: commandLineArray.append( command )
 
-					i += 1
+	# 				i += 1
 
-				newCode = '\n'.join( commandLineArray ).strip()
+	# 			newCode = '\n'.join( commandLineArray ).strip()
 
-		elif discardWhitespace:
-			newCode = ''.join( newCode.split() )
+	# 	elif discardWhitespace:
+	# 		newCode = ''.join( newCode.split() )
 
-		return ( 0, newCode )
+	# 	return ( 0, newCode )
 
 	def preDisassembleRawCode( self, codeLinesList, discardWhitespace=True ):
+
+		""" Used to disassemble hex code to assembly, while preserving special syntax. """
+
 		# Define placeholders for special syntaxes
 		compilationPlaceholder = 'DEADBEFE'
 		branchMarker = 'stfdu f21,-16642(r13)'
@@ -2720,19 +2724,29 @@ class CommandProcessor( object ):
 				filteredLines.append( compilationPlaceholder )
 				
 				# Try to determine the nibble length of the code on this line
-				sectionLength = 0
-				sectionChunks = codeLine.split( '[[' )
-				for chunk in sectionChunks:
-					if ']]' in chunk:
-						_, chunk = chunk.split( ']]' ) # Not expecting multiple ']]' delimiters in this chunk
+				# sectionLength = 0
+				# sectionChunks = codeLine.split( '[[' )
+				# for chunk in sectionChunks:
+				# 	if ']]' in chunk:
+				# 		_, chunk = chunk.split( ']]' ) # Not expecting multiple ']]' delimiters in this chunk
 
-					if not chunk: pass
-					else:
-						filteredChunk = ''.join( chunk.split() ) # Filtering out whitespace
-						sectionLength += len( filteredChunk )
+				# 	if not chunk: pass
+				# 	else:
+				# 		filteredChunk = ''.join( chunk.split() ) # Filtering out whitespace
+				# 		sectionLength += len( filteredChunk )
 
 				# Round up to closest multiple of 4 bytes
-				length += roundTo32( sectionLength, 8 )
+				#length += roundTo32( sectionLength, 8 )
+				
+				# Eliminate potential whitespace from variable space
+				sectionChunks = codeLine.split( '[[' )
+				for i, chunk in enumerate( sectionChunks ):
+					if ']]' in chunk:
+						sectionChunks[i] = chunk.split( ']]' )[1]
+
+				# Split on whitespace to determine word count
+				words = ''.join( sectionChunks ).split()
+				length += len( words ) * 8
 
 			else:
 				# Whether it's hex or not, re-add the line to filteredLines.
