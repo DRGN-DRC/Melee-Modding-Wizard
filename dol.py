@@ -674,7 +674,7 @@ class Dol( FileBase ):
 			msg( '\nThe following regions are incompatible with the ' + self.revision + ' DOL, because one or both offsets fall '
 				 'outside of the offset range of its text/data sections:\n\n\t' + '\n\t'.join(incompatibleRegions) + '\n', error=True )
 
-	def getCustomCodeRegions( self, searchDisabledRegions=False, specificRegion='', codelistStartPosShift=0, codehandlerStartPosShift=0, useRamAddresses=False ):
+	def getCustomCodeRegions( self, searchDisabledRegions=False, specificRegion='', useRamAddresses=False ):
 
 		""" This gets the regions defined for custom code use (regions permitted for overwrites) in codeRegionSettings.py. 
 			Returned as a list of tuples of the form (regionStart, regionEnd). The start position shifts (space reservations 
@@ -691,28 +691,7 @@ class Dol( FileBase ):
 				if specificRegion and regionName != specificRegion:
 					continue
 
-				# Get all regions if specificRegion is not defined, or get only that region (or that group of regions)
-				#if not specificRegion or regionName == specificRegion:
-
-				# Offset the start of (thus excluding) areas that will be partially used by the Gecko codelist or codehandler
-				# if codelistStartPosShift != 0 and gecko.environmentSupported and regionName == gecko.codelistRegion:
-				# 	codelistRegionStart, codelistRegionEnd = regions[0]
-				# 	codelistRegionStart += codelistStartPosShift
-
-				# 	if codelistRegionEnd - codelistRegionStart > 0: # This excludes the first area if it was sufficiently shrunk
-				# 		codeRegions.append( (codelistRegionStart, codelistRegionEnd) )
-				# 	codeRegions.extend( regions[1:] ) # If there happen to be any more regions that have been added for this.
-
-				# elif codehandlerStartPosShift != 0 and gecko.environmentSupported and regionName == gecko.codehandlerRegion:
-				# 	codehandlerRegionStart, codehandlerRegionEnd = regions[0]
-				# 	codehandlerRegionStart += codehandlerStartPosShift
-
-				# 	if codehandlerRegionEnd - codehandlerRegionStart > 0: # This excludes the first area if it was sufficiently shrunk
-				# 		codeRegions.append( (codehandlerRegionStart, codehandlerRegionEnd) )
-				# 	codeRegions.extend( regions[1:] ) # If there happen to be any more regions that have been added for this.
-
-				# else:
-				if useRamAddresses:
+				elif useRamAddresses:
 					for regionStart, regionEnd in regions:
 						codeRegions.append( (self.offsetInRAM(regionStart), self.offsetInRAM(regionEnd)) )
 				else:
@@ -755,189 +734,70 @@ class Dol( FileBase ):
 	# 	else:
 	# 		return offset
 
-	def findCustomCode_( self, mod, codeChange, freeSpaceCodeArea ):
 
-		""" Occurs with Gecko codes & standalone functions, since we may not have a branch to locate them.
-			This is the first normal (non-special-branch) section for this code. Since the offset is unknown,
-			use this section to find all possible locations/matches for this code within the region. """
-		
-		customCode = codeChange.preProcessedCode
-		if not customCode: # Pre-processing may have failed
-			return -1
+	# def compareCustomOptionCode( self, section, sectionStart, freeSpaceCodeArea, isAssembly, mod ):
 
-		offset = 0
-		customSyntaxIndex = 0
-		matchOffset = 0
+	# 	""" Parses a section of custom code for its non-option/value parts, and compares 
+	# 		them to what's in the DOL to see if the code matches and is installed. """
 
-		# Map each code section to the code in the DOL to see if they match up.
-		for section in customCode.split( '|S|' ):
-			if section == '': continue
+	# 	section = section[5:]
+	# 	sectionChunks = section.split( '[[' )
 
-			# Skip matching custom syntaxes for now
-			elif section.startswith( 'sbs__' ) or section.startswith( 'sym__' ) or section.startswith( 'opt__' ):
-				#offset += 4
-				#offset += getCustomSectionLength( section )
-				offset += codeChange.syntaxInfo[customSyntaxIndex][1]
-				customSyntaxIndex += 1
+	# 	if isAssembly: # This is expected to be one ASM command. Just use the opCode to compare
+	# 		# Substitute name placeholders for values for the assembly process
+	# 		for i, chunk in enumerate( sectionChunks ):
+	# 			if ']]' in chunk:# Contains a config/variable name and maybe other code
+	# 				optName, theRest = chunk.split( ']]' )
+	# 				sectionChunks[i] = chunk.replace( optName + ']]', '0' )
 
-			else: # First section of non-special syntax found
-				matches = findAll( freeSpaceCodeArea, bytearray.fromhex(section), charIncrement=2 ) # charIncrement set to 2 so we increment by byte rather than by nibble
-
-				# Iterate over the possible locations/matches, and check if each may be the code we're looking for (note that starting offsets will be known in these checks)
-				for matchingOffset in matches:
-					subMatchOffset = self.customCodeInDOL( mod, codeChange, matchingOffset - offset, freeSpaceCodeArea ) # "- offset" accomodates for potential preceding special branches
-
-					if subMatchOffset != -1: # The full code was found
-						return subMatchOffset
-				else: # Loop above didn't return; no matches for this section found in the given code area
-					return matchOffset
-
-		return matchOffset
-
-	def customCodeInDOL_( self, mod, codeChange, startingOffset, freeSpaceCodeArea, excludeLastCommand=False ):
-
-		""" Checks if the given custom code (a hex string) is installed within the given code area (a bytearray).
-			Essentially tries to mismatch any of a code change's custom code with the custom code in the DOL. Besides simply
-			checking injection site code, this can check custom injection code, even if it includes unknown special branch syntaxes.
-
-			This is much more reliable than simply checking whether the hex at an injection site is vanilla or not because it's 
-			possible that more than one mod could target the same location (so we have to see which mod the installed custom code 
-			belongs to). If custom code is mostly or entirely composed of custom syntaxes, we'll have to give it the benefit of the 
-			doubt and assume it's installed (since at this point there is no way to know what bytes a custom syntax may resolve to). """
-
-		customCode = codeChange.preProcessedCode
-		if not customCode: # Pre-processing may have failed
-			return -1
-
-		if excludeLastCommand: # Exclude the branch back on injection mods.
-			customCode = customCode[:-8] # Removing the last 4 bytes
-
-		offset = startingOffset
-		matchOffset = startingOffset
-		customSyntaxIndex = 0
-
-		# Map each code section to the code in the DOL to see if they match up.
-		for section in customCode.split( '|S|' ):
-			if section == '': continue
-
-			# Skip matching custom syntaxes
-			elif section.startswith( 'sbs__' ) or section.startswith( 'sym__' ):
-				# optionOffset, optionWidth, codeLine, names = codeChange.syntaxInfo[customSyntaxIndex]
-				# offset += optionWidth
-				offset += 4
-				customSyntaxIndex += 1
-
-				# If this section contains a configuration option, get the current value in the game
-			elif section.startswith( 'opt__' ):
-				optionOffset, optionWidth, _, names = codeChange.syntaxInfo[customSyntaxIndex]
-
-				# Parse the custom code line and compare its non-option parts to what's in the DOL
-				codeMatches = self.compareCustomOptionCode( section, offset, freeSpaceCodeArea, codeChange.isAssembly, mod )
-				if not codeMatches:
-					matchOffset = -1
-					break # Mismatch detected, meaning this is not the same (custom) code in the DOL.
-
-				absOffsetStart = startingOffset + optionOffset # Need an absolute DOL offset. The option offset is relative to the code start
-				codeInDol = freeSpaceCodeArea[absOffsetStart:absOffsetStart+optionWidth]
-				for name in names: # Last item in the list is a list of option names
-					optionType = mod.configurations[name]['type']
-					value = struct.unpack( ConfigurationTypes[optionType], codeInDol )[0]
-					mod.configure( name, value )
-
-				offset += optionWidth
-				customSyntaxIndex += 1
-
-			# elif startOffsetUnknown: # Occurs with Gecko codes & standalone functions, since we may not have a branch to locate them.
-			# 	# This is the first normal (non-special-branch) section for this code. Since the offset is unknown,
-			# 	# use this section to find all possible locations/matches for this code within the region.
-			# 	matches = findAll( freeSpaceCodeArea, bytearray.fromhex(section), charIncrement=2 ) # charIncrement set to 2 so we increment by byte rather than by nibble
-			# 	matchOffset = -1
-
-			# 	# Iterate over the possible locations/matches, and check if each may be the code we're looking for (note that starting offsets will be known in these checks)
-			# 	for matchingOffset in matches:
-			# 		subMatchOffset = self.customCodeInDOL( mod, codeChange, matchingOffset - offset, freeSpaceCodeArea ) # "- offset" accomodates for potential preceding special branches
-			# 		#subMatchOffset = self.codeMatches( customCode, freeSpaceCodeArea, matchingOffset - offset )
-
-			# 		if subMatchOffset != -1: # The full code was found
-			# 			matchOffset = subMatchOffset
-			# 			break
-			# 	break
-
-			else:
-				sectionLength = len( section ) / 2
-				codeInDol = freeSpaceCodeArea[offset:offset+sectionLength]
-
-				if bytearray.fromhex( section ) != codeInDol: # Comparing bytearrays rather than strings prevents worrying about upper/lower-case
-					matchOffset = -1
-					break # Mismatch detected, meaning this is not the same (custom) code in the DOL.
-				else:
-					offset += sectionLength
-
-		return matchOffset
-
-	def compareCustomOptionCode( self, section, sectionStart, freeSpaceCodeArea, isAssembly, mod ):
-
-		""" Parses a section of custom code for its non-option/value parts, and compares 
-			them to what's in the DOL to see if the code matches and is installed. """
-
-		section = section[5:]
-		sectionChunks = section.split( '[[' )
-
-		if isAssembly: # This is expected to be one ASM command. Just use the opCode to compare
-			# Substitute name placeholders for values for the assembly process
-			for i, chunk in enumerate( sectionChunks ):
-				if ']]' in chunk:# Contains a config/variable name and maybe other code
-					optName, theRest = chunk.split( ']]' )
-					sectionChunks[i] = chunk.replace( optName + ']]', '0' )
-
-			assemblyCode = ''.join( sectionChunks )
-			conversionOutput, errors = globalData.codeProcessor.assemble( assemblyCode, False, mod.includePaths, True, False )
-			if errors:
-				return False
+	# 		assemblyCode = ''.join( sectionChunks )
+	# 		conversionOutput, errors = globalData.codeProcessor.assemble( assemblyCode, False, mod.includePaths, True, False )
+	# 		if errors:
+	# 			return False
 			
-			# Compare the opCode of the assembled code and the code in the DOL
-			hexCode = bytearray.fromhex( conversionOutput )
-			codeInDol = freeSpaceCodeArea[sectionStart:sectionStart+4]
-			if hexCode[0] == codeInDol[0]:
-				return True
-			else:
-				return False
+	# 		# Compare the opCode of the assembled code and the code in the DOL
+	# 		hexCode = bytearray.fromhex( conversionOutput )
+	# 		codeInDol = freeSpaceCodeArea[sectionStart:sectionStart+4]
+	# 		if hexCode[0] == codeInDol[0]:
+	# 			return True
+	# 		else:
+	# 			return False
 		
-		else: # Processing hex code
-			sectionPos = 0 # Offset/position within this section
+	# 	else: # Processing hex code
+	# 		sectionPos = 0 # Offset/position within this section
 
-			for chunk in sectionChunks:
-				if ']]' in chunk: # Contains a config/variable name and maybe other code
-					_, chunk = chunk.split( ']]' )
+	# 		for chunk in sectionChunks:
+	# 			if ']]' in chunk: # Contains a config/variable name and maybe other code
+	# 				_, chunk = chunk.split( ']]' )
 
-					# Return True if there are any non-hex characters (meaning assembly was found)
-					# if not theRest: pass # Empty string
-					# else:
-					# 	chunkLength = len( theRest ) / 2
+	# 				# Return True if there are any non-hex characters (meaning assembly was found)
+	# 				# if not theRest: pass # Empty string
+	# 				# else:
+	# 				# 	chunkLength = len( theRest ) / 2
 
-					# 	# Check for DOL code mismatch
-					# 	dolChunkStart = sectionStart + sectionPos
-					# 	dolChunk = freeSpaceCodeArea[dolChunkStart:dolChunkStart+chunkLength]
-					# 	if bytearray.fromhex( theRest ) != dolChunk:
-					# 		return False
+	# 				# 	# Check for DOL code mismatch
+	# 				# 	dolChunkStart = sectionStart + sectionPos
+	# 				# 	dolChunk = freeSpaceCodeArea[dolChunkStart:dolChunkStart+chunkLength]
+	# 				# 	if bytearray.fromhex( theRest ) != dolChunk:
+	# 				# 		return False
 
-					# 	sectionPos += chunkLength
+	# 				# 	sectionPos += chunkLength
 				
-				# No config/variable name in this chunk; expected to be hex at this point.
-				if not chunk: pass # Empty string
-				else:
-					chunkLength = len( chunk ) / 2
+	# 			# No config/variable name in this chunk; expected to be hex at this point.
+	# 			if not chunk: pass # Empty string
+	# 			else:
+	# 				chunkLength = len( chunk ) / 2
 
-					# Check for DOL code mismatch
-					dolChunkStart = sectionStart + sectionPos
-					dolChunk = freeSpaceCodeArea[dolChunkStart:dolChunkStart+chunkLength]
-					print 'comparing', chunk, 'to', hexlify( dolChunk )
-					if bytearray.fromhex( chunk ) != dolChunk:
-						return False
+	# 				# Check for DOL code mismatch
+	# 				dolChunkStart = sectionStart + sectionPos
+	# 				dolChunk = freeSpaceCodeArea[dolChunkStart:dolChunkStart+chunkLength]
+	# 				print 'comparing', chunk, 'to', hexlify( dolChunk )
+	# 				if bytearray.fromhex( chunk ) != dolChunk:
+	# 					return False
 
-					sectionPos += chunkLength
+	# 				sectionPos += chunkLength
 
-			return True
+	# 		return True
 
 	@staticmethod
 	def getOptionWidth( optionType ):
@@ -1183,7 +1043,6 @@ class Dol( FileBase ):
 
 		standaloneFunctionsInstalled = set()
 		functionOnlyModules = [] # Remember some info on modules composed of only standalone functions
-		#geckoCodesAllowed = overwriteOptions[ 'EnableGeckoCodes' ].get()
 		requiredDisabledRegions = []
 		
 		tic = time.clock()
@@ -1325,48 +1184,15 @@ class Dol( FileBase ):
 							included = False
 
 						else: # Code found to be installed!
-							# If using the Gecko regions is not enabled, ask the user if they'd like to allow Gecko codes.
-							# if not geckoCodesAllowed and not userPromptedForGeckoUsage: # The second boolean here ensure this message only appears once throughout all of these loops.
-							# 	userPromptedForGeckoUsage = True
-
-							# 	# If this is Melee, add some details to the message
-							# 	if dol.isMelee and ( gecko.codelistRegion == 'DebugModeRegion' or gecko.codehandlerRegion == 'DebugModeRegion' 
-							# 						or gecko.codelistRegion == 'Debug Mode Region' or gecko.codehandlerRegion == 'Debug Mode Region' ):
-							# 		meleeDetails = ( "Mostly, this just means that you wouldn't be able to use the vanilla Debug Menu "
-							# 							"(if you're not sure what that means, then you're probably not using the Debug Menu, and you can just click yes). " )
-							# 	else: meleeDetails = ''
-
-							# 	promptToUser = ( 'Gecko codes have been found to be installed, however the "Enable Gecko Codes" option is not selected.'
-							# 		'\n\nEnabling Gecko codes means that the regions defined for Gecko codes, ' + gecko.codelistRegion + ' and ' + gecko.codehandlerRegion + ', will be reserved '
-							# 		"(i.e. may be partially or fully overwritten) for custom code. " + meleeDetails + 'Regions that you have '
-							# 		'enabled for use can be viewed and modified by clicking on the "Code-Space Options" button. '
-							# 		'\n\nIf you do not enable Gecko codes, those that are already installed will be removed upon saving! Would you like to enable '
-							# 		'these regions for overwrites in order to use Gecko codes?' )
-
-							# 	geckoCodesAllowed = willUserAllowGecko( promptToUser, False, root )
-
-							# 	if geckoCodesAllowed: # This option has been toggled! Re-run this function to ensure all Gecko mod states are properly set
-							# 		print 'performing gecko codes re-scan'
-							# 		checkForEnabledCodes( True )
-							# 		return
-
-							# if geckoCodesAllowed:
 							# self.disc.files[self.disc.gameId + '/gecko.bin']
 							# dolOffset = gecko.codelistRegionStart + 8 + matchOffset
 							summaryReport.append( ('Gecko code', codeChange.type, matchOffset, codeChange.length) )
-							# else:
-							# 	included = False
 
 				elif codeChange.type == 'standalone':
 					functionsIncluded.append( codeChange.offset ) # The offset will be a name in this case
 
 				if not included:
 					break
-
-				# The mod is considered included so far. Store configuration options found
-				# elif codeChange.options:
-				# 	for optionName, value in codeChange.options:
-				# 		mod.configure( optionName, value )
 
 			# Prepare special processing for the unique case of this module being composed of ONLY standalone functions (at least for this dol revision)
 			if functionsOnly:
@@ -1418,9 +1244,6 @@ class Dol( FileBase ):
 				mod.setState( 'enabled' )
 				standaloneFunctionsInstalled.update( requiredStandaloneFunctions ) # This is a set, so only new names are added.
 				#addToInstallationSummary( mod.name, mod.type, summaryReport )
-
-			# elif codeChange.type == 'gecko' and not geckoCodesAllowed:
-			# 	mod.setState( 'unavailable' )
 
 			elif globalData.checkSetting( 'alwaysEnableCrashReports' ) and mod.name == "Enable OSReport Print on Crash":
 				# Queue this to be installed

@@ -217,7 +217,7 @@ class AsmToHexConverter( BasicWindow ):
 		# Swap back in custom sytaxes
 		if self.syntaxInfo and not self.assembleSpecialSyntax.get():
 			#returnCode, hexCode = customCodeProcessor.preAssembleRawCode( asmCode, self.includePaths, discardWhitespace=False )
-			hexCode = self.restoreCustomSyntax( hexCode, codeLength )
+			hexCode = self.restoreCustomSyntaxInHex( hexCode, codeLength )
 
 		# Beautify and insert the new hex code
 		elif self.blocksPerLine > 0:
@@ -260,7 +260,15 @@ class AsmToHexConverter( BasicWindow ):
 		returnCode, codeLength, hexCode, self.syntaxInfo, self.isAssembly = results
 		
 		# Disassemble the code into assembly
-		returnCode, asmCode, codeLength = globalData.codeProcessor.preDisassembleRawCode( hexCode, discardWhitespace=False )
+		#returnCode, asmCode, codeLength = globalData.codeProcessor.preDisassembleRawCode( hexCode, discardWhitespace=False )
+		
+		asmCode, errors = globalData.codeProcessor.disassemble( hexCode )
+		if errors:
+			cmsg( errors, 'Disassembly Error' )
+			return
+
+		if self.syntaxInfo:
+			asmCode = self.restoreCustomSyntaxInAsm( asmCode )
 
 		if returnCode != 0:
 			self.lengthString.set( 'Length: ' )
@@ -277,7 +285,49 @@ class AsmToHexConverter( BasicWindow ):
 		else:
 			self.assemblyDetectedLabel['text'] = 'Assembly Detected: False'
 
-	def restoreCustomSyntax( self, hexCode, totalLength ):
+	def restoreCustomSyntaxInAsm( self, hexCode ):
+
+		""" Swap out assembly code for the original custom syntax line that it came from. """
+
+		# Build a new list of ( offset, wordString ) so we can separate words included on the same line
+		specialWords = []
+		for info in self.syntaxInfo: # syntaxOffset, length, syntaxType, codeLine, names
+			if info[2] == 'sbs' or info[2] == 'sym':
+				specialWords.append( (info[0], codeLine) )
+			else:
+				# Extract names (eliminating whitespace associated with names) and separate hex groups
+				names = []
+				nameIndex = 0
+				sectionChunks = codeLine.split( '[[' )
+				for i, chunk in enumerate( sectionChunks ):
+					if ']]' in chunk:
+						varName, chunk = chunk.split( ']]' )
+						names.append( varName )
+						sectionChunks[i] = '[[]]' + chunk
+
+				# Recombine the string and split on whitespace
+				newLine = ''.join( sectionChunks )
+				hexGroups = newLine.split() # Will now have something like [ '000000[[]]' ] or [ '40820008', '0000[[]]' ]
+
+				# Process each hex group
+				groupParts = []
+				for group in hexGroups:
+					if ']]' in chunk:
+						specialWords.append( (info[0], group.replace('[[]]', '[['+names[nameIndex]+']]')) )
+						nameIndex += 1
+
+		newLines = []
+		offset = 0
+
+		for line in asmLines.splitlines():
+			if offset + 4 > specialWords[0][0]:
+				newLines.append( specialWords.pop(0) )
+			else:
+				newLines.append( line )
+
+		return '\n'.join( newLines )
+
+	def restoreCustomSyntaxInHex( self, hexCode, totalLength ):
 
 		""" Swap out hex code for the original custom syntax line that it came from. """
 
@@ -371,11 +421,6 @@ class AsmToHexConverter( BasicWindow ):
 
 		# Clear the hex code field and info labels
 		self.hexCodeEntry.delete( '1.0', 'end' )
-
-		# Reformat whitespace
-		# hexCode = ''.join( hexCode.split() ) # Remove all whitespace
-		# if self.blocksPerLine > 0:
-		# 	hexCode = globalData.codeProcessor.beautifyHex( hexCode, blocksPerLine=self.blocksPerLine )
 
 		def flushBuffer( pureHexBuffer, newLines ):
 			if pureHexBuffer:

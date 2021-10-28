@@ -1841,23 +1841,13 @@ class CommandProcessor( object ):
 		if branchStart == -1:
 			return branchInstruction, 0
 
-		if CodeLibraryParser.isStandaloneFunctionHeader( targetDescriptor ): # The syntax references a standalone function (comments should already be filtered out).
+		# Check if referencing a standalone function (comments should already be filtered out)
+		if CodeLibraryParser.isStandaloneFunctionHeader( targetDescriptor ):
 			targetFunctionName = targetDescriptor[1:-1] # Removes the </> characters
 			targetFunctionAddress = globalData.standaloneFunctions[targetFunctionName][0] # RAM Address
-			#branchDistance = dol.calcBranchDistance( branchStart, targetFunctionAddress )
 			branchDistance = targetFunctionAddress - ( branchStart )
 
-			# if branchDistance == -1: # Fatal error; end the loop
-			# 	errorDetails = 'Unable to calculate SF branching distance, from {} to {}.'.format( hex(branchStart), hex(targetFunctionAddress) )
-			# 	break
-
 		else: # Must be a special branch syntax using a RAM address
-			# startingRamOffset = dol.offsetInRAM( branchStart )
-
-			# if startingRamOffset == -1: # Fatal error; end the loop
-			# 	errorDetails = 'Unable to determine starting RAM offset, from DOL offset {}.'.format( hex(branchStart) )
-			# 	break
-			#branchDistance = int( targetDescriptor, 16 ) - 0x80000000 - startingRamOffset
 			branchDistance = int( targetDescriptor, 16 ) - ( branchStart )
 
 		branchDistance += branchAdjustment
@@ -1888,328 +1878,13 @@ class CommandProcessor( object ):
 		isAssembly = self.codeIsAssembly( codeLines )
 
 		if isAssembly:
-			returnCode, codeLength, preProcessedCode, customSyntaxRanges = self._evaluateAssembly2( codeLines, includePaths, configurations, validateConfigs )
+			returnCode, codeLength, preProcessedCode, customSyntaxRanges = self._evaluateAssembly( codeLines, includePaths, configurations, validateConfigs )
 		else:
-			returnCode, codeLength, preProcessedCode, customSyntaxRanges = self._evaluateHexcode2( codeLines, includePaths, configurations, validateConfigs )
+			returnCode, codeLength, preProcessedCode, customSyntaxRanges = self._evaluateHexcode( codeLines, includePaths, configurations, validateConfigs )
 
 		return returnCode, codeLength, preProcessedCode, customSyntaxRanges, isAssembly
 
-	# def _evaluateAssembly( self, codeLinesList, includePaths, configurations ):
-
-	# 	linesForAssembler = [ 'start:' ]
-	# 	customSyntaxRanges = []
-
-	# 	# if type( codeLinesList ) != list:
-	# 	# 	codeLinesList = codeLinesList.splitlines()
-
-	# 	# Filter out special syntaxes and remove comments
-	# 	labelIndex = 0
-	# 	for rawLine in codeLinesList:
-	# 		# Start off by filtering out comments, and skip empty lines
-	# 		codeLine = rawLine.split( '#' )[0].strip()
-	# 		if not codeLine: continue
-
-	# 		if codeLine == '.align 2': # Replace the align directive with an alternative, which can't be calculated alongside the .irp instruction
-	# 			linesForAssembler.extend( ['padding = (3 - (.-start-1) & 3)', '.if padding', '  .zero padding', '.endif'] )
-
-	# 		elif CodeLibraryParser.isSpecialBranchSyntax( codeLine ): # e.g. "bl 0x80001234" or "bl <testFunction>"
-	# 			customSyntaxRanges.append( [-1, 4, 'sbs__'+codeLine, ()] )
-
-	# 			linesForAssembler.append( 'OCL_{}:b 0'.format(labelIndex) )
-	# 			labelIndex += 1
-				
-	# 		elif '<<' in codeLine and '>>' in codeLine: # Identifies symbols in the form of <<functionName>>
-	# 			customSyntaxRanges.append( [-1, 4, 'sym__'+codeLine, ()] )
-
-	# 			# Replace custom address symbols with a temporary value placeholder
-	# 			sectionChunks = codeLine.split( '<<' )
-	# 			printoutCodeLine = codeLine
-	# 			for block in sectionChunks[1:]: # Skips first block (will never be a symbol)
-	# 				if '>>' in block:
-	# 					for potentialName in block.split( '>>' )[:-1]: # Skips last block (will never be a symbol)
-	# 						if potentialName != '' and ' ' not in potentialName:
-	# 							printoutCodeLine = printoutCodeLine.replace( '<<' + potentialName + '>>', '0x80000000' )
-
-	# 			linesForAssembler.append( 'OCL_{}:{}'.format(labelIndex, printoutCodeLine) )
-	# 			labelIndex += 1
-
-	# 		elif '[[' in codeLine and ']]' in codeLine: # Identifies configuration option placeholders
-	# 			# Parse out all option names, and collect their information from the mod's configuration dictionaries
-	# 			sectionChunks = codeLine.split( '[[' )
-	# 			#optionInfo = [] # Will be a list of tuples, of the form (optionName, optionType)
-	# 			#lineOffset = 0
-	# 			#syntaxRanges = []
-	# 			names = []
-	# 			for i, chunk in enumerate( sectionChunks ):
-	# 				if ']]' in chunk:
-	# 					varName, theRest = chunk.split( ']]' ) # Not expecting multiple ']]' delimiters in this chunk
-
-	# 					# Attempt to get the configuration name (and size if the code is already assembled)
-	# 					# for option in configurations:
-	# 					# 	optionName = option.get( 'name' )
-	# 					# 	optionType = option.get( 'type' )
-	# 					# 	if optionName == varName:
-	# 					# 		if not optionType:
-	# 					# 			return 4, -1, optionName, []
-	# 					# 		optionWidth = self.getOptionWidth( optionType )
-	# 					# 		if optionWidth == -1:
-	# 					# 			return 5, -1, optionType, []
-	# 					# 		break
-	# 					# else: # The loop above didn't break; option not found
-	# 					# 	return 3, -1, varName, []
-	# 					option = configurations.get( varName )
-	# 					if not option:
-	# 						return 3, -1, varName, []
-	# 					optionType = option.get( 'type' )
-	# 					if not optionType:
-	# 						return 4, -1, varName, []
-	# 					optionWidth = self.getOptionWidth( optionType )
-	# 					if optionWidth == -1:
-	# 						return 5, -1, optionType, []
-	# 					#optionInfo.append( (length, '[[' + varName + ']]', optionWidth) )
-	# 					sectionChunks[i] = chunk.replace( varName + ']]', '0' )
-	# 					names.append( varName )
-
-	# 					# If the custom code following the option is entirely raw hex (or an empty string), get its length
-	# 					# if assemblyRequired: pass
-	# 					# elif all( char in hexdigits for char in theRest.replace(' ', '') ):
-	# 					# 	theRestLength = len( theRest.replace(' ', '') ) / 2
-	# 					# 	length += optionWidth + theRestLength
-	# 					# 	#lineOffset += optionWidth + theRestLength
-	# 					# 	customSyntaxRanges.append( [length, optionWidth, 'opt__'+codeLine] )
-	# 					# else:
-	# 					# 	assemblyRequired = True
-
-	# 					#customSyntaxRanges.append( [length, optionWidth, 'opt__'+codeLine] )
-
-	# 				# If other custom code in this line is raw hex, get its length
-	# 				# elif assemblyRequired: pass
-	# 				# elif all( char in hexdigits for char in chunk.replace(' ', '') ):
-	# 				# 	chunkLength = len( chunk.replace(' ', '') ) / 2
-	# 				# 	length += chunkLength
-	# 				# 	#lineOffset += chunkLength
-	# 				# else: # Abandon calculating length ourselves; get it from assembler
-	# 				# 	assemblyRequired = True
-
-	# 			# Replace collected option names for placeholder values
-	# 			#newCodeLine = codeLine
-	# 			#if assemblyRequired:
-	# 				# newCodeLine = codeLine
-	# 				# for ( _, optionName, _ ) in optionInfo:
-	# 				# 	newCodeLine = newCodeLine.replace( optionName, '0' )
-	# 			customSyntaxRanges.append( [-1, optionWidth, 'opt__'+codeLine, names] )
-
-	# 			#else: # Apart from the option placeholder, the line is raw hex; need to look up types for value sizes
-	# 			# 	for ( length, optionName, optionWidth ) in optionInfo:
-	# 			# 		#newCodeLine = codeLine.replace( optionName, '00' * optionWidth )
-	# 			# 		customSyntaxRanges.append( [length, optionWidth, 'opt__'+codeLine] )
-	# 				#hexLines.append( 'opt__'+codeLine )
-
-	# 			# Create a line in case assembler is needed
-	# 			# newCodeLine = codeLine
-	# 			# for ( _, optionName, _ ) in optionInfo:
-	# 			# 	newCodeLine = newCodeLine.replace( optionName, '0' )
-	# 			newCodeLine = ''.join( sectionChunks )
-
-	# 			linesForAssembler.append( 'OCL_{}:{}'.format(labelIndex, newCodeLine) ) # Collecting in case we need assembler
-	# 			labelIndex += 1
-
-	# 		else:
-	# 			linesForAssembler.append( codeLine )
-
-	# 	# Add assembly to handle the label calculations
-	# 	if customSyntaxRanges: # Found custom syntax; add code to pinpoint their offsets
-	# 		linesForAssembler.append( '.altmacro' )
-	# 		labelOffsets = [ '%OCL_{}-start'.format(i) for i in range(labelIndex) ]
-	# 		linesForAssembler.append( '.irp loc, ' + ', '.join(labelOffsets) )
-	# 		linesForAssembler.append( '  .print "offset:\\loc"' )
-	# 		linesForAssembler.append( '.endr' )
-
-	# 	# Assemble the collected lines, without assembler output parsing in this case (it will be handled in a custom manner below)
-	# 	codeForAssembler = '\n'.join( linesForAssembler ) # Joins the filtered lines with line breaks
-	# 	conversionOutput, errors = self.assemble( codeForAssembler, False, includePaths, True, False )
-	# 	if errors:
-	# 		return 1, -1, errors, []
-
-	# 	elif not customSyntaxRanges: # No special syntax, no extra parsing needed
-	# 		preProcessedCode, errors = self.parseAssemblerOutput( conversionOutput )
-	# 		if errors:
-	# 			return 1, -1, errors, []
-
-	# 		length = len( preProcessedCode ) / 2
-
-	# 	else: # Custom syntax was found...
-	# 		# Parse out their offsets, and/or parse the assembler output in the usual manner
-	# 		standardFirstLine = 0
-	# 		conversionOutputLines = conversionOutput.splitlines()
-	# 		for i, line in enumerate( conversionOutputLines ):
-	# 			if line.startswith( 'offset:' ):
-	# 				#customSyntaxRanges.append( int(line.split(':')[1]) )
-	# 				customSyntaxRanges[i][0] = int(line.split(':')[1])
-	# 			elif line.startswith( 'GAS LISTING' ):
-	# 				break
-	# 			standardFirstLine += 1
-	# 		#print 'syntax ranges post-parse:', customSyntaxRanges
-
-	# 		parsedOutput, errors = self.parseAssemblerOutput( '\n'.join(conversionOutputLines[standardFirstLine:]) )
-	# 		if errors:
-	# 			return 1, -1, errors, []
-
-	# 		# Create the preProcessed string, which will be assembled hex code with the custom syntaxes stripped out and replaced with the original code lines
-	# 		length = len( parsedOutput ) / 2
-	# 		preProcessedLines = []
-	# 		position = 0 # Byte positional offset in the parsed output
-	# 		for offset, width, originalLine, _ in customSyntaxRanges:
-	# 			previousHex = parsedOutput[position*2:offset*2] # x2 to count by nibbles
-	# 			if previousHex: # May be empty (at start, and if custom syntax is back to back)
-	# 				preProcessedLines.append( previousHex )
-	# 				position += len( previousHex ) / 2
-	# 			preProcessedLines.append( originalLine )
-	# 			position += width
-	# 		if position != length: # Add final section
-	# 			preProcessedLines.append( parsedOutput[position*2:] ) # x2 to count by nibbles
-
-	# 		if len( preProcessedLines ) == 1:
-	# 			preProcessedCode = preProcessedLines[0] + '|S|' # Need to make sure this is included
-	# 		else:
-	# 			preProcessedCode = '|S|'.join( preProcessedLines )
-
-	# 	return 0, length, preProcessedCode, customSyntaxRanges
-
-	# def _evaluateHexcode( self, codeLinesList, includePaths=None, configurations=None ):
-
-	# 	customSyntaxRanges = []
-	# 	preProcessedLines = []
-	# 	length = 0
-
-	# 	# Filter out special syntaxes and remove comments
-	# 	for rawLine in codeLinesList:
-	# 		# Start off by filtering out comments, and skip empty lines
-	# 		codeLine = rawLine.split( '#' )[0].strip()
-	# 		if not codeLine: continue
-
-	# 		elif CodeLibraryParser.isSpecialBranchSyntax( codeLine ): # e.g. "bl 0x80001234" or "bl <testFunction>"
-	# 			customSyntaxRanges.append( [length, 4, 'sbs__'+codeLine, ()] )
-	# 			preProcessedLines.append( 'sbs__'+codeLine )
-	# 			length += 4
-			
-	# 		elif '<<' in codeLine and '>>' in codeLine: # Identifies symbols in the form of <<functionName>>
-	# 			customSyntaxRanges.append( [length, 4, 'sym__'+codeLine, ()] )
-	# 			preProcessedLines.append( 'sym__'+codeLine )
-	# 			length += 4
-
-	# 		elif '[[' in codeLine and ']]' in codeLine: # Identifies configuration option placeholders
-	# 			thisLineOffset = length
-	# 			isAssembly = False
-	# 			newRanges = []
-	# 			sectionLength = 0
-
-	# 			# Parse out all option names, and collect their information from the mod's configuration dictionaries
-	# 			sectionChunks = codeLine.split( '[[' )
-	# 			for chunk in sectionChunks:
-	# 				if ']]' in chunk:
-	# 					varName, theRest = chunk.split( ']]' ) # Not expecting multiple ']]' delimiters in this chunk
-
-	# 					# Attempt to get the configuration name (and size if the code is already assembled)
-	# 					# for option in configurations:
-	# 					# 	optionName = option.get( 'name' )
-	# 					# 	optionType = option.get( 'type' )
-	# 					# 	if optionName == varName:
-	# 					# 		if not optionType:
-	# 					# 			return 4, -1, optionName, []
-	# 					# 		optionWidth = self.getOptionWidth( optionType )
-	# 					# 		if optionWidth == -1:
-	# 					# 			return 5, -1, optionType, []
-	# 					# 		break
-	# 					# else: # The loop above didn't break; option not found
-	# 					# 	return 3, -1, varName, []
-	# 					option = configurations.get( varName )
-	# 					if not option:
-	# 						return 3, -1, varName, []
-	# 					optionType = option.get( 'type' )
-	# 					if not optionType:
-	# 						return 4, -1, varName, []
-	# 					optionWidth = self.getOptionWidth( optionType )
-	# 					if optionWidth == -1:
-	# 						return 5, -1, optionType, []
-	# 					#optionInfo.append( (length, '[[' + varName + ']]', optionWidth) )
-	# 					newRanges.append( [length+sectionLength, optionWidth, 'opt__'+codeLine, [varName]] )
-	# 					#names.append( varName )
-
-	# 					# If the custom code following the option is entirely raw hex, get its length
-	# 					if isAssembly: pass
-	# 					elif not theRest:
-	# 						sectionLength += optionWidth
-	# 					elif all( char in hexdigits for char in theRest.replace(' ', '') ):
-	# 						theRestLength = len( theRest.replace(' ', '') ) / 2
-	# 						sectionLength += optionWidth + theRestLength
-	# 						#lineOffset += optionWidth + theRestLength
-	# 					else:
-	# 						isAssembly = True
-
-	# 					#customSyntaxRanges.append( [length, optionWidth, 'opt__'+codeLine] )
-
-	# 				# If other custom code in this line is raw hex, get its length
-	# 				elif isAssembly or not chunk: pass
-	# 				elif all( char in hexdigits for char in chunk.replace(' ', '') ):
-	# 					chunkLength = len( chunk.replace(' ', '') ) / 2
-	# 					sectionLength += chunkLength
-	# 					#lineOffset += chunkLength
-	# 				else: # Abandon calculating length ourselves; get it from assembler
-	# 					isAssembly = True
-
-	# 			# Replace collected option names for placeholder values
-	# 			#newCodeLine = codeLine
-	# 			if isAssembly:
-	# 				# newCodeLine = codeLine
-	# 				# for ( _, optionName, _ ) in optionInfo:
-	# 				# 	newCodeLine = newCodeLine.replace( optionName, '0' )
-
-	# 				#linesRequiringAssembly.append( codeLine )
-
-	# 				# Reset offsets in newRanges (to the start of this line), and add them to the full list
-	# 				newRanges = [ [thisLineOffset, w, l, n] for _, w, l, n in newRanges ]
-	# 				# customSyntaxRanges.extend( newRanges )
-	# 				length += 4
-	# 			else:
-	# 				length += sectionLength
-
-	# 			# else: # Apart from the option placeholder, the line is raw hex; need to look up types for value sizes
-	# 			# # 	for ( length, optionName, optionWidth ) in optionInfo:
-	# 			# # 		#newCodeLine = codeLine.replace( optionName, '00' * optionWidth )
-	# 			# # 		customSyntaxRanges.append( [length, optionWidth, 'opt__'+codeLine] )
-	# 			# 	hexLines.append( 'opt__'+codeLine )
-
-	# 			preProcessedLines.append( 'opt__'+codeLine )
-	# 			customSyntaxRanges.extend( newRanges )
-
-	# 			# Create a line in case assembler is needed
-	# 			# newCodeLine = codeLine
-	# 			# for ( _, optionName, _ ) in optionInfo:
-	# 			# 	newCodeLine = newCodeLine.replace( optionName, '0' )
-
-	# 			# linesForAssembler.append( 'OCL_{}:{}'.format(labelIndex, newCodeLine) ) # Collecting in case we need assembler
-	# 			# labelIndex += 1
-
-	# 		else:
-	# 			# Strip out whitespace and store the line
-	# 			pureHex = ''.join( codeLine.split() )
-	# 			length += len( pureHex ) / 2
-				
-	# 			preProcessedLines.append( pureHex )
-
-	# 	if customSyntaxRanges: # Found custom syntax; add delimiters for future processing
-	# 		if len( preProcessedLines ) == 1:
-	# 			preProcessedCode = preProcessedLines[0] + '|S|' # Need to make sure this is included
-	# 		else:
-	# 			preProcessedCode = '|S|'.join( preProcessedLines )
-
-	# 	else:
-	# 		preProcessedCode = ''.join( preProcessedLines )
-
-	# 	return 0, length, preProcessedCode, customSyntaxRanges
-
-	def _evaluateAssembly2( self, codeLines, includePaths=None, configurations=None, validateConfigs=True ):
+	def _evaluateAssembly( self, codeLines, includePaths=None, configurations=None, validateConfigs=True ):
 
 		customSyntaxRanges = []		# List of lists; each of the form [offset, width, type, origCodeLine, optNames]
 		linesForAssembler = [ 'start:' ]
@@ -2369,7 +2044,7 @@ class CommandProcessor( object ):
 
 		return 0, length, preProcessedCode, customSyntaxRanges
 
-	def _evaluateHexcode2( self, codeLines, includePaths=None, configurations=None, validateConfigs=True ):
+	def _evaluateHexcode( self, codeLines, includePaths=None, configurations=None, validateConfigs=True ):
 
 		customSyntaxRanges = []		# List of lists; each of the form [offset, width, type, origCodeLine, optNames]
 		preProcessedLines = []
@@ -2382,9 +2057,6 @@ class CommandProcessor( object ):
 			if not codeLine: continue
 
 			elif CodeLibraryParser.isSpecialBranchSyntax( codeLine ): # e.g. "bl 0x80001234" or "bl <testFunction>"
-				#customSyntaxRanges.append( [length, 4, 'sbs__'+codeLine, ()] )
-				#preProcessedLines.append( 'sbs__'+codeLine )
-				
 				customSyntaxRanges.append( [length, 4, 'sbs', codeLine, ()] )
 
 				# Parse for some psuedo-code (the instruction should be correct, but branch distance will be 0)
@@ -2394,39 +2066,23 @@ class CommandProcessor( object ):
 				length += 4
 			
 			elif '<<' in codeLine and '>>' in codeLine: # Identifies symbols in the form of <<functionName>>
-				#customSyntaxRanges.append( [length, 4, 'sym__'+codeLine, ()] )
 				customSyntaxRanges.append( [length, 4, 'sym', codeLine, CodeLibraryParser.containsPointerSymbol(codeLine)] )
-				#preProcessedLines.append( 'sym__'+codeLine )
 				preProcessedLines.append( '60000000' ) # Could be anything, soo... nop!
 				length += 4
 
 			elif '[[' in codeLine and ']]' in codeLine: # Identifies configuration option placeholders
-				thisLineOffset = length
-				#isAssembly = False
-				#newRanges = []
-				sectionLength = 0
-				#lastSyntaxOffset = -1
 
-				# Parse out all option names, and collect their information from the mod's configuration dictionaries
 				sectionChunks = codeLine.split( '[[' )
-				for chunk in sectionChunks:
-					if ']]' in chunk:
-						varName, chunk = chunk.split( ']]' ) # Not expecting multiple ']]' delimiters in this chunk
+				sectionLength = 0
+				
+				if validateConfigs: # Use the mod's configuration option to determine option length
+					
+					# Parse out all option names, and collect their information from the mod's configuration dictionaries
+					for chunk in sectionChunks:
+						if ']]' in chunk:
+							varName, chunk = chunk.split( ']]' )
 
-						if validateConfigs:
 							# Attempt to get the configuration name (and size if the code is already assembled)
-							# for option in configurations:
-							# 	optionName = option.get( 'name' )
-							# 	optionType = option.get( 'type' )
-							# 	if optionName == varName:
-							# 		if not optionType:
-							# 			return 4, -1, optionName, []
-							# 		optionWidth = self.getOptionWidth( optionType )
-							# 		if optionWidth == -1:
-							# 			return 5, -1, optionType, []
-							# 		break
-							# else: # The loop above didn't break; option not found
-							# 	return 3, -1, varName, []
 							option = configurations.get( varName )
 							if not option:
 								return 3, -1, varName, []
@@ -2436,76 +2092,89 @@ class CommandProcessor( object ):
 							optionWidth = self.getOptionWidth( optionType )
 							if optionWidth == -1:
 								return 5, -1, optionType, []
-						else:
-							optionWidth = 4 - sectionLength
 
-						if '|' in varName:
-							names = varName.split( '|' )
-							names = [ name.strip() for name in names ] # Remove whitespace from start/end of names
-						elif '&' in varName:
-							names = varName.split( '&' )
-							names = [ name.strip() for name in names ] # Remove whitespace from start/end of names
-						else:
-							names = [ varName ]
-						
-						customSyntaxRanges.append( [length+sectionLength, optionWidth, 'opt', codeLine, names] )
+							if '|' in varName:
+								names = varName.split( '|' )
+								names = [ name.strip() for name in names ] # Remove whitespace from start/end of names
+							elif '&' in varName:
+								names = varName.split( '&' )
+								names = [ name.strip() for name in names ] # Remove whitespace from start/end of names
+							else:
+								names = [ varName ]
+							
+							customSyntaxRanges.append( [length+sectionLength, optionWidth, 'opt', codeLine, names] )
 
-						# If the custom code following the option is entirely raw hex, get its length
-						# if not theRest:
-						# 	sectionLength += optionWidth
-						preProcessedLines.append( '00' * optionWidth )
-						sectionLength += optionWidth
-						# else:
-						# 	filteredChunk = ''.join( theRest.split() ) # Filtering out whitespace
-						# 	sectionLength += optionWidth + len( filteredChunk ) / 2
-						# 	preProcessedLines.append( filteredChunk )
+							# If the custom code following the option is entirely raw hex, get its length
+							preProcessedLines.append( '00' * optionWidth )
+							sectionLength += optionWidth
 
+						# If other custom code in this line is raw hex, get its length
+						if chunk:
+							filteredChunk = ''.join( chunk.split() ) # Filtering out whitespace
+							sectionLength += len( filteredChunk ) / 2
+							preProcessedLines.append( filteredChunk )
 
-					# If other custom code in this line is raw hex, get its length
-					#elif isAssembly or not chunk: pass
-					if not chunk: pass
-					#elif all( char in hexdigits for char in chunk.replace(' ', '') ):
-					else:
-						#chunkLength = len( chunk.replace(' ', '') ) / 2
-						filteredChunk = ''.join( chunk.split() ) # Filtering out whitespace
-						sectionLength += len( filteredChunk ) / 2
-						preProcessedLines.append( filteredChunk )
-						#lineOffset += chunkLength
-					# else: # Abandon calculating length ourselves; get it from assembler
-					# 	isAssembly = True
+				else: # Need to do something a little more involved to predict option length
 
-				# Replace collected option names for placeholder values
-				#newCodeLine = codeLine
-				# if isAssembly:
-				# 	# newCodeLine = codeLine
-				# 	# for ( _, optionName, _ ) in optionInfo:
-				# 	# 	newCodeLine = newCodeLine.replace( optionName, '0' )
+					""" The following is expecting each group of 4 bytes is separated by whitespace.
+						For example: '000000[[SomeVar]]' or '40820008 0000[[SomeVar]]' """
 
-				# 	#linesRequiringAssembly.append( codeLine )
+					# Extract names (eliminating whitespace associated with names) and separate hex groups
+					names = []
+					nameIndex = 0
+					for i, chunk in enumerate( sectionChunks ):
+						if ']]' in chunk:
+							varName, chunk = chunk.split( ']]' )
+							names.append( varName )
+							sectionChunks[i] = '[[]]' + chunk
 
-				# 	# Reset offsets in newRanges (to the start of this line), and add them to the full list
-				# 	newRanges = [ [thisLineOffset, w, l, n] for _, w, l, n in newRanges ]
-				# 	# customSyntaxRanges.extend( newRanges )
-				# 	length += 4
-				#else:
+					# Recombine the string and split on whitespace
+					newLine = ''.join( sectionChunks )
+					hexGroups = newLine.split() # Will now have something like [ '000000[[]]' ] or [ '40820008', '0000[[]]' ]
+
+					# Process each hex group
+					groupParts = []
+					for group in hexGroups:
+						# Parse out all option names, and collect their information from the mod's configuration dictionaries
+						chunks = group.split( '[[' )
+						groupLength = 0
+						nameIndex = -1
+
+						for chunk in chunks:
+							if ']]' in chunk:
+								chunk = chunk.split( ']]' )[1]
+								nameIndex = len( groupParts )
+								varName = names[nameIndex]
+								
+								# Check for multiple values to be ANDed or ORed together
+								if '|' in varName:
+									optNames = varName.split( '|' )
+									optNames = [ name.strip() for name in optNames ] # Remove whitespace from start/end of names
+								elif '&' in varName:
+									optNames = varName.split( '&' )
+									optNames = [ name.strip() for name in optNames ] # Remove whitespace from start/end of names
+								else:
+									optNames = [ varName ]
+								
+								optOffset = length + sectionLength + groupLength
+								customSyntaxRanges.append( [optOffset, optionWidth, 'opt', codeLine, optNames] )
+								nameIndex += 1
+
+							if chunk:
+								groupLength += len( chunk ) / 2
+								groupParts.append( chunk )
+
+						# Build the completed group, with predicted option placeholder
+						optionWidth = 4 - groupLength
+						optPlaceholder = '00' * optionWidth
+						groupParts.insert( nameIndex, optPlaceholder )
+						sectionLength += groupLength
+
+					preProcessedLines.append( ''.join(groupParts) )
+
+					#for char in codeLine
+
 				length += sectionLength
-
-				# else: # Apart from the option placeholder, the line is raw hex; need to look up types for value sizes
-				# # 	for ( length, optionName, optionWidth ) in optionInfo:
-				# # 		#newCodeLine = codeLine.replace( optionName, '00' * optionWidth )
-				# # 		customSyntaxRanges.append( [length, optionWidth, 'opt__'+codeLine] )
-				# 	hexLines.append( 'opt__'+codeLine )
-
-				#preProcessedLines.append( 'opt__'+codeLine )
-				#customSyntaxRanges.extend( newRanges )
-
-				# Create a line in case assembler is needed
-				# newCodeLine = codeLine
-				# for ( _, optionName, _ ) in optionInfo:
-				# 	newCodeLine = newCodeLine.replace( optionName, '0' )
-
-				# linesForAssembler.append( 'OCL_{}:{}'.format(labelIndex, newCodeLine) ) # Collecting in case we need assembler
-				# labelIndex += 1
 
 			else:
 				# Strip out whitespace and store the line
@@ -2514,174 +2183,9 @@ class CommandProcessor( object ):
 				
 				preProcessedLines.append( pureHex )
 
-		# if customSyntaxRanges: # Found custom syntax; add delimiters for future processing
-		# 	if len( preProcessedLines ) == 1:
-		# 		preProcessedCode = preProcessedLines[0] + '|S|' # Need to make sure this is included
-		# 	else:
-		# 		preProcessedCode = '|S|'.join( preProcessedLines )
-
-		# else:
 		preProcessedCode = ''.join( preProcessedLines )
 
 		return 0, length, preProcessedCode, customSyntaxRanges
-
-	# def preAssembleRawCode( self, codeLinesList, includePaths=None, discardWhitespace=True, suppressWarnings=False ):
-
-	# 	""" This method takes assembly or hex code, filters out custom MCM syntaxes and comments, and assembles the code 
-	# 		using the PowerPC EABI if it was assembly. Once that is done, the custom syntaxes are added back into the code, 
-	# 		which will be replaced (compiled to hex) later. If the option to include whitespace is enabled, then the resulting 
-	# 		code will be formatted with spaces after every 4 bytes and line breaks after every 8 bytes (like a Gecko code). 
-	# 		The 'includePaths' option specifies a list of [full/absolute] directory paths for .include imports. 
-
-	# 		Return codes from this method are:
-	# 			0: Success
-	# 			1: Compilation placeholder or branch marker detected in original code
-	# 			2: Error during assembly
-	# 			3: Include file(s) could not be found
-	# 	"""
-
-	# 	# Define placeholders for special syntaxes
-	# 	compilationPlaceholder = 'stfdu f21,-16642(r13)' # Equivalent of 'deadbefe' (doesn't actually matter what this is, but must be in ASM in case of conversion)
-	# 	branchMarker = 'DEADBEFE'
-
-	# 	assemblyRequired = False
-	# 	allSpecialSyntaxes = True
-	# 	filteredLines = []
-	# 	customSyntax = []
-
-	# 	# if type( codeLinesList ) != list:
-	# 	# 	codeLinesList = codeLinesList.splitlines()
-
-	# 	# Filter out special syntaxes and remove comments
-	# 	for rawLine in codeLinesList:
-	# 		# Start off by filtering out comments
-	# 		codeLine = rawLine.split( '#' )[0].strip()
-	# 		if codeLine == '': continue
-
-	# 		elif compilationPlaceholder in codeLine or branchMarker in codeLine:
-	# 			# This should be a very rare problem, so I'm not going to bother with suppressing this
-	# 			msg( 'There was an error while assembling this code (compilation placeholder detected):\n\n' + '\n'.join(codeLinesList), 'Assembly Error 01' )
-	# 			return ( 1, '' )
-
-	# 		elif CodeLibraryParser.isSpecialBranchSyntax( codeLine ): # e.g. "bl 0x80001234" or "bl <testFunction>"
-	# 			# Store the original command.
-	# 			if discardWhitespace: customSyntax.append( '|S|sbs__' + codeLine + '|S|' ) # Add parts for internal processing
-	# 			else: customSyntax.append( codeLine ) # Keep the finished string human-readable
-
-	# 			# Add a placeholder for compilation (important for other branch calculations). It will be replaced with the original command after the code is assembled to hex.
-	# 			filteredLines.append( compilationPlaceholder )
-
-	# 		elif CodeLibraryParser.containsPointerSymbol( codeLine ): # Identifies symbols in the form of <<functionName>>
-	# 			# Store the original command.
-	# 			if discardWhitespace: customSyntax.append( '|S|sym__' + codeLine + '|S|' ) # Add parts for internal processing
-	# 			else: customSyntax.append( codeLine ) # Keep the finished string human-readable
-
-	# 			# Add a placeholder for compilation (important for other branch calculations). It will be replaced with the original command after the code is assembled to hex.
-	# 			filteredLines.append( compilationPlaceholder )
-
-	# 		elif '[[' in codeLine and ']]' in codeLine: # Identifies configuration option placeholders
-	# 			# Store the original command.
-	# 			if discardWhitespace: customSyntax.append( '|S|opt__' + codeLine + '|S|' ) # Add parts for internal processing
-	# 			else: customSyntax.append( codeLine ) # Keep the finished string human-readable
-
-	# 			# Add a placeholder for compilation (important for other branch calculations). It will be replaced with the original command after the code is assembled to hex.
-	# 			filteredLines.append( compilationPlaceholder )
-
-	# 		else:
-	# 			# Whether it's hex or not, re-add the line to filteredLines.
-	# 			filteredLines.append( codeLine )
-	# 			allSpecialSyntaxes = False
-
-	# 			# Check whether this line indicates that this code requires conversion.
-	# 			if not assemblyRequired and codeLine != '' and not validHex( codeLine.replace(' ', '') ):
-	# 				assemblyRequired = True
-
-	# 	if allSpecialSyntaxes: # No real processing needed; it will be done when resolving these syntaxes
-	# 		if discardWhitespace:
-	# 			return ( 0, ''.join(customSyntax) )
-	# 		else:
-	# 			return ( 0, '\n'.join(customSyntax) )
-
-	# 	filteredCode = '\n'.join( filteredLines ) # Joins the filtered lines with linebreaks.
-
-	# 	# If this is ASM, convert it to hex.
-	# 	if assemblyRequired:
-	# 		conversionOutput, errors = self.assemble( filteredCode, beautify=True, includePaths=includePaths, suppressWarnings=suppressWarnings )
-			
-	# 		if errors:
-	# 			# If suppressWarnings is True, there shouldn't be warnings in the error text; but there may still be actual errors reported
-	# 			if not suppressWarnings:
-	# 				cmsg( errors, 'Assembly Error 02' )
-
-	# 			# Parse the error message for missing include files
-	# 			missingIncludeFile = ''
-	# 			for line in errors.splitlines():
-	# 				splitLine = line.split( "Error: can't open" )
-	# 				if len( splitLine ) == 2 and line.endswith( "No such file or directory" ):
-	# 					missingIncludeFile = splitLine[1].split( 'for reading:' )[0].strip()
-	# 					break
-
-	# 			if missingIncludeFile:
-	# 				return ( 3, missingIncludeFile )
-	# 			else:
-	# 				return ( 2, '' )
-
-	# 		else:
-	# 			newCode = conversionOutput.strip()
-	# 	else:
-	# 		newCode = filteredCode.replace( 'stfdu f21,-16642(r13)', 'DEADBEFE' ).strip()
-
-	# 	# If any special commands were filtered out, add them back in.
-	# 	if newCode and customSyntax:
-	# 		# The code should be in hex at this point, with whitespace
-	# 		commandArray = newCode.split() # Split by whitespace
-
-	# 		commandLineArray = []
-	# 		specialBranchIndex = 0
-
-	# 		if discardWhitespace:
-	# 			for command in commandArray:
-
-	# 				# Add the previously saved special command(s).
-	# 				if command == branchMarker: 
-	# 					commandLineArray.append( customSyntax[specialBranchIndex] )
-	# 					specialBranchIndex += 1
-
-	# 				# Add just this command to this line.
-	# 				else: commandLineArray.append( command )
-
-	# 			newCode = ''.join( commandLineArray ).strip()
-
-	# 		else: # Add some extra formatting for the user.
-	# 			skip = False
-	# 			i = 1
-	# 			for command in commandArray:
-	# 				if skip:
-	# 					skip = False
-	# 					i += 1
-	# 					continue
-
-	# 				# Add the previously saved special command(s).
-	# 				if command == branchMarker: # This line was a special syntax
-	# 					commandLineArray.append( customSyntax[specialBranchIndex] )
-	# 					specialBranchIndex += 1
-
-	# 				# Add this command and the next on the same line if neither is a special syntax.
-	# 				elif i < len( commandArray ) and commandArray[i] != 'DEADBEFE':
-	# 					commandLineArray.append( command + ' ' + commandArray[i] )
-	# 					skip = True
-
-	# 				# Add just this command to this line.
-	# 				else: commandLineArray.append( command )
-
-	# 				i += 1
-
-	# 			newCode = '\n'.join( commandLineArray ).strip()
-
-	# 	elif discardWhitespace:
-	# 		newCode = ''.join( newCode.split() )
-
-	# 	return ( 0, newCode )
 
 	def preDisassembleRawCode( self, codeLinesList, discardWhitespace=True ):
 
