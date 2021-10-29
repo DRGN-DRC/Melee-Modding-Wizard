@@ -392,9 +392,10 @@ class DiscTab( ttk.Frame ):
 			discFile.getDescription( usingConvenienceFolders )
 
 		try:
-			altPath = 'GALE01/' + discFile.filename.replace( '.usd', '.dat' )
-			if discFile.filename.endswith( '.usd' ) and altPath in globalData.disc.files:
-				print discFile.filename, humansize(discFile.size)
+			# altPath = 'GALE01/' + discFile.filename.replace( '.usd', '.dat' )
+			# if discFile.filename.endswith( '.usd' ) and altPath in globalData.disc.files:
+			# 	print discFile.filename, humansize(discFile.size)
+			
 			self.isoFileTree.insert( parent, 'end', iid=discFile.isoPath, text=' ' + entryName, values=(discFile.description, 'file') )
 		except Exception as err:
 			printStatus( u'Unable to add {} to the Disc File Tree; {}'.format(discFile.description, err) )
