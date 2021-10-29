@@ -388,7 +388,7 @@ class AudioManager( ttk.Frame ):
 			description = musicFile.description
 			for char in description:
 				if char in ( '\\', '/', ':', '*', '?', '"', '<', '>', '|' ):
-					description.replace( char, '-' )
+					description = description.replace( char, '-' )
 
 			defaultName = '{} ({}){}'.format( name, description, ext )
 

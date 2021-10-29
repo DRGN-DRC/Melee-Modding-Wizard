@@ -599,6 +599,9 @@ class TriCspCreator( object ):
 
 	def createSideImage( self, microMelee, charId, costumeId, charExtension ):
 
+		""" Installs code mods to the given Micro Melee disc image required for capturing CSP images, 
+			and then launches Dolphin to collect a screenshot of a specific character costume. """
+
 		# Get target action states and frames for the screenshots
 		try:
 			characterDict = self.config[charId]
@@ -660,6 +663,7 @@ class TriCspCreator( object ):
 		codesToInstall.append( parser.getModByName('Zero-G Mode') )
 		codesToInstall.append( parser.getModByName('Modified Camera Info Flag Initialization') )
 		codesToInstall.append( parser.getModByName('Standard Pause Camera in Dev-Mode Match') )
+		codesToInstall.append( parser.getModByName('Disable HUD') )
 
 		# Configure the camera
 		cameraMod = parser.getModByName( 'CSP Camera Configuration' )
