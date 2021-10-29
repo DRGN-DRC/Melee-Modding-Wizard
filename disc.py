@@ -2075,6 +2075,8 @@ class Disc( object ):
 		totalModsToInstall = len( codeMods )
 		totalModsInstalled = 0
 		codesNotInstalled = []
+
+		# Open the 
 		
 		# Save the selected Gecko codes to the DOL, and determine the adjusted code regions to use for injection/standalone code.
 		# if geckoCodes:

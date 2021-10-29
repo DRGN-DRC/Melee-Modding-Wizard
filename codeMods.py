@@ -1647,7 +1647,7 @@ class CommandProcessor( object ):
 
 		return args
 
-	def assemble( self, asmCode, beautify=False, includePaths=None, suppressWarnings=False, parseOutput=True ):
+	def assemble( self, asmCode, beautify=False, includePaths=None, suppressWarnings=False, parseOutput=True, errorLineOffset=0 ):
 		
 		""" IPC interface to EABI-AS. Assembles the given code, returns the result, 
 			and cleans up any errors messages that may be present. """
@@ -1662,12 +1662,15 @@ class CommandProcessor( object ):
 			errorLines = []
 			for line in errors.splitlines()[1:]:
 				if line.startswith( '{standard input}:' ):
-					errorLines.append( line.split( '}:', 1 )[1] )
+					lineNumber, line = line.split( ':', 2 )[1:]
+					lineNumber = int( lineNumber ) + errorLineOffset
+					errorLines.append( '{}: {}'.format(lineNumber, line) )
 					continue
 				
 				# Condense the file path and rebuild the rest of the string as it was
 				lineParts = line.split( ': ', 2 ) # Splits on first 2 occurrances only
 				fileName, lineNumber = lineParts[0].rsplit( ':', 1 )
+				lineNumber = int( lineNumber ) + errorLineOffset
 				errorLines.append( '{}:{}: {}'.format(os.path.basename(fileName), lineNumber, ': '.join(lineParts[1:])) )
 
 			errors = '\n'.join( errorLines )
@@ -1989,7 +1992,7 @@ class CommandProcessor( object ):
 
 		# Assemble the collected lines, without assembler output parsing in this case (it will be handled in a custom manner below)
 		codeForAssembler = '\n'.join( linesForAssembler ) # Joins the filtered lines with line breaks
-		conversionOutput, errors = self.assemble( codeForAssembler, False, includePaths, True, False )
+		conversionOutput, errors = self.assemble( codeForAssembler, False, includePaths, True, False, errorLineOffset=-1 )
 		
 		if errors:
 			return 1, -1, errors, []
@@ -2144,31 +2147,34 @@ class CommandProcessor( object ):
 							if ']]' in chunk:
 								chunk = chunk.split( ']]' )[1]
 								nameIndex = len( groupParts )
-								varName = names[nameIndex]
-								
-								# Check for multiple values to be ANDed or ORed together
-								if '|' in varName:
-									optNames = varName.split( '|' )
-									optNames = [ name.strip() for name in optNames ] # Remove whitespace from start/end of names
-								elif '&' in varName:
-									optNames = varName.split( '&' )
-									optNames = [ name.strip() for name in optNames ] # Remove whitespace from start/end of names
-								else:
-									optNames = [ varName ]
-								
-								optOffset = length + sectionLength + groupLength
-								customSyntaxRanges.append( [optOffset, optionWidth, 'opt', codeLine, optNames] )
-								nameIndex += 1
+								varName = names.pop( 0 )
 
 							if chunk:
 								groupLength += len( chunk ) / 2
 								groupParts.append( chunk )
 
-						# Build the completed group, with predicted option placeholder
-						optionWidth = 4 - groupLength
-						optPlaceholder = '00' * optionWidth
-						groupParts.insert( nameIndex, optPlaceholder )
-						sectionLength += groupLength
+						if nameIndex != -1: # Found a name in this group
+							# Build the completed group, with predicted option placeholder
+							optionWidth = 4 - groupLength
+							optPlaceholder = '00' * optionWidth
+
+							# Check for multiple values to be ANDed or ORed together
+							if '|' in varName:
+								optNames = varName.split( '|' )
+								optNames = [ name.strip() for name in optNames ] # Remove whitespace from start/end of names
+							elif '&' in varName:
+								optNames = varName.split( '&' )
+								optNames = [ name.strip() for name in optNames ] # Remove whitespace from start/end of names
+							else:
+								optNames = [ varName ]
+							
+							optOffset = length + sectionLength + groupLength
+							customSyntaxRanges.append( [optOffset, optionWidth, 'opt', codeLine, optNames] )
+							
+							groupParts.insert( nameIndex, optPlaceholder )
+							sectionLength += groupLength + optionWidth
+						else:
+							sectionLength += groupLength
 
 					preProcessedLines.append( ''.join(groupParts) )
 

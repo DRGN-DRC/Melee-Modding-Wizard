@@ -226,7 +226,6 @@ class AsmToHexConverter( BasicWindow ):
 		self.hexCodeEntry.insert( 'end', hexCode )
 
 		# Update the code length display
-		#codeLength = getCustomCodeLength( hexCode, preProcess=True, includePaths=self.includePaths ) # requires pre-processing to remove whitespace
 		self.lengthString.set( 'Length: ' + uHex(codeLength) )
 		if self.isAssembly:
 			self.assemblyDetectedLabel['text'] = 'Assembly Detected: True '
@@ -258,51 +257,45 @@ class AsmToHexConverter( BasicWindow ):
 		# Evaluate the code and pre-process it (scan it for custom syntaxes)
 		results = globalData.codeProcessor.evaluateCustomCode( hexCode, self.includePaths, validateConfigs=False )
 		returnCode, codeLength, hexCode, self.syntaxInfo, self.isAssembly = results
+		if returnCode != 0:
+			self.lengthString.set( 'Length: ' )
+			return
 		
 		# Disassemble the code into assembly
 		#returnCode, asmCode, codeLength = globalData.codeProcessor.preDisassembleRawCode( hexCode, discardWhitespace=False )
-		
 		asmCode, errors = globalData.codeProcessor.disassemble( hexCode )
 		if errors:
 			cmsg( errors, 'Disassembly Error' )
 			return
 
-		if self.syntaxInfo:
+		if self.syntaxInfo and not self.assembleSpecialSyntax.get():
 			asmCode = self.restoreCustomSyntaxInAsm( asmCode )
-
-		if returnCode != 0:
-			self.lengthString.set( 'Length: ' )
-			return
 
 		# Replace the current assembly code
 		self.sourceCodeEntry.insert( 'end', asmCode )
 
 		# Update the code length display
-		#codeLength = getCustomCodeLength( hexCode, preProcess=True, includePaths=self.includePaths )
 		self.lengthString.set( 'Length: ' + uHex(codeLength) )
 		if self.isAssembly:
 			self.assemblyDetectedLabel['text'] = 'Assembly Detected: True '
 		else:
 			self.assemblyDetectedLabel['text'] = 'Assembly Detected: False'
 
-	def restoreCustomSyntaxInAsm( self, hexCode ):
+	def restoreCustomSyntaxInAsm( self, asmLines ):
 
 		""" Swap out assembly code for the original custom syntax line that it came from. """
 
 		# Build a new list of ( offset, wordString ) so we can separate words included on the same line
 		specialWords = []
-		for info in self.syntaxInfo: # syntaxOffset, length, syntaxType, codeLine, names
-			if info[2] == 'sbs' or info[2] == 'sym':
-				specialWords.append( (info[0], codeLine) )
+		for offset, length, syntaxType, codeLine, names in self.syntaxInfo:
+			if syntaxType == 'sbs' or syntaxType == 'sym':
+				specialWords.append( (offset, length, syntaxType, codeLine) )
 			else:
 				# Extract names (eliminating whitespace associated with names) and separate hex groups
-				names = []
-				nameIndex = 0
 				sectionChunks = codeLine.split( '[[' )
 				for i, chunk in enumerate( sectionChunks ):
 					if ']]' in chunk:
 						varName, chunk = chunk.split( ']]' )
-						names.append( varName )
 						sectionChunks[i] = '[[]]' + chunk
 
 				# Recombine the string and split on whitespace
@@ -310,20 +303,32 @@ class AsmToHexConverter( BasicWindow ):
 				hexGroups = newLine.split() # Will now have something like [ '000000[[]]' ] or [ '40820008', '0000[[]]' ]
 
 				# Process each hex group
+				nameIndex = 0
 				groupParts = []
 				for group in hexGroups:
-					if ']]' in chunk:
-						specialWords.append( (info[0], group.replace('[[]]', '[['+names[nameIndex]+']]')) )
+					if ']]' in group:
+						specialWords.append( (offset, length, syntaxType, group.replace('[[]]', '[['+names[nameIndex]+']]')) )
 						nameIndex += 1
 
 		newLines = []
 		offset = 0
 
 		for line in asmLines.splitlines():
-			if offset + 4 > specialWords[0][0]:
-				newLines.append( specialWords.pop(0) )
+			if specialWords and offset + 4 > specialWords[0][0]:
+				info = specialWords.pop( 0 )
+				if info[2] == 'opt':
+					length = info[1]
+					if length == 4:
+						newLines.append( '.long ' + info[3] )
+					elif length == 2:
+						newLines.append( '.word ' + info[3] )
+					else:
+						newLines.append( '.byte ' + info[3] )
+				else:
+					newLines.append( info[3] )
 			else:
 				newLines.append( line )
+			offset += 4
 
 		return '\n'.join( newLines )
 
@@ -348,7 +353,15 @@ class AsmToHexConverter( BasicWindow ):
 				newHexCodeSections.append( sectionCode )
 				offset += sectionLength
 
-			newHexCodeSections.append( codeLine )
+			if syntaxType == 'opt':
+				instruction, variable = codeLine.split()
+				if instruction in ( '.float', '.long', '.word', '.byte' ):
+					newHexCodeSections.append( variable )
+				else:
+					newHexCodeSections.append( codeLine )
+			else:
+				newHexCodeSections.append( codeLine )
+			
 			offset += length
 
 		# Grab the last code section if present
