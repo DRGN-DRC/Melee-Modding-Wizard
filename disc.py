@@ -2076,7 +2076,10 @@ class Disc( object ):
 		totalModsInstalled = 0
 		codesNotInstalled = []
 
-		# Open the 
+		# Open the symbol map file to prepare making a new one
+		symbolMapPath = os.path.join( globalData.paths['maps'], self.gameId + '.map' )
+		with open( symbolMapPath, 'r' ) as mapFile:
+			mapLines = mapFile.readlines()
 		
 		# Save the selected Gecko codes to the DOL, and determine the adjusted code regions to use for injection/standalone code.
 		# if geckoCodes:
@@ -2160,9 +2163,10 @@ class Disc( object ):
 		self.allocationMatrix = []
 		for regionStart, regionEnd in allCodeRegions:
 			regionLength = regionEnd - regionStart # in bytes
-			self.dol.setData( regionStart, bytearray(regionLength) )
 
+			self.dol.setData( regionStart, bytearray(regionLength) )
 			self.allocationMatrix.append( [regionStart, regionEnd, 0] )
+			self.clearMapSymbols( regionStart, regionEnd )
 
 		# Add one more section to the allocation matrix to track arena code space usage (i.e. size of codes.bin)
 		tocSpace = roundTo32( tocSize ) # Some padding is added between the TOC and end of RAM

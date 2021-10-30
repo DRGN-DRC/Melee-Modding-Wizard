@@ -53,7 +53,8 @@ def init( programArgs ):
 		'microMelee': os.path.join( scriptHomeFolder, 'bin', 'Micro Melee.iso' ),
 		'eabi': os.path.join( scriptHomeFolder, 'bin', 'eabi' ),
 		'coreCodes': os.path.join( scriptHomeFolder, 'bin', 'Core Codes' ),
-		'xDelta': os.path.join( scriptHomeFolder, 'bin', 'xdelta3-3.0.11-x86_64.exe' ) # todo: make this dynamic
+		'xDelta': os.path.join( scriptHomeFolder, 'bin', 'xdelta3-3.0.11-x86_64.exe' ), # todo: make this dynamic
+		'maps': os.path.join( scriptHomeFolder, 'bin', 'maps' )
 	}
 
 	# These are default settings if they are not defined in the user's settings.ini file
