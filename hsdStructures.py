@@ -2096,7 +2096,8 @@ class MapLinkTable( StructBase ):
 			]),
 			  'Ground_Property_Flags': OrderedDict([
 			  	( '1<<0', 'Drop-through' ),
-			  	( '2<<0', 'Ledge-grabbable' )
+			  	( '1<<1', 'Ledge-grabbable' ),
+			  	( '1<<2', 'Dynamic' )
 			]) }
 	
 	enums = { 'Material_Enum': OrderedDict([

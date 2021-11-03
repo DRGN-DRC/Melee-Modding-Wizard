@@ -88,20 +88,25 @@ def regionsOverlap( regionList ):
 
 	overlapDetected = False
 
-	# Compare each region to every other region.
-	for i, ( regionStart, regionEnd ) in enumerate( regionList, start=1 ):
-		#regionStart, regionEnd = regionEndPoints
+	# Compare each region to every other region
+	for i, ( regionStart, regionEnd, regionName ) in enumerate( regionList, start=1 ):
 
 		# Loop over the remaining items in the list (starting from second entry on first iteration, third entry from second iteration, etc),
 		# so as not to compare to itself, or make any repeated comparisons.
-		for nextRegionStart, nextRegionEnd in regionList[i:]:
+		for nextRegionStart, nextRegionEnd, nextRegionName in regionList[i:]:
 			# Check if these two regions overlap by any amount
 			if nextRegionStart < regionEnd and regionStart < nextRegionEnd: # The regions overlap by some amount.
 				overlapDetected = True
 
+				dol = globalData.disc.dol
+				rS = dol.dolOffset( regionStart )
+				rE = dol.dolOffset( regionEnd )
+				nrs = dol.dolOffset( nextRegionStart )
+				nre = dol.dolOffset( nextRegionEnd )
+
 				# Determine the names of the overlapping regions, and report this to the user
 				msg( 'Warning! One or more regions enabled for custom code overlap each other. The first overlapping areas detected '
-					 'are (' + hex(regionStart) + ', ' + hex(regionEnd) + ') and (' + hex(nextRegionStart) + ', ' + hex(nextRegionEnd) + '). '
+					 'are {} and {}; i.e. (0x{:X}, 0x{:X}) and (0x{:X}, 0x{:X}). '.format( regionName, nextRegionName, rS, rE, nrs, nre ) + \
 					 '(There may be more; resolve this case and try again to find others.) '
 					 '\n\nThese regions cannot be used in tandem. In the Code-Space Options window, please choose other regions, '
 					 'or deselect one of the regions that uses one of the areas shown above.', 'Region Overlap Detected' )

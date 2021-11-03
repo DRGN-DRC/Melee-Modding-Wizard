@@ -32,7 +32,7 @@ import globalData
 from dol import Dol
 from stageManager import StageSwapTable
 from codeMods import regionsOverlap, CodeLibraryParser
-from hsdFiles import FileBase, fileFactory, MusicFile
+from hsdFiles import CssFile, FileBase, fileFactory, MusicFile
 from basicFunctions import roundTo32, uHex, toHex, toInt, toBytes, humansize, grammarfyList, createFolders, msg, printStatus, ListDict
 
 
@@ -224,6 +224,10 @@ class Disc( object ):
 		self.fstRebuildRequired = False
 		self.unsavedChanges = []		# Disc changes unrelated to a file, such as deleted files
 		self.fstEntries = []			# A list of lists, each of the form [ folderFlag, stringOffset, entryOffset, entrySize, entryName, isoPath ]
+
+		# self._dol = None
+		# self._css = None
+		self._symbols = []			# Lines from a .map file
 
 	def load( self ):
 
@@ -436,16 +440,49 @@ class Disc( object ):
 
 	@property
 	def dol( self ):
-		dol = self.files[self.gameId + '/Start.dol']
-		# if not dol.sectionInfo:
-		# 	print 'DOL HAS NOT BEEN LOADED!'
-		#dol.load() # Ensure the file has always been loaded/parsed, so all of its methods are functional
-		return dol
+		# if not self._dol:
+		# 	self._dol = self.files[self.gameId + '/Start.dol']
+		# 	self._dol.load() # Ensure the file has always been loaded/parsed, so all of its methods are functional
+		# return self._dol
+		return self.files[self.gameId + '/Start.dol']
 
-	# @property
-	# def css( self ):
-	# 	cssFile = self.files.get( self.gameId + '/MnSlChr.0sd' )
-	# 	assert
+	@property
+	def css( self ):
+		#if not self._css:
+		# 	if self.is20XX:
+		# 		self._css = self.files.get( self.gameId + '/MnSlChr.0sd' )
+		# 	elif self.countryCode:
+		# 		self._css = self.files.get( self.gameId + '/MnSlChr.usd' )
+		# 	else:
+		# 		self._css = self.files.get( self.gameId + '/MnSlChr.dat' )
+		# return self._css
+		if self.is20XX:
+			return self.files.get( self.gameId + '/MnSlChr.0sd' )
+		elif self.countryCode:
+			return self.files.get( self.gameId + '/MnSlChr.usd' )
+		else:
+			return self.files.get( self.gameId + '/MnSlChr.dat' )
+
+	@property
+	def symbols( self ):
+		if not self._symbols:
+			# Open the symbol map file to prepare making a new one, get its contents, and then close the file
+			symbolMapPath = os.path.join( globalData.paths['maps'], self.gameId + '.map' )
+			with open( symbolMapPath, 'r' ) as mapFile:
+				self._symbols = mapFile.read()
+			self._symbols = self._symbols.splitlines()
+				
+			for i, line in enumerate( self._symbols ):
+				line = line.strip()
+				if not line or line.startswith( '.' ):
+					continue
+
+				# Parse the line (split on only the first 4 instances of a space)
+				addr, length, addr2, _, symbolName = line.split( ' ', 4 )
+				if addr != addr2:
+					print 'found address mismatch on line {}: {}'.format( i, line )
+
+		return self._symbols
 
 	def getBannerFile( self, filename='' ):
 
@@ -453,12 +490,12 @@ class Disc( object ):
 			May get other variations if the standard opening.bnr file doesn't exist. """
 
 		if filename:
-			bannerFile = globalData.disc.files.get( globalData.disc.gameId + '/' + filename )
+			bannerFile = self.files.get( self.gameId + '/' + filename )
 		
 		else:
 			for filename in ( '/opening.bnr', '/openingUS.bnr', '/openingEU.bnr', '/openingJP.bnr' ):
-				bannerIsoPath = globalData.disc.gameId + filename
-				bannerFile = globalData.disc.files.get( bannerIsoPath )
+				bannerIsoPath = self.gameId + filename
+				bannerFile = self.files.get( bannerIsoPath )
 				if bannerFile: break
 
 		if not bannerFile:
@@ -1151,8 +1188,8 @@ class Disc( object ):
 
 		# Make sure the Music Name Pointer Table in 20XX gets updated
 		if hexTracksRemoved:
-			cssFile = self.files.get( self.gameId + '/MnSlChr.0sd' )
-			cssFile.validateHexTrackNameTable()
+			#cssFile = self.files.get( self.gameId + '/MnSlChr.0sd' )
+			self.css.validateHexTrackNameTable()
 
 		# Remember this disc change
 		if len( fileObjects ) > 1:
@@ -1667,13 +1704,26 @@ class Disc( object ):
 				6: Unable to overwrite existing file
 				7: Could not rename discs or remove original """
 
+		# self.files[self.gameId + '/Start.dol'] = self._dol
+		# self.files[self.gameId + '/Start.dol'] = self._dol
+
 		# Perform some clean-up operations for 20XXHP features
 		if self.is20XX:
 			# Check for CSS file changes
-			cssFile = self.files.get( self.gameId + '/MnSlChr.0sd' )
-			if cssFile and cssFile.unsavedChanges:
+			#cssFile = self.files.get( self.gameId + '/MnSlChr.0sd' )
+			if self.css and self.css.unsavedChanges:
 				# Check that the hex tracks music name table is valid
-				print 'other CSS files need updating'
+				print 'other CSS files need updating!'
+
+				# Iterate until we don't have other CSS files
+				# cssIndex = 1
+				# otherCssFiles = self.files.get( '{}/MnSlChr.{}sd'.format(self.gameId, cssIndex) )
+				# while otherCssFiles:
+				# 	# Update data chunks
+				# 	for chunk in (  ):
+				# 	cssIndex += 1
+				# 	otherCssFiles = self.files.get( '{}/MnSlChr.{}sd'.format(self.gameId, cssIndex) )
+
 
 		# Build a list of files that have unsaved changes, and make sure there are changes to be saved
 		filesToSave = self.getUnsavedChangedFiles()
@@ -1767,7 +1817,34 @@ class Disc( object ):
 
 			print 'updated files:', updatedFiles
 
+		# Create the new map file if codes were modified
+		if self._symbols:
+			self.saveMapFile()
+
 		return returnCode, updatedFiles
+
+	def saveMapFile( self ):
+
+		""" Creates a map symbol file for Dolphin. Either in Dolphin's Maps folder 
+			(if a Dolphin program is linked) or in the folder containing this disc. """
+
+		dc = globalData.dolphinController
+		userFolder = dc.userFolder
+
+		if userFolder:
+			symbolMapPath = os.path.join( userFolder, 'Maps', self.gameId + '.map' )
+		else: # Save with the disc
+			discFolder = os.path.dirname( self.filePath )
+			symbolMapPath = os.path.join( discFolder, self.gameId + '.map' )
+
+		# Back-up any existing file
+		#if os.path.exists( symbolMapPath ):
+		try:
+			os.rename( symbolMapPath, symbolMapPath + '.bak' )
+		except: pass # May fail if orig file doesn't exist, or if .bak file does (which is fine)
+
+		with open( symbolMapPath, 'w' ) as mapFile:
+			mapFile.write( '\n'.join(self._symbols) )
 
 	def getMusicFile( self, musicId ):
 
@@ -1798,7 +1875,7 @@ class Disc( object ):
 			print 'Invalid music ID given to disc.getMusicFile():', hex( musicId )
 			return None
 
-		musicFile = globalData.disc.files.get( self.gameId + '/audio/' + musicFilename ) # May also be None, if it can't find the file
+		musicFile = self.files.get( self.gameId + '/audio/' + musicFilename ) # May also be None, if it can't find the file
 
 		if musicFile:
 			musicFile.musicId = musicId
@@ -1892,7 +1969,6 @@ class Disc( object ):
 					else: # Just need 4 bytes for injection site code
 						originalData = vanillaDisc.dol.getData( dolOffset, 4 )
 
-					
 					if not originalData:
 						problematicMods.append( mod.name ) # Unable to uninstall this
 						break
@@ -1979,7 +2055,7 @@ class Disc( object ):
 			dolOffset = self.dol.offsetInDOL( address )
 
 			if dolOffset == -1: # Not in the DOL. Belongs in the codes.bin file
-				print 'Address not in the DOL:', hex(address)
+				print 'Address not in the DOL:', hex( address )
 
 				# Prepend the data to the beginning of codes.bin
 				_, arenaEnd, arenaSpaceUsed = self.allocationMatrix[-1]
@@ -2009,14 +2085,6 @@ class Disc( object ):
 
 		customCodeOffset = -1
 
-		# for i, ( areaStart, areaEnd ) in enumerate( allCodeRegions ):
-		# 	spaceRemaining = areaEnd - areaStart - dolSpaceUsedDict['area' + str(i + 1) + 'used'] # value in bytes
-
-		# 	if customCodeLength <= spaceRemaining:
-		# 		customCodeOffset = areaStart + dolSpaceUsedDict['area' + str(i + 1) + 'used']
-		# 		dolSpaceUsedDict['area' + str(i + 1) + 'used'] += customCodeLength # Updates the used area reference.
-		# 		break
-
 		for codeSpace in self.allocationMatrix[:-1]:
 			areaStart, areaEnd, spaceUsed = codeSpace # Not expanded in the above line so we can modify the last entry
 			spaceRemaining = areaEnd - areaStart - spaceUsed
@@ -2028,7 +2096,8 @@ class Disc( object ):
 
 		# If space was found in the DOL, convert the location to a RAM address and return it
 		if customCodeOffset != -1:
-			return self.dol.offsetInRAM( customCodeOffset )
+			#return self.dol.offsetInRAM( customCodeOffset )
+			return customCodeOffset
 
 		# This code will go in the codes.bin file, placed just above the TOC in RAM during runtime
 		# Add the file to the disc if it isn't already present
@@ -2047,14 +2116,12 @@ class Disc( object ):
 		#startOfToc = 0x81800000 - tocSize - 0x1E
 		return arenaEnd - arenaSpaceUsed
 
-	# def buildAllocationMatrix( self ):
-
 	def installCodeMods( self, codeMods ):
 
 		""" Installs static overwrites and injection mods to the game. Gecko codes are handled separately. """
 
 		# Check for conflicts among the code regions selected for use
-		allCodeRegions = self.dol.getCustomCodeRegions( useRamAddresses=False )
+		allCodeRegions = self.dol.getCustomCodeRegions( useRamAddresses=True )
 		if regionsOverlap( allCodeRegions ):
 			return []
 
@@ -2075,11 +2142,6 @@ class Disc( object ):
 		totalModsToInstall = len( codeMods )
 		totalModsInstalled = 0
 		codesNotInstalled = []
-
-		# Open the symbol map file to prepare making a new one
-		symbolMapPath = os.path.join( globalData.paths['maps'], self.gameId + '.map' )
-		with open( symbolMapPath, 'r' ) as mapFile:
-			mapLines = mapFile.readlines()
 		
 		# Save the selected Gecko codes to the DOL, and determine the adjusted code regions to use for injection/standalone code.
 		# if geckoCodes:
@@ -2161,12 +2223,14 @@ class Disc( object ):
 
 		# Build the allocation matrix, and zero-out the DOL's regions that will be used for custom code (if any)
 		self.allocationMatrix = []
-		for regionStart, regionEnd in allCodeRegions:
+		for regionStart, regionEnd, regionName in allCodeRegions:
 			regionLength = regionEnd - regionStart # in bytes
+			dolOffset = self.dol.offsetInDOL( regionStart )
 
-			self.dol.setData( regionStart, bytearray(regionLength) )
+			self.dol.setData( dolOffset, bytearray(regionLength) )
 			self.allocationMatrix.append( [regionStart, regionEnd, 0] )
-			self.clearMapSymbols( regionStart, regionEnd )
+			# if self.imageName != 'Micro Melee Test Disc':
+			# 	self.clearMapSymbols( regionStart, regionEnd, regionName )
 
 		# Add one more section to the allocation matrix to track arena code space usage (i.e. size of codes.bin)
 		tocSpace = roundTo32( tocSize ) # Some padding is added between the TOC and end of RAM
@@ -2286,27 +2350,14 @@ class Disc( object ):
 			else:
 				# Map any new required standalone functions to the DOL if they have not already been assigned space.
 				for functionName in requiredStandaloneFunctions:
-					#functionAddress, functionCustomCode, functionPreProcessedCustomCode = standaloneFunctions[functionName]
 					functionAddress, codeChange = standaloneFunctions[functionName]
 
-					if functionName not in standaloneFunctionsUsed: # Has not been added to the dol. Map it
-						#customCodeLength = getCustomCodeLength( functionPreProcessedCustomCode )
+					if functionName not in standaloneFunctionsUsed:
+						# Has not been added to the dol. Map it
 						codeChange.evaluate()
 						customCodeAddress = self.allocateSpaceInRam( codeChange.length )
 
-						# if customCodeAddress == -1:
-						# 	# No more space in the DOL. (Mods requiring custom code space up until this one will still be saved.)
-						# 	# noSpaceRemaining = True
-						# 	# problemWithMod = True
-						# 	# msg( "There's not enough free space for all of the codes you've selected. "
-						# 	# 		"\n\nYou might want to try again after selecting fewer Injection Mods and/or Gecko codes. "
-						# 	# 		"\n\nThe regions currently designated as free space can be configured and viewed via the 'Code-Space Options' "
-						# 	# 		'button, and the "settings.py" file.', "The DOL's regions for custom code are full" )
-						# 	# break
-						# 	standaloneFunctions[functionName] = ( customCodeAddress, functionCustomCode, functionPreProcessedCustomCode )
-						# else:
 						# Storage location determined; update the SF dictionary with an offset for it
-						#standaloneFunctions[functionName] = ( customCodeAddress, functionCustomCode, functionPreProcessedCustomCode )
 						standaloneFunctions[functionName] = ( customCodeAddress, codeChange )
 						newlyMappedStandaloneFunctions.append( functionName )
 
@@ -2338,7 +2389,6 @@ class Disc( object ):
 					customCodeLength = codeChange.getLength()
 
 					if codeChange.type == 'static':
-						#dolOffset = self.dol.normalizeDolOffset( codeChange.offset )
 						ramAddress, errorMsg = self.dol.normalizeRamAddress( codeChange.offset )
 						if ramAddress == -1:
 							userMsg = 'A problem was found while processing a code change at {} for {};{}.'.format( codeChange.offset, mod.name, errorMsg.split(';')[1] )
@@ -2359,13 +2409,8 @@ class Disc( object ):
 							codeChangesMade += 1
 
 					elif codeChange.type == 'injection':
-						#injectionSite = self.dol.normalizeDolOffset( codeChange.offset )
 						injectionSite, errorMsg = self.dol.normalizeRamAddress( codeChange.offset )
 
-						# if injectionSite < 0x100 or injectionSite > self.dol.maxDolOffset:
-						# 	problemWithMod = True
-						# 	msg('The injection site, ' + codeChange.offset + ', for "' + mod.name + '" is out of range of the DOL.\n\nThis code will be omitted from saving.')
-						# 	break
 						if injectionSite == -1:
 							userMsg = 'A problem was found while processing the injection site {} for {};{}.'.format( codeChange.offset, mod.name, errorMsg.split(';')[1] )
 							msg( userMsg + '\n\nThis code will be omitted from saving.' )
@@ -2380,28 +2425,11 @@ class Disc( object ):
 						# Find a place for the custom code.
 						customCodeAddress = self.allocateSpaceInRam( customCodeLength )
 					
-						# if customCodeAddress == -1:
-						# 	# No more space in the DOL. Injection codes up to this one (and all other changes) will be still be saved.
-						# 	# noSpaceRemaining = True
-						# 	# usedSpaceString = ''
-						# 	# for i, regionRange in enumerate( allCodeRegions ):
-						# 	# 	( start, end ) = regionRange
-						# 	# 	if i != ( len(allCodeRegions) - 1 ): usedSpaceString = usedSpaceString + hex(start) + ' to ' + hex(end) + ', '
-						# 	# 	else: usedSpaceString = usedSpaceString + ' and ' + hex(start) + ' to ' + hex(end) + '.'
-						# 	# msg( "There's not enough free space for all of the codes you've selected. "
-						# 	# 		"\n\nYou might want to try again after selecting fewer Injection Mods. "
-						# 	# 		"\n\n               -         -         -      \n\nThe regions currently designated as "
-						# 	# 		"free space in the DOL are " + usedSpaceString, "The DOL's regions for custom code are full" )
-						# 	# break
-						# else:
 						# Calculate the initial branch from the injection site
 						branchDistance = customCodeAddress - injectionSite
-						#branch = assembleBranch( 'b', calcBranchDistance( injectionSite, customCodeAddress) )
 						branch = customCodeProcessor.assembleBranch( 'b', branchDistance )
 
-						# If the calculation above was successful, write the created branch into the dol file at the injection site
-						# if branch == -1: problemWithMod = True
-						# else:
+						# Write the branch created above into the dol file at the injection site
 						problemWithMod = self.storeCodeChange( injectionSite, branch, mod.name + ' injection site' )
 						if problemWithMod:
 							break
@@ -2444,7 +2472,6 @@ class Disc( object ):
 				# Revert all changes associated with this mod to the game's vanilla code.
 				for codeChange in mod.getCodeChanges():
 					if codeChange.type == 'static' or codeChange.type == 'injection':
-						#offset = self.dol.normalizeDolOffset( codeChange[2] )
 						address = self.dol.normalizeRamAddress( codeChange.offset )[0]
 						if address == -1: continue
 						self.storeCodeChange( address, codeChange.origCode ) # Should silently fail if attempting to overrite what was already changed by another mod (changes existing in modifiedRegions)
@@ -2471,6 +2498,9 @@ class Disc( object ):
 				mod.setState( 'enabled' )
 				totalModsInstalled += 1
 				#addToInstallationSummary( mod.name, mod.type, summaryReport )
+
+				# Update function symbols for the map file
+				#self.updateSymbols( mod.name, summaryReport)
 
 		# End of primary code-saving pass. Finish updating the Summary tab.
 		# if geckoSummaryReport:
@@ -2740,33 +2770,73 @@ class Disc( object ):
 			print 'not yet supported'
 			print dolPath
 
-	# def runInEmulator( self ): #todo: add support for root folders
-		
-	# 	# Get the path to the user's emulator of choice
-	# 	# emulatorPath = globalData.getEmulatorPath() # Will also validate the path
-	# 	# if not emulatorPath: return # User may have canceled the prompt
+	def clearMapSymbols( self, regionStart, regionEnd=-1, regionName='' ):
 
-	# 	# # Make sure there are no prior instances of Dolphin running
-	# 	# for process in psutil.process_iter():
-	# 	# 	if process.name() == 'Dolphin.exe':
-	# 	# 		process.terminate()
-	# 	# 		printStatus( 'Stopped Dolphin process' )
-	# 	# 		time.sleep( 3 )
-	# 	# 		break
+		""" Replaces all function symbols within a given range with a single symbol entry. """
 
-	# 	# printStatus( 'Booting in emulator....' )
-	# 	# print 'Booting', self.filePath
-	# 	# print 'In', emulatorPath
-		
-	# 	# # Send the disc filepath to Dolphin
-	# 	# # '--exec' loads the specified file. (Using '--exec' because '/e' is incompatible with Dolphin 5+, while '-e' is incompatible with Dolphin 4.x)
-	# 	# # '--batch' will prevent dolphin from unnecessarily scanning game/ISO directories, and will shut down Dolphin when the game is stopped.
-	# 	# #command = '"{}" --batch --exec="{}"'.format( emulatorPath, self.filePath )
-	# 	# command = '"{}" --batch --debugger --exec="{}"'.format( emulatorPath, self.filePath )
-	# 	# subprocess.Popen( command, stderr=subprocess.STDOUT, creationflags=0x08000000 )
+		if regionEnd == -1: # Assume at least 4 bytes
+			regionEnd = regionStart + 4
 
-	# 	dolphin = Dolphin()
-	# 	dolphin.start( self )
+		firstSymbolIndex = -1
+		lastSymbolIndex = -1
+
+		# Modify the region name
+		newRegionName = 'Custom Code Region: ' + regionName
+		newLine = '{0:x} {1:08x} {0:x} 0 {2}'.format( regionStart, regionEnd - regionStart, newRegionName )
+
+		for i, line in enumerate( self.symbols ):
+			line = line.strip()
+			if not line or line.startswith( '.' ):
+				continue
+
+			# Parse the line (split on only the first 4 instances of a space)
+			functionStart, length, _, _, symbolName = line.split( ' ', 4 )
+			functionStart = int( functionStart, 16 )
+			functionEnd = functionStart + int( length, 16 )
+			
+			# Check if this function overlaps with the given region by some amount
+			if functionStart < regionEnd and regionStart < functionEnd:
+				if firstSymbolIndex == -1:
+					self.symbols[i] = newLine
+					firstSymbolIndex = i
+			elif functionStart >= regionEnd:
+				lastSymbolIndex = i
+				break
+
+		if firstSymbolIndex == -1: # Didn't find any functions defined within the given region (no lines to remove, but one to add)
+			self._symbols.insert( lastSymbolIndex, newLine )
+
+		else: # Remove all extra symbols between the new symbol line added above and the end of the region
+			self._symbols = self._symbols[:firstSymbolIndex+1] + self._symbols[lastSymbolIndex:]
+
+	def updateSymbols( self, codeName, summaryReport ):
+
+
+			# summaryReport.append( ('Injection code', codeChange.type, customCodeAddress, customCodeLength) )
+			# summaryReport.append( ('SF: ' + functionName, 'standalone', functionAddress, codeChange.getLength()) )
+
+		for shortName, changeType, functionAddress, length in summaryReport:
+			if changeType == 'standalone':
+				symbolName = codeName + ' SF: ' + shortName
+			elif changeType == 'injection':
+				symbolName = codeName + ' injection'
+			else: continue
+				
+			firstSymbolIndex = -1
+			lastSymbolIndex = -1
+
+			# Create the new line
+			newLine = '{0:x} {1:08x} {0:x} 0 {2}'.format( functionAddress, length, symbolName )
+
+			for i, line in enumerate( self.symbols ):
+				line = line.strip()
+				if not line or line.startswith( '.' ):
+					continue
+
+				# Parse the line (split on only the first 4 instances of a space)
+				functionStart, length, _, _, symbolName = line.split( ' ', 4 )
+				functionStart = int( functionStart, 16 )
+				functionEnd = functionStart + int( length, 16 )
 
 
 class MicroMelee( Disc ):
@@ -2775,14 +2845,14 @@ class MicroMelee( Disc ):
 		This is an extremely trimmed-down copy of the game, dynamically built from a vanilla 
 		disc when needed, and dynamically modified for quickly testing specific assets. """
 
-	def __init__( self, filePath ):
+	# def __init__( self, filePath ):
 
-		super( MicroMelee, self ).__init__( filePath )
+	# 	super( MicroMelee, self ).__init__( filePath )
 
-		self.gameId = 'GALE01'
-		self.imageName = 'Micro Melee Test Disc'
-		self.isMelee = '02'
-		self.revision = 2
+	# 	self.gameId = 'GALE01'
+	# 	self.imageName = 'Micro Melee Test Disc'
+	# 	self.isMelee = '02'
+	# 	self.revision = 2
 
 	def buildFromVanilla( self, vanillaDiscPath ):
 
@@ -2956,7 +3026,6 @@ class MicroMelee( Disc ):
 		self.save()
 
 		# Engage emulation
-		#self.runInEmulator()
 		globalData.dolphinController.start( self )
 
 	def testCharacter( self, charObj ):
@@ -3002,5 +3071,4 @@ class MicroMelee( Disc ):
 		self.save()
 
 		# Engage emulation
-		#self.runInEmulator()
 		globalData.dolphinController.start( self )

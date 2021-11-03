@@ -354,7 +354,7 @@ class AsmToHexConverter( BasicWindow ):
 				offset += sectionLength
 
 			if syntaxType == 'opt':
-				instruction, variable = codeLine.split()
+				instruction, variable = codeLine.split( 1 )
 				if instruction in ( '.float', '.long', '.word', '.byte' ):
 					newHexCodeSections.append( variable )
 				else:
@@ -367,12 +367,12 @@ class AsmToHexConverter( BasicWindow ):
 		# Grab the last code section if present
 		if offset != totalLength:
 			lastSection = hexCode[offset*2:]
+			sectionLength = len( lastSection ) / 2
 
 			if self.blocksPerLine > 0:
 				lastSection = globalData.codeProcessor.beautifyHex( lastSection, blocksPerLine=self.blocksPerLine )
 
 			newHexCodeSections.append( lastSection )
-			sectionLength = len( lastSection ) / 2
 			assert offset + sectionLength == totalLength, 'Custom code length mismatch detected! \nMod: {}\nEvaluated: {}   Calc. in Code Resolution: {}'.format( codeChange.mod.name, codeChange.length, offset + sectionLength )
 
 		#if self.blocksPerLine > 0:
@@ -719,6 +719,11 @@ class DolphinController( object ):
 			return self._exePath
 		
 		self._exePath = globalData.getEmulatorPath()
+		if not self._exePath:
+			self._rootFolder = ''
+			self._userFolder = ''
+			return ''
+
 		self._rootFolder = os.path.dirname( self._exePath )
 		self._userFolder = os.path.join( self._rootFolder, 'User' )
 

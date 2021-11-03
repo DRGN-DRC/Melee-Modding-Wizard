@@ -693,9 +693,11 @@ class Dol( FileBase ):
 
 				elif useRamAddresses:
 					for regionStart, regionEnd in regions:
-						codeRegions.append( (self.offsetInRAM(regionStart), self.offsetInRAM(regionEnd)) )
+						codeRegions.append( (self.offsetInRAM(regionStart), self.offsetInRAM(regionEnd), regionName) )
 				else:
-					codeRegions.extend( regions )
+					#codeRegions.extend( regions )
+					for regionStart, regionEnd in regions:
+						codeRegions.append( (regionStart, regionEnd, regionName) )
 
 				# If only looking for a specific revision, there's no need to iterate futher.
 				if specificRegion: break
@@ -1212,7 +1214,7 @@ class Dol( FileBase ):
 					for functionName in requiredStandaloneFunctions:
 						functionCodeChange = globalData.standaloneFunctions[ functionName ][1]
 
-						for areaStart, areaEnd in allEnabledCodeRegions:
+						for areaStart, areaEnd, _ in allEnabledCodeRegions:
 							matchOffset = self.findCustomCode( mod, functionCodeChange, self.data[areaStart:areaEnd] )
 
 							if matchOffset != -1: # Function found

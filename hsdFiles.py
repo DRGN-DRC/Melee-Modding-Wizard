@@ -180,7 +180,7 @@ def fileFactory( *args, **kwargs ):
 			return StageFile( *args, **kwargs )
 
 		# Character costume files; excludes 'PlBo.dat'/'PlCa.dat'/etc. and character animation files
-		elif filename.startswith( 'Pl' ) and len( filename ) > 8 and filename[-2:] != 'AJ':
+		elif filename.startswith( 'Pl' ) and len( filename ) == 6 and filename[-2:] != 'AJ':
 
 			if filename[2:6] == 'KbCp': pass # Oh, Kirby.... (these are copy powers, ftData)
 			else:
