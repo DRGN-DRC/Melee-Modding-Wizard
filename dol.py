@@ -209,7 +209,7 @@ class Dol( FileBase ):
 		for i, fileOffset, memAddress, size in izip( count(), textFileOffsets, textMemAddresses, textSizes ):
 			# If any of the above values are 0, there are no more sections
 			if fileOffset == 0 or memAddress == 0 or size == 0: break
-			#memAddress = int( memAddress - 0x80000000 )
+			
 			self.sectionInfo['text'+str(i)] = ( fileOffset, memAddress, size )
 
 			# Find the max possible dol offset and ram address for this game's dol
@@ -220,7 +220,7 @@ class Dol( FileBase ):
 		for i, fileOffset, memAddress, size in izip( count(), dataFileOffsets, dataMemAddresses, dataSizes ):
 			# If any of the above values are 0, there are no more sections
 			if fileOffset == 0 or memAddress == 0 or size == 0: break
-			#memAddress = int( memAddress - 0x80000000 )
+			
 			self.sectionInfo['data'+str(i)] = ( fileOffset, memAddress, size )
 
 			# Find the max possible dol offset and ram address for this game's dol
@@ -262,6 +262,7 @@ class Dol( FileBase ):
 		
 		else: # Using the old string format, with just major and minor
 			self.is20XX = versionData.decode( 'ascii' )
+			self.project = 0
 
 			# Parse out major/minor versions
 			major, minor = self.is20XX.split( '.' )
@@ -305,12 +306,10 @@ class Dol( FileBase ):
 			else:
 				regionSuggestion = 'PAL'
 
-			# if '.' in self.disc.revision:
-			# 	versionSuggestion = self.disc.revision.split('.')[1]
 			versionSuggestion = '{:02}'.format( self.disc.revision )
 
 			userMessage = ( "The revision of the DOL within this disc is being predicted from the disc's details. Please verify them below. "
-								"(If this disc has not been altered, these predictions can be trusted.)" )
+							"(If this disc has not been altered, these predictions can be trusted.)" )
 		else:
 			userMessage = "This DOL's revision could not be determined. Please select a region and game version below."
 		userMessage += ' Note that codes may not be able to be installed or detected properly if these are set incorrectly.'
@@ -337,8 +336,8 @@ class Dol( FileBase ):
 			self.region = regionSuggestion
 			self.version = '1.' + versionSuggestion
 			msg( 'Without confirmation, the DOL file will be assumed to be ' + self.region + ' ' + self.version + '. '
-					'If this is incorrect, you may run into problems detecting currently installed mods or with adding/removing mods. '
-					'And installing mods may break game functionality.', 'Revision Uncertainty', globalData.gui.root )
+				 'If this is incorrect, you may run into problems detecting currently installed mods or with adding/removing mods. '
+				 'And installing mods may break game functionality.', 'Revision Uncertainty' )
 
 	def writeMetaData( self ):
 		
@@ -372,7 +371,6 @@ class Dol( FileBase ):
 				ramAddress = memAddress + sectionOffset # Add the section offset to the RAM's start point for that section.
 				break
 
-		#return 0x80000000 + ramAddress
 		return ramAddress
 
 	def offsetInDOL( self, ramAddress ):
@@ -380,9 +378,6 @@ class Dol( FileBase ):
 		""" Converts the given integer RAM address (location in memory) to the equivalent DOL file integer offset. """
 
 		dolOffset = -1
-
-		# Mask out the base address
-		#ramAddress = ramAddress & ~0x80000000
 
 		# Determine which section the address belongs in, and then get that section's starting offsets.
 		for fileOffset, memAddress, size in self.sectionInfo.values():
@@ -445,7 +440,6 @@ class Dol( FileBase ):
 				else: problemDetails = ', because the DOL offset is too small.'
 
 		if problemDetails:
-			#msg( 'Problem detected while processing the offset 0x' + offsetString + '; it could not be converted to a DOL offset' + problemDetails )
 			return -1, 'Problem detected with offset 0x' + offsetString + '; it could not be converted to a DOL offset' + problemDetails
 
 		return dolOffset, ''
@@ -479,11 +473,9 @@ class Dol( FileBase ):
 			else: problemDetails = ', because the DOL offset is too small.'
 
 			if returnType != 'int' and not problemDetails:
-				#ramAddress = '0x8' + toHex( ramAddress, 7 )
 				ramAddress = uHex( ramAddress )
 
 		if problemDetails:
-			#msg( 'Problem detected while processing the offset, 0x' + offsetString + '; it could not be converted to a RAM address' + problemDetails )
 			return -1, 'Problem detected while processing the offset 0x' + offsetString + '; it could not be converted to a RAM address' + problemDetails
 
 		return ramAddress, ''

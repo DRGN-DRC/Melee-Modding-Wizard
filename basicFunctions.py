@@ -137,8 +137,8 @@ def floatToHex( input ):
 
 def humansize( nbytes ):
 
-	""" Rewrites file sizes for human readability. 
-		e.g. 1408822364 -> 1.31 GB """
+	""" Converts a file size in bytes to a human-readable string. 
+		e.g. 1408822364 -> '1.31 GB' """
 	
 	isNegative = False
 
@@ -159,6 +159,41 @@ def humansize( nbytes ):
 		f = '-' + f
 
 	return '%s %s' % (f, suffixes[i])
+
+
+def humantime( seconds ):
+
+	""" Converts a time interval in seconds to a human-readable string. 
+		e.g. 86461 -> '1 day, 1 minute, and 1 second' """
+
+	result = []
+	intervals = (
+		('weeks', 604800),  # 60 * 60 * 24 * 7
+		('days', 86400),    # 60 * 60 * 24
+		('hours', 3600),    # 60 * 60
+		('minutes', 60),
+		('seconds', 1),
+		)
+
+	if seconds == 0:
+		return '0 seconds'
+
+	for name, count in intervals:
+		value = seconds // count # Floor division; rounds down to full int
+		if value:
+			seconds -= value * count
+			if value == 1:
+				name = name.rstrip('s')
+			result.append( "{} {}".format(int(value), name) )
+
+	if len( result ) == 2:
+		return '{} and {}'.format( result[0], result[1] )
+	else:
+		commaJoined = ', '.join( result )
+
+		# Replace the last comma and space with an 'and'
+		li = commaJoined.rsplit( ', ', 1 )
+		return ', and '.join( li )
 
 
 def grammarfyList( theList ):
