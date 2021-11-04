@@ -1734,7 +1734,10 @@ class Disc( object ):
 		missingSysFiles = []
 		for systemFile in self.systemFiles:
 			if not self.files.get( self.gameId + '/' + systemFile ):
-				missingSysFiles.append( systemFile )
+				if systemFile == 'Game.toc':
+					self.rebuildReason = 'to build a new TOC'
+				else:
+					missingSysFiles.append( systemFile )
 		if missingSysFiles:
 			msg( 'Unable to save the disc; missing these system files: ' + ', '.join(missingSysFiles) )
 			return 2, []
