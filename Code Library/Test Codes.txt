@@ -106,7 +106,7 @@ bl <TEST_Func>
 	-==-
 
 
-Peach - Always Pull Specific Turnip
+Peach - Always Pull Specific Turnip [TEST]
 The default for this code is Stitch Face, but it can be changed to any of the turnips.
 Configurations:
     uint8 Turnip Type = 0x7; 0-0x7 # Select your preferred vegetable features

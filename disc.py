@@ -16,7 +16,6 @@ import math
 import time
 import copy
 import struct
-#import psutil
 import tempfile
 import subprocess
 import tkMessageBox
@@ -32,7 +31,7 @@ import globalData
 from dol import Dol
 from stageManager import StageSwapTable
 from codeMods import regionsOverlap, CodeLibraryParser
-from hsdFiles import CssFile, FileBase, fileFactory, MusicFile
+from hsdFiles import fileFactory, FileBase, BootBin, CssFile, MusicFile
 from basicFunctions import roundTo32, uHex, toHex, toInt, toBytes, humansize, grammarfyList, createFolders, msg, printStatus, ListDict
 
 
@@ -267,7 +266,7 @@ class Disc( object ):
 			bootFileData = bytearray( bootBinary.read() )
 
 		# Get the Game ID and version
-		self.gameId = bootFileData[:6].decode( 'utf-8' ) #todo: change to decoding with ascii?
+		self.gameId = bootFileData[:6].decode( 'ascii' )
 		#self.revision = struct.unpack( 'B', bootFileData[7] )[0] # Reading just byte 7
 		self.revision = bootFileData[7]
 
@@ -276,7 +275,7 @@ class Disc( object ):
 			msg( "The disc boot file doesn't appear to be for a GameCube disc!" )
 			return
 
-		self.imageName = bootFileData[0x20:0x410].split( '\x00' )[0].decode( 'ascii' ) # Splitting on the first stop byte. #todo: change to decoding with utf-8?
+		self.imageName = bootFileData[0x20:0x410].split( '\x00' )[0].decode( 'utf-8' ) # Splitting on the first stop byte
 
 		# Get the DOL file data and check whether this is Melee
 		with open( dolPath, 'rb' ) as dolBinary:
@@ -286,7 +285,7 @@ class Disc( object ):
 		# Instantiate the Boot.bin/Bi2.bin or ISO.hdr header files
 		self.files = ListDict([])
 		if bootFilePath.lower().endswith( 'boot.bin' ):
-			FileBase( self, 0, 0x440, self.gameId + '/Boot.bin', 'Disc Header (.hdr), Part 1', bootFilePath, 'file' )
+			BootBin( self, 0, 0x440, self.gameId + '/Boot.bin', 'Disc Header (.hdr), Part 1', bootFilePath, 'file' )
 			FileBase( self, 0x440, 0x2000, self.gameId + '/Bi2.bin', 'Disc Header (.hdr), Part 2', systemFilePaths['boot2'], 'file' )
 
 			# Get Bi2.bin's data to check the country code
@@ -295,7 +294,7 @@ class Disc( object ):
 				self.countryCode = struct.unpack( '>I', boot2Binary.read(4) )[0]
 
 		else: # ISO.hdr was loaded; need to split it up into Boot/Bi2
-			boot1 = FileBase( self, 0, 0x440, self.gameId + '/Boot.bin', 'Disc Header (.hdr), Part 1', source='self' )
+			boot1 = BootBin( self, 0, 0x440, self.gameId + '/Boot.bin', 'Disc Header (.hdr), Part 1', source='self' )
 			boot1.data = bootFileData[:0x440] # First 0x440 bytes
 			boot2 = FileBase( self, 0x440, 0x2000, self.gameId + '/Bi2.bin', 'Disc Header (.hdr), Part 2', source='self' )
 			boot2.data = bootFileData[0x440:]
@@ -368,7 +367,7 @@ class Disc( object ):
 
 		with open( self.filePath, 'rb' ) as isoBinary:
 			# Get the Game ID and version, right at the start of the file
-			self.gameId = isoBinary.read( 6 ).decode( 'utf-8' ) #todo: change to decoding with ascii?
+			self.gameId = isoBinary.read( 6 ).decode( 'ascii' )
 			isoBinary.seek( 7 )
 			self.revision = struct.unpack( 'B', isoBinary.read(1) )[0] # Reading just byte 7
 
@@ -380,7 +379,7 @@ class Disc( object ):
 
 			# Get the disc's image name
 			isoBinary.seek( 0x20 )
-			self.imageName = isoBinary.read( 0x3E0 ).split( '\x00' )[0].decode( 'ascii' ) # Splitting on the first stop byte. #todo: change to decoding with utf-8?
+			self.imageName = isoBinary.read( 0x3E0 ).split( '\x00' )[0].decode( 'utf-8' ) # Splitting on the first stop byte
 
 			# Get info on the DOL and FST
 			isoBinary.seek( 0x420 )
@@ -408,7 +407,7 @@ class Disc( object ):
 		
 			# Instantiate the disc's header files
 			self.files = ListDict([])
-			FileBase( self, 0, 0x440, self.gameId + '/Boot.bin', 'Disc Header (.hdr), Part 1' )
+			BootBin( self, 0, 0x440, self.gameId + '/Boot.bin', 'Disc Header (.hdr), Part 1' )
 			FileBase( self, 0x440, 0x2000, self.gameId + '/Bi2.bin', 'Disc Header (.hdr), Part 2' )
 			FileBase( self, 0x2440, apploaderSize, self.gameId + '/AppLoader.img', 'Executable bootloader' )
 			dol = Dol( self, dolOffset, dolSize, self.gameId + '/Start.dol', 'Main game executable' )
@@ -471,7 +470,7 @@ class Disc( object ):
 			with open( symbolMapPath, 'r' ) as mapFile:
 				self._symbols = mapFile.read()
 			self._symbols = self._symbols.splitlines()
-				
+			
 			# for i, line in enumerate( self._symbols ):
 			# 	line = line.strip()
 			# 	if not line or line.startswith( '.' ):
@@ -670,6 +669,13 @@ class Disc( object ):
 			is20XX = '3.02'
 
 		return is20XX
+
+	def setImageName( self, newName ):
+
+		""" Update both the self property and data in the boot.bin file. """
+
+		self.imageName = newName
+		self.files[self.gameId + '/Boot.bin'].imageName = newName
 
 	def isoPathIsFolder( self, isoPath ):
 
@@ -1820,10 +1826,6 @@ class Disc( object ):
 
 			print 'updated files:', updatedFiles
 
-		# Create the new map file if codes were modified
-		if self._symbols:
-			self.saveMapFile()
-
 		return returnCode, updatedFiles
 
 	def saveMapFile( self ):
@@ -1841,9 +1843,7 @@ class Disc( object ):
 			symbolMapPath = os.path.join( discFolder, self.gameId + '.map' )
 
 		# Back-up any existing file
-		#if os.path.exists( symbolMapPath ):
-		try:
-			os.rename( symbolMapPath, symbolMapPath + '.bak' )
+		try: os.rename( symbolMapPath, symbolMapPath + '.bak' )
 		except: pass # May fail if orig file doesn't exist, or if .bak file does (which is fine)
 
 		with open( symbolMapPath, 'w' ) as mapFile:
@@ -2080,7 +2080,7 @@ class Disc( object ):
 		
 		return conflictDetected
 
-	def allocateSpaceInRam( self, customCodeLength ):
+	def allocateCodeSpace( self, customCodeLength ):
 
 		""" Determines a location in RAM to store custom code. First checks for unused space among the custom 
 			code regions enabled for use. And then if no usable space is found there, allocates space in the Arena. 
@@ -2116,7 +2116,7 @@ class Disc( object ):
 		# Reserve space for this code and return the RAM address
 		self.allocationMatrix[-1][-1] += customCodeLength # Adding to spaceUsed
 		_, arenaEnd, arenaSpaceUsed = self.allocationMatrix[-1]
-		#startOfToc = 0x81800000 - tocSize - 0x1E
+		
 		return arenaEnd - arenaSpaceUsed
 
 	def installCodeMods( self, codeMods ):
@@ -2145,6 +2145,7 @@ class Disc( object ):
 		totalModsToInstall = len( codeMods )
 		totalModsInstalled = 0
 		codesNotInstalled = []
+		newSymbols = []		# list of tuples of the form ( functionAddress, length, symbolName )
 		
 		# Save the selected Gecko codes to the DOL, and determine the adjusted code regions to use for injection/standalone code.
 		# if geckoCodes:
@@ -2232,8 +2233,10 @@ class Disc( object ):
 
 			self.dol.setData( dolOffset, bytearray(regionLength) )
 			self.allocationMatrix.append( [regionStart, regionEnd, 0] )
-			# if self.imageName != 'Micro Melee Test Disc':
-			# 	self.clearMapSymbols( regionStart, regionEnd, regionName )
+
+			# Remove function/symbol definitions from the map file for this space
+			if self.imageName != 'Micro Melee Test Disc':
+				self.clearMapSymbols( regionStart, regionEnd, regionName )
 
 		# Add one more section to the allocation matrix to track arena code space usage (i.e. size of codes.bin)
 		tocSpace = roundTo32( tocSize ) # Some padding is added between the TOC and end of RAM
@@ -2285,7 +2288,7 @@ class Disc( object ):
 		# else:
 		# 	geckoSummaryReport = [] # May have been added to. Clear it.
 
-		# def allocateSpaceInRam( dolSpaceUsedDict, customCode, customCodeLength ): # The customCode input should be preProcessed
+		# def allocateCodeSpace( dolSpaceUsedDict, customCode, customCodeLength ): # The customCode input should be preProcessed
 
 		# 	""" Determines a location in RAM to store custom code. First checks for unused space among the custom 
 		# 		code regions enabled for use. And then if no usable space is found there, allocates space in the Arena. 
@@ -2338,7 +2341,8 @@ class Disc( object ):
 			allocationMatrixBackup = copy.deepcopy( self.allocationMatrix ) # This copy is used to revert changes in case there is a problem with saving this mod.
 			newlyMappedStandaloneFunctions = [] # Tracked so that if this mod fails any part of installation, the standalone functions dictionary can be restored (installation offsets restored to -1).
 			summaryReport = []
-			codeChangesMade = 0 # Counts changes made to the DOL for this mod, so they can be removed from the modifiedRegions list if installation fails
+			priorChangesCount = len( self.modifiedRegions ) # Tracked for reversion of the modifiedRegions list if installation fails
+			priorSymbolsAdded = len( newSymbols ) # Tracked for reversion of the newSymbols list if installation fails
 
 			# Allocate space for required standalone functions
 			#if not noSpaceRemaining:
@@ -2358,7 +2362,7 @@ class Disc( object ):
 					if functionName not in standaloneFunctionsUsed:
 						# Has not been added to the dol. Map it
 						codeChange.evaluate()
-						customCodeAddress = self.allocateSpaceInRam( codeChange.length )
+						customCodeAddress = self.allocateCodeSpace( codeChange.length )
 
 						# Storage location determined; update the SF dictionary with an offset for it
 						standaloneFunctions[functionName] = ( customCodeAddress, codeChange )
@@ -2383,8 +2387,9 @@ class Disc( object ):
 
 						if problemWithMod: break
 						else:
-							summaryReport.append( ('SF: ' + functionName, 'standalone', functionAddress, len(finishedCode)/2) )
-							codeChangesMade += 1
+							codeLen = len( finishedCode ) / 2
+							summaryReport.append( ('SF: ' + functionName, 'standalone', functionAddress, codeLen) )
+							newSymbols.append( (functionAddress, codeLen, '{} SF: {}'.format(mod.name, functionName)) )
 			
 			# Add this mod's code changes & custom code (non-SFs) to the dol.
 			if not problemWithMod:
@@ -2409,7 +2414,6 @@ class Disc( object ):
 						if problemWithMod: break
 						else:
 							summaryReport.append( ('Code overwrite', codeChange.type, ramAddress, customCodeLength) )
-							codeChangesMade += 1
 
 					elif codeChange.type == 'injection':
 						injectionSite, errorMsg = self.dol.normalizeRamAddress( codeChange.offset )
@@ -2426,7 +2430,7 @@ class Disc( object ):
 						# 	break
 						#else:
 						# Find a place for the custom code.
-						customCodeAddress = self.allocateSpaceInRam( customCodeLength )
+						customCodeAddress = self.allocateCodeSpace( customCodeLength )
 					
 						# Calculate the initial branch from the injection site
 						branchDistance = customCodeAddress - injectionSite
@@ -2438,7 +2442,6 @@ class Disc( object ):
 							break
 						else:
 							summaryReport.append( ('Branch', 'static', injectionSite, 4) ) # changeName, changeType, dolOffset, customCodeLength
-							codeChangesMade += 1
 
 						# Replace custom syntax, and perform any final processing on the code
 						returnCode, finishedCode = codeChange.finalizeCode( customCodeAddress )
@@ -2450,7 +2453,6 @@ class Disc( object ):
 								# Check if the last instruction in the custom code is a branch or zeros. If it is, replace it with a branch back to the injection site.
 								commandByte = finishedCode[-8:][:-6].lower()
 								if commandByte == '48' or commandByte == '49' or commandByte == '4a' or commandByte == '4b' or commandByte == '00':
-									#branchBack = assembleBranch( 'b', calcBranchDistance( (customCodeAddress + len(finishedCode)/2 - 0x8), injectionSite) )
 									branchBackAddress = customCodeAddress + customCodeLength - 8
 									branchBack = customCodeProcessor.assembleBranch( 'b', injectionSite - branchBackAddress )
 
@@ -2466,11 +2468,11 @@ class Disc( object ):
 								break
 							else:
 								summaryReport.append( ('Injection code', codeChange.type, customCodeAddress, customCodeLength) )
-								codeChangesMade += 1
+								newSymbols.append( (customCodeAddress, customCodeLength, '{} injection (for 0x{:X})'.format(mod.name, injectionSite)) )
 
 			if problemWithMod:
-				# Remove submissions from this mod to the modifiedRegions list
-				self.modifiedRegions = self.modifiedRegions[:-codeChangesMade]
+				# Remove submissions from this mod made to the modifiedRegions and symbols lists
+				self.modifiedRegions = self.modifiedRegions[:priorChangesCount]
 
 				# Revert all changes associated with this mod to the game's vanilla code.
 				for codeChange in mod.getCodeChanges():
@@ -2610,7 +2612,10 @@ class Disc( object ):
 		else:
 			self.dol.unsavedChanges.append( '{} code mods installed'.format(totalModsInstalled) )
 		self.dol.writeMetaData() # Writes the DOL's revision (region+version) and this program's version to the DOL
-		#self.files[self.gameId + '/Start.dol'] = self.dol
+
+		# Update the symbol map
+		self.updateSymbols( newSymbols )
+		self.saveMapFile()
 
 		if codesNotInstalled:
 			msg( '{} code mods installed. However, these mods could not be installed:\n\n{}'.format(totalModsInstalled, '\n'.join(codesNotInstalled)) )
@@ -2763,7 +2768,7 @@ class Disc( object ):
 			
 			vanillaDisc = Disc( vanillaDiscPath )
 			vanillaDisc.load()
-			#self.files[self.gameId + '/Start.dol'] = copy.deepcopy( vanillaDisc.dol )
+
 			self.replaceFile( self.dol, vanillaDisc.dol, countAsNewFile=countAsNewFile )
 
 		elif not os.path.exists( dolPath ):
@@ -2800,7 +2805,7 @@ class Disc( object ):
 			# Check if this function overlaps with the given region by some amount
 			if functionStart < regionEnd and regionStart < functionEnd:
 				if firstSymbolIndex == -1:
-					self.symbols[i] = newLine
+					self._symbols[i] = newLine
 					firstSymbolIndex = i
 			elif functionStart >= regionEnd:
 				lastSymbolIndex = i
@@ -2812,34 +2817,89 @@ class Disc( object ):
 		else: # Remove all extra symbols between the new symbol line added above and the end of the region
 			self._symbols = self._symbols[:firstSymbolIndex+1] + self._symbols[lastSymbolIndex:]
 
-	def updateSymbols( self, codeName, summaryReport ):
-
+	def updateSymbols( self, newSymbols ):
 
 			# summaryReport.append( ('Injection code', codeChange.type, customCodeAddress, customCodeLength) )
 			# summaryReport.append( ('SF: ' + functionName, 'standalone', functionAddress, codeChange.getLength()) )
 
-		for shortName, changeType, functionAddress, length in summaryReport:
-			if changeType == 'standalone':
-				symbolName = codeName + ' SF: ' + shortName
-			elif changeType == 'injection':
-				symbolName = codeName + ' injection'
-			else: continue
+		# for shortName, changeType, functionAddress, length in summaryReport:
+		# 	if changeType == 'standalone':
+		# 		symbolName = codeName + ' SF: ' + shortName
+		# 	elif changeType == 'injection':
+		# 		symbolName = codeName + ' injection'
+		# 	else: continue
 				
-			firstSymbolIndex = -1
-			lastSymbolIndex = -1
+		# 	firstSymbolIndex = -1
+		# 	lastSymbolIndex = -1
 
-			# Create the new line
-			newLine = '{0:x} {1:08x} {0:x} 0 {2}'.format( functionAddress, length, symbolName )
+		# 	# Create the new line
+		# 	newLine = '{0:x} {1:08x} {0:x} 0 {2}'.format( functionAddress, length, symbolName )
 
-			for i, line in enumerate( self.symbols ):
-				line = line.strip()
-				if not line or line.startswith( '.' ):
-					continue
+		# 	for i, line in enumerate( self.symbols ):
+		# 		line = line.strip()
+		# 		if not line or line.startswith( '.' ):
+		# 			continue
 
-				# Parse the line (split on only the first 4 instances of a space)
-				functionStart, length, _, _, symbolName = line.split( ' ', 4 )
-				functionStart = int( functionStart, 16 )
-				functionEnd = functionStart + int( length, 16 )
+		# 		# Parse the line (split on only the first 4 instances of a space)
+		# 		functionStart, length, _, _, symbolName = line.split( ' ', 4 )
+		# 		functionStart = int( functionStart, 16 )
+		# 		functionEnd = functionStart + int( length, 16 )
+
+		# Sort
+
+		lastGroupIndex = 0
+		newSymbolLines = []
+
+		# Seek out the address line (should be a free space code area) that should contain the next group of symbols
+		for currentSymbolsIndex, line in enumerate( self.symbols ):
+			line = line.strip()
+			if not line or line.startswith( '.' ):
+				continue
+
+			# Parse the line (split on only the first 4 instances of a space)
+			symbolStart, length, _, _, symbolName = line.split( ' ', 4 )
+			symbolStart = int( symbolStart, 16 )
+			symbolEnd = symbolStart + int( length, 16 )
+
+			if symbolStart < newSymbols:
+				continue
+
+			# Copy symbol lines so far to the new lines list
+			newSymbolLines.extend( self.symbols[lastGroupIndex:currentSymbolsIndex] )
+
+			# Collect all of the new symbols to go into this space
+			totalSpace = 0
+			newLineIndex = 0
+			while newSymbols[0] < symbolEnd:
+				# Create the new line
+				newLine = '{0:x} {1:08x} {0:x} 0 {2}'.format( *newSymbols[newLineIndex] )
+				newSymbolLines.append( newLine )
+				totalSpace += newSymbols[newLineIndex][1]
+				newLineIndex += 1
+
+			# Splice the newSymbols list to remove those collected above
+			newSymbols = newSymbols[newLineIndex:]
+
+			# Add an adjusted copy of the current line to reflect new space usage
+			if totalSpace > length: # Failsafe; shouldn't happen
+				print 'Allocation error; functions in the space of 0x{:x} to 0x{:x} are too large.'.format( symbolStart, symbolEnd )
+				print 'Target space: {}    Length: 0x{:x}'.format( symbolName, length )
+			elif totalSpace == length: # Unlikely but possible
+				pass # No line to add
+			else:
+				newLine = '{0:x} {1:08x} {0:x} 0 {2}'.format( symbolStart + totalSpace, length - totalSpace, symbolName )
+				newSymbolLines.append( newLine )
+
+			# Remember this position in the symbols list for the next group addition
+			lastGroupIndex = currentSymbolsIndex + 1
+
+			# Check if done and perform final group copy
+			if not newSymbols:
+				# Copy over the last group of original lines to the new lines list
+				newSymbolLines.extend( self.symbols[lastGroupIndex:] )
+				break
+
+		self._symbols = newSymbolLines
 
 
 class MicroMelee( Disc ):
@@ -2919,6 +2979,7 @@ class MicroMelee( Disc ):
 		
 		# Build a new disc (overwriting existing file, if present)
 		self.buildNewDisc( buildMsg='Building the Micro Melee testing disc:' )
+		self.setImageName( 'Micro Melee Test Disc' )
 
 		# Restore the special conditions
 		self.isRootFolder = False # Restore to normal so the disc can be rebuilt as normal

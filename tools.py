@@ -509,7 +509,7 @@ class CodeLookup( BasicWindow ):
 		self.location.grid( column=0, row=1, columnspan=2, padx=5, pady=pady )
 		self.location.bind( "<KeyRelease>", self.initiateSearch )
 
-		ttk.Label( controlPanel, text='        Function Name:' ).grid( column=0, row=2, columnspan=2, padx=5, pady=(pady, 0), sticky='w' )
+		ttk.Label( controlPanel, text='Function Name:' ).grid( column=0, row=2, columnspan=2, padx=30, pady=(pady, 0), sticky='w' )
 		self.name = Tk.Text( controlPanel, width=40, height=3, state="disabled" )
 		self.name.grid( column=0, row=3, columnspan=2, sticky='ew', padx=5, pady=pady )
 
@@ -531,7 +531,7 @@ class CodeLookup( BasicWindow ):
 
 		controlPanel.grid( column=0, row=0, rowspan=2, padx=4, sticky='n' )
 
-		ttk.Label( mainFrame, text='     Function Code:' ).grid( column=1, row=0, padx=5, pady=2, sticky='ew' )
+		ttk.Label( mainFrame, text='Function Code:' ).grid( column=1, row=0, padx=42, pady=2, sticky='ew' )
 		self.code = ScrolledText( mainFrame, width=28, state="disabled" )
 		self.code.grid( column=1, row=1, rowspan=2, sticky='nsew', padx=(12, 0) )
 

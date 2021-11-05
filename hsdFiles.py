@@ -436,6 +436,31 @@ class FileBase( object ):
 			return 1
 
 
+class BootBin( FileBase ):
+
+	""" First file in the disc; boot.bin. """
+	
+	def __init__( self, *args, **kwargs ):
+		FileBase.__init__( self, *args, **kwargs )
+
+	@property
+	def imageName( self ):
+		titleBytes = self.getData( 0x20, 0x3E0 ).split( '\x00' )[0]
+		return titleBytes.decode( 'utf-8' )
+
+	@imageName.setter
+	def imageName( self, name ):
+		# Convert the name string to a bytearray
+		nameBytes = bytearray()
+		nameBytes.extend( name )
+
+		# Truncate if too long
+		if len( nameBytes ) > 0x3E0:
+			nameBytes = nameBytes[:0x3E0]
+
+		self.setData( 0x20, nameBytes )
+
+
 class BannerFile( FileBase ):
 
 	""" Subclass for opening.bnr GCM disc files, which contain the 
