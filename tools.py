@@ -653,30 +653,31 @@ class CodeLookup( BasicWindow ):
 				continue
 
 			# Parse the line (split on only the first 4 instances of a space)
-			addr, length, _, _, symbolName = line.split( ' ', 4 )
-			addr = int( addr, 16 )
+			functionStart, length, _, _, symbolName = line.split( ' ', 4 )
+			functionStart = int( functionStart, 16 )
 			length = int( length, 16 )
 
 			# Check if this is the target function
-			if address >= addr and address < addr + length:
+			if address >= functionStart and address < functionStart + length:
+				dolFunctionStart = self.dol.offsetInDOL( functionStart )
 				break
 
 		else: # Above loop didn't break; symbol not found
 			self.updateScrolledText( self.name, '' )
 			self.updateScrolledText( self.code, 'Unable to find {} in the map file'.format(self.location.get().strip()) )
-			self.updateEntry( self.dolOffset, uHex(offset) )
-			self.updateEntry( self.ramAddr, uHex(address) )
+			self.updateEntry( self.dolOffset, '' )
+			self.updateEntry( self.ramAddr, '' )
 			self.updateEntry( self.length, '' )
 			self.hasCustomCode.set( 'N/A' )
 			return
 
 		self.updateScrolledText( self.name, symbolName )
-		self.updateEntry( self.dolOffset, uHex(offset) + ' - ' + uHex(offset+length) )
-		self.updateEntry( self.ramAddr, uHex(address) + ' - ' + uHex(address+length) )
+		self.updateEntry( self.dolOffset, uHex(dolFunctionStart) + ' - ' + uHex(dolFunctionStart+length) )
+		self.updateEntry( self.ramAddr, uHex(functionStart) + ' - ' + uHex(functionStart+length) )
 		self.updateEntry( self.length, uHex(length) )
 
 		# Get the target function as a hex string
-		functionCode = self.dol.getData( offset, length )
+		functionCode = self.dol.getData( dolFunctionStart, length )
 		hexCode = hexlify( functionCode )
 	
 		# Disassemble the code into assembly
