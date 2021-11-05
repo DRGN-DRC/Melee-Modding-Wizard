@@ -640,7 +640,7 @@ class HexEditEntry( Tk.Entry ):
 	""" Used for struct hex and value display and editing. 
 		"dataOffsets" will typically be a single int value, but can be a list of offsets. """
 
-	def __init__( self, parent, dataOffsets, byteLength, formatting, updateName ):
+	def __init__( self, parent, dataOffsets=None, byteLength=-1, formatting='', updateName='' ):
 		Tk.Entry.__init__( self, parent,
 			width=byteLength*2+2, 
 			justify='center', 
@@ -650,7 +650,7 @@ class HexEditEntry( Tk.Entry ):
 			highlightthickness=1, 
 			highlightcolor='#0099f0' )
 
-		self.offsets 	= dataOffsets		# May be a single file offset (int), or a list of them
+		self.offsets	= dataOffsets		# May be a single file offset (int), or a list of them
 		self.byteLength = byteLength
 		self.formatting = formatting
 		self.updateName = updateName

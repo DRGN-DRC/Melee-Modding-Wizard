@@ -21,11 +21,13 @@ import subprocess
 import win32process
 import Tkinter as Tk
 from ruamel import yaml
+from binascii import hexlify
 from ScrolledText import ScrolledText
 from PIL import ImageGrab
 
 # Internal dependencies
 import globalData
+from disc import Disc
 from codeMods import CodeLibraryParser
 from basicFunctions import msg, uHex, cmdChannel, printStatus
 from guiSubComponents import BasicWindow, cmsg, Dropdown
@@ -74,7 +76,7 @@ class ImageDataLengthCalculator( BasicWindow ):
 		ttk.Label( self.window, text='(decimal)' ).grid( column=1, row=6, padx=5, pady=5 )
 
 	def calculateResult( self, event ):
-		try: 
+		try:
 			widthValue = self.widthEntry.get()
 			if not widthValue: return
 			elif '0x' in widthValue: width = int( widthValue, 16 )
@@ -480,6 +482,215 @@ class AsmToHexConverter( BasicWindow ):
 		
 		# Reinsert new code
 		self.hexCodeEntry.insert( 'end', hexCode )
+
+
+class CodeLookup( BasicWindow ):
+
+	def __init__( self ):
+		BasicWindow.__init__( self, globalData.gui.root, 'Code Lookup', resizable=True, minsize=(520, 300) )
+
+		pady = 6
+
+		mainFrame = ttk.Frame( self.window )
+		controlPanel = ttk.Frame( mainFrame )
+
+		# Set up offset/address input
+		ttk.Label( controlPanel, text='Enter a DOL Offset or RAM Address:' ).grid( column=0, row=0, columnspan=2, padx=5, pady=(25, pady) )
+		validationCommand = globalData.gui.root.register( self.locationUpdated )
+		self.location = Tk.Entry( controlPanel, width=13, 
+				justify='center', 
+				relief='flat', 
+				highlightbackground='#b7becc', 	# Border color when not focused
+				borderwidth=1, 
+				highlightthickness=1, 
+				highlightcolor='#0099f0', 
+				validate='key', 
+				validatecommand=(validationCommand, '%P') )
+		self.location.grid( column=0, row=1, columnspan=2, padx=5, pady=pady )
+		self.location.bind( "<KeyRelease>", self.initiateSearch )
+
+		ttk.Label( controlPanel, text='        Function Name:' ).grid( column=0, row=2, columnspan=2, padx=5, pady=(pady, 0), sticky='w' )
+		self.name = Tk.Text( controlPanel, width=40, height=3, state="disabled" )
+		self.name.grid( column=0, row=3, columnspan=2, sticky='ew', padx=5, pady=pady )
+
+		ttk.Label( controlPanel, text='DOL Offset:' ).grid( column=0, row=4, padx=5, pady=pady )
+		self.dolOffset = Tk.Entry( controlPanel, width=24, borderwidth=0, state="disabled" )
+		self.dolOffset.grid( column=1, row=4, sticky='w', padx=(7, 0) )
+
+		ttk.Label( controlPanel, text='RAM Address:' ).grid( column=0, row=5, padx=5, pady=pady )
+		self.ramAddr = Tk.Entry( controlPanel, width=24, borderwidth=0, state="disabled" )
+		self.ramAddr.grid( column=1, row=5, sticky='w', padx=(7, 0) )
+
+		ttk.Label( controlPanel, text='Length:' ).grid( column=0, row=6, padx=5, pady=pady )
+		self.length = Tk.Entry( controlPanel, width=8, borderwidth=0, state="disabled" )
+		self.length.grid( column=1, row=6, sticky='w', padx=(7, 0) )
+
+		ttk.Label( controlPanel, text='Includes\nCustom Code:', justify='center' ).grid( column=0, row=7, padx=5, pady=pady )
+		self.hasCustomCode = Tk.StringVar()
+		ttk.Label( controlPanel, textvariable=self.hasCustomCode ).grid( column=1, row=7, sticky='w', padx=(7, 0) )
+
+		controlPanel.grid( column=0, row=0, rowspan=2, padx=4, sticky='n' )
+
+		ttk.Label( mainFrame, text='     Function Code:' ).grid( column=1, row=0, padx=5, pady=2, sticky='ew' )
+		self.code = ScrolledText( mainFrame, width=28, state="disabled" )
+		self.code.grid( column=1, row=1, rowspan=2, sticky='nsew', padx=(12, 0) )
+
+		mainFrame.pack( expand=True, fill='both' )
+
+		# Configure this window's resize behavior
+		mainFrame.columnconfigure( 0, weight=0 )
+		mainFrame.columnconfigure( 1, weight=1 )
+		mainFrame.rowconfigure( 0, weight=0 )
+		mainFrame.rowconfigure( 1, weight=1 )
+
+		# Get and load a DOL file for reference
+		if globalData.disc:
+			self.dol = globalData.disc.dol
+			self.dolIsVanilla = False
+			gameId = globalData.disc.gameId
+		else:
+			# Get the vanilla disc path
+			vanillaDiscPath = globalData.getVanillaDiscPath()
+			if not vanillaDiscPath: # todo: add warning here
+				return
+			vanillaDisc = Disc( vanillaDiscPath )
+			vanillaDisc.loadGameCubeMediaFile()
+			gameId = vanillaDisc.gameId
+
+			self.dol = vanillaDisc.dol
+			self.dolIsVanilla = True
+		self.dol.load()
+		
+		# Collect function symbols info from the map file
+		symbolMapPath = os.path.join( globalData.paths['maps'], gameId + '.map' )
+		with open( symbolMapPath, 'r' ) as mapFile:
+			self.symbols = mapFile.read()
+		self.symbols = self.symbols.splitlines()
+
+	def updateEntry( self, widget, textInput ):
+		widget.configure( state="normal" )
+		widget.delete( 0, 'end' )
+		widget.insert( 0, textInput )
+		widget.configure( state="readonly" )
+
+	def updateScrolledText( self, widget, textInput ):
+
+		""" For Text or ScrolledText widgets. """
+
+		widget.configure( state="normal" )
+		widget.delete( 1.0, 'end' )
+		widget.insert( 1.0, textInput )
+		widget.configure( state="disabled" )
+
+	# def clearControlPanel( self ):
+		
+	# 	self.dolOffset.configure( state="normal" )
+	# 	self.dolOffset.delete( 0, 'end' )
+	# 	self.dolOffset.configure( state="readonly" )
+	# 	self.ramAddr.configure( state="normal" )
+	# 	self.ramAddr.delete( 0, 'end' )
+	# 	self.ramAddr.configure( state="readonly" )
+	# 	self.length.configure( state="normal" )
+	# 	self.length.delete( 0, 'end' )
+	# 	self.length.configure( state="readonly" )
+		
+	def locationUpdated( self, locationString ):
+
+		""" Validates text input into the offset/address entry field, whether entered 
+			by the user or programmatically. Ensures there are only hex characters.
+			If there are hex characters, this function will deny them from being entered. """
+
+		try:
+			value = int( locationString, 16 )
+			return True
+		except:
+			return False
+
+	def initiateSearch( self, event ):
+
+		locationString = self.location.get().strip().lstrip( '0x' )
+
+		# Get both the DOL offset and RAM address
+		cancelSearch = False
+		try:
+			if len( locationString ) == 8 and locationString.startswith( '8' ):
+				address = int( locationString, 16 )
+				offset = self.dol.offsetInDOL( address )
+
+				if address > self.dol.maxRamAddress:
+					cancelSearch = True
+			else:
+				offset = int( locationString, 16 )
+				address = self.dol.offsetInRAM( offset )
+
+				if offset < 0x100:
+					cancelSearch = True
+		except:
+			cancelSearch = True
+
+		if cancelSearch:
+			self.updateScrolledText( self.name, '' )
+			self.updateScrolledText( self.code, '' )
+			self.updateEntry( self.dolOffset, '' )
+			self.updateEntry( self.ramAddr, '' )
+			self.updateEntry( self.length, '' )
+			self.hasCustomCode.set( '' )
+			return
+
+		elif offset == -1:
+			self.updateScrolledText( self.name, '' )
+			self.updateScrolledText( self.code, '{} not found in the DOL'.format(self.location.get().strip()) )
+			self.updateEntry( self.dolOffset, '' )
+			self.updateEntry( self.ramAddr, '' )
+			self.updateEntry( self.length, '' )
+			self.hasCustomCode.set( '' )
+			return
+
+		# Look up info on this function in the map file
+		for i, line in enumerate( self.symbols ):
+			line = line.strip()
+			if not line or line.startswith( '.' ):
+				continue
+
+			# Parse the line (split on only the first 4 instances of a space)
+			addr, length, _, _, symbolName = line.split( ' ', 4 )
+			addr = int( addr, 16 )
+			length = int( length, 16 )
+
+			# Check if this is the target function
+			if address >= addr and address < addr + length:
+				break
+
+		else: # Above loop didn't break; symbol not found
+			self.updateScrolledText( self.name, '' )
+			self.updateScrolledText( self.code, 'Unable to find {} in the map file'.format(self.location.get().strip()) )
+			self.updateEntry( self.dolOffset, uHex(offset) )
+			self.updateEntry( self.ramAddr, uHex(address) )
+			self.updateEntry( self.length, '' )
+			self.hasCustomCode.set( 'N/A' )
+			return
+
+		self.updateScrolledText( self.name, symbolName )
+		self.updateEntry( self.dolOffset, uHex(offset) + ' - ' + uHex(offset+length) )
+		self.updateEntry( self.ramAddr, uHex(address) + ' - ' + uHex(address+length) )
+		self.updateEntry( self.length, uHex(length) )
+
+		# Get the target function as a hex string
+		functionCode = self.dol.getData( offset, length )
+		hexCode = hexlify( functionCode )
+	
+		# Disassemble the code into assembly
+		asmCode, errors = globalData.codeProcessor.disassemble( hexCode )
+		if errors:
+			self.updateScrolledText( self.code, 'Disassembly Error:\n\n' + errors )
+		else:
+			self.updateScrolledText( self.code, asmCode )
+
+		# Update text displaying whether this is purely vanilla code
+		if self.dolIsVanilla:
+			self.hasCustomCode.set( 'No' )
+		else: # todo
+			self.hasCustomCode.set( 'Unknown' )
 
 
 class TriCspCreator( object ):

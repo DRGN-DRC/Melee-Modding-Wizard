@@ -65,7 +65,7 @@ def uHex( integer ):
 	""" Quick conversion to have a 'hex()' function which displays uppercase characters. """
 
 	if integer > -10 and integer < 10: return str( integer ) # 0x not required
-	else: return '0x' + hex( integer )[2:].upper() # Twice as fast as .format
+	else: return '0x' + hex( integer )[2:].upper().rstrip( 'L' ) # Twice as fast as .format()
 
 
 def toHex( number, padTo ):
@@ -175,7 +175,7 @@ def humantime( seconds ):
 		('seconds', 1),
 		)
 
-	if seconds == 0:
+	if seconds <= 0:
 		return '0 seconds'
 
 	for name, count in intervals:

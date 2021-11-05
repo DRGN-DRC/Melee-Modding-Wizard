@@ -458,7 +458,7 @@ class Disc( object ):
 		# return self._css
 		if self.is20XX:
 			return self.files.get( self.gameId + '/MnSlChr.0sd' )
-		elif self.countryCode:
+		elif self.countryCode: # Catch any non-0 value
 			return self.files.get( self.gameId + '/MnSlChr.usd' )
 		else:
 			return self.files.get( self.gameId + '/MnSlChr.dat' )
@@ -472,15 +472,15 @@ class Disc( object ):
 				self._symbols = mapFile.read()
 			self._symbols = self._symbols.splitlines()
 				
-			for i, line in enumerate( self._symbols ):
-				line = line.strip()
-				if not line or line.startswith( '.' ):
-					continue
+			# for i, line in enumerate( self._symbols ):
+			# 	line = line.strip()
+			# 	if not line or line.startswith( '.' ):
+			# 		continue
 
-				# Parse the line (split on only the first 4 instances of a space)
-				addr, length, addr2, _, symbolName = line.split( ' ', 4 )
-				if addr != addr2:
-					print 'found address mismatch on line {}: {}'.format( i, line )
+			# 	# Parse the line (split on only the first 4 instances of a space)
+			# 	addr, length, addr2, _, symbolName = line.split( ' ', 4 )
+			# 	if addr != addr2:
+			# 		print 'found address mismatch on line {}: {}'.format( i, line )
 
 		return self._symbols
 

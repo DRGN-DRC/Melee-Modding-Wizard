@@ -34,7 +34,7 @@ from PIL import Image, ImageTk, ImageDraw, ImageFilter, ImageChops
 # Internal dependencies
 import globalData
 
-from tools import TriCspCreator, AsmToHexConverter
+from tools import TriCspCreator, AsmToHexConverter, CodeLookup
 from disc import Disc, isExtractedDirectory
 from hsdFiles import StageFile, CharCostumeFile
 from basicFunctions import (
@@ -234,6 +234,7 @@ class ToolsMenu( Tk.Menu, object ):
 																								# Key shortcut (holding alt)
 		self.add_cascade( label="ASM <-> HEX Converter", command=lambda: AsmToHexConverter(), underline=0 )			# A
 		#self.add_cascade( label="Number and Address Conversion", command=lambda: AsmToHexConverter(), underline=0 )	# N
+		self.add_cascade( label='Code Lookup', command=lambda: CodeLookup(), underline=5 )							# L
 		self.add_separator()
 		self.add_cascade( label="Test External Stage File", command=self.testStage, underline=14 )					# S
 		self.add_cascade( label="Test External Character File", command=self.testCharacter, underline=14 )			# C
