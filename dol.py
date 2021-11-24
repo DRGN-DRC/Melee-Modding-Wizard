@@ -573,12 +573,12 @@ class Dol( FileBase ):
 			print 'Dol.getMusicId() unable to look up musicId for "{}"'.format( filename )
 			return -1
 
-	def getStageFileName( self, internalStageId, forceExtension=True, defaultToDat=False ):
+	def getStageFileName( self, internalStageId, forceExtension=True, defaultToUsd=True ):
 
 		""" Looks up a stage file name (disc file name), using a pointer table at 0x3DCEDC. 
 			The table contains 0x6F (111) entries; though entry 0 is the "Dummy" placeholder, 
 			and entries 1, 0x23, and 0x48 onward (to the end of the table) are the "TEST" stage.
-			Uses the internal stage ID as an index in this table to get a pointer, which points to 
+			Uses internal stage ID as an index in this table to get a pointer, which points to 
 			a structure containing multiple properties of the stage, including a file name pointer. 
 			Returns two values: the offset of the file name string in the DOL, and the decoded string. 
 			
@@ -615,10 +615,10 @@ class Dol( FileBase ):
 				nameString += '.dat'
 
 			# No disc available to check
-			elif defaultToDat:
-				nameString += '.dat'
-			else:
+			elif defaultToUsd:
 				nameString += '.usd'
+			else:
+				nameString += '.dat'
 
 		return nameOffset, nameString
 

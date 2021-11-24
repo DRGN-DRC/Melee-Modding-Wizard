@@ -142,14 +142,26 @@ class CodeChange( object ):
 			however it's not expected to be available from the AMFS format. This method will retrieve it from 
 			a vanilla DOL if that is available. """
 
-		# If there's an original hex value, validate it
-		if self._origCode and not validHex( self._origCode ): # Should just be a hex string of the game's original code
-			msg( 'Problem detected while parsing "' + self.mod.name + '" in the mod library file "'
-				+ os.path.basename( self.mod.path ) + '" (index ' + str(self.mod.fileIndex+1) + ').\n\n'
-				'There is an invalid (non-hex) original hex value: ' + self._origCode, 'Incorrect Mod Formatting (Error Code 04.2)' )
-			self.mod.parsingError = True
-			self.mod.errors.append( 'Invalid original hex value: ' + self._origCode )
-			self._origCode = ''
+		# Pre-process the original code to remove comments and whitespace
+		if self._origCode:
+			filteredLines = []
+			for line in self._origCode.splitlines():
+				line = line.split( '#' )[0].strip()
+				if not line: continue
+
+				filteredLines.append( ''.join(line.split()) ) # Removes whitespace from this line
+			filteredOriginal = ''.join( filteredLines )
+
+			# Validate the string to make sure it's only a hex string of the game's original code
+			if not validHex( filteredOriginal ):
+				msg( 'Problem detected while parsing "' + self.mod.name + '" in the mod library file "'
+					+ os.path.basename( self.mod.path ) + '" (index ' + str(self.mod.fileIndex+1) + '). '
+					'There is an invalid (non-hex) original hex value found:\n\n' + filteredOriginal, 'Incorrect Mod Formatting (Error Code 04.2)' )
+				self.mod.parsingError = True
+				self.mod.errors.append( 'Invalid original hex value for code to be installed at ' + self.offset )
+				self._origCode = ''
+			else:
+				self._origCode = filteredOriginal
 
 		# If no original hexcode, try to get it from the vanilla disc
 		if not self._origCode:
@@ -230,7 +242,7 @@ class CodeChange( object ):
 
 		#rawCustomCode = '\n'.join( customCode ).strip() # Collapses the list of collected code lines into one string, removing leading & trailing whitespace
 		self.processStatus, self.length, codeOrErrorNote, self.syntaxInfo, self.isAssembly = globalData.codeProcessor.evaluateCustomCode( self.rawCode, self.mod.includePaths, self.mod.configurations )
-		
+
 		# if self.syntaxInfo:
 		# 	processStatus, length, codeOrErrorNote2, syntaxInfo, isAssembly = globalData.codeProcessor.evaluateCustomCode( self.rawCode, self.mod.includePaths, self.mod.configurations )
 		
@@ -288,7 +300,9 @@ class CodeChange( object ):
 
 		self.evaluate()
 
-		#returnCode, finishedCode = globalData.codeProcessor.resolveCustomSyntaxes( targetAddress, self.rawCode, self.preProcessedCode, self.mod.includePaths, self.mod.configurations )
+		if self.mod.errors:
+			msg( 'Unable to process custom code for {}; {}'.format(self.mod.name, '\n'.join(self.mod.errors)), 'Error During Pre-Processing', warning=True )
+			return 5, ''
 
 		if not self.syntaxInfo:
 			returnCode = 0
@@ -304,7 +318,8 @@ class CodeChange( object ):
 			errorMsg = 'Unable to process custom code for {}:\n\n{}\n\n{}'.format( self.mod.name, codeSample, finishedCode )
 			msg( errorMsg, 'Error Resolving Custom Syntaxes' )
 		elif not finishedCode or not validHex( finishedCode ): # Failsafe; definitely not expected
-			msg( 'There was an unknown error while processing the following custom code for {}:\n\n{}'.format(self.mod.name, self.rawCode), 'Error During Final Code Processing' )
+			msg( 'There was an unknown error while processing the following custom code for {}:\n\n{}'.format(self.mod.name, self.rawCode), 'Error During Final Code Processing', warning=True )
+			returnCode = 6
 
 		return returnCode, finishedCode
 

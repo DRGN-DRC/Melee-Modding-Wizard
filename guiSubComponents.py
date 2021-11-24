@@ -161,10 +161,10 @@ def importGameFiles( fileExt='', multiple=False, title='', fileTypeOptions=None,
 	return filePaths
 
 
-def importSingleFileWithGui( origFileObj ):
+def importSingleFileWithGui( origFileObj, validate=True ):
 
 	""" Prompts the user to choose an external/standalone file to import, and then 
-		replaces the given file in the disc with the chosen file. 
+		replacing the given file in the disc with the chosen file. 
 		Updates the default directory to search in when opening or exporting files. 
 		Also handles updating the GUI with the operation's success/failure status. 
 		Returns True/False on success. """
@@ -184,9 +184,10 @@ def importSingleFileWithGui( origFileObj ):
 		return False
 
 	# Check that this is an appropriate replacement file
-	if not isValidReplacement( origFileObj, newFileObj ): # Will provide user feedback if untrue
-		globalData.gui.updateProgramStatus( 'Invalid file replacement. Operation canceled', warning=True )
-		return False
+	if validate:
+		if not isValidReplacement( origFileObj, newFileObj ): # Will provide user feedback if untrue
+			globalData.gui.updateProgramStatus( 'Invalid file replacement. Operation canceled', warning=True )
+			return False
 
 	# Replace the file and update the program status bar
 	globalData.disc.replaceFile( origFileObj, newFileObj )
@@ -347,24 +348,28 @@ class CharacterChooser( BasicWindow ):
 		costume ID, which will be stored to "self.charId" and "self.costumeId", respectively. 
 		This window will block the main interface until a selection is made. """
 
-	def __init__( self, message='', includeSpecialCharacters=False ):
+	def __init__( self, message='', includeSpecialCharacters=False, combineZeldaSheik=False ):
 
 		BasicWindow.__init__( self, globalData.gui.root, 'Select a Character', offsets=(300, 300) )
 		
-		self.emptySelection = '---'
+		self.emptySelection = '- - -'
 		self.charId = -1
 		self.costumeId = -1
 
 		if message: # Optional user message
 			ttk.Label( self.window, text=message, wraplength=500 ).pack( padx=14, pady=(6, 0) )
 
+		# Build the initial list to appear in the dropdown
 		if includeSpecialCharacters:
 			charList = globalData.charList
 		else:
 			charList = globalData.charList[:0x1A]
+
+		if combineZeldaSheik:
+			charList = charList[:0x12] + ['Zelda/Sheik'] + charList[0x14:]
 		
-		stageChoice = Tk.StringVar()
-		charDropdown = ttk.OptionMenu( self.window, stageChoice, self.emptySelection, *charList, command=self.characterSelected )
+		charChoice = Tk.StringVar()
+		charDropdown = ttk.OptionMenu( self.window, charChoice, self.emptySelection, *charList, command=self.characterSelected )
 		charDropdown.pack( padx=14, pady=(4, 0) )
 		
 		colorChoice = Tk.StringVar()
@@ -385,14 +390,17 @@ class CharacterChooser( BasicWindow ):
 		""" Called when the user changes the current selection. Sets the currently 
 			selected character ID, and populates the costume color drop-down. """
 
-		self.charId = globalData.charList.index( selectedOption )
+		if selectedOption == 'Zelda/Sheik':
+			self.charId = 0x13
+		else:
+			self.charId = globalData.charList.index( selectedOption )
 
 		# Get the character and costume color abbreviations for the chosen character
 		charAbbreviation = globalData.charAbbrList[self.charId]
 		costumeOptions = globalData.costumeSlots[charAbbreviation]
 
 		# Format the color options with human-readable names
-		costumeOptions = [ '{}  ({})'.format(abbr, globalData.charColorLookup.get(abbr)) for abbr in costumeOptions ]
+		costumeOptions = [ '{}  ({})'.format(abbr, globalData.charColorLookup.get(abbr, 'N/A')) for abbr in costumeOptions ]
 
 		# Populate the costume color chooser, and set a default option
 		self.colorDropdown['state'] = 'normal'
@@ -429,9 +437,9 @@ def cmsg( message, title='', align='center', buttons=None, makeModal=False ):
 	if globalData.gui:
 		CopyableMessageWindow( globalData.gui.root, message, title, align, buttons, makeModal )
 	else:
-		if len( args ) > 1:
-			print '\t', args[1] + ':'
-		print args[0]
+		if title:
+			print '\t', title + ':'
+		print message
 
 
 class CopyableMessageWindow( BasicWindow ):
@@ -660,8 +668,6 @@ class SliderAndEntry( ttk.Frame ):
 
 	def __init__( self, parent, *args, **kwargs ):
 		ttk.Frame.__init__( self, parent, *args, **kwargs )
-
-
 
 
 class HexEditDropdown( ttk.OptionMenu ):
