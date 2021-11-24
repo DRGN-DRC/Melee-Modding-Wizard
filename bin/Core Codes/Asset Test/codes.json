@@ -5,7 +5,7 @@
 			"authors": [ "UnclePunch" ],
 			"description": [ "Configures the game to boot strait into a match or menu, with configurable settings." ],
 			"category": "Core Codes",
-			"webLinks": [ "https://smashboards.com/threads/boot-to-custom-match.474651/" ],
+			"webLinks": [ "https://smashboards.com/threads/boot-to-custom-match.474651/", "" ],
 
 			"configurations": {
 				"Timer": {
@@ -336,12 +336,45 @@
 					"value": 0,
 					"default": 0
 				},
-				"Camera Placement": {
-					"annotation": "Forces the camera to specific X/Y/Z coordinates",
-					"type": "buildConfig",
-					"address": "",
+				"P1 Facing Direction": {
+					"type": "uint8",
 					"value": 0,
-					"default": 0
+					"default": 0,
+					"members": [
+						[ "Default", 0 ],
+						[ "Left", -1 ],
+						[ "Right", 1 ]
+					]
+				},
+				"P2 Facing Direction": {
+					"type": "uint8",
+					"value": 0,
+					"default": 0,
+					"members": [
+						[ "Default", 0 ],
+						[ "Left", -1 ],
+						[ "Right", 1 ]
+					]
+				},
+				"P3 Facing Direction": {
+					"type": "uint8",
+					"value": 0,
+					"default": 0,
+					"members": [
+						[ "Default", 0 ],
+						[ "Left", -1 ],
+						[ "Right", 1 ]
+					]
+				},
+				"P4 Facing Direction": {
+					"type": "uint8",
+					"value": 0,
+					"default": 0,
+					"members": [
+						[ "Default", 0 ],
+						[ "Left", -1 ],
+						[ "Right", 1 ]
+					]
 				}
 			},
 			"build": [

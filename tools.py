@@ -12,21 +12,26 @@
 
 # External dependencies
 import os
+from tkMessageBox import Message
 import ttk
 import time
 import codecs
 import psutil
+import struct
 import win32gui
 import subprocess
 import win32process
 import Tkinter as Tk
+
 from ruamel import yaml
+from shutil import copy
 from binascii import hexlify
 from ScrolledText import ScrolledText
 from PIL import ImageGrab
 
 # Internal dependencies
 import globalData
+
 from disc import Disc
 from codeMods import CodeLibraryParser
 from basicFunctions import msg, uHex, cmdChannel, printStatus
@@ -127,7 +132,7 @@ class AsmToHexConverter( BasicWindow ):
 			'\nComments preceded with "#" will be ignored.'), wraplength=480 ).grid( column=0, row=0, rowspan=3 )
 
 		ttk.Label( topRow, text='Beautify Hex:' ).grid( column=1, row=0 )
-		options = [ '1 Word Per Line', '2 Words Per Line', '3 Words Per Line', '4 Words Per Line', '5 Words Per Line', '6 Words Per Line' 'No Whitespace' ]
+		options = [ '1 Word Per Line', '2 Words Per Line', '3 Words Per Line', '4 Words Per Line', '5 Words Per Line', '6 Words Per Line', 'No Whitespace' ]
 		Dropdown( topRow, options, default=options[1], command=self.beautifyChanged ).grid( column=1, row=1 )
 
 		self.assembleSpecialSyntax = Tk.BooleanVar( value=False )
@@ -356,7 +361,7 @@ class AsmToHexConverter( BasicWindow ):
 				offset += sectionLength
 
 			if syntaxType == 'opt':
-				instruction, variable = codeLine.split( 1 )
+				instruction, variable = codeLine.split( ' ', 1 )
 				if instruction in ( '.float', '.long', '.word', '.byte' ):
 					newHexCodeSections.append( variable )
 				else:
@@ -601,7 +606,12 @@ class CodeLookup( BasicWindow ):
 			If there are hex characters, this function will deny them from being entered. """
 
 		try:
-			value = int( locationString, 16 )
+			if not locationString: # Text erased
+				return True
+
+			# Attempt to convert the hex string to decimal
+			int( locationString, 16 )
+
 			return True
 		except:
 			return False
@@ -721,24 +731,36 @@ class TriCspCreator( object ):
 		print 'GIMP Plug-ins directory:   ', pluginDir
 		print ''
 		
-		# Load the CSP Configuration file
+		# Load the CSP Configuration file, and assemble other needed paths
 		try:
-			coreCodesFolder = globalData.paths['coreCodes']
-			configFilePath = os.path.join( coreCodesFolder, 'CSP Configuration.yml' )
-			with codecs.open( configFilePath, 'r', encoding='utf-8' ) as stream: # Using a different read method to accommodate UTF-8 encoding
-				#cls.yamlDescriptions = yaml.safe_load( stream ) # Vanilla yaml module method (loses comments when saving/dumping back to file)
+			self.triCspFolder = globalData.paths['triCsps']
+			configFilePath = os.path.join( self.triCspFolder, 'CSP Configuration.yml' )
+
+			# Read the config file (this method should allow for utf-8 encoding, and preserve comments when saving/dumping back to file)
+			with codecs.open( configFilePath, 'r', encoding='utf-8' ) as stream:
 				self.config = yaml.load( stream, Loader=yaml.RoundTripLoader )
-			self.dolphinSettingsFile = os.path.join( coreCodesFolder, 'csp-Dolphin.ini' )
-			self.gfxSettingsFile = os.path.join( coreCodesFolder, 'csp-GFX.ini' )
-		except IOError: # Couldn't find the file
+
+			# self.debuggerSettingsFile = os.path.join( self.triCspFolder, 'Debugger.ini' )
+			# self.dolphinSettingsFile = os.path.join( self.triCspFolder, 'Dolphin.ini' )
+			# self.gfxSettingsFile = os.path.join( self.triCspFolder, 'GFX.ini' )
+			self.settingsFiles = [
+				os.path.join( self.triCspFolder, 'Debugger.ini' ),
+				os.path.join( self.triCspFolder, 'Dolphin.ini' ),
+				os.path.join( self.triCspFolder, 'GFX.ini' )
+			]
+			self.pluginsFolder = os.path.join( self.triCspFolder, 'plug-ins' )
+		except IOError: # Couldn't find the configuration file
 			msg( "Couldn't find the CSP config file at " + configFilePath, warning=True )
 		except Exception as err: # Problem parsing the file
 			msg( 'There was an error while parsing the yaml config file:\n\n{}'.format(err) )
 
+		# Delete old GIMP .pyc plugins (I don't think GIMP will automatically re-build them if the scripts are updated)
+		# todo
+
 	def determineGimpPath( self ):
 
 		""" Determines the absolute file path to the GIMP console executable 
-			(the exe itself varies based on program version). """
+			(the exe filename varies based on program version). """
 
 		dirs = ( "C:\\Program Files\\GIMP 2\\bin", "{}\\Programs\\GIMP 2\\bin".format(os.environ['LOCALAPPDATA']) )
 		
@@ -766,7 +788,6 @@ class TriCspCreator( object ):
 			return
 
 	def getGimpProgramVersion( self ):
-		#_, versionText = cmdChannel( 'start /B /D "{}" {} --version'.format(self.gimpDir, self.gimpExe), shell=True )
 		_, versionText = cmdChannel( '"{}\{}" --version'.format(self.gimpDir, self.gimpExe) )
 		return versionText.split()[-1]
 		
@@ -819,12 +840,14 @@ class TriCspCreator( object ):
 			characterDict = self.config[charId]
 			actionState = characterDict['actionState']
 			targetFrame = characterDict['frame']
+			faceLeft = characterDict.get( 'faceLeft', False )
+			grounded = characterDict.get( 'grounded', False )
 			camX = characterDict['camX']
 			camY = characterDict['camY']
 			camZ = characterDict['camZ']
 			targetFrameId = targetFrame >> 16 # Just need the first two bytes of the float for this
 		except KeyError as err:
-			msg( 'Unable to find CSP "{}" info for character ID {} in "CSP Configuration.yml".'.format(err.message, charId), 'CSP Config Error' )
+			msg( 'Unable to find CSP "{}" info for character ID 0x{:X} in "CSP Configuration.yml".'.format(err.message, charId), 'CSP Config Error' )
 			return
 
 		# Replace the character in the Micro Melee disc with the 20XX skin
@@ -832,15 +855,22 @@ class TriCspCreator( object ):
 		newFile = globalData.disc.files[globalData.disc.gameId + '/' + globalData.disc.constructCharFileName(charId, costumeId, charExtension)]
 		microMelee.replaceFile( origFile, newFile )
 
+		# Copy over Nana too, if ICies are selected
+		if charId == 0xE: # Ice Climbers
+			colorAbbr = globalData.costumeSlots['Nn'][costumeId]
+			origFile = microMelee.files[microMelee.gameId + '/PlNn' + colorAbbr + '.dat' ]
+			newFile = globalData.disc.files[globalData.disc.gameId + '/PlNn' + colorAbbr + '.' + charExtension]
+			microMelee.replaceFile( origFile, newFile )
+
 		# Parse the Core Codes library for the codes needed for booting to match and setting up a pose
-		parser = CodeLibraryParser()
+		coreCodes = CodeLibraryParser()
 		coreCodesFolder = globalData.paths['coreCodes']
-		parser.includePaths = [ os.path.join(coreCodesFolder, '.include'), os.path.join(globalData.scriptHomeFolder, '.include') ]
-		parser.processDirectory( coreCodesFolder )
+		coreCodes.includePaths = [ os.path.join(coreCodesFolder, '.include'), os.path.join(globalData.scriptHomeFolder, '.include') ]
+		coreCodes.processDirectory( coreCodesFolder )
 		codesToInstall = []
 
 		# Customize the Asset Test mod to load the chosen characters/costumes
-		assetTest = parser.getModByName( 'Asset Test' )
+		assetTest = coreCodes.getModByName( 'Asset Test' )
 		if not assetTest:
 			msg( 'Unable to find the Asset Test mod in the Core Codes library!', warning=True )
 			return
@@ -852,19 +882,76 @@ class TriCspCreator( object ):
 			assetTest.configure( "Stage", 3 ) # Selecting Pokemon Stadium
 		else:
 			assetTest.configure( "Stage", 32 ) # Selecting FD
+		if faceLeft:
+			assetTest.configure( 'P1 Facing Direction', -1 )
+			assetTest.configure( 'P2 Facing Direction', -1 )
+		else:
+			assetTest.configure( 'P1 Facing Direction', 1 )
+			assetTest.configure( 'P2 Facing Direction', 1 )
 		codesToInstall.append( assetTest )
 
-		# Customize Enter Action State On Match Start
-		actionStateStart = parser.getModByName( 'Enter Action State On Match Start' )
-		if not actionStateStart:
-			msg( 'Unable to find the Enter Action State On Match Start mod in the Core Codes library!', warning=True )
-			return
-		actionStateStart.configure( 'Action State ID', actionState )
-		actionStateStart.configure( 'Start Frame', 0 )
-		codesToInstall.append( actionStateStart )
+		# Parse the Pose Codes
+		poseCodes = CodeLibraryParser()
+		poseCodesFolder = globalData.paths['triCsps']
+		poseCodes.includePaths = [ os.path.join(poseCodesFolder, '.include'), os.path.join(globalData.scriptHomeFolder, '.include') ]
+		poseCodes.processDirectory( poseCodesFolder )
+		
+		# Check for a pose code specific to this character in the Pose Codes file
+		poseCodeName = globalData.charList[charId] + ' Pose Code'
+		poseCode = poseCodes.getModByName( poseCodeName )
+
+		if poseCode:
+			codesToInstall.append( poseCode )
+		else: # No specific, custom code for this character; use the general approach
+
+		# Configure code for setting the appropriate action state
+		# if charId == 1: # DK
+		# 	actionStateMod = coreCodes.getModByName( 'DK CSP Double-Jump' )
+		# 	if not actionStateMod:
+		# 		msg( 'Unable to find the DK CSP Double-Jump mod in the Core Codes library!', warning=True )
+		# 		return
+		#if charId == 1 or charId == 6: # DK or Link
+			# actionStateMod = coreCodes.getModByName( 'Force Jump for CSP' )
+			# if not actionStateMod:
+			# 	msg( 'Unable to find the Force Jump mod in the Core Codes library!', warning=True )
+			# 	return
+			# codesToInstall.append( actionStateMod )
+
+			# actionStateMod = coreCodes.getModByName( 'Enter Action State On Match Start' )
+			# if not actionStateMod:
+			# 	msg( 'Unable to find the Enter Action State On Match Start mod in the Core Codes library!', warning=True )
+			# 	return
+			# actionStateMod.configure( 'Action State ID', actionState )
+			# actionStateMod.configure( 'Start Frame', 0 )
+
+			# codesToInstall.append( coreCodes.getModByName('Zero-G Mode') )
+		# else:
+			actionStateMod = coreCodes.getModByName( 'Enter Action State On Match Start' )
+			if not actionStateMod:
+				msg( 'Unable to find the Enter Action State On Match Start mod in the Core Codes library!', warning=True )
+				return
+
+		# Convert the pose target frame to an int start frame
+		# startFrame = struct.unpack( '>f', struct.pack('>I', targetFrame) )[0]
+		# if startFrame <= 5:
+		# 	startFrame = 0
+		# else:
+		# 	startFrame = int( startFrame - 5 )
+		
+			actionStateMod.configure( 'Action State ID', actionState )
+			actionStateMod.configure( 'Start Frame', 0 )
+
+			codesToInstall.append( actionStateMod )
+
+			# If the move should be done in the air, apply a code so they hover on spawn
+			if grounded:
+				# Increase delay to start the move so the characters have time to fall to the ground
+				actionStateMod.configure( 'Delay', 102 ) # Default is 72
+			else:
+				codesToInstall.append( coreCodes.getModByName('Zero-G Mode') )
 		
 		# Customize Action State Freeze
-		actionStateFreeze = parser.getModByName( 'Action State Freeze' )
+		actionStateFreeze = coreCodes.getModByName( 'Action State Freeze' )
 		if not actionStateFreeze:
 			msg( 'Unable to find the Action State Freeze mod in the Core Codes library!', warning=True )
 			return
@@ -872,24 +959,23 @@ class TriCspCreator( object ):
 		actionStateFreeze.configure( 'Frame ID', targetFrameId )
 		codesToInstall.append( actionStateFreeze )
 
-		codesToInstall.append( parser.getModByName('Zero-G Mode') )
-		codesToInstall.append( parser.getModByName('Modified Camera Info Flag Initialization') )
-		codesToInstall.append( parser.getModByName('Standard Pause Camera in Dev-Mode Match') )
-		codesToInstall.append( parser.getModByName('Disable HUD') )
+		codesToInstall.append( coreCodes.getModByName('Modified Camera Info Flag Initialization') )
+		codesToInstall.append( coreCodes.getModByName('Standard Pause Camera in Dev-Mode Match') )
+		codesToInstall.append( coreCodes.getModByName('Disable Pause HUD') )
 
 		# Configure the camera
-		cameraMod = parser.getModByName( 'CSP Camera Configuration' )
+		cameraMod = coreCodes.getModByName( 'CSP Camera' )
 		cameraMod.configure( 'X Coord', camX )
 		cameraMod.configure( 'Y Coord', camY )
 		cameraMod.configure( 'Z Coord', camZ )
 		codesToInstall.append( cameraMod )
 
-		# Configure the camera
-		pauseMod = parser.getModByName( 'Auto-Pause' )
-		pauseMod.configure( 'Target Frame', 252 ) # 72 + 180
+		# Configure the camera pause time
+		pauseMod = coreCodes.getModByName( 'Auto-Pause' )
+		pauseMod.configure( 'Target Frame', 252 ) # 72 (to leave entry platform) + 180 (max anim time)
 		codesToInstall.append( pauseMod )
 
-		# Shut down all instances of Dolphin so that it can be saved to
+		# Shut down all instances of Dolphin to ensure the disc can be saved to
 		dc = globalData.dolphinController
 		dc.stopAllDolphinInstances()
 
@@ -908,6 +994,77 @@ class TriCspCreator( object ):
 		dc.stop()
 
 		return screenshotPath
+
+	def createTriCsp( self, leftImagePath, centerImagePath, rightImagePath, charConfigDict, outputPath, saveHighRes ):
+		
+		""" Construct a gimp-script command-line argument and send it to GIMP to create a finished Tri-CSP image.
+			The GIMP options used are as follows:
+				-d = "--no-data", prevents loading of brushes, gradients, palettes, patterns, ...
+				-f = "--no-fonts", prevents loading of fonts
+				-i = "--no-interface", prevents loading of main GUI
+				-g = "--gimprc", applies setting preferences from a file (must be a full path). In this case, it's just used to prevent exporting a color profile
+				-b "" specifies a script-fu command to be run in gimp """
+
+		printStatus( 'Compositing CSP Image...', forceUpdate=True )
+
+		# Assemble needed paths and replace backslashes
+		gimpExePath = os.path.join( self.gimpDir, self.gimpExe )
+		gimprcPath = os.path.join( self.triCspFolder, 'gimprcTCC' ).replace( '\\', '/' )
+		leftImagePath = leftImagePath.replace( '\\', '/' )
+		centerImagePath = centerImagePath.replace( '\\', '/' )
+		rightImagePath = rightImagePath.replace( '\\', '/' )
+		outputPath = outputPath.replace( '\\', '/' )
+		
+		# Convert the boolean flags to strings
+		if charConfigDict['reverseSides']: reverseSidesFlag = '1'
+		else: reverseSidesFlag = '0'
+		if saveHighRes: saveHighResFlag = '1'
+		else: saveHighResFlag = '0'
+
+		# Construct the list of CSP configuration arguments and cast them to a string
+		try:
+			configArgsList = [
+				charConfigDict['threshold'], 
+				charConfigDict['centerImageXOffset'], charConfigDict['centerImageYOffset'], charConfigDict['centerImageScaling'], 
+				charConfigDict['sideImagesXOffset'], charConfigDict['sideImagesYOffset'], charConfigDict['sideImagesScaling']
+			]
+		except KeyError as err:
+			raise Exception( 'Missing CSP configuration: ' + err.message )
+		configurationArgs = [ str(arg) for arg in configArgsList ]
+
+		command = (
+			#'start /B /D "{}"'.format( gimpExeFolder ) # Starts a new process. /B prevents creating a new window, and /D sets the working directory
+			'"{}" -d -f -i -g "{}"'.format( gimpExePath, gimprcPath ) # Call the gimp executable with the arguments described above
+			+ ' -b "(python-fu-create-tri-csp 1' # Extra param, "1", to run in NON-INTERACTIVE mode
+			' \\"' + leftImagePath + '\\"'
+			' \\"' + centerImagePath + '\\"'
+			' \\"' + rightImagePath + '\\"'
+			' \\"\\" \\"\\"' # Mask image path & Config file path (not used here)
+			' \\"' + outputPath + '\\"'
+			#+ ' '.join( configurationArgs ) + ' ' + reverseSidesFlag + ' ' + saveHighResFlag + ' 0)" -b "(gimp-quit 0)"'
+			' {} {} {} 0)" -b "(gimp-quit 0)"'.format( ' '.join( configurationArgs ), reverseSidesFlag, saveHighResFlag )
+		)
+
+		# Send the command to the Tri-CSP creator script and parse its output
+		stderr = cmdChannel( command, returnStderrOnSuccess=True )[1]
+		returnCode, errMsg = self.parseScriptOutput( stderr )
+		if returnCode != 0:
+			msg( 'There was an error in creating the Tri-CSP:\n\n' + errMsg, 'Tri-CSP Creator Error' )
+			globalData.gui.updateProgramStatus( 'Error during Tri-CSP creation', error=True )
+
+		return returnCode
+
+	def parseScriptOutput( self, stderr ):
+
+		""" Can't get normal exit/return codes from python-fu scripts, 
+			so instead we'll parse custom messages from stderr. """
+
+		for line in stderr.splitlines():
+			if line.startswith( 'Create Tri-CSP-Warning: Return Code:' ): # e.g. "Create Tri-CSP-Warning: Return Code: 1: Some error happened"
+				returnCode, message = line.split( ':' )[2:]
+				return ( int(returnCode), message.strip() )
+		else: # The above loop didn't break; Unknown error
+			return ( -1, stderr )
 
 
 class DolphinController( object ):
@@ -992,28 +1149,61 @@ class DolphinController( object ):
 			return output
 		else:
 			return 'N/A'
+
+	def backupAndReplaceSettings( self, fileList ):
+
+		""" Backs up current Dolphin settings files, and replaces them with the given files. """
+
+		settingsFolder = os.path.join( self.userFolder, 'Config' )
+
+		for filepath in fileList:
+			origFile = os.path.join( settingsFolder, os.path.basename(filepath) )
+			# debuggerSettingsFile = os.path.join( settingsFolder, 'Debugger.ini' )
+			# dolphinSettingsFile = os.path.join( settingsFolder, 'Dolphin.ini' )
+			# gfxSettingsFile = os.path.join( settingsFolder, 'GFX.ini' )
+			try:
+				# os.rename( debuggerSettingsFile, debuggerSettingsFile + '.bak' )
+				# os.rename( dolphinSettingsFile, dolphinSettingsFile + '.bak' )
+				os.rename( origFile, origFile + '.bak' )
+			except WindowsError: # Likely the backup files already exist
+				pass # Keep the old backup files; do not replace
+
+			# Copy over the Dolphin settings files for CSP creation
+			# copy( cspCreator.debuggerSettingsFile, debuggerSettingsFile )
+			# copy( cspCreator.dolphinSettingsFile, dolphinSettingsFile )
+			copy( filepath, origFile )
+
+	def restoreSettings( self, fileList ):
+		
+		""" Restores Dolphin settings previously backed-up, replacing them with the original files. """
+
+		settingsFolder = os.path.join( self.userFolder, 'Config' )
+		
+		for filepath in fileList:
+			origFile = os.path.join( settingsFolder, os.path.basename(filepath) )
+			os.remove( origFile )
+			os.rename( origFile + '.bak', origFile )
 	
 	def start( self, discObj ):
+
+		""" Starts running an instance of Dolphin with the given disc. 
+			'--exec' loads the specified file. (Using '--exec' because '/e' is incompatible with Dolphin 5+, while '-e' is incompatible with Dolphin 4.x)
+			'--batch' will prevent dolphin from unnecessarily scanning game/ISO directories, and will shut down Dolphin when the game is stopped. """
+
 		if not self.exePath:
 			return # User may have canceled the prompt
 
 		# Make sure there are no prior instances of Dolphin running
 		self.stopAllDolphinInstances()
-
-		# print 'Booting', discObj.filePath
-		# print 'In', self.exePath
 		
-		# Send the disc filepath to Dolphin
-		# '--exec' loads the specified file. (Using '--exec' because '/e' is incompatible with Dolphin 5+, while '-e' is incompatible with Dolphin 4.x)
-		# '--batch' will prevent dolphin from unnecessarily scanning game/ISO directories, and will shut down Dolphin when the game is stopped.
-		printStatus( 'Booting in emulator....' )
+		printStatus( 'Booting {} in emulator....'.format(discObj.gameId) )
+
+		# Construct the command with the disc filepath and send it to Dolphin
 		if globalData.checkSetting( 'runDolphinInDebugMode' ):
 			command = '"{}" --debugger --exec="{}"'.format( self.exePath, discObj.filePath )
 		else:
 			command = '"{}" --batch --exec="{}"'.format( self.exePath, discObj.filePath )
 		self.process = subprocess.Popen( command, stderr=subprocess.STDOUT, creationflags=0x08000000 )
-
-		print 'Dolphin started; with process ID', self.process.pid
 
 	def stop( self ):
 
@@ -1037,8 +1227,8 @@ class DolphinController( object ):
 		if processFound:
 			time.sleep( 2 )
 
-	def getLatestScreenshot( self, gameId ):
-		screenshotFolder = os.path.join( self.userFolder, 'ScreenShots', gameId )
+	# def getLatestScreenshot( self, gameId ):
+	# 	screenshotFolder = os.path.join( self.userFolder, 'ScreenShots', gameId )
 
 	def getSettings( self, settingsDict ):
 
@@ -1121,11 +1311,11 @@ class DolphinController( object ):
 
 		# Update program status and construct a file save/output path
 		if charExtension[0] == 'l':
-			printStatus( 'Generating left-side screenshot...', forceUpdate=True )
-			savePath = os.path.join( globalData.paths['tempFolder'], 'left.png' )
+			side = 'left'
 		else:
-			printStatus( 'Generating right-side screenshot...', forceUpdate=True )
-			savePath = os.path.join( globalData.paths['tempFolder'], 'right.png' )
+			side = 'right'
+		printStatus( 'Generating {}-side screenshot...'.format(side), forceUpdate=True )
+		savePath = os.path.join( globalData.paths['tempFolder'], side + '.png' )
 
 		# Seek out the Dolphin rendering window and wait for the game to pause
 		try:
@@ -1141,7 +1331,8 @@ class DolphinController( object ):
 		print 'Waiting for game start...'
 		while bgColor == 0:
 			try:
-				bgColor = win32gui.GetPixel( windowDeviceContext, 10, 80 ) # Must measure a ways below the title bar and edge
+				# Sample a pixel on the other side of the black bar
+				bgColor = win32gui.GetPixel( windowDeviceContext, 314, 60 ) # Must measure a ways below the title bar and edge
 			except Exception as err:
 				# With normal operation, the method may raise an exception 
 				# if the window can't be found or is minimized.
@@ -1161,6 +1352,11 @@ class DolphinController( object ):
 		dimensions = win32gui.GetWindowRect( renderWindow )
 		image = ImageGrab.grab( dimensions )
 		image.save( savePath )
+
+		# Validate image dimensions
+		if image.width != 1920 or image.height != 1080:
+			printStatus( 'Invalid dimensions for {}-side screenshot: {}x{}'.format(side, image.width, image.height), error=True )
+			return ''
 
 		return savePath
 

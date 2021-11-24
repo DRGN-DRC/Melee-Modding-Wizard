@@ -189,7 +189,7 @@ blrl
 .byte [[P1 Costume ID]]         #Costume ID
 .byte 0                         #Port number override (0 = default)
 .byte -1                        #Spawn point override (-1 = default)
-.byte 0                         #Initial Facing Direction? (0 is default)
+.byte [[P1 Facing Direction]]   #Initial Facing Direction? (0 is default)
 .byte Subcolor_Normal           #Subcolor
 .byte 9                         #Handicap (9 seems to be the default)
 .byte Team_None                 #Team ID
@@ -214,7 +214,7 @@ blrl
 .byte [[P2 Costume ID]]         #Costume ID
 .byte 0                         #Port number override (0 = default)
 .byte -1                        #Spawn point override (-1 = default)
-.byte 0                         #Initial Facing Direction? (0 is default)
+.byte [[P2 Facing Direction]]   #Initial Facing Direction? (0 is default)
 .byte Subcolor_Normal           #Subcolor
 .byte 9                         #Handicap (9 seems to be the default)
 .byte Team_None                 #Team ID
@@ -239,7 +239,7 @@ blrl
 .byte [[P3 Costume ID]]         #Costume ID
 .byte 0                         #Port number override (0 = default)
 .byte -1                        #Spawn point override (-1 = default)
-.byte 0                         #Initial Facing Direction? (0 is default)
+.byte [[P3 Facing Direction]]   #Initial Facing Direction? (0 is default)
 .byte Subcolor_Normal           #Subcolor
 .byte 9                         #Handicap (9 seems to be the default)
 .byte Team_None                 #Team ID
@@ -264,7 +264,7 @@ blrl
 .byte [[P4 Costume ID]]         #Costume ID
 .byte 0                         #Port number override (0 = default)
 .byte -1                        #Spawn point override (-1 = default)
-.byte 0                         #Initial Facing Direction? (0 is default)
+.byte [[P4 Facing Direction]]   #Initial Facing Direction? (0 is default)
 .byte Subcolor_Normal           #Subcolor
 .byte 9                         #Handicap (9 seems to be the default)
 .byte Team_None                 #Team ID

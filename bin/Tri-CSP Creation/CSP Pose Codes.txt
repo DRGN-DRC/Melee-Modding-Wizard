@@ -1,0 +1,185 @@
+!
+
+	The codes contained in this file are for special cases that
+	the standard codes cannot as accurately re-create. Codes
+	saved here will override code configuration for that character
+	in the CSP Configuration file (except for camera coordinates).
+
+
+	-==-
+
+
+DK Pose Code
+Executes an identical double-jump action on the specified frame, for taking CSP screenshots.
+[DRGN]
+Revision ---- DOL Offset ---- Hex to Replace ---------- ASM Code -
+NTSC 1.02 --- 0x80019900 --- 7c0802a6 -> Branch
+
+# Injects into the start of ButtonPresses_CopyInputsToStruct
+# Check the scene's current frame to see if we should execute
+lis r15, 0x80479D30@h		# Load scene controller address
+ori r15, r15, 0x80479D30@l
+lwz r14, 0x2C(r15)		# Load GX frame count
+cmpwi r14, 0x5C			# 72 (0x48) frames for characters to leave entry platform, + 20 for fall/land
+beq- Jump
+cmpwi r14, 0x70			# 20 frames after first jump
+beq- Jump
+b	OrigLine
+
+Jump:
+# Simulate pressing jump
+lis r14, 0x804c1fac@h		# Load address for the input struct
+ori r14, r14, 0x804c1fac@l
+li r15, 0x800			# Set bit for Y button
+stw r15, 0(r14)
+
+OrigLine:
+mflr	r0	# Original code line
+b 0		# Placeholder for branch back
+
+
+	-==-
+
+
+Link Pose Code
+Jump on frame 92 (hold jump for 10 frames), up-B on frame 112.
+[DRGN]
+Revision ---- DOL Offset ---- Hex to Replace ---------- ASM Code -
+NTSC 1.02 --- 0x80019900 --- 7c0802a6 -> Branch
+
+# Injects into the start of ButtonPresses_CopyInputsToStruct
+# Check the scene's current frame to see if we should execute
+lis r15, 0x80479D30@h		# Load scene controller address
+ori r15, r15, 0x80479D30@l
+lwz r14, 0x2C(r15)		# Load GX frame count
+cmpwi r14, 92			# 72 frames for characters to leave entry platform, + 20 for fall/land
+ble+ 	OrigLine
+cmpwi r14, 102
+ble+	Jump			# after landing, start holding jump for 10 frames
+cmpwi r14, 112
+beq	UpB			# 10 frames after releasing jump, enter Up-B
+b 	OrigLine
+
+Jump:
+# Simulate pressing jump
+lis r14, 0x804c1fac@h		# Load address for the input struct
+ori r14, r14, 0x804c1fac@l
+li r15, 0x800			# Set bit for Y button
+stw r15, 0(r14)
+b OrigLine
+
+UpB:
+lis r14, 0x804c1fac@h		# Load address for the input struct
+ori r14, r14, 0x804c1fac@l
+li r15, 0x200			# Set bit for B button
+stw r15, 0(r14)
+lis r15, 0x3F80			# Load float of 1.0, for analog stick input
+stw r15, 0x24(r14)
+
+OrigLine:
+mflr	r0	# Original code line
+b 0		# Placeholder for branch back
+
+
+	-==-
+
+
+Marth Pose Code
+Charge neutral-B until freeze code kicks in.
+[DRGN]
+Revision ---- DOL Offset ---- Hex to Replace ---------- ASM Code -
+NTSC 1.02 --- 0x80019900 --- 7c0802a6 -> Branch
+
+# Injects into the start of ButtonPresses_CopyInputsToStruct
+# Check the scene's current frame to see if we should execute
+lis r15, 0x80479D30@h		# Load scene controller address
+ori r15, r15, 0x80479D30@l
+lwz r14, 0x2C(r15)		# Load GX frame count
+cmpwi r14, 92			# 72 frames for characters to leave entry platform, + 20 for fall/land
+ble+ 	OrigLine
+cmpwi r14, 172			# After 3 seconds of holding B, release it
+ble	Hold_B
+b 	OrigLine
+
+Hold_B:
+# Simulate holding B
+lis r14, 0x804c1fac@h		# Load address for the input struct
+ori r14, r14, 0x804c1fac@l
+li r15, 0x200			# Set bit for B button
+stw r15, 0(r14)
+
+OrigLine:
+mflr	r0	# Original code line
+b 0		# Placeholder for branch back
+
+
+	-==-
+
+
+Ice Climbers Pose Code
+Enter Side-B
+[DRGN]
+Revision ---- DOL Offset ---- Hex to Replace ---------- ASM Code -
+NTSC 1.02 --- 0x80019900 --- 7c0802a6 -> Branch
+
+# Injects into the start of ButtonPresses_CopyInputsToStruct
+# Check the scene's current frame to see if we should execute
+lis r15, 0x80479D30@h		# Load scene controller address
+ori r15, r15, 0x80479D30@l
+lwz r14, 0x2C(r15)		# Load GX frame count
+cmpwi r14, 92			# 72 frames for characters to leave entry platform, + 20 for fall/land
+bne+ 	OrigLine
+
+lis r14, 0x804c1fac@h		# Load address for the input struct
+ori r14, r14, 0x804c1fac@l
+li r15, 0x200			# Set bit for B button
+stw r15, 0(r14)
+lis r15, 0x3F80			# Load float of 1.0, for analog stick input
+stw r15, 0x20(r14)
+
+OrigLine:
+mflr	r0	# Original code line
+b 0		# Placeholder for branch back
+
+
+	-==-
+
+
+Young Link Pose Code
+Jump on frame 92 (hold jump for 10 frames), up-B on frame 112. Identical to Link.
+[DRGN]
+Revision ---- DOL Offset ---- Hex to Replace ---------- ASM Code -
+NTSC 1.02 --- 0x80019900 --- 7c0802a6 -> Branch
+
+# Injects into the start of ButtonPresses_CopyInputsToStruct
+# Check the scene's current frame to see if we should execute
+lis r15, 0x80479D30@h		# Load scene controller address
+ori r15, r15, 0x80479D30@l
+lwz r14, 0x2C(r15)		# Load GX frame count
+cmpwi r14, 92			# 72 frames for characters to leave entry platform, + 20 for fall/land
+ble+ 	OrigLine
+cmpwi r14, 102
+ble+	Jump			# after landing, start holding jump for 10 frames
+cmpwi r14, 112
+beq	UpB			# 10 frames after releasing jump, enter Up-B
+b 	OrigLine
+
+Jump:
+# Simulate pressing jump
+lis r14, 0x804c1fac@h		# Load address for the input struct
+ori r14, r14, 0x804c1fac@l
+li r15, 0x800			# Set bit for Y button
+stw r15, 0(r14)
+b OrigLine
+
+UpB:
+lis r14, 0x804c1fac@h		# Load address for the input struct
+ori r14, r14, 0x804c1fac@l
+li r15, 0x200			# Set bit for B button
+stw r15, 0(r14)
+lis r15, 0x3F80			# Load float of 1.0, for analog stick input
+stw r15, 0x24(r14)
+
+OrigLine:
+mflr	r0	# Original code line
+b 0		# Placeholder for branch back

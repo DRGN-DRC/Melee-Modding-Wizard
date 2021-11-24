@@ -15,7 +15,7 @@ PAL 1.00 ---- 0x803977A0 ---- 801E0000 -> 4800020C
 
 
 Auto-Pause
-Automatically pauses the game on a specific frame of a scene.
+Automatically pauses the game on a specific frame of a match.
 Configurations:
     uint16 Target Frame = 240 # The frame to pause on
     uint16 Who = 0; 0-5 # Player index for who paused
@@ -27,14 +27,14 @@ NTSC 1.02 --- 0x8016be60 --- 3860FFFF -> Branch
 # Should execute just once, once the scene reaches the specified frame.
 
 # Check the scene's current frame to see if we should execute
-lis r15, 0x80479D30@h		# Load address of scene controller
+lis r15, 0x80479D30@h		# Load scene controller address
 ori r15, r15, 0x80479D30@l
 lwz r14, 0x2C(r15)		# Load GX frame count
 cmpwi r14, [[Target Frame]]
 bne+ OrigLine
 
 # Make the game think a player paused the match
-li r3, [[Who]]			# Fool into thinking the game was paused
+li r3, [[Who]]
 b END
 
 OrigLine:
@@ -42,17 +42,19 @@ li r3, -1
 END:
 b 0
 
+
 	-==-
 
 
 Enter Action State On Match Start
-A rework of Dan Salvato's action state hack using internal player data offsets:
+Based on Punkline's Internal Action State Hack, and a rework of Dan Salvato's action state hack using internal player data offsets:
 0x219C - new starting frame (float)
 0x21A0 - new action state ID (int)
 This variation of the code is designed to set animation states for P1 & P2 on match start.
 Configurations:
     float Start Frame = 0.0; 0-0x10000
     uint32 Action State ID = 0; 0-0x10000
+    uint16 Delay = 72 # Takes 72 (0x48) frames for both characters to leave entry platform
 <https://smashboards.com/threads/internal-action-state-hack.440318/>
 [Dan Salvato, Punkline, DRGN]
 Version -- DOL Offset ------ Hex to Replace ---------- ASM Code
@@ -80,20 +82,17 @@ FFA00890 00000000
 
 ---------- 0x801a4d9c --- 38000000 -> Branch
 
+# Set Start Frame and Action State values for P1/P2 at match start.
 # Injects into "updateFunction", just after the start of its loop.
-# Should execute just once, once the scene reaches the specified frame.
+# Will execute just once, when the scene reaches the specified frame.
+
 # Check the scene's current frame to see if we should execute
-lis r15, 0x80479D30@h		# Load address of scene controller
+lis r15, 0x80479D30@h		# Load scene controller address
 ori r15, r15, 0x80479D30@l
 lwz r14, 0x2C(r15)		# Load GX frame count
-cmpwi r14, 0x48			# Takes 72 (0x48) frames for both characters to leave entry platform
-#beq-	SetStates
-#cmpwi r14, 0xFC			# 3 seconds (180 frames) later from leaving entry platform (should be done entering pose)
-#beq-	PauseGame
-#b OrigLine
+cmpwi r14, [[Delay]]
 bne+	OrigLine
 
-#SetStates:
 # Set Start Frame and Action State IDs for both players
 lis r14, 0x80453130@h		# Load pointer to P1 Player Entity Struct (0x80453080 + 0xB0)
 lwz r14, 0x80453130@l(r14)
@@ -112,18 +111,39 @@ ori r15, r15, [[Start Frame]]@l
 stw r15, 0x219C(r14)		# Store start frame to 0x219C of P2 Player Character Data
 li r15, [[Action State ID]]	# Load the action state ID
 stw r15, 0x21A0(r14)		# Store action state ID to 0x21A0 of P2 Player Character Data
-#b OrigLine
-
-#PauseGame:
-# Simulate pressing start to pause the game
-#lis r14, 0x804c1fac@h		# Load address for the input struct
-#ori r14, r14, 0x804c1fac@l
-#li r15, 0x1000			# Set bit for start button; 8000344c
-#stw r15, 0(r14)
 
 OrigLine:
 li r0, 0	# Original code line
-b 0		# Placeholder for branch back
+b 0			# Placeholder for branch back
+
+
+	-==-
+
+!
+Force Jump for CSP
+Simulates pressing jump for characters that need their CSP screenshot taken in the air.
+[DRGN]
+Revision ---- DOL Offset ---- Hex to Replace ---------- ASM Code -
+NTSC 1.02 --- 0x80019900 --- 7c0802a6 -> Branch
+
+# Injects into the start of ButtonPresses_CopyInputsToStruct
+# Check the scene's current frame to see if we should execute
+lis r15, 0x80479D30@h		# Load scene controller address
+ori r15, r15, 0x80479D30@l
+lwz r14, 0x2C(r15)		# Load GX frame count
+cmpwi r14, 0x5C			# 72 (0x48) frames for characters to leave entry platform, + 20 for fall/land
+bne+ 	OrigLine
+
+Jump:
+# Simulate pressing jump
+lis r14, 0x804c1fac@h		# Load address for the input struct
+ori r14, r14, 0x804c1fac@l
+li r15, 0x800				# Set bit for Y button
+stw r15, 0(r14)
+
+OrigLine:
+mflr	r0	# Original code line
+b 0			# Placeholder for branch back
 
 
 	-==-
@@ -140,8 +160,8 @@ NTSC 1.02 --- 0x8016cb50 ---- 41820068 -> 60000000 # Enable regular VS Pause Cam
 	-==-
 
 
-CSP Camera Configuration
-Sets up the camera coordinates and background color for taking CSP screenshots.
+CSP Camera
+Sets up the camera coordinates and background color for taking CSP screenshots. Also prevents the stage and background from being displayed.
 Configurations: # To be taken from the CSP Configuration file
     uint32 X Coord = 0
     uint32 Y Coord = 0
@@ -149,6 +169,18 @@ Configurations: # To be taken from the CSP Configuration file
     uint32 BG Color = 0xFF00FF # Default is magenta
 [DRGN]
 Revision ---- DOL Offset ---- Hex to Replace ---------- ASM Code -
+
+## CameraInfo_Init
+##80028d00
+##80028d0c
+##80028d18
+##80028d3c
+
+##80028d88
+##li r0, 0xC4
+
+##first r/w: 80028cf8
+
 NTSC 1.02 --- 0x8002bfd8 ---- 907e0000 -> Branch
 
 # Injecting into Camera_AdjustPosition (last function to adjust pause camera coords)
@@ -174,7 +206,13 @@ lis r14, BG_Color@h
 ori r14, r14, BG_Color@l
 stw r14, 0(r15)
 
-# An original line
+# No Stage Textures
+#lis r15, 0x80453000@h
+#ori r15, r15, 0x80453000@l
+#lis r14, 0xC4
+#stw r14, 0(r15)
+
+# Original code line
 lwz	r0, 0x0018 (sp)
 
 # Return to normal execution
@@ -239,28 +277,6 @@ A20F0894 2C10[[Frame ID]]
 
 	-==-
 
-
-Debug Menu replaces Tournament Mode
-- Selecting Tournament Melee in the main menu takes you to the Debug Menu instead
-- Selecting Single Button Mode takes you to the Tournament Melee mode instead
-(Concomitant Graphical Mod Here: http://smashboards.com/threads/326347/page-3#post-15738900)
-[Magus, donny2112, SypherPhoenix]
-Version -- DOL Offset ------ Hex to Replace ---------- ASM Code 
-1.00 ------ 0x228F20 ---- 3800001B -> 38000006 ---- (li r0,27 -> li r0,6)
------------ 0x227F2C ---- 3800002C -> 3800001B ---- (li r0,44 -> li r0,27)
-
-1.01 ------ 0x229A90 ---- 3800001B -> 38000006 ---- (li r0,27 -> li r0,6)
------------ 0x228A9C ---- 3800002C -> 3800001B ---- (li r0,44 -> li r0,27)
-
-1.02 ------ 0x22A218 ---- 3800001B -> 38000006 ---- (li r0,27 -> li r0,6)
------------ 0x229224 ---- 3800002C -> 3800001B ---- (li r0,44 -> li r0,27)
-
-PAL ------- 0x22C084 ---- 3800001E -> 38000006 ---- (li r0,30 -> li r0,6)
------------ 0x22B08C ---- 3800002F -> 3800001E ---- (li r0,74 -> li r0,30)
-
-
-	-==-
-
 !
 Static ArenaHi Malloc 
 Create a permanent allocation from the top of the arena of a custom size 
@@ -303,29 +319,29 @@ b _code
   _data: blrl 
   0: .asciz "codes.bin" 
   .align 2 
-   
-_code: 
+
+_code:
 mflr r3 
 lis r0, malloc@h 
 lmw r28, 0x8(sp)     # r3 = path string 
 ori r4, r0, malloc@l # r4 = allocation address 
 addi r5, sp, 0x0C    # r5 = returns size value 
 bl 0x8001668c  # $!_load_fromDVD 
-  
-_return: 
-lwz r0, 0x001C (sp) 
+
+_return:
+lwz r0, 0x001C (sp)
 .long 0
 
 
 	-==-
-  
- 
+
+
 Modified Camera Info Flag Initialization
 Allows you to specify new default flag states for the camera info struct. The default state does  
  not require developer mode to be enabled, and can still be modified freely by the usual developer  
  controller mode hotkeys.
 Configurations:
-    mask16 Camera Flags = 0x3004 # No Players and Show ECB enabled by default	
+    mask16 Camera Flags = 0x3004
 	0x8000 : Hide players
 	0x2000 : Disable Background
 	0x1000 : Disable Background Particles
@@ -380,4 +396,116 @@ Revision ---- DOL Offset ---- Hex to Replace ---------- ASM Code -
 NTSC 1.02 --- 0x802F6508 ---- 7C0802A6 -> 4E800020
 
 
+	-==-
 
+
+Disable Pause HUD
+[UnclePunch]
+Revision ---- DOL Offset ---- Hex to Replace ---------- ASM Code -
+NTSC 1.02 --- 0x8016cb04 ---- 4082003C -> 4800003c
+
+
+	-==-
+
+
+Remove Classic Mode VS Screen HUD
+[UnclePunch]
+Revision ---- DOL Offset ---- Hex to Replace ---------- ASM Code -
+NTSC 1.02 ---- 0x1835D8 ----- 4820A079 -> 60000000
+-------------- 0x183790 ----- 4BFFF609 -> 60000000
+-------------- 0x183694 ----- 48209FBD -> 60000000
+
+
+	-==-
+
+
+Debug Menu replaces Tournament Mode
+- Selecting Tournament Melee in the main menu takes you to the Debug Menu instead
+- Selecting Single Button Mode takes you to the Tournament Melee mode instead
+(Concomitant Graphical Mod Here: http://smashboards.com/threads/326347/page-3#post-15738900)
+[Magus, donny2112, SypherPhoenix]
+Version -- DOL Offset ------ Hex to Replace ---------- ASM Code 
+1.00 ------ 0x228F20 ---- 3800001B -> 38000006 ---- (li r0,27 -> li r0,6)
+----------- 0x227F2C ---- 3800002C -> 3800001B ---- (li r0,44 -> li r0,27)
+
+1.01 ------ 0x229A90 ---- 3800001B -> 38000006 ---- (li r0,27 -> li r0,6)
+----------- 0x228A9C ---- 3800002C -> 3800001B ---- (li r0,44 -> li r0,27)
+
+1.02 ------ 0x22A218 ---- 3800001B -> 38000006 ---- (li r0,27 -> li r0,6)
+----------- 0x229224 ---- 3800002C -> 3800001B ---- (li r0,44 -> li r0,27)
+
+PAL ------- 0x22C084 ---- 3800001E -> 38000006 ---- (li r0,30 -> li r0,6)
+----------- 0x22B08C ---- 3800002F -> 3800001E ---- (li r0,74 -> li r0,30)
+
+
+	-==-
+
+
+16:9 Widescreen Support (Variation C)
+Includes the fullscreen flashing effect fix.
+This variation also fixes the position of magnifier bubbles and unstretches the HUD.
+If using with Dolphin, you'll also need to change the setting, "Force 16:9" for the aspect ratio and make sure "Widescreen Hack" is OFF.
+See the notes in the link below for adjustments based on your display device:
+https://docs.google.com/document/d/1o_KEmsbKg4_qIm607FfewzIvChQYxayN4r1j3Uy6yX0/edit
+<https://smashboards.com/threads/16-9-widescreen-w-options-for-tv-monitor-dolphin.397929/post-21611190>
+[Dan Salvato, ShockSlayer (1.02), Brandondorf9999 (Old versions and PAL)]
+Version -- DOL Offset ------ Hex to Replace ---------- ASM Code
+PAL ------- 0x1EA34 ---- 38600006 -> Branch
+
+39C00001 38600006
+60000000 48000000
+
+----------- 0x366F8C ---- C03F0034 -> Branch
+
+C03F0034 2C0E0001
+41820024 3C004093 # <- ____XXXX
+90010030 3C004040 # <- ____YYYY
+90010034 C0010030
+EC210032 C0010034
+EC210024 39C00000
+281E0000 48000000
+
+1.01 ------ 0x1E69C ---- 38600006 -> Branch
+
+39C00001 38600006
+60000000 48000000
+
+----------- 0x3663A8 ---- C03F0034 -> Branch
+
+C03F0034 2C0E0001
+41820024 3C004093 # <- ____XXXX
+90010030 3C004040 # <- ____YYYY
+90010034 C0010030
+EC210032 C0010034
+EC210024 39C00000
+281E0000 48000000
+
+1.02 ------ 0x1E69C ---- 38600006 -> Branch
+
+39C00001 38600006
+60000000 48000000
+
+----------- 0x367088 ---- C03F0034 -> Branch
+
+C03F0034 2C0E0001
+41820024 3C004093 # <- ____XXXX
+90010030 3C004040 # <- ____YYYY
+90010034 C0010030
+EC210032 C0010034
+EC210024 39C00000
+281E0000 48000000
+
+1.00 ------ 0x1E61C ---- 38600006 -> Branch
+
+39C00001 38600006
+60000000 48000000
+
+----------- 0x3651D4 ---- C03F0034 -> Branch
+
+C03F0034 2C0E0001
+41820024 3C004093 # <- ____XXXX
+90010030 3C004040 # <- ____YYYY
+90010034 C0010030
+EC210032 C0010034
+EC210024 39C00000
+281E0000 48000000

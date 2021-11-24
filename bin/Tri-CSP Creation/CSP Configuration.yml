@@ -11,7 +11,7 @@
   sideImagesScaling: .48
   reverseSides: False
   actionState: 0x15b
-  frame: 0x4120
+  frame: 0x41200000
   camX: 0x4172526c
   camY: 0xc00727ed
   camZ: 0x426f382b
@@ -41,7 +41,7 @@
   sideImagesScaling: .5
   reverseSides: False
   actionState: 0x1b
-  frame: 0x4000
+  frame: 0x40000000
   camX: 0x42726fbe
   camY: 0xc17a10f1
   camZ: 0x420dc295
@@ -56,7 +56,7 @@
   sideImagesScaling: .47
   reverseSides: False
   actionState: 0x41
-  frame: 0x4100
+  frame: 0x41000000
   camX: 0x41058c79
   camY: 0x40a05ed7
   camZ: 0x41f53181
@@ -71,7 +71,7 @@
   sideImagesScaling: .42
   reverseSides: False
   actionState: 0x15a
-  frame: 0x40a0
+  frame: 0x40a00000
   camX: 0x41ab0f1b
   camY: 0x3ebe90dd
   camZ: 0x4215f34b
@@ -86,7 +86,7 @@
   sideImagesScaling: .42
   reverseSides: False
   actionState: 0x15a
-  frame: 0x40a0
+  frame: 0x40a00000
   camX: 0x4182015e
   camY: 0x3eb3cc4a
   camZ: 0x42152d9b
@@ -101,7 +101,7 @@
   sideImagesScaling: .42
   reverseSides: False
   actionState: 0x45
-  frame: 0x41f0
+  frame: 0x41f00000
   camX: 0x00000000
   camY: 0xc09eee2b
   camZ: 0x423ef62b
@@ -116,7 +116,7 @@
   sideImagesScaling: .56
   reverseSides: False
   actionState: 0x108
-  frame: 0x4248
+  frame: 0x42480000
   camX: 0x41363c41
   camY: 0x41009923
   camZ: 0x4242322f
@@ -130,8 +130,9 @@
   sideImagesYOffset: 0
   sideImagesScaling: .3
   reverseSides: False
+  grounded: True
   actionState: 0x158
-  frame: 0x4288
+  frame: 0x42880000
   camX: 0x41d68b54
   camY: 0x3e2d1618
   camZ: 0x41efe201
@@ -146,7 +147,7 @@
   sideImagesScaling: .523
   reverseSides: True
   actionState: 0x43
-  frame: 0x4110
+  frame: 0x41100000
   camX: 0x40596c6d
   camY: 0x3fd2f553
   camZ: 0x4209696b
@@ -161,7 +162,7 @@
   sideImagesScaling: .29
   reverseSides: False
   actionState: 0x41
-  frame: 0x4230
+  frame: 0x42300000
   camX: 0x3fde0e18
   camY: 0x4068dce3
   camZ: 0x41ea3184
@@ -175,8 +176,9 @@
   sideImagesYOffset: -122
   sideImagesScaling: .65
   reverseSides: False
+  faceLeft: True
   actionState: 0x165
-  frame: 0x41d0
+  frame: 0x41d00000
   camX: 0xc218dcf5
   camY: 0x40a0c470
   camZ: 0x420321bd
@@ -191,7 +193,7 @@
   sideImagesScaling: .47
   reverseSides: False
   actionState: 0x156
-  frame: 0x41c0
+  frame: 0x41c00000
   camX: 0x416a6406
   camY: 0x4092702e
   camZ: 0x420f905a
@@ -206,7 +208,7 @@
   sideImagesScaling: .435
   reverseSides: False
   actionState: 0x42
-  frame: 0x4040
+  frame: 0x40400000
   camX: 0x410ef8c5
   camY: 0x3fcee488
   camZ: 0x420cd983
@@ -220,8 +222,9 @@
   sideImagesYOffset: -70
   sideImagesScaling: .49
   reverseSides: True
+  faceLeft: True
   actionState: 0x156
-  frame: 0x4150
+  frame: 0x41500000
   camX: 0xc134fc98
   camY: 0xc05ec8b4
   camZ: 0x42250ad6
@@ -236,7 +239,7 @@
   sideImagesScaling: .35
   reverseSides: True
   actionState: 0x2c
-  frame: 0x4120
+  frame: 0x41200000
   camX: 0xc1a22fd1
   camY: 0x407e0820
   camZ: 0x420e4f45
@@ -251,7 +254,7 @@
   sideImagesScaling: .44
   reverseSides: False
   actionState: 0x155
-  frame: 0x40c0
+  frame: 0x40c00000
   camX: 0x41702ee6
   camY: 0xbf2987c7
   camZ: 0x41ed8c18
@@ -266,10 +269,25 @@
   sideImagesScaling: .55
   reverseSides: True
   actionState: 0x15a
-  frame: 0x4190
+  frame: 0x41900000
   camX: 0xc04b69b1
   camY: 0xc035324b
   camZ: 0x423828df
+
+# 0x0C: # Peach (alt)
+#   threshold: 40
+#   centerImageXOffset: 30
+#   centerImageYOffset: 140
+#   centerImageScaling: .75
+#   sideImagesXOffset: -310
+#   sideImagesYOffset: -50
+#   sideImagesScaling: .46
+#   reverseSides: True
+#   actionState: 0x42
+#   frame: 0x42200000
+#   camX: 0x42066e74
+#   camY: 0xc0d8b1c4
+#   camZ: 0x4187507a
 
 0x18: # Pichu
   threshold: 40
@@ -281,7 +299,7 @@
   sideImagesScaling: .45
   reverseSides: False
   actionState: 0x15d
-  frame: 0x4040
+  frame: 0x40400000
   camX: 0xc20b37a2
   camY: 0xc02de0e6
   camZ: 0x402557b0
@@ -295,8 +313,9 @@
   sideImagesYOffset: -5
   sideImagesScaling: .369
   reverseSides: False
+  grounded: True
   actionState: 0x108
-  frame: 0x4260
+  frame: 0x42600000
   camX: 0xc0361ee5
   camY: 0x40b85b80
   camZ: 0x41fd2549
@@ -310,8 +329,9 @@
   sideImagesYOffset: -28
   sideImagesScaling: .42
   reverseSides: False
+  grounded: True
   actionState: 0x108
-  frame: 0x4234
+  frame: 0x42340000
   camX: 0x418510f7
   camY: 0x400e6b44
   camZ: 0x41f61733
@@ -327,8 +347,9 @@
   sideImagesYOffset: -16
   sideImagesScaling: .40
   reverseSides: True
+  faceLeft: True
   actionState: 0x15c
-  frame: 0x40a0
+  frame: 0x40a00000
   camX: 0xc1fa8fcb
   camY: 0xc0436685
   camZ: 0x3fcd739a
@@ -343,7 +364,7 @@
   sideImagesScaling: .35
   reverseSides: True
   actionState: 0x35
-  frame: 0x4160
+  frame: 0x41600000
   camX: 0xc04b69b1
   camY: 0x40905a28
   camZ: 0x42320264
@@ -357,8 +378,9 @@
   sideImagesYOffset: -164
   sideImagesScaling: .65
   reverseSides: False
+  faceLeft: True
   actionState: 0x165
-  frame: 0x41d0
+  frame: 0x41d00000
   camX: 0xc218dcf5
   camY: 0x40a0c470
   camZ: 0x420321bd
