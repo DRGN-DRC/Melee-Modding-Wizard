@@ -11,7 +11,7 @@
 
 import os, sys
 import struct, time
-import png, math, subprocess 	# Used for png reading/writing, rounding, and command-line communication, respectively.
+import png, subprocess 	# Used for png reading/writing, and command-line communication
 
 #from PIL import Image
 from itertools import chain
@@ -57,12 +57,13 @@ class CodecBase( object ): # The functions here in CodecBase are inherited by bo
 		0: (8,8), 1: (8,4), 2: (8,4), 3: (4,4), 4: (4,4), 5: (4,4), 6: (4,4), 8: (8,8), 9: (8,4), 10: (4,4), 14: (8,8) } 
 		# For type 14, it's technically 8x8 pixels with 2x2 sub-blocks
 
-	def __init__( self, filepath='', imageDimensions=(0, 0), imageType=None, paletteType=None, maxPaletteColors=256 ):
+	def __init__( self, filepath, imageDimensions, imageType, paletteType, maxPaletteColors, paletteQuality ):
 		self.filepath = filepath
 		self.width, self.height = imageDimensions
 		self.imageType = imageType
 		self.paletteType = paletteType
 		self.paletteColorCount = 0
+		self.paletteQuality = paletteQuality # 1=slow, 3=pngquant default, 11=fast & rough
 		self.originalPaletteColorCount = 0
 		self.maxPaletteColors = maxPaletteColors
 		self.paletteRegenerated = False
@@ -76,33 +77,39 @@ class CodecBase( object ): # The functions here in CodecBase are inherited by bo
 		self.imageDataArray = [] # May be palette indices or RGBA tuples (depending on image type)
 		self.rgbaPaletteArray = [] # List of RGBA tuples
 
-	def cmdChannel( self, command, standardInput=None ): # IPC (Inter-Process Communication) to command line.
-		process = subprocess.Popen( command, shell=True, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE, creationflags=0x08000000 ) # shell=True gives access to all shell features.
+	def cmdChannel( self, command, standardInput=None ):
+		
+		""" IPC (Inter-Process Communication) to command line. 
+			shell=True gives access to all shell features, which 
+			is required in this case (for the piping, I assume). """
+		
+		process = subprocess.Popen( command, shell=True, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE, creationflags=0x08000000 )
 		stdout_data, stderr_data = process.communicate( input=standardInput )
 
-		if process.returncode == 0: 
+		if process.returncode == 0:
 			return ( process.returncode, stdout_data )
 		else: 
 			return ( process.returncode, stderr_data )
 
 	def readImageData( self ):
 		# If an imageType is found in the filepath, use that to override the default imageType given during initialization.
-		filepathImageType = CodecBase.parseFilename( self.filepath )[0]
-		if filepathImageType != -1: self.imageType = filepathImageType
-		if self.imageType == None: raise missingType( 'No image type was provided or determined.' )
+		# filepathImageType = CodecBase.parseFilename( self.filepath )[0]
+		# if filepathImageType != -1: self.imageType = filepathImageType
+		if self.imageType == None:
+			raise missingType( 'No image type was provided or determined.' )
 
 		# Based on the file type, open the file and deconstruct it into its required components.
 		fileFormat = os.path.splitext( self.filepath )[1].lower()
 		if fileFormat == '.tpl': self.fromTplFile()
 		elif fileFormat == '.png': self.fromPngFile()
-		else: 
+		else:
 			raise IOError( "Unsupported file type." )
 
 	def determinePaletteEncoding( self, imageProperties ):
 		# If no palette type was provided, analyze the file and/or palette entries to determine what the type and encoding should be.
-		if imageProperties['greyscale'] == 'True': 
+		if imageProperties['greyscale'] == 'True':
 			self.paletteType = 0
-		elif imageProperties['alpha'] == 'False': 
+		elif imageProperties['alpha'] == 'False':
 			self.paletteType = 1
 		else: # Image is RGBA, which doesn't necessarily mean it's actually utilizing all of the channels.
 			utilizesAlpha = False
@@ -110,20 +117,20 @@ class CodecBase( object ): # The functions here in CodecBase are inherited by bo
 				if paletteEntry[3] != 255:
 					utilizesAlpha = True
 					break
-			if utilizesAlpha: 
+			if utilizesAlpha:
 				self.paletteType = 2
 			else: # Continue the investigation with a grayscale check on the palette.
 				greyscale = True
 				for paletteEntry in self.rgbaPaletteArray:
 					r, g, b, _ = paletteEntry
-					if r != g or g != b: 
+					if r != g or g != b:
 						greyscale = False
 						break
 				if greyscale: self.paletteType = 0
 				else: self.paletteType = 1
 
-	def generatePalette( self, maxPaletteColors ):
-		exitCode, cmdOutput = self.cmdChannel( '"{}" --speed 3 {} -- <"{}"'.format(pathToPngquant, maxPaletteColors, self.filepath) )
+	def generatePalette( self ):
+		exitCode, cmdOutput = self.cmdChannel( '"{}" --speed {} {} -- <"{}"'.format(pathToPngquant, self.paletteQuality, self.maxPaletteColors, self.filepath) )
 																# Above ^: --speed is a speed/quality balance. 1=slow, 3=default, 11=fast & rough
 		if exitCode == 0: # Success
 			fileBuffer = StringIO( cmdOutput )
@@ -149,7 +156,7 @@ class CodecBase( object ): # The functions here in CodecBase are inherited by bo
 
 		else:
 			print 'pngquant exit code: ' + str( exitCode )
-			print cmdOutput
+			print 'pngquant error: ' + cmdOutput.strip()
 			raise SystemError( 'An error occurred during palette generation.' )
 
 	def fromPngFile( self ):
@@ -180,7 +187,7 @@ class CodecBase( object ): # The functions here in CodecBase are inherited by bo
 			self.paletteColorCount = self.originalPaletteColorCount
 
 			if self.paletteColorCount > self.maxPaletteColors: # The palette is too large. Generate a smaller one.
-				self.generatePalette( self.maxPaletteColors )
+				self.generatePalette()
 				self.paletteRegenerated = True
 
 			elif self.paletteType == None: self.determinePaletteEncoding( pngImageInfo[3] )
@@ -196,7 +203,7 @@ class CodecBase( object ): # The functions here in CodecBase are inherited by bo
 
 		elif self.imageType in ( 8, 9, 10 ):
 			# No palette found. But it should have one for this type. Generate one.
-			self.generatePalette( self.maxPaletteColors )
+			self.generatePalette()
 
 		else:
 			lxrange = xrange # This localizes the xrange function, so that each call doesn't have to look through the local, then global, and then built-in function lists.
@@ -295,8 +302,8 @@ class TplDecoder( CodecBase ):
 		Pass a filepath to get data from a file, or pass image data (and palette data if needed) to work with 
 		raw data instead. imageType and imageDimensions are also mandatory. """
 
-	def __init__( self, filepath='', imageDimensions=(0, 0), imageType=None, paletteType=None, encodedImageData='', encodedPaletteData='', maxPaletteColors=256 ):
-		super( TplDecoder, self ).__init__( filepath, imageDimensions, imageType, paletteType, maxPaletteColors )
+	def __init__( self, filepath='', imageDimensions=(0, 0), imageType=None, paletteType=None, encodedImageData='', encodedPaletteData='', maxPaletteColors=256, paletteQuality=3 ):
+		super( TplDecoder, self ).__init__( filepath, imageDimensions, imageType, paletteType, maxPaletteColors, paletteQuality )
 		
 		self.encodedImageData = encodedImageData
 		self.encodedPaletteData = encodedPaletteData
@@ -774,8 +781,8 @@ class TplEncoder( CodecBase ):
 		Pass a filepath to get data from a file, or image data [and palette data if needed] to work with raw data instead.
 		The arguments imageDataArray and rgbaPaletteArray expect a list, where each pixel is an RGBA tuple. """
 
-	def __init__( self, filepath='', imageDimensions=(0, 0), imageType=None, paletteType=None, imageDataArray=None, rgbaPaletteArray=None, maxPaletteColors=256 ):
-		super( TplEncoder, self ).__init__( filepath, imageDimensions, imageType, paletteType, maxPaletteColors )
+	def __init__( self, filepath='', imageDimensions=(0, 0), imageType=None, paletteType=None, imageDataArray=None, rgbaPaletteArray=None, maxPaletteColors=256, paletteQuality=3 ):
+		super( TplEncoder, self ).__init__( filepath, imageDimensions, imageType, paletteType, maxPaletteColors, paletteQuality )
 
 		self.imageDataArray = imageDataArray or [] # Replacing "None" in the __init__ declaration because [] is mutable, meaning it would not be created anew each time.
 		self.rgbaPaletteArray = rgbaPaletteArray or []

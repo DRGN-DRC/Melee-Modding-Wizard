@@ -11,9 +11,11 @@
 
 # External logic dependencies
 import os
+from posixpath import basename
 import time
 import subprocess
 from binascii import hexlify
+from tkMessageBox import askyesno
 
 # External GUI dependencies
 import ttk
@@ -388,17 +390,21 @@ class DiscTab( ttk.Frame ):
 				parent = 'ty'
 
 		# Add the file to the treeview (all files in the treeview should be added with the line below, but may be modified elsewhere)
-		if not discFile.description:
-			discFile.getDescription( usingConvenienceFolders )
-
+		# description = discFile.description
+		# if not description:
+		description = discFile.getDescription( usingConvenienceFolders )
+		if usingConvenienceFolders:
+			# Add extra space to indent the name from the stage folder name
+			description = '    ' + description
+		
 		try:
 			# altPath = 'GALE01/' + discFile.filename.replace( '.usd', '.dat' )
 			# if discFile.filename.endswith( '.usd' ) and altPath in globalData.disc.files:
 			# 	print discFile.filename, humansize(discFile.size)
 			
-			self.isoFileTree.insert( parent, 'end', iid=discFile.isoPath, text=' ' + entryName, values=(discFile.description, 'file') )
+			self.isoFileTree.insert( parent, 'end', iid=discFile.isoPath, text=' ' + entryName, values=(description, 'file') )
 		except Exception as err:
-			printStatus( u'Unable to add {} to the Disc File Tree; {}'.format(discFile.description, err) )
+			printStatus( u'Unable to add {} to the Disc File Tree; {}'.format(description, err) )
 
 	def scanDiscItemForStats( self, iidSelectionsTuple, folderContents ):
 
@@ -453,7 +459,7 @@ class DiscTab( ttk.Frame ):
 					discNewlyLoaded = True
 
 				else: # If the file wasn't found above, prompt if they'd like to remove it from the remembered files list.
-					if tkMessageBox.askyesno( 'Remove Broken Path?', 'The following file could not be found:\n"' + pathToMostRecentISO + '" .\n\nWould you like to remove it from the list of recent files?' ):
+					if askyesno( 'Remove Broken Path?', 'The following file could not be found:\n"' + pathToMostRecentISO + '" .\n\nWould you like to remove it from the list of recent files?' ):
 						# Update the list of recent ISOs in the settings object and settings file.
 						globalData.settings.remove_option( 'Recent Files', pathToMostRecentISO.replace(':', '|') )
 						with open( globalData.paths['settingsFile'], 'w') as theSettingsFile: globalData.settings.write( theSettingsFile )
@@ -1470,7 +1476,7 @@ class DiscMenu( Tk.Menu, object ):
 		# self.add_command( label='Add Directory of File(s) to Disc', underline=4, command=addDirectoryOfFilesToIso )					# D
 		# self.add_command( label='Create Directory', underline=0, command=createDirectoryInIso )										# C
 		if self.iidSelectionsTuple:
-		 	if self.selectionCount == 1:
+			if self.selectionCount == 1:
 
 				if self.entity == 'file':
 					self.add_command( label='Rename Disc Filesystem Name', underline=2, command=self.renameFilesystemEntry )			# N
@@ -1481,6 +1487,8 @@ class DiscMenu( Tk.Menu, object ):
 						self.add_command( label='Rename Music Description (in CSS)', underline=2, command=self.renameDescription )		# N
 					else:
 						self.add_command( label='Rename File Description (in yaml)', underline=2, command=self.renameDescription )		# N
+
+					#if self.fileObj.filename.endswith( 'AJ.dat' ):
 				else:
 					self.add_command( label='Rename Disc Folder Name', underline=2, command=self.renameFilesystemEntry )				# N
 
@@ -1753,14 +1761,27 @@ class DiscMenu( Tk.Menu, object ):
 			globalData.gui.updateProgramStatus( 'Name update canceled' )
 			return
 
+		# Reject illegal renames
+		basename = os.path.basename( self.fileObj.filename )
+		if self.fileObj.filename in globalData.disc.systemFiles:
+			msg( 'System files cannot be renamed!', 'Invalid Rename' )
+			globalData.gui.updateProgramStatus( 'Unable to rename system files' )
+			return
+		elif basename in ( 'MnSlChr', 'MnSlMap', 'opening' ):
+			if not askyesno( ('These are important system files that are not '
+				'expected to have any other name. Renaming them could lead to '
+				'unexpected problems. \n\nAre you sure you want to do this?'), 'Warning!' ):
+				return
+		
+		print 'rename filesystem entry not yet implemented'
 		# Update the file name in the FST
 		# oldName = 
 		# for entry in globalData.disc.fstEntries: # Entries are of the form [ folderFlag, stringOffset, entryOffset, entrySize, entryName, isoPath ]
 		# 	if entry[-2] == 
 
-		isoPath = self.iidSelectionsTuple[0]
+		# isoPath = self.iidSelectionsTuple[0]
 
-		self.fileTree.item( isoPath, 'text', newName )
+		# self.fileTree.item( isoPath, 'text', newName )
 
 	def renameDescription( self ):
 		
@@ -1805,7 +1826,7 @@ class DiscMenu( Tk.Menu, object ):
 			globalData.gui.updateProgramStatus( "Unable to update CSS with the name; couldn't save the name to the CSS file", error=True )
 		else:
 			msg( 'An unrecognized return code was given by .setDescription(): ' + str(returnCode) )
-			
+
 	def viewFileHex( self ):
 
 		""" Gets and displays hex data for a file within a disc in the user's hex editor of choice. """

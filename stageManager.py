@@ -99,7 +99,7 @@ class StageSwapTable( object ):
 		self.sstFile = globalData.disc.files.get( globalData.disc.gameId + '/StageSwapTable.bin' )
 
 		if self.sstFile:
-			self.tableOffset = 0x10
+			self.tableOffset = 0x0
 		else:
 			self.tableOffset = 0x3F8C80 # Offset/location within the DOL
 
@@ -1337,7 +1337,7 @@ class StageManager( ttk.Frame ):
 			useShortNames = False
 		
 		if stageFile.isRandomNeutral():
-			displayName = stageFile.getDescription( inConvenienceFolder=useShortNames, updateInternalRef=False ).lstrip()
+			displayName = stageFile.getDescription( inConvenienceFolder=useShortNames, updateInternalRef=False )
 		elif stageFile.filename[2] == 'T': # Target Test stage
 			displayName = stageFile.getDescription( inConvenienceFolder=False, updateInternalRef=False )
 		elif stageFile.description:
@@ -1887,6 +1887,14 @@ class StageManager( ttk.Frame ):
 		if self.selectedStage:
 			# A single, existing file is selected; replace it
 			success = importSingleFileWithGui( self.selectedStage )
+			
+			# At least make sure it's a stage
+			# if not self.selectedStage.__class__ == StageFile:
+			# 	msg( 'The imported file does not appear to be a stage file!', 'Invalid Import', warning=True )
+			# 	globalData.gui.updateProgramStatus( 'Invalid import; operation aborted', warning=True )
+			# 	self.selectedStage = None
+			# 	return
+
 			stageObj = self.selectedStage
 		else:
 			# Attempt to get the file object
@@ -1904,6 +1912,10 @@ class StageManager( ttk.Frame ):
 
 		if success:
 			self.updateGuiForNewlyAddedStage( stageObj, selection )
+
+		# If 20XX, check if the SST is configured to load this new stage
+		#if globalData.disc.is20XX:
+
 
 	def updateGuiForNewlyAddedStage( self, stageObj, selection=None ):
 
@@ -1933,7 +1945,7 @@ class StageManager( ttk.Frame ):
 		self.variationsTreeview.event_generate( '<<TreeviewSelect>>' )
 
 		# Prompt the user to choose a new name for this stage slot
-		returnCode = self.renameStage( useDefaultText=False, updateProgramStatus=False )
+		returnCode = self.renameStage( updateProgramStatus=False )
 
 		# Assuming no problems above, update program status with success
 		if returnCode == 0:
@@ -2025,7 +2037,7 @@ class StageManager( ttk.Frame ):
 			# Update GUI elements across the program, and prompt the user to enter a new stage name
 			self.updateGuiForNewlyAddedStage( newStage, (iid,) )
 
-	def renameStage( self, useDefaultText=True, updateProgramStatus=True ):
+	def renameStage( self, updateProgramStatus=True ):
 
 		""" Prompts the user for a new stage name, and sets it for the stage 
 			currently selected in the Variations treeview. """
@@ -2039,11 +2051,8 @@ class StageManager( ttk.Frame ):
 			charLimit = 42 # Somewhat arbitrary limit
 		
 		# Prompt the user to enter a new name, and validate it
-		if useDefaultText:
-			defaultText = self.selectedStage.description
-		else:
-			defaultText = ''
-		newName = getNewNameFromUser( charLimit, message='Enter a new stage name:', defaultText=defaultText )
+		defaultText = self.selectedStage.getDescription()
+		newName = getNewNameFromUser( charLimit, None, 'Enter a new stage name:', defaultText )
 
 		if not newName:
 			if updateProgramStatus:

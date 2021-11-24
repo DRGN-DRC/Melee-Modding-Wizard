@@ -353,16 +353,22 @@ def copyToClipboard( text ):
 	globalData.gui.root.clipboard_append( text )
 
 
-def cmdChannel( command, standardInput=None, shell=False ):
+def cmdChannel( command, standardInput=None, shell=False, returnStderrOnSuccess=False ):
 	
-	""" IPC (Inter-Process Communication) to command line. Blocks (will not return until the process 
-		is complete.) shell=True gives access to all shell features/commands, such dir or copy. 
-		creationFlags=0x08000000 prevents creation of a console for the process. """
+	""" IPC (Inter-Process Communication) to command line. Blocks; i.e will not return until the 
+		process is complete. shell=True gives access to all shell features/commands, such dir or copy. 
+		creationFlags=0x08000000 prevents creation of a console for the process. 
+		Returns ( returnCode, stdoutData ) if successful, else ( returnCode, stderrData ). """
 
-	process = subprocess.Popen( command, shell=shell, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE, creationflags=0x08000000 )
-	stdoutData, stderrData = process.communicate( input=standardInput )
+	try:
+		process = subprocess.Popen( command, shell=shell, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE, creationflags=0x08000000 )
+		stdoutData, stderrData = process.communicate( input=standardInput )
+	except Exception as err:
+		return ( -1, 'The subprocess command failed; ' + str(err) )
 
-	if process.returncode == 0:
+	if process.returncode == 0 and returnStderrOnSuccess:
+		return ( process.returncode, stderrData )
+	elif process.returncode == 0:
 		return ( process.returncode, stdoutData )
 	else:
 		print 'IPC error (exit code {}):'.format( process.returncode )

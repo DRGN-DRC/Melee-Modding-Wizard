@@ -49,7 +49,7 @@ def init( programArgs ):
 		
 		'tempFolder': os.path.join( scriptHomeFolder, 'bin', 'tempFiles' ),
 		'meleeMedia': os.path.join( scriptHomeFolder, 'bin', 'MeleeMedia', 'MeleeMedia.exe' ),
-		'triCspCreator': os.path.join( scriptHomeFolder, 'bin', 'Tri-CSP Creator', 'Tri-CSP Creator.exe' ),
+		'triCsps': os.path.join( scriptHomeFolder, 'bin', 'Tri-CSP Creation' ),
 		'microMelee': os.path.join( scriptHomeFolder, 'bin', 'Micro Melee.iso' ),
 		'eabi': os.path.join( scriptHomeFolder, 'bin', 'eabi' ),
 		'coreCodes': os.path.join( scriptHomeFolder, 'bin', 'Core Codes' ),
@@ -76,6 +76,7 @@ def init( programArgs ):
 		'alwaysAddFilesAlphabetically': '0',
 		'exportDescriptionsInFilename': '1',
 		'runDolphinInDebugMode': '0',
+		'createHiResCSPs': '0',
 	}
 	# regionOverwriteDefaults = {
 	# 	'Common Code Regions': True,
@@ -707,8 +708,8 @@ costumeSlots = { # Character Costuems indexed by Costume ID, for each character
 	'Ca': ( 'Nr', 'Gy', 'Re', 'Wh', 'Gr', 'Bu' ),
 	'Dk': ( 'Nr', 'Bk', 'Re', 'Bu', 'Gr' ),
 	'Fx': ( 'Nr', 'Or', 'La', 'Gr' ),
-	'Gw': ( 'Nr', ),
-	'Kb': ( 'Nr', 'Ye', 'Bu', 'Re','Gr', 'Wh' ),
+	'Gw': ( 'Nr', ), # + Re, Bu, Gr
+	'Kb': ( 'Nr', 'Ye', 'Bu', 'Re', 'Gr', 'Wh' ),
 	'Kp': ( 'Nr', 'Re', 'Bu', 'Bk' ),
 	'Lk': ( 'Nr', 'Re', 'Bu', 'Bk', 'Wh' ),
 	'Lg': ( 'Nr', 'Wh', 'Aq', 'Pi' ),
