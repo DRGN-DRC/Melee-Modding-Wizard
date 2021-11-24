@@ -24,7 +24,6 @@ import argparse
 import Tkinter as Tk
 import ttk, tkMessageBox, tkFileDialog
 
-from shutil import copy
 from threading import Thread
 from subprocess import Popen, PIPE, CalledProcessError
 from sys import argv as programArgs 	# Access command line arguments, and files given (drag-and-dropped) to the program icon
@@ -37,11 +36,7 @@ import globalData
 from tools import TriCspCreator, AsmToHexConverter, CodeLookup
 from disc import Disc, isExtractedDirectory
 from hsdFiles import StageFile, CharCostumeFile
-from basicFunctions import (
-		cmdChannel, msg, 
-		uHex, humansize,
-		openFolder, createFolders
-	)
+from basicFunctions import msg, openFolder, printStatus
 from guiSubComponents import (
 		cmsg, importGameFiles, DisguisedEntry, VerticalScrolledFrame,
 		HexEditEntry, CharacterChooser
@@ -168,9 +163,9 @@ class FileMenu( Tk.Menu, object ):
 					break
 		
 		if not pendingCodeChanges and not unsavedFiles and not globalData.disc.unsavedChanges and not globalData.disc.rebuildReason:
-			msg( 'There are no changes to be saved.' )
+			msg( 'There are no changes to be saved.', 'No Unsaved Changes' )
 		else:
-			msg( globalData.disc.concatUnsavedChanges(unsavedFiles, basicSummary=False) )
+			msg( globalData.disc.concatUnsavedChanges(unsavedFiles, basicSummary=False), 'Unsaved Changes' )
 
 
 class SettingsMenu( Tk.Menu, object ):
@@ -200,11 +195,11 @@ class SettingsMenu( Tk.Menu, object ):
 											variable=globalData.boolSettings['alwaysAddFilesAlphabetically'], command=globalData.saveProgramSettings )
 		self.add_checkbutton( label='Run Dolphin in Debug Mode', underline=15, 												# D
 											variable=globalData.boolSettings['runDolphinInDebugMode'], command=globalData.saveProgramSettings )
+		self.add_checkbutton( label='Create Hi-Res CSPs', underline=7, 												# H
+											variable=globalData.boolSettings['createHiResCSPs'], command=globalData.saveProgramSettings )
 		
 		# Image-editing related options
 		#self.add_separator()
-		# self.add_checkbutton( label='Auto-Update Headers', underline=5, 
-		# 									variable=globalData.boolSettings['autoUpdateHeaders'], command=globalData.saveProgramSettings )					# U
 		# self.add_checkbutton( label='Regenerate Invalid Palettes', underline=0, 
 		# 									variable=globalData.boolSettings['regenInvalidPalettes'], command=globalData.saveProgramSettings )				# R
 		# self.add_checkbutton( label='Cascade Mipmap Changes', underline=8, 
@@ -429,75 +424,97 @@ class ToolsMenu( Tk.Menu, object ):
 		if not microMelee: return # User may have canceled the vanilla melee disc prompt
 
 		# Prompt the user to choose a character to update
-		selectionWindow = CharacterChooser( "Select a character and costume color for CSP creation:" ) # References External ID
+		selectionWindow = CharacterChooser( "Select a character and costume color for CSP creation:", combineZeldaSheik=True ) # References External ID
 		if selectionWindow.charId == -1: return # User may have canceled selection
-		charConfigDict = cspCreator.config.get( selectionWindow.charId )
+		charId = selectionWindow.charId
+		costumeId = selectionWindow.costumeId
+
+		# Warn of kinks that still need ironing out
+		warning = ''
+		if charId == 0x2: # Fox
+			warning = 'gun not visible'
+		elif charId == 0x9: # Marth
+			warning = 'cape in incorrect position'
+		
+		if warning:
+			warning = ( 'CSP creation for this costume has issues ({}), '.format( warning ) + \
+						'so it will probably be better to use the Tri-CSP Creator program for this slot. '
+						'\n\nWould you like to continue anyway?' )
+			continueWithIssues = tkMessageBox.askyesno( 'Continue?', warning )
+			if not continueWithIssues:
+				return
+
+		# Get CSP configuration info for this character
+		charConfigDict = cspCreator.config.get( charId )
 		if not charConfigDict: # Couldn't find the character dictionary
-			msg( 'Unable to find CSP configuration info for external character ID {} in "CSP Configuration.yml".'.format(selectionWindow.charId), 'CSP Config Error' )
+			msg( 'Unable to find CSP configuration info for external character ID 0x{:X} in "CSP Configuration.yml".'.format(charId), 'CSP Config Error' )
+			globalData.gui.updateProgramStatus( 'Missing CSP configuration info', error=True )
 			return
 
-		# Backup Dolphin's current settings files
-		settingsFolder = os.path.join( globalData.dolphinController.userFolder, 'Config' )
-		generalSettingsFile = os.path.join( settingsFolder, 'Dolphin.ini' )
-		gfxSettingsFile = os.path.join( settingsFolder, 'GFX.ini' )
-		try:
-			os.rename( generalSettingsFile, generalSettingsFile + '.bak' )
-			os.rename( gfxSettingsFile, gfxSettingsFile + '.bak' )
-		except WindowsError: # Likely the backup files already exist
-			pass # Keep the old backup files; do not replace
-
-		# Copy over the Dolphin settings files for CSP creation
-		copy( cspCreator.dolphinSettingsFile, generalSettingsFile )
-		copy( cspCreator.gfxSettingsFile, gfxSettingsFile )
+		# Backup Dolphin's current settings files and replace with new settings files
+		globalData.dolphinController.backupAndReplaceSettings( cspCreator.settingsFiles )
 
 		# Construct the path to the center screenshot
-		centerScreenshotFilename = globalData.disc.constructCharFileName( selectionWindow.charId, selectionWindow.costumeId )[:-4] + '.png'
+		centerScreenshotFilename = globalData.disc.constructCharFileName( charId, costumeId )[:-4] + '.png'
 		centerScreenshot = os.path.join( globalData.paths['imagesFolder'], 'CSP Center Images', centerScreenshotFilename )
 
 		# Generate the Left/Right screenshots
-		leftScreenshot = cspCreator.createSideImage( microMelee, selectionWindow.charId, selectionWindow.costumeId, 'lat' )
-		#rightScreenshot = cspCreator.createSideImage( microMelee, selectionWindow.charId, selectionWindow.costumeId, 'rat' )
-		rightScreenshot = 'TEST'
+		leftScreenshot = cspCreator.createSideImage( microMelee, charId, costumeId, 'lat' )
+		#leftScreenshot = os.path.join( globalData.paths['tempFolder'], 'left.png' ) # for testing
+		if not leftScreenshot: return # Error should have already been reported
+		rightScreenshot = cspCreator.createSideImage( microMelee, charId, costumeId, 'rat' )
+		#rightScreenshot = os.path.join( globalData.paths['tempFolder'], 'right.png' ) # for testing
+		if not rightScreenshot: return # Error should have already been reported
 
 		# Restore previous Dolphin settings
-		os.remove( generalSettingsFile )
-		os.remove( gfxSettingsFile )
-		os.rename( generalSettingsFile + '.bak', generalSettingsFile )
-		os.rename( gfxSettingsFile + '.bak', gfxSettingsFile )
+		globalData.dolphinController.restoreSettings( cspCreator.settingsFiles )
 
-		"""	'-l', '--leftImagePaths', required=True, nargs='+', help='File paths for the left image.' )
-			'-c', '--centerImagePaths', required=True, nargs='+', help='File paths for the center image.' )
-			'-r', '--rightImagePaths', required=True, nargs='+', help='File paths for the right image.' )
-			'-t', '--threshold', required=True, default=50, help="Selection threshold for identifying a screenshot's magenta background." )
-			'-re', '--reverseSides', default=False, help='Horizontally flip the side images.' )
-			'-cx', '--centerImageXOffset', required=True, default=0, help="X coordinate of the center image." )
-			'-cy', '--centerImageYOffset', required=True, default=0, help="Y coordinate of the center image." )
-			'-cs', '--centerImageScaling', required=True, default=1.0, help="Scale of the center image (a float)." )
-			'-sx', '--sideImagesXOffset', required=True, default=0, help="X offset, relative to the side of the CSP, for both side images." )
-			'-sy', '--sideImagesYOffset', required=True, default=0, help="Y offset, relative to the top of the CSP, for both side images." )
-			'-ss', '--sideImagesScaling', required=True, default=1.0, help="Scale of both side images (a float)." )
-			'-shr', '--saveHighRes', action='store_true', help="If true, this will create a large, high-res version of the CSP, instead of the vanilla 136x188. This can't be imported into a disc though." )
-			'-m', '--maskImagePath', default='', help='Use a different layer for use in removing the background.' )
-			'-o', '--outputPath'
-		"""
+		# Save the image in the folder with the disc if it's meant to be high-res, otherwise save it in the temp folder
+		saveHighRes = globalData.checkSetting( 'createHiResCSPs' )
+		if saveHighRes:
+			discFolder = os.path.dirname( globalData.disc.filePath )
+			outputPath = os.path.join( discFolder, 'csp.png' )
+		else:
+			outputPath = os.path.join( globalData.paths['tempFolder'], 'csp.png' )
 
-		# Assemble arguments for the external Tri-CSP Creator executable
-		cspCreatorExe = globalData.paths['triCspCreator']
-		outputPath = os.path.join( globalData.paths['tempFolder'], 'csp.png' )
-		try:
-			args = '"{}" -l "{}" -c "{}" -r "{}" -t {} -cx {} -cy {} -cs {} -sx {} -sy {} -ss {} -o "{}"'.format( 
-				cspCreatorExe, leftScreenshot, centerScreenshot, rightScreenshot, charConfigDict['threshold'], 
-				charConfigDict['centerImageXOffset'], charConfigDict['centerImageYOffset'], charConfigDict['centerImageScaling'], 
-				charConfigDict['sideImagesXOffset'], charConfigDict['sideImagesYOffset'], charConfigDict['sideImagesScaling'], outputPath )
-			if charConfigDict['reverseSides']:
-				args += ' -re'
-			# if saveHighRes:
-			# 	args += ' -shr'
-		except KeyError as err:
-			msg( 'Unable to find CSP "{}" info for character ID {} in "CSP Configuration.yml".'.format(err.message, selectionWindow.charId), 'CSP Config Error' )
+		# Assemble arguments for the external GIMP Tri-CSP Creator script, and send the command to GIMP
+		returnCode = cspCreator.createTriCsp( leftScreenshot, centerScreenshot, rightScreenshot, charConfigDict, outputPath, saveHighRes )
+		if returnCode != 0: return # Message to the user should have already been raised
+		
+		if saveHighRes:
+			globalData.gui.updateProgramStatus( 'High-Res CSP Created (cannot be installed to disc)' )
 			return
+			
+		# Get the character and costume color names
+		charAbbreviation = globalData.charAbbrList[charId]
+		colorAbbr = globalData.costumeSlots[charAbbreviation][costumeId]
+		colorName = globalData.charColorLookup[colorAbbr]
 
-		print( args )
+		# Build a human-readable texture name
+		textureName = globalData.charList[charId]
+		if textureName.endswith( 's' ):
+			textureName += "' {} CSP".format( colorName )
+		else:
+			textureName += "'s {} CSP".format( colorName )
+		
+		# Import the CSP texture created above into MnSlChr
+		returnCode, err1, err2 = globalData.disc.css.importCsp( outputPath, charId, costumeId, textureName )
+
+		# Update program status and warn user of errors
+		if returnCode == 0:
+			globalData.gui.updateProgramStatus( '{} successfully created and installed to disc'.format(textureName) )
+		elif returnCode == 1:
+			globalData.gui.updateProgramStatus( '{} could not be installed; unable to find palette information'.format(textureName), error=True )
+			msg( 'The CSP was successfully created, however it could not be installed to the disc because the palette could not be found in the CSS file. '
+				 'This may be due to a corrupt CSS file ({}).'.format(globalData.disc.css.filename), 'CSP Installation Error', error=True )
+		elif returnCode == 2:
+			globalData.gui.updateProgramStatus( '{} could not be installed; the new image data is too large'.format(textureName), error=True )
+			msg( 'The CSP was successfully created, however it could not be installed to the disc because the new image data is too large. '
+				 'The available space for this texture is 0x{:X} bytes, however the new texture data is 0x{:X} bytes.'.format(err1, err2), 'CSP Installation Error', error=True )
+		elif returnCode == 3:
+			globalData.gui.updateProgramStatus( '{} could not be installed; the new palette data is too large'.format(textureName), error=True )
+			msg( 'The CSP was successfully created, however it could not be installed to the disc because the new palette data is too large. '
+				 "The max number of colors for this texture's palette is {} colors, however the new palette has {} colors.".format(err1, err2), 'CSP Installation Error', error=True )
 
 	def findUnusedStages( self ):
 
@@ -806,7 +823,7 @@ class MainGui( Tk.Frame, object ):
 		# Run-in-Emulator feature
 		self.root.bind( '<Control-r>', self.runInEmulator )
 		self.root.bind( '<Control-R>', self.runInEmulator )
-		self.root.bind( '<F5>', self.runInEmulator )
+		self.root.bind( '<F5>', self.saveAndRun )
 		
 		# Finish configuring the main menu bar
 		self.root.config( menu=self.menubar )
@@ -1099,10 +1116,8 @@ class MainGui( Tk.Frame, object ):
 		""" Saves changes to the currently loaded ISO/GCM disc image or root folder. 
 			If newPath is provided, e.g. from .saveAs() a new file is created. """
 
-		print( 'newPath: ' + str(newPath) )
-
 		if not globalData.disc:
-			return
+			return -1
 
 		# Save code mods if that tab is open
 		if self.codeManagerTab:
@@ -1111,7 +1126,7 @@ class MainGui( Tk.Frame, object ):
 			if not returnCode == 0:
 				msg( 'A problem occurred while saving codes to the game. Error code: {}'.format(returnCode), 'Unable to Save', error=True )
 				self.updateProgramStatus( 'Unable to save. There was an error while saving codes to the game', error=True )
-				return
+				return -1
 
 		# Save all file changes to the disc
 		returnCode, updatedFiles = globalData.disc.save( newPath )
@@ -1138,14 +1153,7 @@ class MainGui( Tk.Frame, object ):
 		else:
 			self.updateProgramStatus( 'Unable to save the disc; unrecognized save method return code: ' + str(returnCode) , error=True )
 		
-		# 0: Success; no problems detected
-		# 1: No changes to be saved
-		# 2: Missing system files
-		# 3: Unable to create a new disc file
-		# 4: Unable to open the original disc
-		# 5: Unrecognized error during file writing
-		# 6: Unable to overwrite existing file
-		# 7: Could not rename discs or remove original
+		return returnCode
 
 	def loadRootOrDisc( self, targetPath, updateDefaultDirectory, updateStatus=True, preserveTreeState=False, switchTab=True, updatedFiles=None ):
 		
@@ -1209,20 +1217,29 @@ class MainGui( Tk.Frame, object ):
 				self.audioManagerTab = AudioManager( self.mainTabFrame, self )
 			self.audioManagerTab.loadFileList()
 
-	def runInEmulator( self, event ):
+	def runInEmulator( self, event=None ):
 
 		""" Runs the currently loaded disc or root folder structure in Dolphin. """
-
-		# if globalData.disc:
-		# 	globalData.disc.runInEmulator()
-		# else:
-		# 	msg( 'No disc has been loaded!' )
 
 		if not globalData.disc:
 			msg( 'No disc has been loaded!' )
 			return
 
 		globalData.dolphinController.start( globalData.disc )
+
+	def saveAndRun( self, event=None ):
+
+		""" Saves current changes, and then runs the disc or root folder in Dolphin. """
+
+		# Shut down Dolphin in case the game is running (can't save ot it otherwise)
+		globalData.dolphinController.stopAllDolphinInstances()
+
+		# Save
+		returnCode = self.save()
+
+		# Boot
+		if returnCode == 0 or returnCode == 1: # Success or no changes to save
+			self.runInEmulator()
 
 
 #																		|---------------------------------\

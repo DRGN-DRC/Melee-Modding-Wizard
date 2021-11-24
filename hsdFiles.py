@@ -155,7 +155,6 @@ def fileFactory( *args, **kwargs ):
 			# Assume it's a DAT file by this point
 			fileObj = DatFile( *args, **kwargs )
 			fileObj.initialize()
-			fileData = fileObj.getData()
 
 			if 'map_head' in fileObj.stringDict.values():
 				return StageFile( *args, **kwargs )
@@ -169,8 +168,8 @@ def fileFactory( *args, **kwargs ):
 				return fileObj
 
 		except Exception as err:
-			print 'Unrecognized file:', kwargs['extPath']
-			print err
+			message = 'Unrecognized file:' + kwargs['extPath'] + '\n' + str( err )
+			printStatus( message, error=True )
 			
 			return FileBase( *args, **kwargs )
 
@@ -340,7 +339,6 @@ class FileBase( object ):
 
 		except Exception as err:
 			printStatus( 'An error occurred while exporting {}: {}'.format(self.filename, err), error=True )
-			print 'An error occurred while exporting {}: {}'.format( self.filename, err )
 			return False
 
 	def getDescription( self, inConvenienceFolder=True ):
@@ -403,7 +401,7 @@ class FileBase( object ):
 							description = description[0].upper() + description[1:]
 		except Exception as err:
 			description = ''
-			print 'Error in getting a description for {}; {}'.format( self.filename, err )
+			printStatus( 'Error in getting a description for {}; {}'.format(self.filename, err), error=True )
 			
 		#self.description = description.encode( 'utf-8' )
 		if description:
@@ -431,8 +429,7 @@ class FileBase( object ):
 				yaml.dump( self.yamlDescriptions, stream, Dumper=yaml.RoundTripDumper )
 			return 0
 		except Exception as err: # Problem parsing the file
-			print 'Error saving yaml config;', err
-			msg( 'Unable to save the new stage nameThere was an error while saving the yaml config file:\n\n{}'.format(err) )
+			msg( 'Unable to save the new name to the yaml config file:\n\n{}'.format(err) )
 			return 1
 
 
@@ -577,9 +574,7 @@ class DatFile( FileBase ):
 		# Parse the RT and String Table
 		self.parseRelocationTable()
 		stringTableLength = self.parseStringTable()
-		if stringTableLength == -1:
-			print 'Unable parse string table; ceasing file parsing.'
-			return
+		assert stringTableLength != -1, 'Invalid string table length; unable parse string table'
 		
 		# Separate out other file sections using the info gathered above
 		self.stringTableData = self.data[ stringTableStart : stringTableStart + stringTableLength ]
@@ -1094,6 +1089,8 @@ class DatFile( FileBase ):
 		""" Initializes a raw block of image/palette/etc. data without validation; these will have mostly 
 			the same methods as a standard struct and can be handled similarly. """
 
+		assert offset in self.structureOffsets, 'Invalid offset to initDataBlock; 0x{:x} does not appear to be a valid struct'.format( offset )
+
 		# If the requested struct has already been created, return it
 		existingStruct = self.structs.get( offset, None )
 
@@ -1191,7 +1188,7 @@ class DatFile( FileBase ):
 
 		""" Returns file data from either the data section or tail data. The offset is 
 			relative to the data section (i.e. does not account for file header). 
-			If no arguments are given, the whole data section is returned. 
+			If no arguments are given, the entire file data is returned. 
 			If only an offset is given, the data length is assumed to be 1. """
 
 		# Call the superclass method to make sure this file's data has been loaded from disc/file
@@ -1272,7 +1269,6 @@ class DatFile( FileBase ):
 
 		if type( newData ) == int: # Just a single byte/integer value (0-255)
 		 	assert newData >= 0 and newData < 256, 'Invalid input to DatFile.setData(): ' + str(newData)
-		 	#dataLength = -1
 			newData = ( newData, ) # Need to make it an iterable, for the splicing operation
 			dataLength = 1
 		else:
@@ -1284,16 +1280,10 @@ class DatFile( FileBase ):
 
 		if dataOffset < len( self.data ):
 			assert dataOffset + dataLength <= len( self.data ), '0x{:X} is too much data to set at offset 0x{:X}.'.format( dataLength, dataOffset )
-			# if dataLength == -1:
-			# 	self.data[dataOffset] = newData
-			# else:
 			self.data[dataOffset:dataOffset+dataLength] = newData # This will also work for bytearrays of length 1
 		else:
 			tailOffset = dataOffset - len( self.data ) - len( self.rtData ) - len( self.nodeTableData ) - len( self.stringTableData )
 			assert tailOffset + dataLength <= len( self.tailData ), '0x{:X} is too much tail data to set at offset 0x{:X}.'.format( dataLength, tailOffset )
-			# if dataLength == -1:
-			# 	self.tailData[tailOffset] = newData
-			# else:
 			self.tailData[tailOffset:tailOffset+dataLength] = newData # This will also work for bytearrays of length 1
 
 	def updateData( self, offset, newData, description='', trackChange=True ):
@@ -1817,15 +1807,15 @@ class DatFile( FileBase ):
 			Width/height/imageType/imageDataLength can be provided to improve performance. 
 			getAsPilImage can be set to True if the user would like to get the PIL image instead. """
 
+		# Make sure file data has been initialized
+		self.initialize()
+
 		#tic = time.clock()
 
 		assert type( imageDataOffset ) == int, 'Invalid input to getTexture; image data offset is not an int.'
 
 		# Need to find image details if they weren't provided, so look for the image data header
 		if imageType == -1:
-			# Make sure file data has been initialized
-			self.initialize()
-
 			# Get the data section structure offsets, and separate out main structure references
 			hI = self.headerInfo
 			dataSectionStructureOffsets = set( self.structureOffsets ).difference( (-0x20, hI['rtStart'], hI['rtEnd'], hI['rootNodesEnd'], hI['stringTableStart']) )
@@ -1877,20 +1867,22 @@ class DatFile( FileBase ):
 		else:
 			return ImageTk.PhotoImage( textureImage )
 
-	def setTexture( self, imageDataOffset, pilImage=None, imagePath='', width=-1, height=-1, textureName='Texture' ): # subsequentMipmapPass=False
+	def setTexture( self, imageDataOffset, pilImage=None, imagePath='', textureName='Texture', paletteQuality=3 ): # subsequentMipmapPass=False
 
 		""" Encodes image data into TPL format (if needed), and write it into the file at the given offset. 
 			Accepts a PIL image, or a filepath to a PNG or TPL texture file. 
 			The offset given should be relative to the start of the data section. 
-			Returns a tuple of 3 values; an exit code, and two extra values in the following cases:
+			Returns a tuple of 3 values; an exit code, and two extra values in the following cases: 
 			Return/exit codes:									Extra info:
 				0: Success; no problems								None (0, '', '')
-				1: Unable to find palette information 				None (0, '', '')
+				1: Unable to find palette information 				None (1, '', '')
 				2: The new image data is too large 					origImageDataLength, newImageDataLength
-				3: The new palette data is too large 				maxPaletteColorCount, originalPaletteColorCount
+				3: The new palette data is too large 				maxPaletteColorCount, newPaletteColorCount
 		"""
+		
+		self.initialize()
 
-		# Gather info on the texture currently in the DAT/USD
+		# Gather info on the texture currently in the file
 		imageDataStruct = self.initDataBlock( hsdStructures.ImageDataBlock, imageDataOffset )
 		_, origWidth, origHeight, origImageType, _, _, _ = imageDataStruct.getAttributes()
 		origImageDataLength = imageDataStruct.getDataLength( origWidth, origHeight, origImageType )
@@ -1915,16 +1907,15 @@ class DatFile( FileBase ):
 		# Initialize a TPL image object (and create a new palette for it, if needed)
 		if pilImage:
 			pilImage = pilImage.convert( 'RGBA' )
-
-			newImage = TplEncoder( '', pilImage.size, origImageType, None, maxPaletteColors=origPaletteColorCount )
+			newImage = TplEncoder( '', pilImage.size, origImageType, None, maxPaletteColors=origPaletteColorCount, paletteQuality=paletteQuality )
 			newImage.imageDataArray = pilImage.getdata()
 			newImage.rgbaPaletteArray = pilImage.getpalette()
 			width, height = pilImage.size
+
 		elif imagePath:
-			#assert width != -1 and height != -1, 'Invalid input to .setTexture(); missing width and height arguments.'
-			#newImage = TplEncoder( imagePath, (width, height), origImageType, None, maxPaletteColors=origPaletteColorCount )
-			newImage = TplEncoder( imagePath, imageType=origImageType, paletteType=None, maxPaletteColors=origPaletteColorCount )
+			newImage = TplEncoder( imagePath, imageType=origImageType, paletteType=None, maxPaletteColors=origPaletteColorCount, paletteQuality=paletteQuality )
 			width, height = newImage.width, newImage.height
+			
 		else:
 			raise IOError( 'Invalid input to .setTexture(); no PIL image or texture filepath provided.' )
 
@@ -1943,7 +1934,7 @@ class DatFile( FileBase ):
 			# Make sure there is space for the new palette, and update the dat's data with it.
 			newPaletteColorCount = len( newPaletteData ) / 2 # All of the palette types (IA8, RGB565, and RGB5A3) are 2 bytes per color entry
 			if newPaletteColorCount > maxPaletteColorCount:
-				return 3, maxPaletteColorCount, newImage.originalPaletteColorCount
+				return 3, maxPaletteColorCount, newPaletteColorCount
 
 			entriesToFill = origPaletteColorCount - newPaletteColorCount
 			nullBytes = bytearray( entriesToFill )
@@ -2119,6 +2110,35 @@ class CssFile( DatFile ):
 			'GrIz':		0x3C17E0, 	# Fountain
 			'GrOp':		0x3C1A40, 	# Dream Land
 			'GrP':		0x3C1CA0 } 	# Stadium
+
+	cspIndexes = {	# key = External Char ID x 0x10 + Costume ID, value = CSP index
+		0x00: 33, 0x01: 62, 0x02: 81, 0x03: 102, 0x04: 43, 0x05: 10, 	# Captain Falcon - 0x0
+		0x10: 36, 0x11: 7, 0x12: 83, 0x13: 12, 0x14: 44, 	# DK
+		0x20: 40, 0x21: 87, 0x22: 15, 0x23: 48, 	# Fox
+		0x30: 5, 0x31: 80, 0x32: 4, 0x33: 42, 	# Game & Watch
+		0x40: 66, 0x41: 111, 0x42: 19, 0x43: 91, 0x44: 52, 0x45: 105, 	# Kirby
+		0x50: 67, 0x51: 92, 0x52: 20, 0x53: 1,	# Bowser
+		0x60: 68, 0x61: 93, 0x62: 21, 0x63: 2, 0x64: 106,	# Link
+		0x70: 69, 0x71: 107, 0x72: 22, 0x73: 94, 	# Luigi
+		0x80: 70, 0x81: 112, 0x82: 3, 0x83: 23, 0x84: 53, # Mario - 0x8
+		0x90: 38, 0x91: 85, 0x92: 46, 0x93: 0, 0x94: 104, 	# Marth
+		0xA0: 71, 0xA1: 95, 0xA2: 24, 0xA3: 54, 	# Mewtwo
+		0xB0: 72, 0xB1: 113, 0xB2: 25, 0xB3: 55, 	# Ness
+		0xC0: 74, 0xC1: 35, 0xC2: 108, 0xC3: 26, 0xC4: 56, 	# Peach
+		0xD0: 78, 0xD1: 97, 0xD2: 28, 0xD3: 58, 	# Pikachu
+		0xE0: 63, 0xE1: 50, 0xE2: 17, 0xE3: 89, 	# Ice Climbers
+		0xF0: 79, 0xF1: 98, 0xF2: 29, 0xF3: 59, 0xF4: 114, 	# Jigglypuff
+		0x100: 101, 0x101: 76, 0x102: 9, 0x103: 60, 0x104: 30, # Samus - 0x10
+		0x110: 116, 0x111: 99, 0x112: 31, 0x113: 115, 0x114: 77, 0x115: 65, 	# Yoshi
+		0x120: 117, 0x121: 100, 0x122: 32, 0x123: 61, 0x124: 109, 	# Zelda
+		#0x130: , 0x131: , 0x132: , 0x133: , 0x134: , 	# Sheik		# Someday :)
+		0x140: 39, 0x141: 86, 0x142: 14, 0x143: 47, 	# Falco
+		0x150: 34, 0x151: 82, 0x152: 11, 0x153: 103, 0x154: 6, # Young Link
+		0x160: 37, 0x161: 84, 0x162: 13, 0x163: 45, 0x164: 8, # Doc
+		0x170: 64, 0x171: 90, 0x172: 18, 0x173: 51, 0x174: 110, 	# Roy
+		0x180: 75, 0x181: 96, 0x182: 27, 0x183: 57, # Pichu - 0x18
+		0x190: 41, 0x191: 88, 0x192: 16, 0x193: 49, 0x194: 73 # Ganondorf
+	}
 
 	# These will be shared across CSS files; so if one file checks, they'll all know
 	_hasRandomNeutralTables = False
@@ -2349,6 +2369,54 @@ class CssFile( DatFile ):
 		self.setData( fileOffset, nameBytes+padding )
 		self.recordChange( 'Hex Track name updated for {} (track 0x{:02X})'.format(newName, trackNumber) )
 
+	def importCsp( self, filepath, charId, costumeId, textureName='' ):
+
+		""" Use the character and costume IDs to look up the texture offset, 
+			and import the given texture to that location in the file. 
+			Same return information as .setTexture() """
+
+		baseOffset = 0x4CA40
+		stride = 0x6600 # Texture size + palette data/header
+
+		# Make sure Sheik isn't given
+		if charId == 0x13:
+			charId = 0x12
+
+		# Get the index of this Char/Costume CSP in the file
+		indexKey = charId * 0x10 | costumeId
+		cspIndex = self.cspIndexes[indexKey]
+		
+		if not textureName:
+			# Get the character and costume color names
+			charAbbreviation = globalData.charAbbrList[charId]
+			colorAbbr = globalData.costumeSlots[charAbbreviation][costumeId]
+			colorName = globalData.charColorLookup[colorAbbr]
+
+			# Build a human-readable texture name
+			textureName = globalData.charList[charId]
+			if textureName.endswith( 's' ):
+				textureName += "' {} CSP".format( colorName )
+			else:
+				textureName += "'s {} CSP".format( colorName )
+
+		# Calculate the offset of the CSP texture and import the texture there
+		cspOffset = ( baseOffset + cspIndex * stride ) - 0x20
+		returnInfo = self.setTexture( cspOffset, None, filepath, textureName, 1 )
+
+		return returnInfo
+
+
+#class EffectsFile( DatFile ):
+
+	# Shared Effects files:
+	#
+	# EfMrData:		Mario & Dr. Mario
+	# EfFxData:		Fox & Falco
+	# EfIcData:		Popo & Nana
+	# EfZdData:		Zelda & Sheik
+	# EfLkData:		Link & Y. Link
+	# EfPkData:		Pikachu & Pichu
+
 
 class StageFile( DatFile ):
 
@@ -2520,11 +2588,9 @@ class StageFile( DatFile ):
 				cssFile = self.disc.files[self.disc.gameId + '/MnSlChr.0sd']
 				stageName = cssFile.getRandomNeutralName( self.filename )
 
-				if stageName:
-					if inConvenienceFolder:
-						stageName = '    ' + stageName # Extra space added to indent the name from the stage folder name
-					else: # Get the vanilla stage name as a base for the descriptive name
-						stageName = self.longName + ', ' + stageName
+				if stageName and not inConvenienceFolder:
+					# Get the vanilla stage name as a base for the descriptive name
+					stageName = self.longName + ', ' + stageName
 
 			except Exception as err:
 				print 'Unable to get Random Neutral stage name from CSS file;'
