@@ -213,14 +213,14 @@ class AudioManager( ttk.Frame ):
 
 		# Get the list of songs from the disc
 		filecount = 0
-		totalFilesize = 0
+		totalMusicSize = 0
 		for musicFile in globalData.disc.files.itervalues():
 			# Ignore non music files
 			if not musicFile.__class__ == MusicFile:
 				continue
 
 			filecount += 1
-			totalFilesize += musicFile.size
+			totalMusicSize += musicFile.size
 		
 			# Add labels along the left for the songs found above
 			if musicFile.isHexTrack: # These are 20XX's added custom tracks, e.g. 01.hps, 02.hps, etc.
@@ -249,7 +249,7 @@ class AudioManager( ttk.Frame ):
 		if restoreState:
 			self.fileTree.restoreState()
 
-		self.updateGeneralInfo( filecount, totalFilesize )
+		self.updateGeneralInfo( filecount, totalMusicSize )
 
 	def getSelectedFile( self ):
 
@@ -266,7 +266,7 @@ class AudioManager( ttk.Frame ):
 		
 		return musicFile
 
-	def updateGeneralInfo( self, filecount=0, totalFilesize=0 ):
+	def updateGeneralInfo( self, filecount=0, totalMusicSize=0 ):
 
 		if not filecount:
 			for musicFile in globalData.disc.files.itervalues():
@@ -275,11 +275,12 @@ class AudioManager( ttk.Frame ):
 					continue
 				
 				filecount += 1
-				totalFilesize += musicFile.size
+				totalMusicSize += musicFile.size
 
-		spaceRemaining = disc.defaultGameCubeMediaSize - globalData.disc.getSize()
+		totalDiscFilesize = globalData.disc.getDiscSizeCalculations( ignorePadding=True )[0]
+		spaceRemaining = disc.defaultGameCubeMediaSize - totalDiscFilesize
 		
-		self.generalInfoLabel['text'] = '\n'.join( [str(filecount), humansize(totalFilesize), humansize(spaceRemaining) ] )
+		self.generalInfoLabel['text'] = '\n'.join( [str(filecount), humansize(totalMusicSize), humansize(spaceRemaining) ] )
 
 	def formatDuration( self, duration ):
 

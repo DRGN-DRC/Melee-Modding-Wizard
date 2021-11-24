@@ -252,11 +252,6 @@ class Disc( object ):
 
 		""" Instantiates an extracted root folder as a disc object. Collects information on this new "disc" and instantiates its files. """
 
-		#self.rebuildRequired = True
-		self.rebuildReason = 'to build from a root folder'
-		self.isRootFolder = True
-		self.fstRebuildRequired = True
-
 		dolPath = systemFilePaths['dol']
 		bootFilePath = systemFilePaths['boot']
 		apploaderPath = systemFilePaths['apploader']
@@ -327,6 +322,10 @@ class Disc( object ):
 				self.loadRootFile( itemPath, rootFilesFolder )
 
 		self.buildFstEntries()
+		#self.rebuildRequired = True
+		self.rebuildReason = 'to build from a root folder'
+		self.isRootFolder = True
+		self.fstRebuildRequired = True
 		
 		# If this is 20XX, check its version
 		if self.isMelee:
@@ -689,12 +688,12 @@ class Disc( object ):
 
 	def constructCharFileName( self, charId, colorId, ext='dat', defaultToUsd=True ):
 
-		""" Takes character and costume color IDs and converts them to a disc filesystem filename. """
+		""" Takes a character and costume color ID and converts them to a disc filesystem filename. """
 
 		# Convert the IDs to string abbreviations
 		charAbbr = globalData.charAbbrList[charId]
 		colorAbbr = globalData.costumeSlots[charAbbr][colorId]
-		print 'Char ID: {} ({}), Color ID: {} ({})'.format(charId, charAbbr, colorId, colorAbbr)
+		#print 'Char ID: {} ({}), Color ID: {} ({})'.format(charId, charAbbr, colorId, colorAbbr)
 
 		if len( charAbbr ) == 4: # Kirby copy power costumes
 			filename = 'PlKb{}Cp{}.{}'.format( colorAbbr, charAbbr[2:], ext )
@@ -709,6 +708,37 @@ class Disc( object ):
 			filename = 'Pl{}{}.{}'.format( charAbbr, colorAbbr, ext )
 
 		return filename
+
+	def constructStageFileName( self, stageId, defaultToUsd=True, makeUnique=False ):
+
+		""" Takes an internal stage ID and converts it to a disc filesystem filename. 
+			If the file exists in the disc, a new name will be created. 
+			Returns the new name, or an empty string if a unique name could not be determined. """
+
+		newName = self.dol.getStageFileName( stageId, defaultToUsd=defaultToUsd )[1]
+
+		if makeUnique:
+			# Swap characters in the file extension until a stage with that name is not found
+			existingFile = self.files.get( self.gameId + '/' + newName )
+			charIndex = 0
+
+			if stageId in ( 0xC, 0x24, 0x25, 0x1C, 0x10, 0xA ): # FoD, Battlefield, FD, DreamLand, Stadium, Yoshi's Story
+				letters = 'fghijklmnopqrstuvwxyz'
+			else:
+				letters = 'abcdefghijklmnopqrstuvwxyz'
+
+			while existingFile:
+				nextChar = letters[charIndex]
+				charIndex += 1
+				newName = newName[:-3] + nextChar + newName[-2:]
+
+				existingFile = self.files.get( self.gameId + '/' + newName )
+
+				if existingFile and nextChar == 'z': # Failsafe to prevent infinite loop
+					newName = ''
+					break
+
+		return newName
 
 	# def getFolderContents( self, folderIsoPath, recursive=True ):
 
@@ -787,21 +817,21 @@ class Disc( object ):
 		
 		return '\n'.join( fileList )
 
-	def getSize( self ):
+	# def getSize( self ):
 
-		""" Returns the expected size of the disc, taking into account disc changes if it needs to be rebuilt. """
+	# 	""" Returns the expected size of the disc, taking into account disc changes if it needs to be rebuilt. """
 
-		if not self.rebuildReason:
-			# lastFile = next( reversed(self.files) )
-			# return lastFile.offset + lastFile.size
-			return os.path.getsize( self.filePath )
+	# 	if not self.rebuildReason:
+	# 		# lastFile = next( reversed(self.files) )
+	# 		# return lastFile.offset + lastFile.size
+	# 		return os.path.getsize( self.filePath )
 
-		else:
-			return self.getDiscSizeCalculations()[0]
+	# 	else:
+	# 		return self.getDiscSizeCalculations()[0]
 
-	def getDiscSizeCalculations( self ):
+	def getDiscSizeCalculations( self, ignorePadding=False ):
 		# Make sure this is up to date
-		self.buildFstEntries()
+		#self.buildFstEntries()
 		
 		# Calculate the FST file offset and size
 		fstOffset = self.getFstOffset()
@@ -821,20 +851,22 @@ class Disc( object ):
 		interFilePaddingLength, paddingSetting = getInterFilePaddingLength( totalSystemFileSpace+totalNonSystemFileSpace, totalNonSystemFiles )
 
 		# Calculate the size of the disc
-		if paddingSetting == 'auto':
+		if ignorePadding:
+			projectedDiscSize = totalSystemFileSpace + totalNonSystemFileSpace
+		elif paddingSetting == 'auto':
 			if interFilePaddingLength == 0: # Disc is greater than or equal to the max size
 				projectedDiscSize = totalSystemFileSpace + totalNonSystemFileSpace
 			else:
 				projectedDiscSize = defaultGameCubeMediaSize
 		else:
 			projectedDiscSize = totalSystemFileSpace + totalNonSystemFileSpace + ( interFilePaddingLength * totalNonSystemFiles )
-		
-		# print 'totalNonSystemFiles determined:', totalNonSystemFiles
-		# print 'interFilePaddingLength:', hex(interFilePaddingLength)
-		# print 'total system file space:', hex(totalSystemFileSpace)
-		# print 'total non-system file space:', hex(totalNonSystemFileSpace)
-		# print 'padding:', hex(interFilePaddingLength), 'paddingSetting:', paddingSetting
-		# print 'projected disc size:', hex(projectedDiscSize), projectedDiscSize
+
+		print 'totalNonSystemFiles determined:', totalNonSystemFiles
+		print 'total system file space:', hex(totalSystemFileSpace)
+		print 'total non-system file space:', hex(totalNonSystemFileSpace)
+		print 'projected disc size:', hex(projectedDiscSize), projectedDiscSize
+		print 'paddingSetting:', paddingSetting
+		print 'inter-file padding:', hex(interFilePaddingLength)
 
 		return projectedDiscSize, totalSystemFileSpace, fstOffset, interFilePaddingLength, paddingSetting
 
@@ -1084,33 +1116,35 @@ class Disc( object ):
 		# Update this file's entry size if it's changed, and check if the disc will need to be rebuilt
 		if newFileObj.size != origFileObj.size:
 			
-			if newFileObj.filename == 'Start.dol':
-				newFileObj.load()
-				self.rebuildReason = 'to import a DOL of a different size'
+			if self.rebuildReason:
+				self.updateFstEntry( origFileObj.offset, newFileObj.size )
+			else:
+				if newFileObj.filename == 'Start.dol':
+					self.rebuildReason = 'to import a DOL of a different size'
 
-			elif newFileObj.filename in self.systemFiles:
-				self.rebuildReason = 'to import system files larger than their original' # probably should make this illegal?
+				elif newFileObj.filename in self.systemFiles:
+					self.rebuildReason = 'to import system files larger than their original' # probably should make this illegal?
 
-			# Check if it's the last file, in which case size its doesn't matter (also, the following loop would encounter an error if that's the case)
-			elif origFileObj.offset == self.fstEntries[-1][2]:
-				self.fstEntries[-1][3] = newFileObj.size
+				# Check if it's the last file, in which case size its doesn't matter (also, the following loop would encounter an error if that's the case)
+				elif origFileObj.offset == self.fstEntries[-1][2]:
+					self.fstEntries[-1][3] = newFileObj.size
 
-			else: # Not the last file; check if the file following it needs to be moved
-				for i, entry in enumerate( self.fstEntries ): # Entries are of the form [ folderFlag, stringOffset, entryOffset, entrySize, entryName, isoPath ]
-					if entry[2] == origFileObj.offset:
-						self.fstEntries[i][3] = newFileObj.size
+				else: # Not the last file; check if the file following it needs to be moved
+					for i, entry in enumerate( self.fstEntries ): # Entries are of the form [ folderFlag, stringOffset, entryOffset, entrySize, entryName, isoPath ]
+						if entry[2] == origFileObj.offset:
+							self.fstEntries[i][3] = newFileObj.size
 
-						# Check if there is enough space for the new file
-						nextFileOffset = self.fstEntries[i+1][2]
-						if nextFileOffset < newFileObj.offset + newFileObj.size:
-							self.rebuildReason = 'to import files larger than their original'
-							#self.rebuildRequired = True
-						break
+							# Check if there is enough space for the new file
+							nextFileOffset = self.fstEntries[i+1][2]
+							if nextFileOffset < newFileObj.offset + newFileObj.size:
+								self.rebuildReason = 'to import files larger than their original'
+								#self.rebuildRequired = True
+							break
 
-			# Flag that the FST will need to be rebuilt upon saving
-			self.fstRebuildRequired = True
+				# Flag that the FST will need to be rebuilt upon saving
+				self.fstRebuildRequired = True
 
-		elif newFileObj.filename == 'Start.dol':
+		if newFileObj.filename == 'Start.dol':
 			newFileObj.load()
 
 	def determineInsertionKey( self, newIsoPath ):
@@ -1334,13 +1368,10 @@ class Disc( object ):
 			stringsTable.extend( entryName.encode('latin_1') + '\x00' )
 		
 		# Check if the FST is in among the game's files (might not be if this is a root folder)
-		fstSize = len(entriesData) + len(stringsTable)
+		fstSize = len( entriesData ) + len( stringsTable )
 		toc = self.files.get( self.gameId + '/Game.toc' )
 		if not toc:
-			# Calculate the FST file offset
-			#dol = self.files[ self.gameId + '/Start.dol' ]
-
-			# Create a new toc file (and add it to the disc)
+			# Create a new TOC and add it to the disc
 			toc = FileBase( self, self.getFstOffset(), fstSize, self.gameId + '/Game.toc', "The disc's file system table (FST)", source='self' )
 
 		# Add the file data created above to the file object
@@ -1427,14 +1458,14 @@ class Disc( object ):
 						# Move the FST. It must directly follow the DOL as the FST's offset is the only indicator of the DOL file's size
 						isoBinary.seek( 0x424 )
 						isoBinary.write( toBytes( fstOffset ) )
+
+						# Trigger the FST to be written to the new location
+						self.fstRebuildRequired = True
 					
 					else: # The file is expected to be in the FST (other system file size changes aren't supported)
 						self.updateFstEntry( fileObj.offset, fileObj.size )
 
-					self.updateProgressDisplay( 'Updating disc files:', 0, updateIndex, totalUnsavedChanges )
-
-					# Flag for the FST to be rebuilt. Must be done in the case of the DOL as well; but just to move it in that case
-					self.fstRebuildRequired = True
+				self.updateProgressDisplay( 'Updating disc files:', 0, updateIndex, totalUnsavedChanges )
 
 				filesUpdated.add( fileObj.isoPath )
 
@@ -1474,8 +1505,7 @@ class Disc( object ):
 
 		#tic = time.clock() # for performance testing
 
-		# Make sure this is up to date
-		# self.buildFstEntries()
+		self.buildFstEntries()
 		
 		# # Calculate the FST file offset and size
 		# #dol = self.files[ self.gameId + '/Start.dol' ]
@@ -1483,20 +1513,7 @@ class Disc( object ):
 		# fstStrings = [ entry[-2] for entry in self.fstEntries[1:] ] # Skips the root entry
 		# fstFileSize = len( self.fstEntries ) * 0xC + len( '.'.join(fstStrings) ) + 1 # Final +1 to account for last stop byte
 
-		# # Determine how much padding to add between files
-		# totalSystemFileSpace = roundTo32( fstOffset + fstFileSize ) # roundTo will round up, to make sure subsequent files are aligned
-		# totalNonSystemFiles = 0
-		# totalNonSystemFileSpace = 0
-		# for entry in self.fstEntries:
-		# 	if not entry[0] and entry[3] > 0: # Means it's a file, and bigger than 0 bytes
-		# 		totalNonSystemFiles += 1
-		# 		totalNonSystemFileSpace += roundTo32( entry[3], base=4 ) # Adding file size and post-file padding, rounding alignment up
-		# interFilePaddingLength, paddingSetting = getInterFilePaddingLength( totalSystemFileSpace+totalNonSystemFileSpace, totalNonSystemFiles )
-
-		# # Calculate the size of the disc
-		# if paddingSetting == 'auto': projectedDiscSize = defaultGameCubeMediaSize
-		# else: projectedDiscSize = totalSystemFileSpace + totalNonSystemFileSpace + interFilePaddingLength * totalNonSystemFiles
-
+		# Determine file space and how much padding to add between files (will also rebuild the FST list)
 		projectedDiscSize, totalSystemFileSpace, fstOffset, interFilePaddingLength, paddingSetting = self.getDiscSizeCalculations()
 
 		#projectedDiscSize, interFilePaddingLength, paddingSetting = self.calculateDiscSize(  )
@@ -1715,9 +1732,10 @@ class Disc( object ):
 
 		# Perform some clean-up operations for 20XXHP features
 		if self.is20XX:
+			cssFile = self.css
+			
 			# Check for CSS file changes
-			#cssFile = self.files.get( self.gameId + '/MnSlChr.0sd' )
-			if self.css and self.css.unsavedChanges:
+			if cssFile and cssFile.unsavedChanges:
 				# Check that the hex tracks music name table is valid
 				print 'other CSS files need updating!'
 
@@ -1726,7 +1744,9 @@ class Disc( object ):
 				# otherCssFiles = self.files.get( '{}/MnSlChr.{}sd'.format(self.gameId, cssIndex) )
 				# while otherCssFiles:
 				# 	# Update data chunks
-				# 	for chunk in (  ):
+				# 	for chunk in ( 
+				# 		(  )
+				# 	 ):
 				# 	cssIndex += 1
 				# 	otherCssFiles = self.files.get( '{}/MnSlChr.{}sd'.format(self.gameId, cssIndex) )
 
@@ -1838,9 +1858,11 @@ class Disc( object ):
 
 		if userFolder:
 			symbolMapPath = os.path.join( userFolder, 'Maps', self.gameId + '.map' )
+			print 'Map file updated and placed in maps folder'
 		else: # Save with the disc
 			discFolder = os.path.dirname( self.filePath )
 			symbolMapPath = os.path.join( discFolder, self.gameId + '.map' )
+			print 'Map file updated and placed with the disc'
 
 		# Back-up any existing file
 		try: os.rename( symbolMapPath, symbolMapPath + '.bak' )
@@ -2076,6 +2098,7 @@ class Disc( object ):
 			else:
 				self.dol.setData( dolOffset, bytearray.fromhex(code) )
 			
+			#if modName: # Don't remember if no mod name; means this is a reversion
 			self.modifiedRegions.append( (address, newCodeLength, modName) )
 		
 		return conflictDetected
@@ -2101,6 +2124,9 @@ class Disc( object ):
 		if customCodeOffset != -1:
 			#return self.dol.offsetInRAM( customCodeOffset )
 			return customCodeOffset
+
+		# Temporary assertion until code file hookups are finished
+		assert customCodeOffset != -1, 'Max Codespace exceeded!'
 
 		# This code will go in the codes.bin file, placed just above the TOC in RAM during runtime
 		# Add the file to the disc if it isn't already present
@@ -2202,18 +2228,10 @@ class Disc( object ):
 		# 	regionLength = regionEnd - regionStart # in bytes
 		# 	#replaceHex( regionStart, '00' * regionLength )
 		# 	self.dol.setData( regionStart, bytearray(regionLength) )
-			
-		# # Create a dictionary to keep track of space in the dol that's available for injection codes
-		# dolSpaceUsed = {}
-		# for i in range( len(allCodeRegions) ):
-		# 	# Add a key/value pair to keep track of how much space is used up for each code range.
-		# 	key = 'area' + str(i + 1) + 'used'
-		# 	dolSpaceUsed[key] = 0
-		# arenaSpace = 0
 
 		# Calculate the size of the toc, assuming codes.bin is added
-		if self.rebuildReason:
-			self.buildFstEntries() # Ensuring the list is current (might be safe to remove here)
+		# if self.rebuildReason:
+		# 	self.buildFstEntries() # Ensuring the list is current (might be safe to remove here)
 		tocSize = len( self.fstEntries ) * 0xC
 		for each in self.fstEntries[1:]: # Skipping root entry
 			tocSize += len( each[-2] ) + 1
@@ -2310,14 +2328,6 @@ class Disc( object ):
 
 		# 	return 0x81800000 - tocSize - 0x1E - arenaSpace - customCodeLength
 
-		# Create a dictionary to keep track of space in the dol that's available for injection codes
-		# dolSpaceUsed = {}
-		# for i in range( len(allCodeRegions) ):
-		# 	# Add a key/value pair to keep track of how much space is used up for each code range.
-		# 	key = 'area' + str(i + 1) + 'used'
-		# 	dolSpaceUsed[key] = 0
-		# arenaSpace = 0
-
 		tic = time.clock()
 
 		# Primary code-saving pass.
@@ -2337,12 +2347,11 @@ class Disc( object ):
 			self.updateProgressDisplay( 'Installing Mods', -1, installCount, totalModsToInstall )
 
 			problemWithMod = False
-			#dolSpaceUsedBackup = dolSpaceUsed.copy() # This copy is used to revert changes in case there is a problem with saving this mod.
 			allocationMatrixBackup = copy.deepcopy( self.allocationMatrix ) # This copy is used to revert changes in case there is a problem with saving this mod.
 			newlyMappedStandaloneFunctions = [] # Tracked so that if this mod fails any part of installation, the standalone functions dictionary can be restored (installation offsets restored to -1).
 			summaryReport = []
 			priorChangesCount = len( self.modifiedRegions ) # Tracked for reversion of the modifiedRegions list if installation fails
-			priorSymbolsAdded = len( newSymbols ) # Tracked for reversion of the newSymbols list if installation fails
+			priorNewSymbolsCount = len( newSymbols ) # Tracked for reversion of the newSymbols list if installation fails
 
 			# Allocate space for required standalone functions
 			#if not noSpaceRemaining:
@@ -2447,6 +2456,7 @@ class Disc( object ):
 						returnCode, finishedCode = codeChange.finalizeCode( customCodeAddress )
 						if returnCode != 0 and returnCode != 100:
 							problemWithMod = True
+							break
 						else:
 							# If the return code was 100, the last instruction was created by a custom branch syntax, which was deliberate and we don't want it replaced.
 							if returnCode == 0:
@@ -2468,22 +2478,24 @@ class Disc( object ):
 								break
 							else:
 								summaryReport.append( ('Injection code', codeChange.type, customCodeAddress, customCodeLength) )
-								newSymbols.append( (customCodeAddress, customCodeLength, '{} injection (for 0x{:X})'.format(mod.name, injectionSite)) )
+								newSymbols.append( (customCodeAddress, customCodeLength, '{} (injection from 0x{:X})'.format(mod.name, injectionSite)) )
 
 			if problemWithMod:
 				# Remove submissions from this mod made to the modifiedRegions and symbols lists
 				self.modifiedRegions = self.modifiedRegions[:priorChangesCount]
+				newSymbols = newSymbols[:priorNewSymbolsCount]
 
-				# Revert all changes associated with this mod to the game's vanilla code.
+				# Revert changes associated with this mod to the game's vanilla code
 				for codeChange in mod.getCodeChanges():
 					if codeChange.type == 'static' or codeChange.type == 'injection':
-						address = self.dol.normalizeRamAddress( codeChange.offset )[0]
-						if address == -1: continue
-						self.storeCodeChange( address, codeChange.origCode ) # Should silently fail if attempting to overrite what was already changed by another mod (changes existing in modifiedRegions)
+						#address = self.dol.normalizeRamAddress( codeChange.offset )[0]
+						dolOffset = self.dol.normalizeDolOffset( codeChange.offset )[0]
+						if dolOffset == -1: continue
+						#self.storeCodeChange( address, codeChange.origCode ) # Should silently fail if attempting to overrite what was already changed by another mod (changes existing in modifiedRegions)
+						self.dol.setData( dolOffset, bytearray.fromhex(codeChange.origCode) )
 					# Any extra code left in the 'free space' regions will just be overwritten by further mods or will otherwise not be used.
 
 				# Restore the lookup used for tracking free space in the DOL to its state before making changes for this mod.
-				#dolSpaceUsed = dolSpaceUsedBackup
 				self.allocationMatrix = allocationMatrixBackup
 
 				# Restore the standalone functions dictionary to as it was before this mod (set addresses back to -1).
@@ -2503,9 +2515,6 @@ class Disc( object ):
 				mod.setState( 'enabled' )
 				totalModsInstalled += 1
 				#addToInstallationSummary( mod.name, mod.type, summaryReport )
-
-				# Update function symbols for the map file
-				#self.updateSymbols( mod.name, summaryReport)
 
 		# End of primary code-saving pass. Finish updating the Summary tab.
 		# if geckoSummaryReport:
@@ -2590,9 +2599,9 @@ class Disc( object ):
 		for areaStart, areaEnd, spaceUsed in self.allocationMatrix[:-1]:
 			totalSpace += areaEnd - areaStart
 			totalSpaceUsed += spaceUsed
-		print 'total space available:', hex(totalSpace)
-		print 'total space used:', hex(totalSpaceUsed)
-		print 'total space remaining:', hex(totalSpace-totalSpaceUsed)
+		print 'total space available:', uHex(totalSpace)
+		print 'total space used:', uHex(totalSpaceUsed)
+		print 'total space remaining:', uHex(totalSpace-totalSpaceUsed)
 
 		# If the injection code file was used, add codes to the game required to load it on boot
 		if self.injectionsCodeFile and self.injectionsCodeFile.data:
@@ -2614,8 +2623,9 @@ class Disc( object ):
 		self.dol.writeMetaData() # Writes the DOL's revision (region+version) and this program's version to the DOL
 
 		# Update the symbol map
-		self.updateSymbols( newSymbols )
-		self.saveMapFile()
+		if newSymbols and self.imageName != 'Micro Melee Test Disc':
+			self.updateSymbols( newSymbols )
+			self.saveMapFile()
 
 		if codesNotInstalled:
 			msg( '{} code mods installed. However, these mods could not be installed:\n\n{}'.format(totalModsInstalled, '\n'.join(codesNotInstalled)) )
@@ -2845,7 +2855,8 @@ class Disc( object ):
 		# 		functionStart = int( functionStart, 16 )
 		# 		functionEnd = functionStart + int( length, 16 )
 
-		# Sort
+		# Sort symbols by ascending RAM address
+		newSymbols.sort( key=lambda tup: tup[0] )
 
 		lastGroupIndex = 0
 		newSymbolLines = []
@@ -2859,9 +2870,10 @@ class Disc( object ):
 			# Parse the line (split on only the first 4 instances of a space)
 			symbolStart, length, _, _, symbolName = line.split( ' ', 4 )
 			symbolStart = int( symbolStart, 16 )
-			symbolEnd = symbolStart + int( length, 16 )
+			length = int( length, 16 )
+			symbolEnd = symbolStart + length
 
-			if symbolStart < newSymbols:
+			if symbolStart < newSymbols[0][0]:
 				continue
 
 			# Copy symbol lines so far to the new lines list
@@ -2870,12 +2882,19 @@ class Disc( object ):
 			# Collect all of the new symbols to go into this space
 			totalSpace = 0
 			newLineIndex = 0
-			while newSymbols[0] < symbolEnd:
+			symbolInfo = newSymbols[0] # Tuple of the form ( functionAddress, length, symbolName )
+			while symbolInfo[0] < symbolEnd:
 				# Create the new line
-				newLine = '{0:x} {1:08x} {0:x} 0 {2}'.format( *newSymbols[newLineIndex] )
+				newLine = '{0:x} {1:08x} {0:x} 0 {2}'.format( *symbolInfo )
 				newSymbolLines.append( newLine )
-				totalSpace += newSymbols[newLineIndex][1]
+				totalSpace += symbolInfo[1]
+
+				# End if the end of the new symbols list is reached
 				newLineIndex += 1
+				if newLineIndex == len( newSymbols ):
+					break
+				else:
+					symbolInfo = newSymbols[newLineIndex]
 
 			# Splice the newSymbols list to remove those collected above
 			newSymbols = newSymbols[newLineIndex:]
@@ -2960,7 +2979,7 @@ class MicroMelee( Disc ):
 
 				# Get the original file's data, and add the file to this new disc
 				vanillaFile.seek( fileObj.offset )
-				fileObj.data = vanillaFile.read( fileObj.size )
+				fileObj.data = bytearray( vanillaFile.read(fileObj.size) )
 				fileObj.source = 'self'
 				self.files[fileObj.isoPath] = fileObj
 
@@ -2978,6 +2997,9 @@ class MicroMelee( Disc ):
 		globalData.settings.set( 'General Settings', 'paddingBetweenFiles', '0x10000' ) # Add a bit more padding between files, so it doesn't have to be rebuilt as often
 		
 		# Build a new disc (overwriting existing file, if present)
+		self.gameId = 'GALE01'
+		self.isMelee = '02'
+		self.revision = 2
 		self.buildNewDisc( buildMsg='Building the Micro Melee testing disc:' )
 		self.setImageName( 'Micro Melee Test Disc' )
 
