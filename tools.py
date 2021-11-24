@@ -730,32 +730,32 @@ class TriCspCreator( object ):
 		print 'GIMP executable directory: ', self.gimpDir
 		print 'GIMP Plug-ins directory:   ', pluginDir
 		print ''
+
+		# Update installed scripts (then no need to check version)
+		# todo
+
+		# Delete old GIMP .pyc plugins (I don't think GIMP will automatically re-build them if the scripts are updated)
+		# todo
 		
 		# Load the CSP Configuration file, and assemble other needed paths
 		try:
 			self.triCspFolder = globalData.paths['triCsps']
+			self.pluginsFolder = os.path.join( self.triCspFolder, 'GIMP plug-ins' )
 			configFilePath = os.path.join( self.triCspFolder, 'CSP Configuration.yml' )
 
 			# Read the config file (this method should allow for utf-8 encoding, and preserve comments when saving/dumping back to file)
 			with codecs.open( configFilePath, 'r', encoding='utf-8' ) as stream:
 				self.config = yaml.load( stream, Loader=yaml.RoundTripLoader )
 
-			# self.debuggerSettingsFile = os.path.join( self.triCspFolder, 'Debugger.ini' )
-			# self.dolphinSettingsFile = os.path.join( self.triCspFolder, 'Dolphin.ini' )
-			# self.gfxSettingsFile = os.path.join( self.triCspFolder, 'GFX.ini' )
 			self.settingsFiles = [
 				os.path.join( self.triCspFolder, 'Debugger.ini' ),
 				os.path.join( self.triCspFolder, 'Dolphin.ini' ),
 				os.path.join( self.triCspFolder, 'GFX.ini' )
 			]
-			self.pluginsFolder = os.path.join( self.triCspFolder, 'plug-ins' )
 		except IOError: # Couldn't find the configuration file
 			msg( "Couldn't find the CSP config file at " + configFilePath, warning=True )
 		except Exception as err: # Problem parsing the file
 			msg( 'There was an error while parsing the yaml config file:\n\n{}'.format(err) )
-
-		# Delete old GIMP .pyc plugins (I don't think GIMP will automatically re-build them if the scripts are updated)
-		# todo
 
 	def determineGimpPath( self ):
 
@@ -816,7 +816,7 @@ class TriCspCreator( object ):
 
 	def getScriptVersion( self, pluginDir, scriptFile ):
 
-		""" Scans the given script (a file name) for a line like "version = 2.2\n" and parses it. """
+		""" Scans the given script (a filename) for a line like "version = 2.2\n" and parses it. """
 
 		scriptPath = os.path.join( pluginDir, scriptFile )
 

@@ -1,0 +1,54 @@
+
+	char
+
+80085820 000000c4 80085820 0 loadFile_CharCostumeDat
+800855c8 00000164 800855c8 0 Load_CharID->FileNames
+
+
+801b06b0 00000080 801b06b0 0 CSS_Restore1PlayerCharChoices+CSSType(r3=,r4=CSSType,r5=ExtCharID,r6=,r7=CostumeID,r8=,r9=,r10=PlayerWhoAccessedCSS)
+801b0730 00000084 801b0730 0 CSS_SaveHMNCharChoices(r3=CSSData,r4=StoreCharacter,r5=Store?,r6=StoreCostume,r7=StoreNametag,r8=Store?)
+801b07b4 00000034 801b07b4 0 CSS_RestoreCPUCharChoices(r3=CSSData,r4=CharID,r5=Unk,r6=CostumeID,r7=NametagID,r8=Unk,r9=PlayerWhoAccessedCSS)
+801b07e8 00000094 801b07e8 0 CSS_SaveCPUCharacterChoices(r3=CSSData,r4=StoreCharacter,r5=Store?,r6=StoreCostume,r7=StoreNametag,r8=Store?)
+
+8025d5ac 000004f4 8025d5ac 0 CSS_UpdateCostumeTexture(r3=Player,r4=CostumeID,r5=Unk
+
+
+8025fdec 000002a8 8025fdec 0 CSS_CursorPuck_BtoReturnToLastChar
+80260094 0000020c 80260094 0 CSS_CostumeChange
+802602a0 000023a8 802602a0 0 CSS_BigFunctionMonitorInputsAndMore
+80262648 000008fc 80262648 0 CSS_PuckThink
+802626dc 00000868 802626dc 0 CSS_PuckThink
+80262f44 00000410 80262f44 0 CSS_LoadButtonInputs
+802633b0 00000cc0 802633b0 0 CSS_NametagRectangleThink
+
+80264070 0000000c 80264070 0 zz_0264070_
+8026407c 00000024 8026407c 0 zz_026407c_
+
+
+	css
+
+8016795c 000000b8 8016795c 0 CSS_InitializeCSSMatchPlayerInfo
+80167b50 00000078 80167b50 0 CSS_InitMajorData
+801a5618 00000068 801a5618 0 CSS_InitMinorSceneData
+
+801b14a0 0000003c 801b14a0 0 ScenePrep_VSMode_CSS
+801b14dc 00000038 801b14dc 0 SceneDecide_VSMode_CSS
+
+801bed3c 0000006c 801bed3c 0 ScenePrep_HanyuTestCSS
+801beda8 000000b0 801beda8 0 SceneDecide_HanyuTestCSS
+
+8025db34 00001358 8025db34 0 CSS_CursorHighlightUpdateCSPInfo (r3=PlayerID)
+8025e0ac 00000de0 8025e0ac 0 CSS_CursorHighlightUpdateCSPInfo (r3=PlayerID)
+
+
+	sss
+
+80236cbc 00000754 80236cbc 0 SubmenuLoad_CSSRules_LoadRandomStageSelect_InitializeSelectedStages
+80237410 0000008c 80237410 0 CSSRules_LoadRandomStageSelect
+804d49ec 00000004 804d49ec 0 Stage_PointerToExternalToInternalIDTable
+
+
+	OSReport
+
+80394544 00000124 80394544 0 ErrorHandler_PrintOSReport
+80393c14 00000118 80393c14 0 OSReport_IncrementCharCount

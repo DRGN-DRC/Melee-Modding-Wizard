@@ -200,8 +200,6 @@ class SettingsMenu( Tk.Menu, object ):
 		
 		# Image-editing related options
 		#self.add_separator()
-		# self.add_checkbutton( label='Regenerate Invalid Palettes', underline=0, 
-		# 									variable=globalData.boolSettings['regenInvalidPalettes'], command=globalData.saveProgramSettings )				# R
 		# self.add_checkbutton( label='Cascade Mipmap Changes', underline=8, 
 		# 									variable=globalData.boolSettings['cascadeMipmapChanges'], command=globalData.saveProgramSettings )				# M
 		# self.add_checkbutton( label="Export Textures using Dolphin's Naming Convention", underline=32, 
@@ -738,6 +736,10 @@ class MainMenuCanvas( Tk.Canvas ):
 		#print( 'ave fade time:', sum(fadeTimes) / len(fadeTimes) )
 
 
+#																		/------------\
+#	====================================================================   Main GUI   =========
+#																		\------------/
+
 class MainGui( Tk.Frame, object ):
 
 	def __init__( self ): # Build the interface
@@ -1242,9 +1244,9 @@ class MainGui( Tk.Frame, object ):
 			self.runInEmulator()
 
 
-#																		|---------------------------------\
+#																		/---------------------------------\
 #	====================================================================   Command Line Argument Parsing   =========
-#																		\---------------------------------|
+#																		\---------------------------------/
 
 def set_default_subparser(self, name, args=None, positional_args=0):
 
@@ -1301,7 +1303,6 @@ def parseArguments(): # Parses command line arguments
 
 	try:
 		parser = argparse.ArgumentParser( description='Program for modding SSBM. The GUI will be opened by default if no command line arguments are given.' )
-		#parser = argparse.ArgumentParser( description='Program for modding SSBM.' )
 
 		# Build a disc/root folder (ISO created in same directory as target folder, unless -o option is specified)
 		# parser.add_argument( '-b', '--buildDisc', dest='rootFolderPath', help='Builds a disc file (ISO or GCM) from a given root folder path. '
@@ -1337,6 +1338,11 @@ def parseArguments(): # Parses command line arguments
 		testOpsParser = subparsers.add_parser( 'test', help='Asset test tool. Uses Micro Melee to test assets such as characters or stages.' )
 		testOpsParser.add_argument( '-d', '--debug', action="store_true", help='If included, Dolphin will run in Debug Mode.' )
 		testOpsParser.add_argument( '-p', '--path', required=True, help='Provide a filepath for a character/stage/etc. for the program to load.' )
+		
+		# Define "code" options
+		codeOpsParser = subparsers.add_parser( 'code', help='Add custom code to a DOL or ISO, or examine one for installed codes.' )
+		testOpsParser.add_argument( '-l', '--library', help='A path to a Code Library directory. If not provided, the current default will be used.' )
+		testOpsParser.add_argument( '-i', '--install', help='Install code to a given DOL or ISO. Input should be a line-separated list of mod names.' )
 
 	except Exception as err:
 		# Exit the program on error (with exit code 1)
@@ -1509,9 +1515,12 @@ if __name__ == '__main__':
 			print( 'Insufficient command line aguments given. No operation pending.' )
 
 	# Check for "test" operation group
-	if args.opsParser == 'test':
+	elif args.opsParser == 'test':
 		globalData.loadProgramSettings()
 		performAssetTest( args.path )
+
+	elif args.opsParser == 'code':
+		print( 'todo' )
 	
 	# No option group or other command line arguments (flags) detected; start the GUI
 	else:

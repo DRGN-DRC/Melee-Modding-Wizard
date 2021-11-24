@@ -12,7 +12,7 @@
 """ Container for global data that all scripts may access. 
 	Contains settings, settings-related load/save functions, and look-up tables. """
 
-programVersion = '0.8.9'
+programVersion = '0.8.10'
 
 # External Dependencies
 import os
@@ -43,10 +43,12 @@ def init( programArgs ):
 	scriptHomeFolder = os.path.abspath( os.path.dirname(programArgs[0]) ) # Can't use __file__; incompatible with cx_freeze process
 
 	paths = { # Special internal paths (other custom/user paths that should be remembered in the settings file should be in the other two settings dicts)
+		# Root paths
 		'fontsFolder': os.path.join( scriptHomeFolder, 'fonts' ),
 		'imagesFolder': os.path.join( scriptHomeFolder, 'imgs' ),
 		'settingsFile': os.path.join( scriptHomeFolder, 'settings.ini' ),
 		
+		# Bin paths
 		'tempFolder': os.path.join( scriptHomeFolder, 'bin', 'tempFiles' ),
 		'meleeMedia': os.path.join( scriptHomeFolder, 'bin', 'MeleeMedia', 'MeleeMedia.exe' ),
 		'triCsps': os.path.join( scriptHomeFolder, 'bin', 'Tri-CSP Creation' ),
