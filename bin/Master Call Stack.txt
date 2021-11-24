@@ -9,6 +9,11 @@
 80335EC0	DBInit
 80342FC8	OSInit
 8034C410		__OSGetSystemTime
+			OSSetArenaLo
+			OSSetArenaHi
+			OSThreadInit
+			OSInitAudioSystem
+			OSInitMemoryProtection
 800051EC	__check_pad3
 8034CABC	__init_user
 8015feb4	main
@@ -30,6 +35,8 @@
 			GXInit
 			HSD_GXSetFifoObj
 			HSD_InitComponent
+803767b8			HSD_VIInit
+80375258			HSD_GXInit
 			GXSetMisc
 			Audio_Initialize
 			HSD_VISetUserPostRetraceCallback
@@ -162,7 +169,7 @@
 						-	HSD_PerfSetStartTime
 80019900						ButtonPresses_CopyInputsToStruct
 							[other button functions]
-							SceneThink_InGame
+8016d800						SceneThink_InGame
 								SceneThink_VSMode
 									VSMode_EndGame
 									MenuController_ChangeScreenMinor
