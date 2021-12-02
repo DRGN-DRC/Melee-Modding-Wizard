@@ -239,7 +239,7 @@ class ToolsMenu( Tk.Menu, object ):
 			self.add_separator()
 			self.add_cascade( label="Create Tri-CSP", command=self.createTriCsp, underline=1 )						# T
 			self.add_cascade( label="Find Unused Stage Files", command=self.findUnusedStages, underline=0 )			# F
-			self.add_cascade( label="Parse FSM List", command=self.parseFsmList, underline=0 )			# F
+			#self.add_cascade( label="Parse FSM List", command=self.parseFsmList, underline=0 )						# F
 
 	def testStage( self ):
 
@@ -482,7 +482,7 @@ class ToolsMenu( Tk.Menu, object ):
 		if saveHighRes:
 			globalData.gui.updateProgramStatus( 'High-Res CSP Created (cannot be installed to disc)' )
 			return
-			
+		
 		# Get the character and costume color names
 		charAbbreviation = globalData.charAbbrList[charId]
 		colorAbbr = globalData.costumeSlots[charAbbreviation][costumeId]
@@ -521,14 +521,13 @@ class ToolsMenu( Tk.Menu, object ):
 			if it's 20XX) to determine what file names are referenced, and checking if those stage 
 			files are present. """
 
-		# The following set of stages are some that are referenced/enabled by 20XX codes (some available in Debug Menu)
+		# The following set of stages are some that are referenced/enabled by code, and wouldn't be found in the search below
 		stagesFromCodes = set([
-			'GrNFg.0at', 'GrNFg.1at', 'GrNFg.2at', # Mount Olympus (FigureGet/Greece) variations
-			'GrGd.1at', 'GrGd.2at', # Jungle Japes Hacked variations
-			'GrNKr.1at', 'GrNKr.2at', # Mushroom Kingdom Adventure variations
+			'GrPs1.dat', 'GrPs2.dat', 'GrPs3.dat', 'GrPs4.dat', # Pokemon Stadium transformations
+			'GrNFg.0at', 'GrNFg.1at', 'GrNFg.2at', # Mount Olympus (FigureGet/Greece) variations (20XX)
+			'GrGd.1at', 'GrGd.2at', # Jungle Japes Hacked variations (20XX)
+			'GrNKr.1at', 'GrNKr.2at', # Mushroom Kingdom Adventure variations (20XX)
 		])
-		
-		# GrHr.dat, GrPs1.dat, GrPs3.dat, GrPs2.dat, GrCn.dat, GrVe.dat, GrOt.dat, GrPs4.dat, GrMc.pat
 
 		# Check for files referenced by the game
 		referecedFiles = globalData.disc.checkReferencedStageFiles()
@@ -549,6 +548,9 @@ class ToolsMenu( Tk.Menu, object ):
 			cmsg( 'No files were found in the disc that do not appear to be referenced by the game.', 'Non-Referenced Stage Files' )
 
 	def parseFsmList( self ):
+
+		""" Currently just a quick ad-hoc function for testing. """
+
 		print( 'FSM List at 0x19D0' )
 		fsmList = globalData.disc.dol.getData( 0x19D0, 0x498 )
 		offset = 0
@@ -582,21 +584,25 @@ class MainMenuCanvas( Tk.Canvas ):
 		self.mainGui = mainGui
 		self.imageSet = ''
 		self.afterId = -1
+		self.minIdleTime = 10 # Before next animation (character swap or wireframe effect)
+		self.maxIdleTime = 25
 
-		# Load and apply the back-most image
-		self.create_image( 500, 375, image=mainGui.imageBank('mainMenuBg'), anchor='center' )
+		# Load and apply the main background image
+		self.create_image( 500, 375, image=mainGui.imageBank('bg', 'Main Menu'), anchor='center' )
 
 		# Load the mask used to create the wireframe effect
-		maskPath = os.path.join( globalData.paths['imagesFolder'], "ABGM.png" )
+		maskPath = os.path.join( globalData.paths['imagesFolder'], 'Main Menu', "ABGM.png" )
 		self.origMask = Image.open( maskPath )
 
+		# Load the character image
 		self.loadImageSet()
-		#self.update()
+
+		# Load menu items
 
 		# Start a timer to count down to creating the wireframe effect or swap images
-		# timeTilNextAnim = random.randint( 10, 30 )
-		# print( 'first anim should trigger in', timeTilNextAnim, 'seconds' )
-		# self.afterId = self.after( timeTilNextAnim*1000, self.updateBg )
+		timeTilNextAnim = random.randint( self.minIdleTime, self.maxIdleTime / 2 ) # Shorter first idle
+		print( 'first anim should trigger in', timeTilNextAnim, 'seconds' )
+		self.afterId = self.after( timeTilNextAnim*1000, self.updateBg )
 
 	def loadImageSet( self, loadTransparent=False ):
 		# Randomly select an image set (without selecting the current one)
@@ -604,8 +610,8 @@ class MainMenuCanvas( Tk.Canvas ):
 		print( 'Loading image set', self.imageSet )
 
 		# Load the necessary images (not using the imageBank because we want to work with these as PIL Image objects)
-		wireframePath = os.path.join( globalData.paths['imagesFolder'], self.imageSet + "W.png" )
-		topImgPath = os.path.join( globalData.paths['imagesFolder'], self.imageSet + ".png" )
+		wireframePath = os.path.join( globalData.paths['imagesFolder'], 'Main Menu', self.imageSet + "W.png" )
+		topImgPath = os.path.join( globalData.paths['imagesFolder'], 'Main Menu', self.imageSet + ".png" )
 
 		self.wireframeLayer = Image.open( wireframePath ).convert( 'RGBA' )
 		self.origTopLayer = Image.open( topImgPath ).convert( 'RGBA' )
@@ -631,7 +637,7 @@ class MainMenuCanvas( Tk.Canvas ):
 				self.fadeInNewBgImage()
 
 			if self.winfo_ismapped():
-				timeTilNextAnim = random.randint( 10, 30 )
+				timeTilNextAnim = random.randint( self.minIdleTime, self.maxIdleTime )
 				print( 'next anim should trigger in', timeTilNextAnim, 'seconds' )
 				self.afterId = self.after( timeTilNextAnim*1000, self.updateBg )
 		
@@ -640,6 +646,9 @@ class MainMenuCanvas( Tk.Canvas ):
 			pass
 
 	def remove( self ):
+
+		""" Cancel the next pending animation, and remove the menu from the GUI. """
+		
 		self.after_cancel( self.afterId )
 
 		geomManager = self.winfo_manager()
@@ -746,6 +755,7 @@ class MainGui( Tk.Frame, object ):
 
 		self.root = Tk.Tk()
 		self.root.withdraw() # Keeps the GUI minimized until it is fully generated
+		self.style = ttk.Style()
 
 		globalData.loadProgramSettings( True ) # Load using BooleanVars. Must be done after creating Tk.root
 
@@ -779,7 +789,8 @@ class MainGui( Tk.Frame, object ):
 		self.menubar.add_cascade( label='Tools', menu=ToolsMenu( self.menubar ), underline=0 )							# Tools			[T]
 		#self.menubar.add_cascade( label='About', menu=AboutMenu( self.menubar ), underline=0 )							# File 			[A]
 
-		self.mainTabFrame = ttk.Notebook( self.root )
+		self.style.configure( 'MainMenuBg.TNotebook', background='black' )
+		self.mainTabFrame = ttk.Notebook( self.root, style='MainMenuBg.TNotebook' )
 		self.dnd.bindtarget( self.mainTabFrame, self.dndHandler, 'text/uri-list' )
 
 		self.discTab = None
@@ -789,22 +800,23 @@ class MainGui( Tk.Frame, object ):
 		self.stageManagerTab = None
 		self.audioManagerTab = None
 
-		#self.mainTabFrame.pack( fill='both', expand=1 )
 		self.mainTabFrame.grid( column=0, row=0, sticky='nsew' )
 		self.mainTabFrame.bind( '<<NotebookTabChanged>>', self.onMainTabChanged )
 
 		# Set the bottom status message
 		self.statusLabel = ttk.Label( self.root, text='Ready' )
-		#self.statusLabel.pack( pady=2, anchor='w', padx=7 )
 		self.statusLabel.grid( column=0, row=1, sticky='w', pady=2, padx=7 )
 
 		# Set the background and main menu
-		# self.mainMenu = MainMenuCanvas( self )
-		# self.mainMenu.place( relx=0.5, rely=0.5, anchor='center' )
+		self.mainMenu = MainMenuCanvas( self )
+		self.mainMenu.place( relx=0.5, rely=0.5, anchor='center' )
+		# self.style.configure( 'MainMenuBg', background='black' )
+		# self['style'] = 'MainMenuBg'
 
+		# Configure resize behavior
 		self.root.columnconfigure( 'all', weight=1 )
 		self.root.rowconfigure( 0, weight=1 )
-		self.root.rowconfigure( 1, weight=0 )
+		self.root.rowconfigure( 1, weight=0 ) # No vertical resize allocation for status bar
 
 		# Set up the scroll handler. Unbinding native scroll functionality on some classes to prevent problems when scrolling on top of other widgets
 		self.root.unbind_class( 'Text', '<MouseWheel>' ) # Allows onMouseWheelScroll below to handle this
@@ -861,18 +873,28 @@ class MainGui( Tk.Frame, object ):
 		if forceUpdate:
 			self.statusLabel.update()
 
-	def imageBank( self, imageName, showWarnings=True ):
+	def imageBank( self, imageName, subFolder='', showWarnings=True ):
 
 		""" Loads and stores images required by the GUI. This allows all of the images to be 
 			stored together in a similar manner, and ensures references to all of the loaded 
 			images are stored, which prevents them from being garbage collected (which would 
 			otherwise cause them to disappear from the GUI after rendering is complete). The 
-			images are only loaded when first requested, and then kept for future reference. """
+			images are only loaded when first requested, and then kept for future reference. 
+			
+			One or more subFolders may be provided as 'subFolder' or 'subFolder/deeperSubs'. """
 
 		image = self._imageBank.get( imageName, None )
 
 		if not image: # Hasn't yet been loaded
-			imagePath = os.path.join( globalData.paths['imagesFolder'], imageName + ".png" )
+			# Build the file path
+			if subFolder:
+				lowerParts = subFolder.split( '/' )
+				lowerParts.append( imageName + ".png" )
+				imagePath = os.path.join( globalData.paths['imagesFolder'], *lowerParts )
+			else:
+				imagePath = os.path.join( globalData.paths['imagesFolder'], imageName + ".png" )
+			
+			# Get the image
 			try:
 				image = self._imageBank[imageName] = ImageTk.PhotoImage( Image.open(imagePath) )
 			except:
@@ -1162,7 +1184,7 @@ class MainGui( Tk.Frame, object ):
 		# Remember this file for future recall
 		globalData.rememberFile( targetPath, updateDefaultDirectory )
 
-		#self.mainMenu.remove()
+		self.mainMenu.remove()
 
 		# Load the disc, and load the disc's info into the GUI
 		tic = time.clock()
