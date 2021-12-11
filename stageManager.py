@@ -1631,8 +1631,12 @@ class StageManager( ttk.Frame ):
 		topTextFontSize = 17
 		bottomTextFontSize = 39
 		try:
+			# Construct the font paths
+			topTextFontPath = os.path.join( globalData.paths['fontsFolder'], 'Palatino Linotype, Bold.ttf' )
 			bottomTextFontPath = os.path.join( globalData.paths['fontsFolder'], 'A-OTF Folk Pro, Bold.otf' )
-			topTextFont = ImageFont.FreeTypeFont( os.path.join( globalData.paths['fontsFolder'], 'Palatino Linotype, Bold.ttf'), topTextFontSize )
+
+			# Load the fonts
+			topTextFont = ImageFont.FreeTypeFont( topTextFontPath, topTextFontSize )
 			bottomTextFont = ImageFont.FreeTypeFont( bottomTextFontPath, bottomTextFontSize )
 		except Exception as err:
 			print 'Unable to load fonts for preview text:', err
@@ -1642,8 +1646,6 @@ class StageManager( ttk.Frame ):
 		# Get the text to be written
 		topText = self.previewTextTopTextEntry.get()
 		bottomText = self.previewTextBottomTextEntry.get()
-		# topText = 'Lylat System'
-		# bottomText = 'Venom'
 
 		# Define width for the initial image (creating it wider than needed so it can be later squished, to make it look more like the vanilla text)
 		widthBuffer = 50 # This is used to prevent the text from being cut off when transformed (sheared for italicising). This is later cropped off

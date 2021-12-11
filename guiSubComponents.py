@@ -40,19 +40,28 @@ def getWindowGeometry( topLevelWindow ):
 	return geometry
 
 
-def getColoredShape( imageFileName, color, getAsPilImage=False ):
+def getColoredShape( imageName, color, getAsPilImage=False, subFolder='' ):
 
 	""" Returns an image of a shape/insignia/design, recolored to the given color. 
-		imageFileName should be an image within the "imgs" folder (without extension). 
+		imageName should be an image within the "imgs" folder (without extension). 
 		color may be an RGBA tuple, or a common color name string (e.g. 'blue'). 
 		getAsPilImage can be set to True if the user would like to get the PIL image instead. """
 
-	imageFilePath = os.path.join( globalData.paths['imagesFolder'], imageFileName + '.png' )
-	shapeMask = Image.open( imageFilePath )
+	# Build the file path
+	if subFolder:
+		lowerParts = subFolder.split( '/' )
+		lowerParts.append( imageName + ".png" )
+		imagePath = os.path.join( globalData.paths['imagesFolder'], *lowerParts )
+	else:
+		imagePath = os.path.join( globalData.paths['imagesFolder'], imageName + ".png" )
+
+	# Open the image as a PIL image object
+	shapeMask = Image.open( imagePath )
 	if shapeMask.mode != 'L': # These should be pre-converted for better prformance and less storage space
-		print 'Warning:', imageFileName, 'is not stored as a single-channel greyscale image.'
+		print 'Warning:', imageName, 'is not stored as a single-channel greyscale image.'
 		shapeMask = shapeMask.convert( 'L' )
 
+	# Color the image
 	blankImage = Image.new( 'RGBA', shapeMask.size, (0, 0, 0, 0) )
 	colorScreen = Image.new( 'RGBA', shapeMask.size, color )
 	finishedShape = Image.composite( blankImage, colorScreen, shapeMask )

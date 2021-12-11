@@ -15,6 +15,7 @@
 from __future__ import print_function # Use print with (); preparation for moving to Python 3
 
 # External dependencies
+import math
 import time
 import struct
 import random
@@ -29,6 +30,9 @@ from subprocess import Popen, PIPE, CalledProcessError
 from sys import argv as programArgs 	# Access command line arguments, and files given (drag-and-dropped) to the program icon
 from binascii import hexlify, unhexlify 	# Convert from bytearrays to strings (and vice verca via unhexlify)
 from PIL import Image, ImageTk, ImageDraw, ImageFilter, ImageChops
+from ctypes import windll, byref, create_unicode_buffer, create_string_buffer
+FR_PRIVATE  = 0x10
+FR_NOT_ENUM = 0x20
 
 # Internal dependencies
 import globalData
@@ -577,32 +581,74 @@ class MainMenuCanvas( Tk.Canvas ):
 
 	imageSets = set( ['ABG00', 'ABG01'] ) # Animated Background; will be changed randomly during image loading
 
-	def __init__( self, mainGui ):
-		Tk.Canvas.__init__( self, mainGui.mainTabFrame, width=1000, height=750, borderwidth=0, highlightthickness=0, background='black' )
+	def __init__( self, mainGui, width, height ):
+		Tk.Canvas.__init__( self, mainGui.mainTabFrame, width=width, height=height, borderwidth=0, highlightthickness=0, background='black' )
 		def noScroll( arg1, arg2 ): pass
 		self.yview_scroll = noScroll
+
+		self.mainMenuFolder = os.path.join( globalData.paths['imagesFolder'], 'Main Menu' )
 		self.mainGui = mainGui
 		self.imageSet = ''
 		self.afterId = -1
 		self.minIdleTime = 10 # Before next animation (character swap or wireframe effect)
 		self.maxIdleTime = 25
+		self._imgs = {}
+
+		self.mainBorderWidth = 800 # Keep this an even number
+		self.mainBorderHeight = 530
+		self.bottomTextWidth = 250
 
 		# Load and apply the main background image
-		self.create_image( 500, 375, image=mainGui.imageBank('bg', 'Main Menu'), anchor='center' )
+		#self.create_image( 500, 375, image=mainGui.imageBank('bg', 'Main Menu'), anchor='center' )
 
 		# Load the mask used to create the wireframe effect
-		maskPath = os.path.join( globalData.paths['imagesFolder'], 'Main Menu', "ABGM.png" )
+		maskPath = os.path.join( self.mainMenuFolder, "ABGM.png" )
 		self.origMask = Image.open( maskPath )
 
-		# Load the character image
-		self.loadImageSet()
-
 		# Load menu items
+		self.loadBorderImages( '#394aa6' ) # Blue
+		#self.loadBorderImages( '#a13728' ) # Red
+		self.initMainBorder()
+
+		# Load the character image
+		#self.loadImageSet()
 
 		# Start a timer to count down to creating the wireframe effect or swap images
 		timeTilNextAnim = random.randint( self.minIdleTime, self.maxIdleTime / 2 ) # Shorter first idle
 		print( 'first anim should trigger in', timeTilNextAnim, 'seconds' )
 		self.afterId = self.after( timeTilNextAnim*1000, self.updateBg )
+
+	def initFont( self, fontName, private=True, enumerable=False ):
+		'''
+		Makes fonts located in file `fontpath` available to the font system.
+
+		`private`     if True, other processes cannot see this font, and this 
+					font will be unloaded when the process dies
+		`enumerable`  if True, this font will appear when enumerating fonts
+
+		See https://msdn.microsoft.com/en-us/library/dd183327(VS.85).aspx
+
+		'''
+
+		# This function was taken from:
+		# https://github.com/ifwe/digsby/blob/f5fe00244744aa131e07f09348d10563f3d8fa99/digsby/src/gui/native/win/winfonts.py#L15
+		# This function is written for Python 2.x. For 3.x, you have to convert the isinstance checks to bytes and str
+
+		fontpath = os.path.join( globalData.paths['fontsFolder'], fontName )
+
+		if isinstance(fontpath, str):
+			pathbuf = create_string_buffer(fontpath)
+			AddFontResourceEx = windll.gdi32.AddFontResourceExA
+		elif isinstance(fontpath, unicode):
+			pathbuf = create_unicode_buffer(fontpath)
+			AddFontResourceEx = windll.gdi32.AddFontResourceExW
+		else:
+			raise TypeError('fontpath must be of type str or unicode')
+
+		flags = (FR_PRIVATE if private else 0) | (FR_NOT_ENUM if not enumerable else 0)
+		numFontsAdded = AddFontResourceEx(byref(pathbuf), flags, 0)
+
+		return bool( numFontsAdded )
 
 	def loadImageSet( self, loadTransparent=False ):
 		# Randomly select an image set (without selecting the current one)
@@ -610,8 +656,8 @@ class MainMenuCanvas( Tk.Canvas ):
 		print( 'Loading image set', self.imageSet )
 
 		# Load the necessary images (not using the imageBank because we want to work with these as PIL Image objects)
-		wireframePath = os.path.join( globalData.paths['imagesFolder'], 'Main Menu', self.imageSet + "W.png" )
-		topImgPath = os.path.join( globalData.paths['imagesFolder'], 'Main Menu', self.imageSet + ".png" )
+		wireframePath = os.path.join( self.mainMenuFolder, self.imageSet + "W.png" )
+		topImgPath = os.path.join( self.mainMenuFolder, self.imageSet + ".png" )
 
 		self.wireframeLayer = Image.open( wireframePath ).convert( 'RGBA' )
 		self.origTopLayer = Image.open( topImgPath ).convert( 'RGBA' )
@@ -620,11 +666,150 @@ class MainMenuCanvas( Tk.Canvas ):
 		# Add the top and wireframe images to the canvas
 		# if not loadTransparent:
 		# 	self.wireframeLayerId = self.create_image( 500, 375, image=self.mainGui.imageBank(self.imageSet + 'W'), anchor='center' )
-		self.topLayerId = self.create_image( 500, 375, image=self.topLayer, anchor='center' )
+		originY = ( int(self['height']) - self.mainBorderHeight ) / 2
+		bottomBorderY = originY + self.mainBorderHeight - 18
+		self.topLayerId = self.create_image( 630, bottomBorderY, image=self.topLayer, anchor='s' )
 
 		# Load the alpha channel as a new image (for use with the mask)
 		self.fullSizeMask = self.wireframeLayer.getchannel( 'A' ) # Returns a new image, in 'L' mode, of the given channel
 		#self.maskBase = Image.new( 'L', self.origTopLayer.size, 255 )
+
+	# def getSprite( self, imageName, x=0, y=0, width=-1, height=-1 ):
+
+	# 	""" Similar to the main GUI's imageBank, but is able to crop to just a portion of the image. """
+
+	# 	imagePath = os.path.join( self.mainMenuFolder, imageName + ".png" )
+	# 	imageKey = '{}_{}x{}_{}x{}'.format( imageName, x, y, width, height )
+
+	# 	image = Image.open( imagePath )
+
+	# 	#if x > 0:
+			
+
+	# 	self._imgs[imageKey] = ImageTk.PhotoImage( image )
+	
+	def colorizeImage( self, image, color ):
+
+		""" Applies the given color to a given black-and-white image, and retuns it. """
+
+		blankImage = Image.new( 'RGBA', image.size, (0, 0, 0, 0) )
+		colorScreen = Image.new( 'RGBA', image.size, color )
+		return Image.composite( colorScreen, blankImage, image )
+
+	def loadBorderImages( self, color ):
+
+		""" Cuts up the primary border image into multiple pieces, colorizes them, 
+			and converts them into images Tkinter can use on the canvas. """
+
+		imagePath = os.path.join( self.mainMenuFolder, "mainBorder.png" )
+		image = Image.open( imagePath )
+		colorized = self.colorizeImage( image, color )
+
+		widthFillTop = self.mainBorderWidth - 118 # -26 - 66 - 26
+		widthFillBot = self.mainBorderWidth - self.bottomTextWidth - 76 # -26 - 26 - 12 - 12
+		widthFillBotLeft = int( math.floor(widthFillBot / 5.0) )
+		widthFillBotRight = widthFillBot - widthFillBotLeft
+		print( widthFillBot, '-', widthFillBotLeft, '=', widthFillBotRight )
+		heightFill = self.mainBorderHeight - 102 # -70 - 32
+
+		cropped = colorized.crop( (0, 70, 26, 88) )
+		resized = cropped.resize( (26, heightFill) )
+		self._imgs['borderLeft'] = ImageTk.PhotoImage( resized )
+
+		cropped = colorized.crop( (0, 0, 26, 70) )
+		self._imgs['borderTopLeft'] = ImageTk.PhotoImage( cropped )
+
+		cropped = colorized.crop( (26, 0, 48, 70) )
+		resized = cropped.resize( (widthFillTop/2, 70) )
+		self._imgs['borderTopLeftFill'] = ImageTk.PhotoImage( resized )
+
+		cropped = colorized.crop( (48, 0, 114, 70) )
+		self._imgs['borderTopCenter'] = ImageTk.PhotoImage( cropped )
+
+		cropped = colorized.crop( (114, 0, 150, 70) )
+		resized = cropped.resize( (widthFillTop/2, 70) )
+		self._imgs['borderTopRightFill'] = ImageTk.PhotoImage( resized )
+
+		cropped = colorized.crop( (150, 0, 176, 70) )
+		self._imgs['borderTopRight'] = ImageTk.PhotoImage( cropped )
+
+		cropped = colorized.crop( (150, 70, 176, 88) )
+		resized = cropped.resize( (26, heightFill) )
+		self._imgs['borderRight'] = ImageTk.PhotoImage( resized )
+
+		cropped = colorized.crop( (150, 88, 176, 120) )
+		self._imgs['borderBottomRight'] = ImageTk.PhotoImage( cropped )
+
+		cropped = colorized.crop( (138, 88, 150, 120) )
+		resized = cropped.resize( (widthFillBotRight, 32) )
+		self._imgs['borderBottomRightFill'] = ImageTk.PhotoImage( resized )
+		resized = cropped.resize( (widthFillBotLeft, 32) )
+		flipped = resized.transpose( Image.FLIP_LEFT_RIGHT )
+		self._imgs['borderBottomLeftFill'] = ImageTk.PhotoImage( flipped )
+
+		cropped = colorized.crop( (126, 88, 138, 120) )
+		self._imgs['borderBottomRightInner'] = ImageTk.PhotoImage( cropped )
+		flipped = cropped.transpose( Image.FLIP_LEFT_RIGHT )
+		self._imgs['borderBottomLeftInner'] = ImageTk.PhotoImage( flipped )
+
+		cropped = colorized.crop( (50, 88, 126, 120) )
+		resized = cropped.resize( (self.bottomTextWidth, 32) )
+		self._imgs['borderBottomCenter'] = ImageTk.PhotoImage( resized )
+
+		cropped = colorized.crop( (0, 88, 26, 120) )
+		self._imgs['borderBottomLeft'] = ImageTk.PhotoImage( cropped )
+
+	def initMainBorder( self ):
+
+		originX = ( int(self['width']) - self.mainBorderWidth ) / 2
+		originY = ( int(self['height']) - self.mainBorderHeight ) / 2
+		widthFillTop = self.mainBorderWidth - 118 # -26 - 66 - 26
+		widthFillBot = self.mainBorderWidth - self.bottomTextWidth - 76 # -26 - 26 - 12 - 12
+		widthFillBotLeft = int( math.floor(widthFillBot / 5.0) )
+		widthFillBotRight = widthFillBot - widthFillBotLeft
+		heightFill = self.mainBorderHeight - 102 # -70 - 32
+		rightSideX = originX + 92 + widthFillTop # 26 + 66
+		bottomY = originY + 70 + heightFill
+
+		self.create_image( originX, originY+70, image=self._imgs['borderLeft'], anchor='nw', tags=('mainBorder',) )
+
+		self.create_image( originX, originY, image=self._imgs['borderTopLeft'], anchor='nw', tags=('mainBorder',) )
+		self.create_image( originX+26, originY, image=self._imgs['borderTopLeftFill'], anchor='nw', tags=('mainBorder',) )
+		self.create_image( originX+26+(widthFillTop/2), originY, image=self._imgs['borderTopCenter'], anchor='nw', tags=('mainBorder',) )
+		self.create_image( originX+26+(widthFillTop/2)+66, originY, image=self._imgs['borderTopRightFill'], anchor='nw', tags=('mainBorder',) )
+		self.create_image( rightSideX, originY, image=self._imgs['borderTopRight'], anchor='nw', tags=('mainBorder',) )
+		
+		self.create_image( rightSideX, originY+70, image=self._imgs['borderRight'], anchor='nw', tags=('mainBorder',) )
+
+		self.create_image( rightSideX, bottomY, image=self._imgs['borderBottomRight'], anchor='nw', tags=('mainBorder',) )
+		self.create_image( rightSideX, bottomY, image=self._imgs['borderBottomRightFill'], anchor='ne', tags=('mainBorder',) )
+		self.create_image( rightSideX-widthFillBotRight, bottomY, image=self._imgs['borderBottomRightInner'], anchor='ne', tags=('mainBorder',) )
+		self.create_image( originX+38+widthFillBotLeft, bottomY, image=self._imgs['borderBottomCenter'], anchor='nw', tags=('mainBorder',) )
+		self.create_image( originX+26+widthFillBotLeft, bottomY, image=self._imgs['borderBottomLeftInner'], anchor='nw', tags=('mainBorder',) )
+		self.create_image( originX+26, bottomY, image=self._imgs['borderBottomLeftFill'], anchor='nw', tags=('mainBorder',) )
+		self.create_image( originX, bottomY, image=self._imgs['borderBottomLeft'], anchor='nw', tags=('mainBorder',) )
+
+		# Calculate position of the bottom text and its background
+		textXCoord = originX + 38 + widthFillBotLeft + (self.bottomTextWidth/2)
+		textYCoord = bottomY + 7
+
+		# Create the bottom text background bracket
+		imagePath = os.path.join( self.mainMenuFolder, "borderCenterBracket.png" )
+		image = Image.open( imagePath )
+		side = image.crop( (0, 0, 10, 32) )
+		middle = image.crop( (10, 0, 38, 32) )
+		bracketImage = middle.resize( (self.bottomTextWidth+12, 32) )
+		bracketImage.paste( side, (0, 0) )
+		bracketImage.paste( side.transpose(Image.FLIP_LEFT_RIGHT), (self.bottomTextWidth+2, 0) )
+		self._imgs['borderCenterBracket'] = ImageTk.PhotoImage( bracketImage )
+		self.create_image( textXCoord, textYCoord, image=self._imgs['borderCenterBracket'], anchor='n', tags=('mainBorder',) )
+
+		text = 'Choose a category to begin.'
+		self.initFont( 'A-OTF Folk Pro, Bold.otf' ) # Family = 'A-OTF Folk Pro B'
+		#print( tkFont.families() )
+		self.create_text( textXCoord, textYCoord+4, text=text, anchor='n', tags=('mainBorder',), font=('A-OTF Folk Pro B', 11), fill='#aaaaaa' )
+		# 'italic'
+		# self.create_text(  )
 
 	def updateBg( self ):
 		if not self.winfo_ismapped():
@@ -808,7 +993,7 @@ class MainGui( Tk.Frame, object ):
 		self.statusLabel.grid( column=0, row=1, sticky='w', pady=2, padx=7 )
 
 		# Set the background and main menu
-		self.mainMenu = MainMenuCanvas( self )
+		self.mainMenu = MainMenuCanvas( self, self.defaultWindowWidth, self.defaultWindowHeight )
 		self.mainMenu.place( relx=0.5, rely=0.5, anchor='center' )
 		# self.style.configure( 'MainMenuBg', background='black' )
 		# self['style'] = 'MainMenuBg'

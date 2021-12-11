@@ -11,7 +11,7 @@ Configurations:
 	0x05: All-Star Mode
 	0x06: Debug Menu
 	0x07: Master Sound Test
-	0x08: VS Mode CSS Cycler # Looks like regular VS mode, but actually cycles through many different character select screens
+	0x08: VS Mode CSS Cycler # Looks like regular VS mode, but actually cycles through many different CSSs
 	0x09: Black Screen...?
 	0x0A: Camera Mode
 	0x0B: Trophy Gallery

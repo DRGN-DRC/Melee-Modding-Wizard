@@ -41,6 +41,12 @@
 8025e0ac 00000de0 8025e0ac 0 CSS_CursorHighlightUpdateCSPInfo (r3=PlayerID)
 
 
+80164250	CheckIfStageIsEnabledInRSS
+80236cbc	SubmenuLoad_CSSRules_LoadRandomStageSelect_InitializeSelectedStages
+
+8015eda4	Unlock_GetStageUnlockBitfield
+			returns 8045bf2a in r3
+
 	sss
 
 80236cbc 00000754 80236cbc 0 SubmenuLoad_CSSRules_LoadRandomStageSelect_InitializeSelectedStages
@@ -52,3 +58,116 @@
 
 80394544 00000124 80394544 0 ErrorHandler_PrintOSReport
 80393c14 00000118 80393c14 0 OSReport_IncrementCharCount
+
+
+
+byte at 803fa2e4
+	set by old stage striking code on D-pad up/down press
+	not set in v5.0
+	read by every frame code @ 80fd07f4 in 4.07++
+
+
+P1 test:	Bay/Kongo
+11100000000000000000000000000110
+0xe0000006
+
+P2		Cruise/Japes
+11100000000000000011000000000000
+0xe0003000
+
+P3		Brinstar/Onett
+11100000000000000000001000001000
+0xe0000208
+
+P4		Depths/Fourside
+11100000001000001000000000000000
+0xe0208000
+
+
+
+can update 'current' random SSS flags at 8045C388 to update current
+random stage selection (for Random Stage Select screen and stage striking code)
+
+
+
+*********************
+* Develop Mode Text *
+*********************
+
+Develop mode on-screen text
+
+802269c0 - this function controls the action state text logic (Y+Dpad Down)
+
+80302d4c   DisplayText
+r3 = pointer to text data struct start
+r4 = pointer to ASCII string (can combine with character identifiers) 
+r5 = pointer to first variable string (%s) or int (%d)
+r6 = pointer to second variable string (%s) or int (%d)
+etc.
+f1 = first floating point (%xx.xf)
+
+
+-----------------
+
+Text_CreateDataTable
+inputs:
+r3 = ?? normally 6 or 7(byte @ 0x24 of created struct table)
+r4 = x-offset (halfword)
+r5 = y-offset (halfword)
+r6 = max character width of menu (byte)
+r7 = max rows (byte)
+r8 = pointer, location of ASCII to display on screen
+
+outputs:
+r3 = pointer, text data table struct offset
+
+-----------------
+
+Text Data Struct
+- check out function 3022
+------------
+0x00   short   x offset (0=screenleft)
+0x02   short   y offset (0=screentop)
+0x04   byte    max character width of menu
+0x05   byte    max rows
+0x06   byte    current character count cursor point (left to right)
+0x07   byte    current row cursor point (top to bottom)
+0x08   float   width of menu (stretch)
+0x0C   float   height of menu (stretch)
+0x10   word    background color (box behind letters)
+0x14   word    text color
+0x24   byte    ?? (usually 0x6 or 0x7)
+0x25   byte    text boldness (line size, r3 input to 
+0x26   byte     (00000000) = show text and background
+		(10) = ?? haven't tried, but saw in code
+		(40) = hide background
+		(80) = hide text
+0x27   byte    text color hue change? 0x00 to 0x03
+0x28   point   location of ASCII to display on screen
+0x2C   point   previous text structure
+0x30   point   next text structure
+
+
+On-Screen Text Function:
+
+80302638 is the bl to the function that actually shows the text
+	r3 = pointer to text struct
+8030263C: lwz r31,0x30(r31)	# load the next text struct to display
+
+
+
+
+Text_InitializeSubtext		0x803a6b98
+
+
+
+Text_InitializeSubtext		0x803a6754
+
+	r3 - pointer to text struct
+	r4 - 
+	f1 - X/Y coords
+	f2 - background Y
+
+
+
+Text_CreateTextStruct(r3=Unk,r4=TextCanvasID)	803a6754
