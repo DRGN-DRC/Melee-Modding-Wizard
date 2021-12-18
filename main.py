@@ -579,7 +579,7 @@ class ToolsMenu( Tk.Menu, object ):
 
 class MainMenuCanvas( Tk.Canvas ):
 
-	imageSets = set( ['ABG00', 'ABG01'] ) # Animated Background; will be changed randomly during image loading
+	imageSets = set( ['ABG00', 'ABG01'] ) # Animated Backgrounds; will be selected randomly during image loading
 
 	def __init__( self, mainGui, width, height ):
 		Tk.Canvas.__init__( self, mainGui.mainTabFrame, width=width, height=height, borderwidth=0, highlightthickness=0, background='black' )
@@ -592,14 +592,16 @@ class MainMenuCanvas( Tk.Canvas ):
 		self.afterId = -1
 		self.minIdleTime = 10 # Before next animation (character swap or wireframe effect)
 		self.maxIdleTime = 25
-		self._imgs = {}
+		self.borderImgs = {}
+		self.borderParts = {}	# key=partName, value=canvasID
+		self.optionInfo = {}	# key=canvasId, value=( borderColor, clickCallback )
 
 		self.mainBorderWidth = 800 # Keep this an even number
 		self.mainBorderHeight = 530
 		self.bottomTextWidth = 250
 
 		# Load and apply the main background image
-		#self.create_image( 500, 375, image=mainGui.imageBank('bg', 'Main Menu'), anchor='center' )
+		self.create_image( 500, 375, image=mainGui.imageBank('bg', 'Main Menu'), anchor='center' )
 
 		# Load the mask used to create the wireframe effect
 		maskPath = os.path.join( self.mainMenuFolder, "ABGM.png" )
@@ -607,11 +609,21 @@ class MainMenuCanvas( Tk.Canvas ):
 
 		# Load menu items
 		self.loadBorderImages( '#394aa6' ) # Blue
-		#self.loadBorderImages( '#a13728' ) # Red
 		self.initMainBorder()
+		#self.loadBorderImages( '#a13728' ) # Red
+		self.menuOptionCount = 4
+		self.addMenuOption( 'Disc Management', '#394aa6', self.loadDiscManagement )
+		self.addMenuOption( 'Code Manager', '#a13728', self.loadDiscManagement )
+		self.addMenuOption( 'Stage Manager', 'green', self.loadDiscManagement )
+		self.addMenuOption( 'Audio Manager', '#a13728', self.loadDiscManagement )
 
 		# Load the character image
 		#self.loadImageSet()
+
+		# Add click and hover event handlers
+		self.tag_bind( 'menuOptions', '<1>', self.menuOptionClicked )
+		self.tag_bind( 'menuOptions', '<Enter>', self.menuOptionHovered )
+		self.tag_bind( 'menuOptions', '<Leave>', self.menuOptionUnhovered )
 
 		# Start a timer to count down to creating the wireframe effect or swap images
 		timeTilNextAnim = random.randint( self.minIdleTime, self.maxIdleTime / 2 ) # Shorter first idle
@@ -686,7 +698,7 @@ class MainMenuCanvas( Tk.Canvas ):
 	# 	#if x > 0:
 			
 
-	# 	self._imgs[imageKey] = ImageTk.PhotoImage( image )
+	# 	self.borderImgs[imageKey] = ImageTk.PhotoImage( image )
 	
 	def colorizeImage( self, image, color ):
 
@@ -699,67 +711,101 @@ class MainMenuCanvas( Tk.Canvas ):
 	def loadBorderImages( self, color ):
 
 		""" Cuts up the primary border image into multiple pieces, colorizes them, 
-			and converts them into images Tkinter can use on the canvas. """
+			and converts them into images Tkinter can use on the canvas. Storage is 
+			needed to prevent garbage collection of the images, however this also 
+			means this function can just be called again with a different color 
+			to automatically update the images used in the canvas widget. """
 
 		imagePath = os.path.join( self.mainMenuFolder, "mainBorder.png" )
 		image = Image.open( imagePath )
+
+		# Add color to the image, and combine it with the 'shadow' portion (dark middle part)
 		colorized = self.colorizeImage( image, color )
+
 
 		widthFillTop = self.mainBorderWidth - 118 # -26 - 66 - 26
 		widthFillBot = self.mainBorderWidth - self.bottomTextWidth - 76 # -26 - 26 - 12 - 12
 		widthFillBotLeft = int( math.floor(widthFillBot / 5.0) )
 		widthFillBotRight = widthFillBot - widthFillBotLeft
-		print( widthFillBot, '-', widthFillBotLeft, '=', widthFillBotRight )
+		#print( widthFillBot, '-', widthFillBotLeft, '=', widthFillBotRight )
 		heightFill = self.mainBorderHeight - 102 # -70 - 32
 
 		cropped = colorized.crop( (0, 70, 26, 88) )
 		resized = cropped.resize( (26, heightFill) )
-		self._imgs['borderLeft'] = ImageTk.PhotoImage( resized )
+		self.borderImgs['borderLeft'] = ImageTk.PhotoImage( resized )
 
 		cropped = colorized.crop( (0, 0, 26, 70) )
-		self._imgs['borderTopLeft'] = ImageTk.PhotoImage( cropped )
+		self.borderImgs['borderTopLeft'] = ImageTk.PhotoImage( cropped )
 
 		cropped = colorized.crop( (26, 0, 48, 70) )
 		resized = cropped.resize( (widthFillTop/2, 70) )
-		self._imgs['borderTopLeftFill'] = ImageTk.PhotoImage( resized )
+		self.borderImgs['borderTopLeftFill'] = ImageTk.PhotoImage( resized )
 
 		cropped = colorized.crop( (48, 0, 114, 70) )
-		self._imgs['borderTopCenter'] = ImageTk.PhotoImage( cropped )
+		self.borderImgs['borderTopCenter'] = ImageTk.PhotoImage( cropped )
 
 		cropped = colorized.crop( (114, 0, 150, 70) )
 		resized = cropped.resize( (widthFillTop/2, 70) )
-		self._imgs['borderTopRightFill'] = ImageTk.PhotoImage( resized )
+		self.borderImgs['borderTopRightFill'] = ImageTk.PhotoImage( resized )
 
 		cropped = colorized.crop( (150, 0, 176, 70) )
-		self._imgs['borderTopRight'] = ImageTk.PhotoImage( cropped )
+		self.borderImgs['borderTopRight'] = ImageTk.PhotoImage( cropped )
 
 		cropped = colorized.crop( (150, 70, 176, 88) )
 		resized = cropped.resize( (26, heightFill) )
-		self._imgs['borderRight'] = ImageTk.PhotoImage( resized )
+		self.borderImgs['borderRight'] = ImageTk.PhotoImage( resized )
 
 		cropped = colorized.crop( (150, 88, 176, 120) )
-		self._imgs['borderBottomRight'] = ImageTk.PhotoImage( cropped )
+		self.borderImgs['borderBottomRight'] = ImageTk.PhotoImage( cropped )
 
 		cropped = colorized.crop( (138, 88, 150, 120) )
 		resized = cropped.resize( (widthFillBotRight, 32) )
-		self._imgs['borderBottomRightFill'] = ImageTk.PhotoImage( resized )
+		self.borderImgs['borderBottomRightFill'] = ImageTk.PhotoImage( resized )
 		resized = cropped.resize( (widthFillBotLeft, 32) )
 		flipped = resized.transpose( Image.FLIP_LEFT_RIGHT )
-		self._imgs['borderBottomLeftFill'] = ImageTk.PhotoImage( flipped )
+		self.borderImgs['borderBottomLeftFill'] = ImageTk.PhotoImage( flipped )
 
 		cropped = colorized.crop( (126, 88, 138, 120) )
-		self._imgs['borderBottomRightInner'] = ImageTk.PhotoImage( cropped )
+		self.borderImgs['borderBottomRightInner'] = ImageTk.PhotoImage( cropped )
 		flipped = cropped.transpose( Image.FLIP_LEFT_RIGHT )
-		self._imgs['borderBottomLeftInner'] = ImageTk.PhotoImage( flipped )
+		self.borderImgs['borderBottomLeftInner'] = ImageTk.PhotoImage( flipped )
 
 		cropped = colorized.crop( (50, 88, 126, 120) )
 		resized = cropped.resize( (self.bottomTextWidth, 32) )
-		self._imgs['borderBottomCenter'] = ImageTk.PhotoImage( resized )
+		self.borderImgs['borderBottomCenter'] = ImageTk.PhotoImage( resized )
 
 		cropped = colorized.crop( (0, 88, 26, 120) )
-		self._imgs['borderBottomLeft'] = ImageTk.PhotoImage( cropped )
+		self.borderImgs['borderBottomLeft'] = ImageTk.PhotoImage( cropped )
+		
+		cropped = colorized.crop( (26, 70, 150, 88) )
+		resized = cropped.resize( (self.mainBorderWidth-52, heightFill) )
+		self.borderImgs['borderMiddle'] = ImageTk.PhotoImage( resized )
+
+	def refreshBorderImages( self ):
+
+		self.itemconfig( self.borderParts['borderLeft'], image=self.borderImgs['borderLeft'] )
+
+		self.itemconfig( self.borderParts['borderTopLeft'], image=self.borderImgs['borderTopLeft'] )
+		self.itemconfig( self.borderParts['borderTopLeftFill'], image=self.borderImgs['borderTopLeftFill'] )
+		self.itemconfig( self.borderParts['borderTopCenter'], image=self.borderImgs['borderTopCenter'] )
+		self.itemconfig( self.borderParts['borderTopRightFill'], image=self.borderImgs['borderTopRightFill'] )
+		self.itemconfig( self.borderParts['borderTopRight'], image=self.borderImgs['borderTopRight'] )
+
+		self.itemconfig( self.borderParts['borderRight'], image=self.borderImgs['borderRight'] )
+
+		self.itemconfig( self.borderParts['borderBottomRight'], image=self.borderImgs['borderBottomRight'] )
+		self.itemconfig( self.borderParts['borderBottomRightFill'], image=self.borderImgs['borderBottomRightFill'] )
+		self.itemconfig( self.borderParts['borderBottomRightInner'], image=self.borderImgs['borderBottomRightInner'] )
+		self.itemconfig( self.borderParts['borderBottomCenter'], image=self.borderImgs['borderBottomCenter'] )
+		self.itemconfig( self.borderParts['borderBottomLeftInner'], image=self.borderImgs['borderBottomLeftInner'] )
+		self.itemconfig( self.borderParts['borderBottomLeftFill'], image=self.borderImgs['borderBottomLeftFill'] )
+		self.itemconfig( self.borderParts['borderBottomLeft'], image=self.borderImgs['borderBottomLeft'] )
+
+		self.itemconfig( self.borderParts['borderMiddle'], image=self.borderImgs['borderMiddle'] )
 
 	def initMainBorder( self ):
+
+		""" Places all images for the main background on the canvas. """
 
 		originX = ( int(self['width']) - self.mainBorderWidth ) / 2
 		originY = ( int(self['height']) - self.mainBorderHeight ) / 2
@@ -771,23 +817,30 @@ class MainMenuCanvas( Tk.Canvas ):
 		rightSideX = originX + 92 + widthFillTop # 26 + 66
 		bottomY = originY + 70 + heightFill
 
-		self.create_image( originX, originY+70, image=self._imgs['borderLeft'], anchor='nw', tags=('mainBorder',) )
+		# Left
+		self.borderParts['borderLeft'] = self.create_image( originX, originY+70, image=self.borderImgs['borderLeft'], anchor='nw', tags=('mainBorder',) )
 
-		self.create_image( originX, originY, image=self._imgs['borderTopLeft'], anchor='nw', tags=('mainBorder',) )
-		self.create_image( originX+26, originY, image=self._imgs['borderTopLeftFill'], anchor='nw', tags=('mainBorder',) )
-		self.create_image( originX+26+(widthFillTop/2), originY, image=self._imgs['borderTopCenter'], anchor='nw', tags=('mainBorder',) )
-		self.create_image( originX+26+(widthFillTop/2)+66, originY, image=self._imgs['borderTopRightFill'], anchor='nw', tags=('mainBorder',) )
-		self.create_image( rightSideX, originY, image=self._imgs['borderTopRight'], anchor='nw', tags=('mainBorder',) )
+		# Top
+		self.borderParts['borderTopLeft'] = self.create_image( originX, originY, image=self.borderImgs['borderTopLeft'], anchor='nw', tags=('mainBorder',) )
+		self.borderParts['borderTopLeftFill'] = self.create_image( originX+26, originY, image=self.borderImgs['borderTopLeftFill'], anchor='nw', tags=('mainBorder',) )
+		self.borderParts['borderTopCenter'] = self.create_image( originX+26+(widthFillTop/2), originY, image=self.borderImgs['borderTopCenter'], anchor='nw', tags=('mainBorder',) )
+		self.borderParts['borderTopRightFill'] = self.create_image( originX+26+(widthFillTop/2)+66, originY, image=self.borderImgs['borderTopRightFill'], anchor='nw', tags=('mainBorder',) )
+		self.borderParts['borderTopRight'] = self.create_image( rightSideX, originY, image=self.borderImgs['borderTopRight'], anchor='nw', tags=('mainBorder',) )
 		
-		self.create_image( rightSideX, originY+70, image=self._imgs['borderRight'], anchor='nw', tags=('mainBorder',) )
+		# Right
+		self.borderParts['borderRight'] = self.create_image( rightSideX, originY+70, image=self.borderImgs['borderRight'], anchor='nw', tags=('mainBorder',) )
 
-		self.create_image( rightSideX, bottomY, image=self._imgs['borderBottomRight'], anchor='nw', tags=('mainBorder',) )
-		self.create_image( rightSideX, bottomY, image=self._imgs['borderBottomRightFill'], anchor='ne', tags=('mainBorder',) )
-		self.create_image( rightSideX-widthFillBotRight, bottomY, image=self._imgs['borderBottomRightInner'], anchor='ne', tags=('mainBorder',) )
-		self.create_image( originX+38+widthFillBotLeft, bottomY, image=self._imgs['borderBottomCenter'], anchor='nw', tags=('mainBorder',) )
-		self.create_image( originX+26+widthFillBotLeft, bottomY, image=self._imgs['borderBottomLeftInner'], anchor='nw', tags=('mainBorder',) )
-		self.create_image( originX+26, bottomY, image=self._imgs['borderBottomLeftFill'], anchor='nw', tags=('mainBorder',) )
-		self.create_image( originX, bottomY, image=self._imgs['borderBottomLeft'], anchor='nw', tags=('mainBorder',) )
+		# Bottom
+		self.borderParts['borderBottomRight'] = self.create_image( rightSideX, bottomY, image=self.borderImgs['borderBottomRight'], anchor='nw', tags=('mainBorder',) )
+		self.borderParts['borderBottomRightFill'] = self.create_image( rightSideX, bottomY, image=self.borderImgs['borderBottomRightFill'], anchor='ne', tags=('mainBorder',) )
+		self.borderParts['borderBottomRightInner'] = self.create_image( rightSideX-widthFillBotRight, bottomY, image=self.borderImgs['borderBottomRightInner'], anchor='ne', tags=('mainBorder',) )
+		self.borderParts['borderBottomCenter'] = self.create_image( originX+38+widthFillBotLeft, bottomY, image=self.borderImgs['borderBottomCenter'], anchor='nw', tags=('mainBorder',) )
+		self.borderParts['borderBottomLeftInner'] = self.create_image( originX+26+widthFillBotLeft, bottomY, image=self.borderImgs['borderBottomLeftInner'], anchor='nw', tags=('mainBorder',) )
+		self.borderParts['borderBottomLeftFill'] = self.create_image( originX+26, bottomY, image=self.borderImgs['borderBottomLeftFill'], anchor='nw', tags=('mainBorder',) )
+		self.borderParts['borderBottomLeft'] = self.create_image( originX, bottomY, image=self.borderImgs['borderBottomLeft'], anchor='nw', tags=('mainBorder',) )
+		
+		# Middle
+		self.borderParts['borderMiddle'] = self.create_image( originX+26, originY+70, image=self.borderImgs['borderMiddle'], anchor='nw', tags=('mainBorder',) )
 
 		# Calculate position of the bottom text and its background
 		textXCoord = originX + 38 + widthFillBotLeft + (self.bottomTextWidth/2)
@@ -801,15 +854,64 @@ class MainMenuCanvas( Tk.Canvas ):
 		bracketImage = middle.resize( (self.bottomTextWidth+12, 32) )
 		bracketImage.paste( side, (0, 0) )
 		bracketImage.paste( side.transpose(Image.FLIP_LEFT_RIGHT), (self.bottomTextWidth+2, 0) )
-		self._imgs['borderCenterBracket'] = ImageTk.PhotoImage( bracketImage )
-		self.create_image( textXCoord, textYCoord, image=self._imgs['borderCenterBracket'], anchor='n', tags=('mainBorder',) )
+		self.borderImgs['borderCenterBracket'] = ImageTk.PhotoImage( bracketImage )
+		self.create_image( textXCoord, textYCoord, image=self.borderImgs['borderCenterBracket'], anchor='n', tags=('mainBorder',) )
 
-		text = 'Choose a category to begin.'
+		# Add top text
 		self.initFont( 'A-OTF Folk Pro, Bold.otf' ) # Family = 'A-OTF Folk Pro B'
 		#print( tkFont.families() )
+		text = u'Main Menu'
+		text = u'\u2009'.join( list(text) ) # Rejoin with the unicode 'Thin Space' to add some kerning
+		italicFont = tkFont.Font( family='A-OTF Folk Pro B', size=12, slant='italic', weight='bold' )
+		self.create_text( originX+26+widthFillTop/4, originY+4, text=text, anchor='n', tags=('mainBorder',), font=italicFont, fill='#aaaaaa' )
+
+		# Add bottom text
+		text = 'Choose a category to begin.'
 		self.create_text( textXCoord, textYCoord+4, text=text, anchor='n', tags=('mainBorder',), font=('A-OTF Folk Pro B', 11), fill='#aaaaaa' )
-		# 'italic'
-		# self.create_text(  )
+
+	def addMenuOption( self, text, borderColor, clickCallback ):
+		
+		originX = ( int(self['width']) - self.mainBorderWidth ) / 2
+		originY = ( int(self['height']) - self.mainBorderHeight ) / 2
+		heightFill = self.mainBorderHeight - 102 # -70 - 32
+
+		spacingBetweenOptions = heightFill / ( self.menuOptionCount + 1 )
+		y = originY + 70 + spacingBetweenOptions * ( len( self.find_withtag('menuOptions') ) + 1 )
+		textObj = self.create_text( originX+40, y, text=text, anchor='w', tags=('menuOptions',), font=('A-OTF Folk Pro B', 11), fill='#aaaaaa' )
+
+		self.optionInfo[textObj] = ( borderColor, clickCallback )
+
+	def menuOptionClicked( self, event ):
+
+		""" Initial method called when a canvas stage icon is clicked on. Determines and 
+			sets the internal stage ID of the icon that was clicked on, and calls the main
+			stage selection method. """
+		
+		globalData.gui.updateProgramStatus( '' )
+
+		# Determine which canvas item was clicked on, and use that to look up the stage
+		canvas = event.widget
+		itemId = canvas.find_closest( event.x, event.y )[0]
+		borderColor, clickCallback = self.optionInfo[itemId]
+
+		clickCallback()
+
+	def menuOptionHovered( self, event ):
+
+		# Determine which canvas item was clicked on, and use that to look up the stage
+		canvas = event.widget
+		itemId = canvas.find_closest( event.x, event.y )[0]
+		borderColor, clickCallback = self.optionInfo[itemId]
+
+		self['cursor'] = 'hand2'
+		self.loadBorderImages( borderColor )
+		self.refreshBorderImages()
+	
+	def menuOptionUnhovered( self, event ):
+		self['cursor'] = ''
+
+	def loadDiscManagement( self ):
+		print( 'testing' )
 
 	def updateBg( self ):
 		if not self.winfo_ismapped():
@@ -974,8 +1076,8 @@ class MainGui( Tk.Frame, object ):
 		self.menubar.add_cascade( label='Tools', menu=ToolsMenu( self.menubar ), underline=0 )							# Tools			[T]
 		#self.menubar.add_cascade( label='About', menu=AboutMenu( self.menubar ), underline=0 )							# File 			[A]
 
-		self.style.configure( 'MainMenuBg.TNotebook', background='black' )
-		self.mainTabFrame = ttk.Notebook( self.root, style='MainMenuBg.TNotebook' )
+		#self.style.configure( 'MainMenuBg.TNotebook', background='black' )
+		self.mainTabFrame = ttk.Notebook( self.root ) # , style='MainMenuBg.TNotebook'
 		self.dnd.bindtarget( self.mainTabFrame, self.dndHandler, 'text/uri-list' )
 
 		self.discTab = None

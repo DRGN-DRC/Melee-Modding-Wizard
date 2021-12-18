@@ -1331,8 +1331,8 @@ externalStageIds = { # Descriptions for External Stage ID (stkind)
 # }
 
 
-# For the Menu Text Converter:
-menuTextDictionary = {
+# For Menu Text Conversion
+DolCharacters = {
 
 	# Single-Byte Characters
 	'1a' : ' ',  '03' : '\n', # Space, and newLine (line break)
@@ -1379,14 +1379,17 @@ menuTextDictionary = {
 	'2108': '扱', '2109': '押', '210a': '軍', '210b': '源', '210c': '個', '210d': '込', '210e': '指', '210f': '示', '2110': '取', '2111': '書',
 	'2112': '詳', '2113': '人', '2114': '生', '2115': '説', '2116': '体', '2117': '団', '2118': '電', '2119': '読', '211a': '発', '211b': '抜',
 	'211c': '閑', '211d': '本', '211e': '明',
+}
 
-	# Misc Items, Set 1						Found in SdMenu.usd				(Only accessible if the game is set to English)
-	#'4000': 'é', '4001': '〇', '4002': 'Ⅱ', '4003': '王', '4004': '国', '4005': '山', '4006': '頂', 	# 4002 seems to be a Roman numeral 2
+SdCharacters_1 = {
+	# Misc Items							Found in SdMenu.usd				(Only accessible if the game is set to English)
+	'4000': 'é', '4001': '〇', '4002': 'Ⅱ', '4003': '王', '4004': '国', '4005': '山', '4006': '頂', 	# 4002 seems to be a Roman numeral 2
+}
 
-	# Misc Items, Set 2						Found in SdMenu.dat				(Only accessible if the game is set to Japanese)
+SdCharacters_2 = {
+	# Misc Items and Japanese Kanji			Found in SdMenu.dat				(Only accessible if the game is set to Japanese)
 	'4000': '々', '4001': '「', '4002': '」', '4003': '『', '4004': '』', '4005': '♂', '4006': '♀', '4007': '〇', '4008': '→', '4009': 'Ⅱ', # The corner brackets are quotation marks in East Asian languages
-
-	# Japanese Kanji						Group 2, Found in SdMenu.dat 	(Only accessible if the game is set to Japanese)
+	
 	'400a': '亜', '400b': '暗', '400c': '以', '400d': '位', '400e': '意', '400f': '医', '4010': 'ー', '4011': '員', '4012': '隠', '4013': '右', # 4010 may instead be 一
 	'4014': '宇', '4015': '影', '4016': '映', '4017': '液', '4018': '越', '4019': '円', '401a': '援', '401b': '演', '401c': '炎', '401d': '遠',
 	'401e': '奥', '401f': '応', '4020': '横', '4021': '王', '4022': '屋', '4023': '俺', '4024': '音', '4025': '下', '4026': '化', '4027': '仮',

@@ -159,6 +159,9 @@ def fileFactory( *args, **kwargs ):
 			if 'map_head' in fileObj.stringDict.values():
 				return StageFile( *args, **kwargs )
 
+			elif len( fileObj.rootNodes ) == 1 and fileObj.rootNodes[0][1].startswith( 'SIS_' ): # Indexing a list of tuples
+				return SisFile( *args, **kwargs )
+
 			elif fileObj.rootNodes[0][1].endswith( '_Share_joint' ): # Indexing a list of tuples
 				return CharCostumeFile( *args, **kwargs )
 
@@ -178,6 +181,9 @@ def fileFactory( *args, **kwargs ):
 		if filename.startswith( 'Gr' ):
 			return StageFile( *args, **kwargs )
 
+		elif filename.startswith( 'Sd' ):
+			return SisFile( *args, **kwargs )
+
 		# Character costume files; excludes 'PlBo.dat'/'PlCa.dat'/etc. and character animation files
 		elif filename.startswith( 'Pl' ) and len( filename ) == 6 and filename[-2:] != 'AJ':
 
@@ -188,7 +194,7 @@ def fileFactory( *args, **kwargs ):
 		elif filename.startswith( 'MnSlChr' ):
 			return CssFile( *args, **kwargs )
 
-	return DatFile( *args, **kwargs )
+		return DatFile( *args, **kwargs )
 
 
 					# = ----------------------- = #
@@ -277,7 +283,6 @@ class FileBase( object ):
 
 				else: # Source must be 'self'
 					return bytearray()
-
 			
 			except IOError:
 				msg( "Unable to read the source file. Be sure that the path to it is "
@@ -988,7 +993,7 @@ class DatFile( FileBase ):
 			# Use the base arbitrary class, which will work for any struct
 			newStructObject = hsdStructures.StructBase( self, structOffset, parentOffset, structDepth )
 
-			newStructObject.data = self.data[ structOffset : structOffset+deducedStructLength ]
+			newStructObject.data = self.getData( structOffset, deducedStructLength )
 			newStructObject.formatting = '>' + 'I' * ( deducedStructLength / 4 ) # Assume a basic formatting if this is an unknown struct
 			newStructObject.fields = ()
 			newStructObject.length = deducedStructLength
@@ -1010,7 +1015,7 @@ class DatFile( FileBase ):
 
 		newStructObject = hsdStructures.StructBase( self, offset, parentOffset, structDepth )
 
-		newStructObject.data = self.data[ offset : offset+deducedStructLength ]
+		newStructObject.data = self.getData( offset, deducedStructLength )
 		newStructObject.formatting = '>' + 'I' * ( deducedStructLength / 4 ) # Assume a basic formatting if this is an unknown struct
 		newStructObject.fields = ()
 		newStructObject.length = deducedStructLength
@@ -1129,7 +1134,7 @@ class DatFile( FileBase ):
 			dataLength = deducedStructLength
 
 		# Add the final properties
-		newStructure.data = self.data[ offset : offset+dataLength ]
+		newStructure.data = self.getData( offset, dataLength )
 		newStructure.formatting = '>' + 'I' * ( dataLength / 4 )
 		newStructure.length = dataLength
 		newStructure.padding = deducedStructLength - dataLength
@@ -1434,7 +1439,7 @@ class DatFile( FileBase ):
 
 		""" Removes a pointer from the data section (setting 4 null bytes) and from the Relocation Table (removing
 			it entirely). The offset argument is relative to the start of the data section, even if it's in tail data. 
-			Be warned that structures that have already determined their parents/siblings/children due to the pointer
+			Beware that structures that have already determined their parents/siblings/children due to the pointer
 			will still have those references. """
 
 		# Make sure this is a valid pointer offset, and get the index for this pointer's location and value
@@ -1465,7 +1470,7 @@ class DatFile( FileBase ):
 		targetStruct = self.getPointerOwner( offset )
 		if targetStruct and not isinstance( targetStruct, str ):
 			# Update the structure's data
-			targetStruct.data = self.data[ targetStruct.offset : targetStruct.offset+targetStruct.length ]
+			targetStruct.data = self.getData( targetStruct.offset, targetStruct.length )
 
 			# Update its values as well, as long as it's not a block of raw data
 			if not issubclass( targetStruct.__class__, hsdStructures.DataBlock ):
@@ -2418,6 +2423,138 @@ class CssFile( DatFile ):
 	# EfPkData:		Pikachu & Pichu
 
 
+class SisFile( DatFile ):
+
+	""" For 'pre-made' menu text files. """
+
+	# Random Stage Select Screen pointer table lookup; correlates a pointer to a stage string struct
+	RSSS_pointerLookup = [ # indexed by int stage ID, value = SIS ID (pointer table index)
+		-1, # 0x00 - Dummy
+		-1, # 0x01 - TEST
+		8, # 0x02 - Princess Peach's Castle
+		15, # 0x03 - Rainbow Cruise
+		9, # 0x04 - Kongo Jungle
+		16, # 0x05 - Jungle Japes
+		17, # 0x06 - Great Bay
+		18, # 0x07 - Hyrule Temple
+		10, # 0x08 - Brinstar
+		19, # 0x09 - Brinstar Depths
+		12, # 0x0A - Yoshi's Story
+		20, # 0x0B - Yoshi's Island
+		6, # 0x0C - Fountain of Dreams
+		21, # 0x0D - Green Greens
+		11, # 0x0E - Corneria
+		26, # 0x0F - Venom
+		7, # 0x10 - Pokemon Stadium
+		27, # 0x11 - Poke Floats
+		14, # 0x12 - Mute City
+		28, # 0x13 - Big Blue
+		13, # 0x14 - Onett
+		22, # 0x15 - Fourside
+		29, # 0x16 - Icicle Mountain
+		-1, # 0x17 - Unused?
+		23, # 0x18 - Mushroom Kingdom
+		24, # 0x19 - Mushroom Kingdom II
+		-1, # 0x1A - Akaneia (Deleted Stage)
+		31, # 0x1B - Flat Zone
+		34, # 0x1C - Dream Land (N64)
+		35, # 0x1D - Yoshi's Island (N64)
+		36, # 0x1E - Kongo Jungle (N64)
+		-1, # 0x1F - Mushroom Kingdom Adventure
+		-1, # 0x20 - Underground Maze
+		-1, # 0x21 - Brinstar Escape Shaft
+		-1, # 0x22 - F-Zero Grand Prix
+		-1, # 0x23 - TEST; In other words, not used (same as 0x01)
+		32, # 0x24 - Battlefield
+		33, # 0x25 - Final Destination
+	]
+
+	def getStageMenuName( self, intStageId ):
+
+		""" Gets the stage name for a given internal stage ID to be displayed on the Random Stage Select Screen. 
+			See here for details on the string format opCodes: 
+				https://github.com/Ploaj/HSDLib/blob/master/HSDRaw/Tools/Melee/MeleeMenuText.cs """
+
+		# Get the text struct pointer
+		sisId = self.RSSS_pointerLookup[intStageId]
+		assert sisId > 0, 'Invalid stage ID given to SIS file stage name look-up: ' + str( sisId )
+		sisTable = self.getStruct( 0 )
+		textStructOffset = sisTable.getValues()[sisId]
+
+		# Get the text struct data and parse it
+		textStruct = self.initDataBlock( hsdStructures.DataBlock, textStructOffset )
+		chars = []
+		byte = textStruct.data[0]
+		position = 0
+		while byte: # Breaks on byte value of 0, or no byte remaining
+			if byte == 0x3:
+				chars.append( '\n' ) # Line break
+				position += 1
+			elif byte == 0x5: # Text Pause; the next short is for this opCode
+				position += 3
+			elif byte == 0x6: # Fade-in; the next 2 shorts are for this opCode
+				position += 5
+			elif byte == 0x7: # Offset; the next 2 shorts are for this opCode
+				position += 5
+			elif byte == 0xA: # Kerning (was SCALING); the next 2 shorts are for this opCode
+				position += 5
+			elif byte == 0xC: # Color; the next 3 bytes are for this opCode
+				position += 4
+			elif byte == 0xE: # Scaling (was SET_TEXTBOX); the next 2 shorts are for this opCode
+				position += 5
+			elif byte == 0x1A:
+				chars.append( ' ' ) # Space
+				position += 1
+			elif byte == 0x20: # Regular characters (from DOL)
+				key = '20{:02x}'.format( textStruct.data[position+1] )
+				char = globalData.DolCharacters.get( key, '?' )
+				chars.append( char )
+				position += 2
+			elif byte == 0x40: # Special characters (from this file)
+				key = '40{:02x}'.format( textStruct.data[position+1] )
+				char = globalData.SdCharacters_1.get( key, '?' )
+				chars.append( char )
+				position += 2
+			else:
+				position += 1
+			
+			byte = textStruct.data[position]
+
+		return ''.join( chars )
+
+	def setStageMenuName( self, intStageId, newName ):
+
+		""" Sets the stage name for a given internal stage ID to be displayed on the Random Stage Select Screen. """
+
+		# Get the text struct pointer
+		sisId = self.RSSS_pointerLookup[intStageId]
+		assert sisId > 0, 'Invalid stage ID given to SIS file stage name look-up: ' + str( sisId )
+		sisTable = self.getStruct( 0 )
+		textStructOffset = sisTable.getValues()[sisId]
+
+		# Convert the given stage menu text to bytes
+
+		# Add padding and end bytes
+		stringOffset = textStructOffset + 6 # Consistent for all stage name strings
+
+		# Save the string data to file
+
+
+	def identifyTextures( self ):
+
+		""" Returns a list of tuples containing texture info. Each tuple is of the following form: 
+				( imageDataOffset, imageHeaderOffset, paletteDataOffset, paletteHeaderOffset, width, height, imageType, mipmapCount ) """
+
+		# Get the first pointer in the SIS table
+		imageDataStart = self.getStruct( 0 ).getValues()[0]
+		imageDataStruct = self.getStruct( imageDataStart )
+		imageCount = imageDataStruct.length / 0x380
+		imageDataEnd = imageDataStart + imageDataStruct.length
+
+		for imageDataOffset in range( imageDataStart, imageDataEnd, 0x380 ):
+			print hex(imageDataOffset+0x20)
+
+
 class StageFile( DatFile ):
 
 	""" Subclass of .dat and .usd files, specifically for stage files. """
@@ -2429,6 +2566,7 @@ class StageFile( DatFile ):
 		self.longName = ''
 
 		self._externalId = -1 # External Stage ID
+		self._internalId = -1 # Internal Stage ID
 		self._randomNeutralChecked = False
 		self._isRandomNeutralStage = False
 		self._stageInfoStruct = None
@@ -2448,6 +2586,18 @@ class StageFile( DatFile ):
 			self._externalId = musicTableStruct.getValues()[0]
 
 		return self._externalId
+
+	@property
+	def internalId( self ):
+
+		""" Converts the external ID from within this file to an internal ID via DOL table lookup. """
+
+		if self._internalId == -1:
+			assert self.disc, 'Unable to get stage internal ID without a disc/dol reference.'
+			dol = self.disc.dol
+			self._internalId = dol.getIntStageIdFromExt( self.externalId )
+
+		return self._internalId
 
 	@property
 	def randomNeutralId( self ):
@@ -2498,7 +2648,7 @@ class StageFile( DatFile ):
 
 		if not self._stageInfoStruct:
 			assert self.disc, 'Unable to get stage info struct without a disc/dol reference.'
-			dol = globalData.disc.dol
+			dol = self.disc.dol
 			
 			# Unpack the DOL's stage info pointer table if it has not already been done
 			if not dol._stageInfoStructPointers:
@@ -2506,8 +2656,9 @@ class StageFile( DatFile ):
 				dol._stageInfoStructPointers = struct.unpack( '>111I', pointerTableData )
 
 			# Get this stage's external/internal IDs, and offset of the stage info struct in the DOL
-			internalStageId = dol.getIntStageIdFromExt( self.externalId )
-			stageStructPointer = dol._stageInfoStructPointers[internalStageId]
+			if self._internalId == -1:
+				self._internalId = dol.getIntStageIdFromExt( self.externalId )
+			stageStructPointer = dol._stageInfoStructPointers[self._internalId]
 			structOffset = dol.offsetInDOL( stageStructPointer )
 
 			# Init and store the stage info structure

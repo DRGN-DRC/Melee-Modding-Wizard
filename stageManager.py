@@ -716,7 +716,8 @@ class StageManager( ttk.Frame ):
 		basicLabelFrame = ttk.LabelFrame( row1, text='  Basic Info  ', labelanchor='n', padding=8 )
 		# self.stageNameLabel = ttk.Label( basicLabelFrame, font="-weight bold" )
 		# self.stageNameLabel.grid( column=0, columnspan=2, row=0 )
-		ttk.Label( basicLabelFrame, text=('File Size:\n'
+		ttk.Label( basicLabelFrame, text=('RSSS Name:\n'
+										'File Size:\n'
 										'Init Function:\n'
 										'OnGo Function:') ).grid( column=0, row=1, padx=(0, 5) )
 		self.basicInfoLabel = ttk.Label( basicLabelFrame, width=25 )
@@ -748,6 +749,7 @@ class StageManager( ttk.Frame ):
 		ttk.Button( self.controlsFrame, text='Add Variation', command=self.addStageVariation ).grid( column=1, row=2, padx=4, ipadx=7, pady=4 )
 		ttk.Button( self.controlsFrame, text='Test', command=self.testStage ).grid( column=0, row=3, padx=4, pady=4 )
 		ttk.Button( self.controlsFrame, text='Rename', command=self.renameStage ).grid( column=1, row=3, padx=4, pady=4 )
+		ttk.Button( self.controlsFrame, text='Rename RSSS Name', command=self.renameRsssName ).grid( column=0, columnspan=2, row=4, padx=4, pady=4 )
 		self.controlsFrame.grid( column=3, row=0, padx=(0, padding), pady=padding )
 
 		row1.grid( column=0, columnspan=2, row=1, sticky='nsew' )
@@ -893,14 +895,46 @@ class StageManager( ttk.Frame ):
 		self.musicTableOptionMenu.set_menu( None )
 		self.musicTableOptionMenu._variable.set( '' )
 
-	def showBasicInfo( self, internalStageId, stageFile ):
+	def getRsssName( self, internalStageId ):
+
+		""" Gets the name for this stage used on the Random Stage Select Screen. """
+
+		# Construct the filename to pull the string from
+		if self.stageSwapTable: # Means it's 20XX
+			canvas = self.getCurrentCanvas()
+			filename = '/SdSlChr.{}sd'.format( canvas.pageNumber )
+		else:
+			filename = '/SdSlChr.usd'
+
+		sisFile = globalData.disc.files.get( globalData.disc.gameId + filename )
+		sisFile.initialize()
+		sisFile.identifyTextures()
+
+		return sisFile.getStageMenuName( internalStageId )
+
+	# def setRsssName( self, internalStageId, newName ):
+
+	# 	""" Sets a new name for this stage on the Random Stage Select Screen. """
 		
+	# 	# Construct the filename to pull the string from
+	# 	if self.stageSwapTable: # Means it's 20XX
+	# 		canvas = self.getCurrentCanvas()
+	# 		filename = '/SdSlChr.{}sd'.format( canvas.pageNumber )
+	# 	else:
+	# 		filename = '/SdSlChr.usd'
+
+	# 	# Get the Sd file and set the new name string
+	# 	sisFile = globalData.disc.files.get( globalData.disc.gameId + filename )
+	# 	sisFile.setStageMenuName( newName )
+
+	def updateBasicInfo( self, stageFile ):
+		
+		rsssName = self.getRsssName( stageFile.internalId )
 		readableSize = humansize( stageFile.size )
 
-		#self.basicInfoLabel['text'] = '\n'.join( (readableSize, stageFile.initFunction, stageFile.onGoFunction) )
-		self.basicInfoLabel['text'] = '{}\n{:X}\n{:X}'.format( readableSize, stageFile.initFunction, stageFile.onGoFunction )
+		self.basicInfoLabel['text'] = '{}\n{}\n{:X}\n{:X}'.format( rsssName, readableSize, stageFile.initFunction, stageFile.onGoFunction )
 
-	def showSwapDetails( self, newIntStageId, newExtStageId, iFilenameOffset, byteReplacePointer, byteReplacement, randByteReplacements, stageFlags ):
+	def updateSwapDetails( self, newIntStageId, newExtStageId, iFilenameOffset, byteReplacePointer, byteReplacement, randByteReplacements, stageFlags ):
 
 		""" Assesses values from the 20XX Stage Stap Table, and filenames from the DOL, to construct 
 			strings to be displayed in the GUI for the Stage Swap Details information display panel. """
@@ -1419,7 +1453,7 @@ class StageManager( ttk.Frame ):
 			pathsAdded.add( isoPath )
 
 		# Update text shown in the 'Stage Swap Details' panel
-		self.showSwapDetails( newIntStageId, newExtStageId, dolFilenameOffset, byteReplacePointer, byteReplacement, randomByteValues, stageFlags )
+		self.updateSwapDetails( newIntStageId, newExtStageId, dolFilenameOffset, byteReplacePointer, byteReplacement, randomByteValues, stageFlags )
 
 		# Set the Preview Text image
 		previewTextureOffset = self.getTextureOffset( self.selectedStageId, previewText=True )[0]
@@ -1491,7 +1525,7 @@ class StageManager( ttk.Frame ):
 		stageFile.initialize()
 
 		# Show some basic info
-		self.showBasicInfo( self.selectedStageId, stageFile )
+		self.updateBasicInfo( stageFile )
 
 		# Get song info from the music table struct and update the GUI with it
 		self.updateMusicTableInterface( stageFile )
@@ -1918,7 +1952,6 @@ class StageManager( ttk.Frame ):
 		# If 20XX, check if the SST is configured to load this new stage
 		#if globalData.disc.is20XX:
 
-
 	def updateGuiForNewlyAddedStage( self, stageObj, selection=None ):
 
 		""" Handles updating elements in each tab in the program (if present) to accomodate 
@@ -2090,6 +2123,37 @@ class StageManager( ttk.Frame ):
 			msg( 'An unrecognized return code was given from .setDescription(): ' + str(returnCode) )
 
 		return returnCode
+
+	def renameRsssName( self ):
+
+		""" Prompts the user for a new stage name, and sets it for the stage 
+			currently selected in the Variations treeview. """
+
+		if not self.selectedStage: # Failsafe (the button should be disabled in such a case)
+			msg( 'No stage file is selected!' )
+			return 0
+			
+		# Construct the filename which contains the string
+		if self.stageSwapTable: # Means it's 20XX
+			canvas = self.getCurrentCanvas()
+			filename = 'SdSlChr.{}sd'.format( canvas.pageNumber )
+		else:
+			filename = 'SdSlChr.usd'
+
+		# Get the Sd file and the current name string
+		sisFile = globalData.disc.files.get( globalData.disc.gameId + '/' + filename )
+		currentName = sisFile.getStageMenuName( self.selectedStage.internalId )
+		
+		# Prompt the user to enter a new name, and validate it
+		newName = getNewNameFromUser( 28, None, 'Enter a new stage name:', currentName, isMenuText=True ) # 28 = char limit; 0x38 bytes / 2
+
+		if not newName:
+			globalData.gui.updateProgramStatus( 'Name update canceled' )
+			return 0
+
+		# Save the new name to file
+		#sisFile.setStageMenuName( self.selectedStage.internalId, newName )
+		#globalData.gui.updateProgramStatus( 'Stage name updated in the {} file'.format(filename), success=True )
 
 	def renameTreeviewItem( self, targetIsoPath, newName ):
 

@@ -228,7 +228,23 @@ def importSingleTexture( title='Choose a texture file to import' ):
 	return imagePath
 
 
-def getNewNameFromUser( charLimit, excludeChars=None, message='Enter a new name:', defaultText='', width=40 ):
+def checkTextLen( text, isMenuText ):
+
+	""" Counts string character length, but counts whitespace for menu text as half a character
+		since those takes up half as many bytes as normal menu text characters. """
+
+	if isMenuText:
+		# Count the number of whitespace characters (space or linebreak)
+		normalChars = len( text )
+		whiteChars = len( text.split() ) - 1
+
+		# Count spaces as half a character count
+		return normalChars + ( whiteChars / 2.0 )
+	else:
+		return len( text )
+
+
+def getNewNameFromUser( charLimit, excludeChars=None, message='Enter a new name:', defaultText='', width=40, isMenuText=False ):
 
 	""" Creates a basic pop-up window with a text input field to get a name from the user, and
 		performs validation on it before allowing the user to continue. """
@@ -238,13 +254,13 @@ def getNewNameFromUser( charLimit, excludeChars=None, message='Enter a new name:
 		excludeChars = ( '\n', '\t', ':' )
 
 	while not nameChecksOut:
-		popupWindow = PopupEntryWindow( globalData.gui.root, message=message, defaultText=defaultText, width=width, charLimit=charLimit )
+		popupWindow = PopupEntryWindow( globalData.gui.root, message=message, defaultText=defaultText, width=width, charLimit=charLimit, isMenuText=isMenuText )
 		newName = popupWindow.entryText.replace( '"', '' ).strip()
 
 		if newName == '': break
 
 		# Validate the name length
-		if len( newName ) > charLimit:
+		if checkTextLen( newName, isMenuText ) > charLimit:
 			msg( 'Please specify a name less than {} characters in length.'.format(charLimit) )
 			continue
 		
@@ -254,13 +270,14 @@ def getNewNameFromUser( charLimit, excludeChars=None, message='Enter a new name:
 				msg( 'Invalid character(s) detected; the name may not include any of these: ' + ', '.join(excludeChars) )
 				break # Breaks this loop, but not the while loop
 		else: # The above loop didn't break (meaning an invalid character wasn't found)
-			# Convert the name to bytes and validate the length
+			# Convert the name to bytes and validate the length (char length may differ for special characters?)
 			try:
 				nameBytes = bytearray()
 				nameBytes.extend( newName )
-				if len( nameBytes ) <= charLimit:
-					# Add padding to make sure any old text is overwritten. Must end with at least one null byte
-					#nameBytes.extend( (0x20 - len(nameBytes)) * b'\00' )
+
+				if isMenuText and checkTextLen( newName, True ) <= charLimit:
+					nameChecksOut = True
+				elif len( nameBytes ) <= charLimit:
 					nameChecksOut = True
 				else:
 					msg( 'This name must fit into the space of {} bytes. Try shortening the name.'.format(charLimit) )
@@ -498,7 +515,7 @@ class PopupEntryWindow( BasicWindow ):
 		The 'validatePath' option, if True, will warn the user if they've entered 
 		an invalid file or folder path, and give them a chance to re-enter it. """
 
-	def __init__( self, master, message='', defaultText='', title='', width=100, wraplength=470, makeModal=True, validatePath=False, charLimit=-1 ):
+	def __init__( self, master, message='', defaultText='', title='', width=100, wraplength=470, makeModal=True, validatePath=False, charLimit=-1, isMenuText=False ):
 		BasicWindow.__init__( self, master, title )
 
 		self.entryText = ''
@@ -506,6 +523,7 @@ class PopupEntryWindow( BasicWindow ):
 		self.resultLabel = None
 		self.validatePath = validatePath
 		self.charLimit = charLimit
+		self.isMenuText = isMenuText
 
 		# Display a user message
 		self.label = ttk.Label( self.window, text=message, wraplength=wraplength )
@@ -555,7 +573,7 @@ class PopupEntryWindow( BasicWindow ):
 		""" Updates the character count for the string in the entry field. 
 			Must return True to validate the entered text and allow it to be displayed. """
 
-		newStrLen = len( newString.strip() )
+		newStrLen = checkTextLen( newString, self.isMenuText )
 		self.charLimitLabel['text'] = '{}/{}'.format( newStrLen, self.charLimit )
 
 		if newStrLen > self.charLimit:
