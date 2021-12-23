@@ -636,16 +636,15 @@ class MainMenuCanvas( Tk.Canvas ):
 		self.mainGui.root.bind( '<<wireframePass>>', self.updateWireframePass )
 
 	def initFont( self, fontName, private=True, enumerable=False ):
-		'''
-		Makes fonts located in file `fontpath` available to the font system.
+		
+		""" Makes fonts located in file `fontpath` available to the font system.
 
-		`private`     if True, other processes cannot see this font, and this 
-					font will be unloaded when the process dies
-		`enumerable`  if True, this font will appear when enumerating fonts
+			`private`     if True, other processes cannot see this font, and this 
+						font will be unloaded when the process dies
+			`enumerable`  if True, this font will appear when enumerating fonts
 
-		See https://msdn.microsoft.com/en-us/library/dd183327(VS.85).aspx
-
-		'''
+			See https://msdn.microsoft.com/en-us/library/dd183327(VS.85).aspx
+		"""
 
 		# This function was taken from:
 		# https://github.com/ifwe/digsby/blob/f5fe00244744aa131e07f09348d10563f3d8fa99/digsby/src/gui/native/win/winfonts.py#L15
@@ -875,9 +874,9 @@ class MainMenuCanvas( Tk.Canvas ):
 
 		# Add color to the image, and split it into parts
 		colorized = self.colorizeImage( image, '#cc9933' )
-		self.optionBgLeftImage = colorized.crop( (0, 0, 24, 48) )
-		self.optionBgMiddlebase = colorized.crop( (24, 0, 34, 48) ) # Width modified later
-		self.optionBgRightImage = colorized.crop( (34, 0, 64, 48) )
+		self.optionBgLeftImage = colorized.crop( (0, 0, 20, 48) )
+		self.optionBgMiddlebase = colorized.crop( (20, 0, 23, 48) ) # Width modified later
+		self.optionBgRightImage = colorized.crop( (23, 0, 64, 48) )
 
 		self.optionBgLeftImage = ImageTk.PhotoImage( self.optionBgLeftImage )
 		self.optionBgRightImage = ImageTk.PhotoImage( self.optionBgRightImage )
@@ -885,7 +884,7 @@ class MainMenuCanvas( Tk.Canvas ):
 	def addMenuOption( self, text, borderColor, clickCallback ):
 
 		xOffset = 70 # From the main border left origin
-		yOffset = -13
+		yOffset = -12
 		
 		# Calculate main menu border position
 		originX = ( int(self['width']) - self.mainBorderWidth ) / 2
@@ -906,7 +905,7 @@ class MainMenuCanvas( Tk.Canvas ):
 			self.optionBgMiddleImages[textWidth] = bgMiddle = ImageTk.PhotoImage( resizedImage )
 
 		# Add the option background image objects
-		self.create_image( originX+xOffset-28, y+yOffset, image=self.optionBgLeftImage, anchor='nw', tags=('menuOptionsBg',) )
+		self.create_image( originX+xOffset-26, y+yOffset, image=self.optionBgLeftImage, anchor='nw', tags=('menuOptionsBg',) )
 		self.create_image( originX+xOffset-4, y+yOffset, image=bgMiddle, anchor='nw', tags=('menuOptionsBg',) )
 		self.create_image( originX+xOffset+textWidth+4, y+yOffset, image=self.optionBgRightImage, anchor='nw', tags=('menuOptions',) )
 		self.tag_raise( textObj, 'menuOptionsBg' )
@@ -956,7 +955,7 @@ class MainMenuCanvas( Tk.Canvas ):
 				#self.doWireframePass()
 				self._maskPosition = -self.origMask.height
 				#self.updateWireframePass()
-				self.mainGui.root.event_generate( '<<wireframePass>>', when='tail' )
+				#self.mainGui.root.event_generate( '<<wireframePass>>', when='tail' )
 			else:
 				self.fadeInNewBgImage()
 
