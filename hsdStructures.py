@@ -2410,47 +2410,47 @@ class CharSelectScreenDataTable( StructBase ):
 
 		self.name = 'Character Select Menu Data Table ' + uHex( 0x20 + args[1] )
 		self.formatting = '>IIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIII'
-		self.fields = (  'Unknown_Pointer',
-					'Unknown_Pointer',
-					'Unknown_Pointer',
-					'Unknown_Pointer',
-					'Background_Model_Joint_Pointer',	# 0x10
-					'Background_Animation_Pointer',
-					'',
-					'',
-					'Hand_Model_Joint_Pointer',			# 0x20
-					'',
-					'Hand_Material_Anim._Pointer',
-					'',
-					'Token_Model_Joint_Pointer',		# 0x30
-					'',
-					'Token_Material_Anim._Pointer',
-					'',
-					'Menu_Model_Joint_Pointer',			# 0x40
-					'Menu_Model_Animation_Pointer',
-					'Menu_Material_Anim._Pointer',
-					'',
-					'Press_Start_Model_Joint_Pointer',	# 0x50
-					'Press_Start_Animation_Pointer',
-					'Press_Start_Mat._Anim._Pointer',
-					'',
-					'Debug_Camera_Model_Joint_Pointer',	# 0x60
-					'',
-					'Debug_Camera_Mat._Anim._Pointer',
-					'',
-					'1P_Mode_Menu_Model_Joint_Pointer',	# 0x70
-					'1P_Mode_Menu_Animation_Pointer',
-					'1P_Mode_Menu_Mat._Anim._Pointer',
-					'',
-					'1P_Mode_Options_Model_Pointer',	# 0x80
-					'',
-					'',
-					'',
-					'CSP_Model_Joint_Pointer',			# 0x90
-					'',
-					'CSP_Material_Anim._Pointer',
-					''
-				)
+		self.fields = ( 'Unknown_Pointer',
+						'Unknown_Pointer',
+						'Unknown_Pointer',
+						'Unknown_Pointer',
+						'Background_Model_Joint_Pointer',	# 0x10
+						'Background_Animation_Pointer',
+						'',
+						'',
+						'Hand_Model_Joint_Pointer',			# 0x20
+						'',
+						'Hand_Material_Anim._Pointer',
+						'',
+						'Token_Model_Joint_Pointer',		# 0x30
+						'',
+						'Token_Material_Anim._Pointer',
+						'',
+						'Menu_Model_Joint_Pointer',			# 0x40
+						'Menu_Model_Animation_Pointer',
+						'Menu_Material_Anim._Pointer',
+						'',
+						'Press_Start_Model_Joint_Pointer',	# 0x50
+						'Press_Start_Animation_Pointer',
+						'Press_Start_Mat._Anim._Pointer',
+						'',
+						'Debug_Camera_Model_Joint_Pointer',	# 0x60
+						'',
+						'Debug_Camera_Mat._Anim._Pointer',
+						'',
+						'1P_Mode_Menu_Model_Joint_Pointer',	# 0x70
+						'1P_Mode_Menu_Animation_Pointer',
+						'1P_Mode_Menu_Mat._Anim._Pointer',
+						'',
+						'1P_Mode_Options_Model_Pointer',	# 0x80
+						'',
+						'',
+						'',
+						'CSP_Model_Joint_Pointer',			# 0x90
+						'',
+						'CSP_Material_Anim._Pointer',
+						''
+					)
 		self.length = 0xA0
 		self.childClassIdentities = { 4: 'JointObjDesc', 5: 'JointAnimationDesc', # Background
 								8: 'JointObjDesc', 10: 'MatAnimJointDesc',  # Hand
@@ -2489,7 +2489,7 @@ class JointAnimStructArray( StructBase ):
 
 class JointAnimationDesc( StructBase ): # A.k.a. Joint Animation Joint
 
-	animationTracks = { 
+	animationTracks = {
 		1: 'HSD_A_J_ROTX', 2: 'HSD_A_J_ROTY', 3: 'HSD_A_J_ROTZ', 4: 'HSD_A_J_PATH', # Rotation, Path
 		5: 'HSD_A_J_TRAX', 6: 'HSD_A_J_TRAY', 7: 'HSD_A_J_TRAZ', # Translation
 		8: 'HSD_A_J_SCAX', 9: 'HSD_A_J_SCAY', 0xA: 'HSD_A_J_SCAZ', 0xB: 'HSD_A_J_NODE', 0xC: 'HSD_A_J_BRANCH',  # Scale, Node, Branch
@@ -2540,7 +2540,7 @@ class MatAnimJointDesc( StructBase ):
 
 		self.name = 'Material Animation Joint ' + uHex( 0x20 + args[1] )
 		self.formatting = '>III'
-		self.fields = (  'Child_Pointer', 'Next_Sibling_Pointer', 'Mat._Anim._Struct_Pointer' )
+		self.fields = ( 'Child_Pointer', 'Next_Sibling_Pointer', 'Mat._Anim._Struct_Pointer' )
 		self.length = 0xC
 		self.childClassIdentities = { 0: 'MatAnimJointDesc', 1: 'MatAnimJointDesc', 2: 'MatAnimDesc' }
 
@@ -2575,7 +2575,7 @@ class MatAnimJointDesc( StructBase ):
 
 class MatAnimDesc( StructBase ):
 
-	animationTracks = { 
+	animationTracks = {
 		1: 'HSD_A_M_AMBIENT_R', 2: 'HSD_A_M_AMBIENT_G', 3: 'HSD_A_M_AMBIENT_B', # Ambience RGB
 		4: 'HSD_A_M_DIFFUSE_R', 5: 'HSD_A_M_DIFFUSE_G', 6: 'HSD_A_M_DIFFUSE_B', # Diffusion RGB
 		7: 'HSD_A_M_SPECULAR_R', 8: 'HSD_A_M_SPECULAR_G', 9: 'HSD_A_M_SPECULAR_B', 0xA: 'HSD_A_M_ALPHA', # Specular RGB, Transparency
@@ -2586,7 +2586,7 @@ class MatAnimDesc( StructBase ):
 
 		self.name = 'Material Animation Struct ' + uHex( 0x20 + args[1] )
 		self.formatting = '>IIII'
-		self.fields = (  'Next_Sibling_Pointer', 'Anim._Object_Pointer', 'Texture_Anim._Pointer', 'Render_Anim._Pointer' )
+		self.fields = ( 'Next_Sibling_Pointer', 'Anim._Object_Pointer', 'Texture_Anim._Pointer', 'Render_Anim._Pointer' )
 		self.length = 0x10
 		self.childClassIdentities = { 0: 'MatAnimDesc', 1: 'AnimationObjectDesc', 2: 'TexAnimDesc' }
 

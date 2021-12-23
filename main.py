@@ -590,15 +590,15 @@ class MainMenuCanvas( Tk.Canvas ):
 		self.mainGui = mainGui
 		self.imageSet = ''
 		self.afterId = -1
-		self.minIdleTime = 10 # Before next animation (character swap or wireframe effect)
-		self.maxIdleTime = 25
+		self.minIdleTime = 5 # Before next animation (character swap or wireframe effect)
+		self.maxIdleTime = 12
 		self.borderImgs = {}
 		self.borderParts = {}	# key=partName, value=canvasID
 		self.optionInfo = {}	# key=canvasId, value=( borderColor, clickCallback )
 
 		self.mainBorderWidth = 800 # Keep this an even number
 		self.mainBorderHeight = 530
-		self.bottomTextWidth = 250
+		self.bottomTextWidth = 290
 
 		# Load and apply the main background image
 		self.create_image( 500, 375, image=mainGui.imageBank('bg', 'Main Menu'), anchor='center' )
@@ -609,16 +609,18 @@ class MainMenuCanvas( Tk.Canvas ):
 
 		# Load menu items
 		self.loadBorderImages( '#394aa6' ) # Blue
-		self.initMainBorder()
 		#self.loadBorderImages( '#a13728' ) # Red
-		self.menuOptionCount = 4
-		self.addMenuOption( 'Disc Management', '#394aa6', self.loadDiscManagement )
-		self.addMenuOption( 'Code Manager', '#a13728', self.loadDiscManagement )
-		self.addMenuOption( 'Stage Manager', 'green', self.loadDiscManagement )
-		self.addMenuOption( 'Audio Manager', '#a13728', self.loadDiscManagement )
+		self.initMainBorder()
+		self.initOptionImages()
+		self.menuOptionCount = 5
+		self.addMenuOption( 'Disc Management', '#394aa6', self.loadDiscManagement ) # blue
+		self.addMenuOption( 'Code Manager', '#a13728', self.loadDiscManagement ) # red
+		self.addMenuOption( 'Stage Manager', '#077523', self.loadDiscManagement ) # green
+		self.addMenuOption( 'Audio Manager', '#9f853b', self.loadDiscManagement ) # yellow
+		self.addMenuOption( 'Purple Option', '#582493', self.loadDiscManagement ) # purple
 
 		# Load the character image
-		#self.loadImageSet()
+		self.loadImageSet()
 
 		# Add click and hover event handlers
 		self.tag_bind( 'menuOptions', '<1>', self.menuOptionClicked )
@@ -629,6 +631,9 @@ class MainMenuCanvas( Tk.Canvas ):
 		timeTilNextAnim = random.randint( self.minIdleTime, self.maxIdleTime / 2 ) # Shorter first idle
 		print( 'first anim should trigger in', timeTilNextAnim, 'seconds' )
 		self.afterId = self.after( timeTilNextAnim*1000, self.updateBg )
+
+		# Bind events
+		self.mainGui.root.bind( '<<wireframePass>>', self.updateWireframePass )
 
 	def initFont( self, fontName, private=True, enumerable=False ):
 		'''
@@ -676,29 +681,17 @@ class MainMenuCanvas( Tk.Canvas ):
 		self.topLayer = ImageTk.PhotoImage( self.origTopLayer )
 
 		# Add the top and wireframe images to the canvas
-		# if not loadTransparent:
-		# 	self.wireframeLayerId = self.create_image( 500, 375, image=self.mainGui.imageBank(self.imageSet + 'W'), anchor='center' )
 		originY = ( int(self['height']) - self.mainBorderHeight ) / 2
+		originX = ( int(self['width']) - self.mainBorderWidth ) / 2
+		print('originX:', originX)
 		bottomBorderY = originY + self.mainBorderHeight - 18
-		self.topLayerId = self.create_image( 630, bottomBorderY, image=self.topLayer, anchor='s' )
+		# if not loadTransparent:
+		#self.wireframeLayerId = self.create_image( 635, bottomBorderY, image=ImageTk.PhotoImage( self.wireframeLayer ), anchor='center' )
+		self.topLayerId = self.create_image( 635, bottomBorderY, image=self.topLayer, anchor='s' )
 
 		# Load the alpha channel as a new image (for use with the mask)
 		self.fullSizeMask = self.wireframeLayer.getchannel( 'A' ) # Returns a new image, in 'L' mode, of the given channel
 		#self.maskBase = Image.new( 'L', self.origTopLayer.size, 255 )
-
-	# def getSprite( self, imageName, x=0, y=0, width=-1, height=-1 ):
-
-	# 	""" Similar to the main GUI's imageBank, but is able to crop to just a portion of the image. """
-
-	# 	imagePath = os.path.join( self.mainMenuFolder, imageName + ".png" )
-	# 	imageKey = '{}_{}x{}_{}x{}'.format( imageName, x, y, width, height )
-
-	# 	image = Image.open( imagePath )
-
-	# 	#if x > 0:
-			
-
-	# 	self.borderImgs[imageKey] = ImageTk.PhotoImage( image )
 	
 	def colorizeImage( self, image, color ):
 
@@ -725,7 +718,7 @@ class MainMenuCanvas( Tk.Canvas ):
 
 		widthFillTop = self.mainBorderWidth - 118 # -26 - 66 - 26
 		widthFillBot = self.mainBorderWidth - self.bottomTextWidth - 76 # -26 - 26 - 12 - 12
-		widthFillBotLeft = int( math.floor(widthFillBot / 5.0) )
+		widthFillBotLeft = int( math.floor(widthFillBot / 7.0) )
 		widthFillBotRight = widthFillBot - widthFillBotLeft
 		#print( widthFillBot, '-', widthFillBotLeft, '=', widthFillBotRight )
 		heightFill = self.mainBorderHeight - 102 # -70 - 32
@@ -811,7 +804,7 @@ class MainMenuCanvas( Tk.Canvas ):
 		originY = ( int(self['height']) - self.mainBorderHeight ) / 2
 		widthFillTop = self.mainBorderWidth - 118 # -26 - 66 - 26
 		widthFillBot = self.mainBorderWidth - self.bottomTextWidth - 76 # -26 - 26 - 12 - 12
-		widthFillBotLeft = int( math.floor(widthFillBot / 5.0) )
+		widthFillBotLeft = int( math.floor(widthFillBot / 7.0) )
 		widthFillBotRight = widthFillBot - widthFillBotLeft
 		heightFill = self.mainBorderHeight - 102 # -70 - 32
 		rightSideX = originX + 92 + widthFillTop # 26 + 66
@@ -858,27 +851,67 @@ class MainMenuCanvas( Tk.Canvas ):
 		self.create_image( textXCoord, textYCoord, image=self.borderImgs['borderCenterBracket'], anchor='n', tags=('mainBorder',) )
 
 		# Add top text
-		self.initFont( 'A-OTF Folk Pro, Bold.otf' ) # Family = 'A-OTF Folk Pro B'
-		#print( tkFont.families() )
+		self.initFont( 'A-OTF Folk Pro, Bold.otf' ) # Family = 'A-OTF Folk Pro B'; find family names with 'tkFont.families()'
 		text = u'Main Menu'
-		text = u'\u2009'.join( list(text) ) # Rejoin with the unicode 'Thin Space' to add some kerning
+		text = u'\u2009'.join( list(text) ) # Rejoin with the unicode 'Thin Space' to add some kerning (https://www.fileformat.info/info/unicode/category/Zs/list.htm)
 		italicFont = tkFont.Font( family='A-OTF Folk Pro B', size=12, slant='italic', weight='bold' )
 		self.create_text( originX+26+widthFillTop/4, originY+4, text=text, anchor='n', tags=('mainBorder',), font=italicFont, fill='#aaaaaa' )
 
 		# Add bottom text
 		text = 'Choose a category to begin.'
+		text = u'\u200A'.join( list(text) )
 		self.create_text( textXCoord, textYCoord+4, text=text, anchor='n', tags=('mainBorder',), font=('A-OTF Folk Pro B', 11), fill='#aaaaaa' )
 
-	def addMenuOption( self, text, borderColor, clickCallback ):
+	def initOptionImages( self ):
 		
+		""" Image storage for option background images, to prevent 
+			garbage collection and redundant image processing. """
+
+		self.optionBgMiddleImages = {}
+
+		# Load the option background image
+		imagePath = os.path.join( self.mainMenuFolder, "optionBg.png" )
+		image = Image.open( imagePath )
+
+		# Add color to the image, and split it into parts
+		colorized = self.colorizeImage( image, '#cc9933' )
+		self.optionBgLeftImage = colorized.crop( (0, 0, 24, 48) )
+		self.optionBgMiddlebase = colorized.crop( (24, 0, 34, 48) ) # Width modified later
+		self.optionBgRightImage = colorized.crop( (34, 0, 64, 48) )
+
+		self.optionBgLeftImage = ImageTk.PhotoImage( self.optionBgLeftImage )
+		self.optionBgRightImage = ImageTk.PhotoImage( self.optionBgRightImage )
+
+	def addMenuOption( self, text, borderColor, clickCallback ):
+
+		xOffset = 70 # From the main border left origin
+		yOffset = -13
+		
+		# Calculate main menu border position
 		originX = ( int(self['width']) - self.mainBorderWidth ) / 2
 		originY = ( int(self['height']) - self.mainBorderHeight ) / 2
 		heightFill = self.mainBorderHeight - 102 # -70 - 32
 
+		# Add the text object
 		spacingBetweenOptions = heightFill / ( self.menuOptionCount + 1 )
 		y = originY + 70 + spacingBetweenOptions * ( len( self.find_withtag('menuOptions') ) + 1 )
-		textObj = self.create_text( originX+40, y, text=text, anchor='w', tags=('menuOptions',), font=('A-OTF Folk Pro B', 11), fill='#aaaaaa' )
+		textObj = self.create_text( originX+xOffset, y, text=text, anchor='w', tags=('menuOptions',), font=('A-OTF Folk Pro B', 11), fill='#aaaaaa' )
 
+		# Finish creating the middle background element and store it
+		boundingBox = self.bbox( textObj )
+		textWidth = boundingBox[2] - boundingBox[0]
+		bgMiddle = self.optionBgMiddleImages.get( textWidth )
+		if not bgMiddle: # Need to create a new image for this width
+			resizedImage = self.optionBgMiddlebase.resize( (textWidth+8, 48) )
+			self.optionBgMiddleImages[textWidth] = bgMiddle = ImageTk.PhotoImage( resizedImage )
+
+		# Add the option background image objects
+		self.create_image( originX+xOffset-28, y+yOffset, image=self.optionBgLeftImage, anchor='nw', tags=('menuOptionsBg',) )
+		self.create_image( originX+xOffset-4, y+yOffset, image=bgMiddle, anchor='nw', tags=('menuOptionsBg',) )
+		self.create_image( originX+xOffset+textWidth+4, y+yOffset, image=self.optionBgRightImage, anchor='nw', tags=('menuOptions',) )
+		self.tag_raise( textObj, 'menuOptionsBg' )
+
+		# Store info on this canvas object to be recovered by events later
 		self.optionInfo[textObj] = ( borderColor, clickCallback )
 
 	def menuOptionClicked( self, event ):
@@ -901,7 +934,8 @@ class MainMenuCanvas( Tk.Canvas ):
 		# Determine which canvas item was clicked on, and use that to look up the stage
 		canvas = event.widget
 		itemId = canvas.find_closest( event.x, event.y )[0]
-		borderColor, clickCallback = self.optionInfo[itemId]
+		borderColor, clickCallback = self.optionInfo.get( itemId, (None, None) )
+		if not borderColor: return
 
 		self['cursor'] = 'hand2'
 		self.loadBorderImages( borderColor )
@@ -919,7 +953,10 @@ class MainMenuCanvas( Tk.Canvas ):
 
 		try:
 			if random.choice( (0, 1, 2) ): # 2/3 chance to do a wireframe pass
-				self.doWireframePass()
+				#self.doWireframePass()
+				self._maskPosition = -self.origMask.height
+				#self.updateWireframePass()
+				self.mainGui.root.event_generate( '<<wireframePass>>', when='tail' )
 			else:
 				self.fadeInNewBgImage()
 
@@ -983,6 +1020,21 @@ class MainMenuCanvas( Tk.Canvas ):
 
 		# print( 'sleeps skipped:', sleepsSkipped, 'out of', len(processTimes) )
 		# print( 'ave frame processing time:', sum(processTimes) / len(processTimes) )
+
+	def updateWireframePass( self, event ):
+		# Copy the mask of the top layer's alpha channel, and combine it with the mask
+		mask = self.fullSizeMask.copy()
+		mask.paste( self.origMask, (0, self._maskPosition) )
+		self.topLayer = ImageTk.PhotoImage( Image.composite(self.origTopLayer, self.wireframeLayer, mask) )
+
+		# Update the display with the new image
+		self.itemconfigure( self.topLayerId, image=self.topLayer )
+		print('processed at', self._maskPosition)
+
+		self._maskPosition += 2
+
+		if self._maskPosition < (self.origMask.height + self.origTopLayer.height):
+			self.mainGui.root.event_generate( '<<wireframePass>>', when='tail' )
 
 	def fadeInNewBgImage( self ):
 		transparentMask = Image.new( 'RGBA', self.origTopLayer.size, (0,0,0,0) )
