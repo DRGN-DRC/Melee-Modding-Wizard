@@ -610,15 +610,19 @@ class MainMenuCanvas( Tk.Canvas ):
 
 		# Load menu items
 		self.loadBorderImages( '#394aa6' ) # Blue
-		#self.loadBorderImages( '#a13728' ) # Red
 		self.initMainBorder()
 		self.initOptionImages()
-		self.menuOptionCount = 5
-		self.addMenuOption( 'Disc Management', '#394aa6', self.loadDiscManagement ) # blue
-		self.addMenuOption( 'Code Manager', '#a13728', self.loadDiscManagement ) # red
-		self.addMenuOption( 'Stage Manager', '#077523', self.loadDiscManagement ) # green
-		self.addMenuOption( 'Audio Manager', '#9f853b', self.loadDiscManagement ) # yellow
-		self.addMenuOption( 'Purple Option', '#582493', self.loadDiscManagement ) # purple
+		self.menuOptionCount = 4
+		# self.addMenuOption( 'Disc Management', '#394aa6', self.loadDiscManagement ) # blue
+		# self.addMenuOption( 'Code Manager', '#a13728', self.loadDiscManagement ) # red
+		# self.addMenuOption( 'Stage Manager', '#077523', self.loadDiscManagement ) # green
+		# self.addMenuOption( 'Audio Manager', '#9f853b', self.loadDiscManagement ) # yellow
+		# self.addMenuOption( 'Purple Option', '#582493', self.loadDiscManagement ) # purple
+		self.addMenuOption( 'Load Recent', '#394aa6', self.loadDiscManagement ) # blue
+		self.addMenuOption( 'Load Disc', '#a13728', self.loadDiscManagement ) # red
+		self.addMenuOption( 'Load Root Folder', '#077523', self.loadDiscManagement ) # green
+		self.addMenuOption( 'Browse Code Library', '#9f853b', self.loadDiscManagement ) # yellow
+		# self.addMenuOption( 'Purple Option', '#582493', self.loadDiscManagement ) # purple
 
 		# Load the character image
 		self.loadImageSet()
@@ -634,7 +638,7 @@ class MainMenuCanvas( Tk.Canvas ):
 		self.afterId = self.after( timeTilNextAnim*1000, self.updateBg )
 
 		# Bind events
-		self.mainGui.root.bind( '<<wireframePass>>', self.updateWireframePass )
+		#self.mainGui.root.bind( '<<wireframePass>>', self.updateWireframePass )
 
 	def initFont( self, fontName, private=True, enumerable=False ):
 		
@@ -706,9 +710,7 @@ class MainMenuCanvas( Tk.Canvas ):
 
 		""" Cuts up the primary border image into multiple pieces, colorizes them, 
 			and converts them into images Tkinter can use on the canvas. Storage is 
-			needed to prevent garbage collection of the images, however this also 
-			means this function can just be called again with a different color 
-			to automatically update the images used in the canvas widget. """
+			needed to prevent garbage collection of the images. """
 
 		imagePath = os.path.join( self.mainMenuFolder, "mainBorder.png" )
 		image = Image.open( imagePath )
@@ -907,13 +909,16 @@ class MainMenuCanvas( Tk.Canvas ):
 			self.optionBgMiddleImages[textWidth] = bgMiddle = ImageTk.PhotoImage( resizedImage )
 
 		# Add the option background image objects
-		self.create_image( originX+xOffset-24, y+yOffset, image=self.optionBgLeftImage, anchor='nw', tags=('menuOptionsBg',) )
-		self.create_image( originX+xOffset-4, y+yOffset, image=bgMiddle, anchor='nw', tags=('menuOptionsBg',) )
-		self.create_image( originX+xOffset+textWidth+4, y+yOffset, image=self.optionBgRightImage, anchor='nw', tags=('menuOptionsBg',) )
+		bd1 = self.create_image( originX+xOffset-24, y+yOffset, image=self.optionBgLeftImage, anchor='nw', tags=('menuOptionsBg',) )
+		bd2 = self.create_image( originX+xOffset-4, y+yOffset, image=bgMiddle, anchor='nw', tags=('menuOptionsBg',) )
+		bd3 = self.create_image( originX+xOffset+textWidth+4, y+yOffset, image=self.optionBgRightImage, anchor='nw', tags=('menuOptionsBg',) )
 		self.tag_raise( textObj, 'menuOptionsBg' )
 
-		# Store info on this canvas object to be recovered by events later
+		# Store info on these canvas objects to be recovered by events later
 		self.optionInfo[textObj] = ( borderColor, clickCallback )
+		self.optionInfo[bd1] = ( borderColor, clickCallback )
+		self.optionInfo[bd2] = ( borderColor, clickCallback )
+		self.optionInfo[bd3] = ( borderColor, clickCallback )
 
 	def menuOptionClicked( self, event ):
 

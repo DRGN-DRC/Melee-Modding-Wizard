@@ -401,6 +401,8 @@ class DiscTab( ttk.Frame ):
 			# altPath = 'GALE01/' + discFile.filename.replace( '.usd', '.dat' )
 			# if discFile.filename.endswith( '.usd' ) and altPath in globalData.disc.files:
 			# 	print discFile.filename, humansize(discFile.size)
+			# if discFile.filename.endswith( '.mth' ):
+			# 	print discFile.filename
 			
 			self.isoFileTree.insert( parent, 'end', iid=discFile.isoPath, text=' ' + entryName, values=(description, 'file') )
 		except Exception as err:
