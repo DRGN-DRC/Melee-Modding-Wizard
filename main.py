@@ -593,6 +593,7 @@ class MainMenuCanvas( Tk.Canvas ):
 		self.mainMenuFolder = os.path.join( globalData.paths['imagesFolder'], 'Main Menu' )
 		self.mainGui = mainGui
 		self.imageSet = ''
+		self.topLayerId = -1
 		self.afterId = -1
 		self.animId = -1
 		self.minIdleTime = 10 # Before next animation (character swap or wireframe effect)
@@ -617,6 +618,10 @@ class MainMenuCanvas( Tk.Canvas ):
 		# Load primary menu options
 		self.loadBorderImages( '#394aa6' ) # Blue
 		self.initOptionImages()
+
+		# Load the character image
+		self.loadImageSet()
+
 		self.menuOptionCount = 4
 		# self.addMenuOption( 'Disc Management', '#394aa6', self.loadDiscManagement ) # blue
 		# self.addMenuOption( 'Code Manager', '#a13728', self.loadDiscManagement ) # red
@@ -629,13 +634,13 @@ class MainMenuCanvas( Tk.Canvas ):
 		self.addMenuOption( 'Browse Code Library', '#9f853b', self.loadDiscManagement ) # yellow
 		# self.addMenuOption( 'Purple Option', '#582493', self.loadDiscManagement ) # purple
 
-		# Load the character image
-		self.loadImageSet()
-
 		# Add click and hover event handlers
 		self.tag_bind( 'menuOptions', '<1>', self.menuOptionClicked )
 		self.tag_bind( 'menuOptions', '<Enter>', self.menuOptionHovered )
 		self.tag_bind( 'menuOptions', '<Leave>', self.menuOptionUnhovered )
+		self.tag_bind( 'menuOptionsBg', '<1>', self.menuOptionClicked )
+		self.tag_bind( 'menuOptionsBg', '<Enter>', self.menuOptionHovered )
+		self.tag_bind( 'menuOptionsBg', '<Leave>', self.menuOptionUnhovered )
 
 		# Start a timer to count down to creating the wireframe effect or swap images
 		timeTilNextAnim = random.randint( self.minIdleTime, self.maxIdleTime / 2 ) # Shorter first idle
@@ -676,7 +681,7 @@ class MainMenuCanvas( Tk.Canvas ):
 
 		return bool( numFontsAdded )
 
-	def loadImageSet( self, loadTransparent=False ):
+	def loadImageSet( self ):
 		# Randomly select an image set (without selecting the current one)
 		self.imageSet = random.choice( list(self.imageSets.difference( [self.imageSet] )) )
 		print( 'Loading image set', self.imageSet )
@@ -693,13 +698,20 @@ class MainMenuCanvas( Tk.Canvas ):
 		# Add the top and wireframe images to the canvas
 		originY = ( int(self['height']) - self.mainBorderHeight ) / 2
 		bottomBorderY = originY + self.mainBorderHeight - 18
-		# if not loadTransparent:
-		#self.wireframeLayerId = self.create_image( 635, bottomBorderY, image=ImageTk.PhotoImage( self.wireframeLayer ), anchor='center' )
-		self.topLayerId = self.create_image( 635, bottomBorderY, image=self.topLayer, anchor='s' )
+		
+		# Create the canvas image element, or reconfigure an existing one
+		if self.topLayerId == -1:
+			self.topLayerId = self.create_image( 635, bottomBorderY, image=self.topLayer, anchor='s', tags=('charImage',) )
+		else:
+			# The canvas item already exists; reconfigure it
+			self.itemconfig( self.topLayerId, image=self.topLayer )
+
+			# Layer the menu option background elements over the character image, and the text over the menu option background elements
+			self.tag_raise( 'menuOptionsBg', 'charImage' )
+			self.tag_raise( 'menuOptions', 'menuOptionsBg' )
 
 		# Load the alpha channel as a new image (for use with the mask)
 		self.fullSizeMask = self.wireframeLayer.getchannel( 'A' ) # Returns a new image, in 'L' mode, of the given channel
-		#self.maskBase = Image.new( 'L', self.origTopLayer.size, 255 )
 	
 	def colorizeImage( self, image, color ):
 
@@ -892,6 +904,9 @@ class MainMenuCanvas( Tk.Canvas ):
 		text = u'\u200A'.join( list(text) )
 		self.create_text( textXCoord, textYCoord+4, text=text, anchor='n', tags=('mainBorder',), font=('A-OTF Folk Pro B', 11), fill='#aaaaaa' )
 
+		print( 'border image IDs' )
+		print( self.borderParts )
+
 	def initOptionImages( self ):
 		
 		""" Image storage for option background images, to prevent 
@@ -905,9 +920,9 @@ class MainMenuCanvas( Tk.Canvas ):
 
 		# Add color to the image, and split it into parts
 		#colorized = self.colorizeImage( image, '#cc9933' )
-		self.optionBgLeftImage = image.crop( (0, 0, 20, 48) )
-		self.optionBgMiddlebase = image.crop( (20, 0, 23, 48) ) # Width modified later
-		self.optionBgRightImage = image.crop( (23, 0, 64, 48) )
+		self.optionBgLeftImage = image.crop( (0, 0, 20, 30) )
+		self.optionBgMiddlebase = image.crop( (20, 0, 23, 30) ) # Width modified later
+		self.optionBgRightImage = image.crop( (23, 0, 56, 30) )
 
 		self.optionBgLeftImage = ImageTk.PhotoImage( self.optionBgLeftImage )
 		self.optionBgRightImage = ImageTk.PhotoImage( self.optionBgRightImage )
@@ -915,7 +930,7 @@ class MainMenuCanvas( Tk.Canvas ):
 	def addMenuOption( self, text, borderColor, clickCallback ):
 
 		xOffset = 70 # From the main border left origin
-		yOffset = -12
+		yOffset = -12 # Applied to background parts only
 		
 		# Calculate main menu border position
 		originX = ( int(self['width']) - self.mainBorderWidth ) / 2
@@ -932,20 +947,26 @@ class MainMenuCanvas( Tk.Canvas ):
 		textWidth = boundingBox[2] - boundingBox[0]
 		bgMiddle = self.optionBgMiddleImages.get( textWidth )
 		if not bgMiddle: # Need to create a new image for this width
-			resizedImage = self.optionBgMiddlebase.resize( (textWidth+8, 48) )
+			resizedImage = self.optionBgMiddlebase.resize( (textWidth+8, 30) )
 			self.optionBgMiddleImages[textWidth] = bgMiddle = ImageTk.PhotoImage( resizedImage )
 
 		# Add the option background image objects
 		bd1 = self.create_image( originX+xOffset-24, y+yOffset, image=self.optionBgLeftImage, anchor='nw', tags=('menuOptionsBg',) )
 		bd2 = self.create_image( originX+xOffset-4, y+yOffset, image=bgMiddle, anchor='nw', tags=('menuOptionsBg',) )
 		bd3 = self.create_image( originX+xOffset+textWidth+4, y+yOffset, image=self.optionBgRightImage, anchor='nw', tags=('menuOptionsBg',) )
-		self.tag_raise( textObj, 'menuOptionsBg' )
+
+		# Layer the menu option background elements over the character image, and the text over the menu option background elements
+		self.tag_raise( 'menuOptionsBg', 'charImage' )
+		self.tag_raise( 'menuOptions', 'menuOptionsBg' )
 
 		# Store info on these canvas objects to be recovered by hover/click events later
 		self.optionInfo[textObj] = ( borderColor, clickCallback )
 		self.optionInfo[bd1] = ( borderColor, clickCallback )
 		self.optionInfo[bd2] = ( borderColor, clickCallback )
 		self.optionInfo[bd3] = ( borderColor, clickCallback )
+		print( 'for border color', borderColor )
+		print( textObj )
+		print( bd1, bd2, bd3 )
 
 	def menuOptionClicked( self, event ):
 
@@ -966,11 +987,40 @@ class MainMenuCanvas( Tk.Canvas ):
 
 		# Determine which canvas item was clicked on, and use that to look up the menu item
 		canvas = event.widget
+		print( event )
 		itemId = canvas.find_closest( event.x, event.y )[0]
 		targetColor, _ = self.optionInfo.get( itemId, (None, None) )
-		if not targetColor: return
+		# if not targetColor:
+		# 	print('no color;', itemId )
+		# 	itemAboveId = self.find_above( itemId )
+		# 	targetColor, _ = self.optionInfo.get( itemAboveId, (None, None) )
+		# 	if not targetColor:
+		# 		print( 'still no color' )
+		# 		return
+		# while not targetColor:
+		# 	print( 'color not found from itemID', itemId )
+		# 	itemId = self.find_above( itemId )
+		# 	if not itemId: break
+		# 	print( 'checking itemID', itemId[0] )
+		# 	targetColor, _ = self.optionInfo.get( itemId[0], (None, None) )
+
+		if not targetColor:
+			print( self.type(itemId) )
+			# Find all items in a column for this position
+			itemIds = self.find_overlapping( event.x-1, event.y-1, event.x+1, event.y+1 )
+			print( 'checking these IDs:', itemIds )
+			for itemId in itemIds:
+				targetColor, _ = self.optionInfo.get( itemId, (None, None) )
+				if targetColor:
+					print( 'found target color')
+					break
+			else:
+				print('unable to find target color')
+				return
 
 		self['cursor'] = 'hand2'
+
+
 
 		# Remove any existing hover fill color
 		
@@ -1029,42 +1079,42 @@ class MainMenuCanvas( Tk.Canvas ):
 		elif geomManager == 'place':
 			self.place_forget()
 
-	def doWireframePass( self ):
-		maskPosition = -self.origMask.height
-		processTimes = []
-		sleepsSkipped = 0
+	# def doWireframePass( self ):
+	# 	maskPosition = -self.origMask.height
+	# 	processTimes = []
+	# 	sleepsSkipped = 0
 
-		while maskPosition < (self.origMask.height + self.origTopLayer.height):
-			tic = time.clock()
+	# 	while maskPosition < (self.origMask.height + self.origTopLayer.height):
+	# 		tic = time.clock()
 
-			# Copy the mask of the top layer's alpha channel, and combine it with the mask
-			mask = self.fullSizeMask.copy()
-			mask.paste( self.origMask, (0, maskPosition) )
-			self.topLayer = ImageTk.PhotoImage( Image.composite(self.origTopLayer, self.wireframeLayer, mask) )
+	# 		# Copy the mask of the top layer's alpha channel, and combine it with the mask
+	# 		mask = self.fullSizeMask.copy()
+	# 		mask.paste( self.origMask, (0, maskPosition) )
+	# 		self.topLayer = ImageTk.PhotoImage( Image.composite(self.origTopLayer, self.wireframeLayer, mask) )
 
-			# mask = Image.new( 'L', self.origTopLayer.size, 255 )
-			# mask.paste( self.origMask, (0, maskPosition) )
-			# mask = ImageChops.multiply( self.fullSizeMask, mask )
-			# self.origTopLayer.putalpha( mask )
-			# self.topLayer = ImageTk.PhotoImage( self.origTopLayer )
+	# 		# mask = Image.new( 'L', self.origTopLayer.size, 255 )
+	# 		# mask.paste( self.origMask, (0, maskPosition) )
+	# 		# mask = ImageChops.multiply( self.fullSizeMask, mask )
+	# 		# self.origTopLayer.putalpha( mask )
+	# 		# self.topLayer = ImageTk.PhotoImage( self.origTopLayer )
 
-			maskPosition += 2
-			toc = time.clock()
+	# 		maskPosition += 2
+	# 		toc = time.clock()
 			
-			# Sleep for a short amount of time before displaying the new image
-			processTimes.append( toc-tic )
-			timeToSleep = .040 - (toc - tic)
-			if timeToSleep > 0:
-				time.sleep( timeToSleep )
-			else:
-				sleepsSkipped += 1
+	# 		# Sleep for a short amount of time before displaying the new image
+	# 		processTimes.append( toc-tic )
+	# 		timeToSleep = .040 - (toc - tic)
+	# 		if timeToSleep > 0:
+	# 			time.sleep( timeToSleep )
+	# 		else:
+	# 			sleepsSkipped += 1
 
-			# Update the display with the new image
-			self.itemconfigure( self.topLayerId, image=self.topLayer )
-			self.update()
+	# 		# Update the display with the new image
+	# 		self.itemconfigure( self.topLayerId, image=self.topLayer )
+	# 		self.update()
 
-		# print( 'sleeps skipped:', sleepsSkipped, 'out of', len(processTimes) )
-		# print( 'ave frame processing time:', sum(processTimes) / len(processTimes) )
+	# 	# print( 'sleeps skipped:', sleepsSkipped, 'out of', len(processTimes) )
+	# 	# print( 'ave frame processing time:', sum(processTimes) / len(processTimes) )
 
 	def updateWireframePass( self ):
 		# Copy the mask of the top layer's alpha channel, and combine it with the mask
@@ -1094,110 +1144,77 @@ class MainMenuCanvas( Tk.Canvas ):
 			print( 'next anim should trigger in', timeTilNextAnim, 'seconds' )
 			self.afterId = self.after( timeTilNextAnim*1000, self.updateBg )
 
-	def fadeInNewBgImage( self ):
-		#transparentMask = Image.new( 'RGBA', self.origTopLayer.size, (0,0,0,0) )
-		sleepTime = .04
-		stepSize = 3
-		#fadeTimes = []
+	# def fadeInNewBgImage( self ):
+	# 	#transparentMask = Image.new( 'RGBA', self.origTopLayer.size, (0,0,0,0) )
+	# 	sleepTime = .04
+	# 	stepSize = 3
+	# 	#fadeTimes = []
 
-		# Temporarily remove the back layer for the fade
-		# self.delete( self.wireframeLayerId )
+	# 	# Temporarily remove the back layer for the fade
+	# 	# self.delete( self.wireframeLayerId )
 
-		# Fade out the current image
-		for i in range( 100, -stepSize, -stepSize ):
-			tic = time.clock()
-			# Update the layer's alpha
-			#self.origTopLayer.putalpha( i )
-			#self.topLayer = ImageTk.PhotoImage( self.origTopLayer )
-			self.topLayer = ImageTk.PhotoImage( Image.blend(self._transparentMask, self.origTopLayer, float(i)/100) )
-			self.itemconfigure( self.topLayerId, image=self.topLayer )
-			self.update()
-			toc = time.clock()
-			#fadeTimes.append( toc-tic )
-			timeToSleep = sleepTime - (toc - tic)
-			if timeToSleep > 0:
-				time.sleep( timeToSleep )
-		# print( 'ave fade time:', sum(fadeTimes) / len(fadeTimes) )
-		# fadeTimes = []
+	# 	# Fade out the current image
+	# 	for i in range( 100, -stepSize, -stepSize ):
+	# 		tic = time.clock()
+	# 		# Update the layer's alpha
+	# 		#self.origTopLayer.putalpha( i )
+	# 		#self.topLayer = ImageTk.PhotoImage( self.origTopLayer )
+	# 		self.topLayer = ImageTk.PhotoImage( Image.blend(self._transparentMask, self.origTopLayer, float(i)/100) )
+	# 		self.itemconfigure( self.topLayerId, image=self.topLayer )
+	# 		self.update()
+	# 		toc = time.clock()
+	# 		#fadeTimes.append( toc-tic )
+	# 		timeToSleep = sleepTime - (toc - tic)
+	# 		if timeToSleep > 0:
+	# 			time.sleep( timeToSleep )
+	# 	# print( 'ave fade time:', sum(fadeTimes) / len(fadeTimes) )
+	# 	# fadeTimes = []
 
-		# Load the images for the new image set
-		self.loadImageSet( loadTransparent=True )
+	# 	# Load the images for the new image set
+	# 	self.loadImageSet( loadTransparent=True )
 
-		for i in range( 0, 100+stepSize, stepSize ):
-			tic = time.clock()
-			# Update the layer's alpha
-			#self.origTopLayer.putalpha( i )
-			#self.topLayer = ImageTk.PhotoImage( self.origTopLayer )
-			self.topLayer = ImageTk.PhotoImage( Image.blend(self._transparentMask, self.origTopLayer, float(i)/100) )
-			self.itemconfigure( self.topLayerId, image=self.topLayer )
-			self.update()
-			toc = time.clock()
-			#fadeTimes.append( toc-tic )
-			timeToSleep = sleepTime - (toc - tic)
-			if timeToSleep > 0:
-				time.sleep( timeToSleep )
+	# 	for i in range( 0, 100+stepSize, stepSize ):
+	# 		tic = time.clock()
+	# 		# Update the layer's alpha
+	# 		#self.origTopLayer.putalpha( i )
+	# 		#self.topLayer = ImageTk.PhotoImage( self.origTopLayer )
+	# 		self.topLayer = ImageTk.PhotoImage( Image.blend(self._transparentMask, self.origTopLayer, float(i)/100) )
+	# 		self.itemconfigure( self.topLayerId, image=self.topLayer )
+	# 		self.update()
+	# 		toc = time.clock()
+	# 		#fadeTimes.append( toc-tic )
+	# 		timeToSleep = sleepTime - (toc - tic)
+	# 		if timeToSleep > 0:
+	# 			time.sleep( timeToSleep )
 
-		# self.wireframeLayerId = self.create_image( 500, 375, image=self.mainGui.imageBank(self.imageSet + 'W'), anchor='center' )
-		# self.tag_lower( self.wireframeLayerId, self.topLayerId )
-		#print( 'ave fade time:', sum(fadeTimes) / len(fadeTimes) )
+	# 	# self.wireframeLayerId = self.create_image( 500, 375, image=self.mainGui.imageBank(self.imageSet + 'W'), anchor='center' )
+	# 	# self.tag_lower( self.wireframeLayerId, self.topLayerId )
+	# 	#print( 'ave fade time:', sum(fadeTimes) / len(fadeTimes) )
 
 	def updateBgFadeSwap( self ):
 		sleepTime = .04
 		stepSize = 3
-		#fadeTimes = []
 
-		self._fadeProgress += stepSize
 		tic = time.clock()
-
-		# Temporarily remove the back layer for the fade
-		# self.delete( self.wireframeLayerId )
+		self._fadeProgress += stepSize
 
 		if self._fadeProgress < 0:
 			opacity = abs( self._fadeProgress ) / 100.0
 		elif self._fadeProgress == 0:
 			# Load the images for the new image set
-			self.loadImageSet( loadTransparent=True )
+			self.loadImageSet()
 			opacity = 0
 		else:
 			opacity = self._fadeProgress / 100.0
-
-		# Fade out the current image
-		#for i in range( 100, -stepSize, -stepSize ):
 			
 		# Update the layer's alpha
-		#self.origTopLayer.putalpha( i )
-		#self.topLayer = ImageTk.PhotoImage( self.origTopLayer )
 		self.topLayer = ImageTk.PhotoImage( Image.blend(self._transparentMask, self.origTopLayer, opacity) )
 		self.itemconfigure( self.topLayerId, image=self.topLayer )
 		self.update_idletasks()
 
-		# toc = time.clock()
-		# #fadeTimes.append( toc-tic )
-		# timeToSleep = sleepTime - (toc - tic)
-		# if timeToSleep > 0:
-		# 	time.sleep( timeToSleep )
-
-		# Load the images for the new image set
-		# self.loadImageSet( loadTransparent=True )
-
-		# for i in range( 0, 100+stepSize, stepSize ):
-		# 	tic = time.clock()
-		# 	# Update the layer's alpha
-		# 	#self.origTopLayer.putalpha( i )
-		# 	#self.topLayer = ImageTk.PhotoImage( self.origTopLayer )
-		# 	self.topLayer = ImageTk.PhotoImage( Image.blend(self._transparentMask, self.origTopLayer, float(i)/100) )
-		# 	self.itemconfigure( self.topLayerId, image=self.topLayer )
-		# 	self.update()
-		# 	toc = time.clock()
-		# 	#fadeTimes.append( toc-tic )
-		# 	timeToSleep = sleepTime - (toc - tic)
-		# 	if timeToSleep > 0:
-		# 		time.sleep( timeToSleep )
-
 		if self._fadeProgress < 100:
 			toc = time.clock()
 			timeToSleep = int( (sleepTime - (toc - tic)) * 1000 )
-			#print('timeToSleep', (toc - tic), timeToSleep)
 			if opacity == 0:
 				timeToSleep = 300
 			elif timeToSleep < 0:
