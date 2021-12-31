@@ -187,9 +187,13 @@ def fileFactory( *args, **kwargs ):
 		# Character costume files; excludes 'PlBo.dat'/'PlCa.dat'/etc. and character animation files
 		elif filename.startswith( 'Pl' ) and len( filename ) == 6 and filename[-2:] != 'AJ':
 
-			if filename[2:6] == 'KbCp': pass # Oh, Kirby.... (these are copy powers, ftData)
+			if filename[2:6] == 'KbCp': pass # Oh, Kirby.... (these are copy powers; ftData)
 			else:
-				return CharCostumeFile( *args, **kwargs )
+				charFile = CharCostumeFile( *args, **kwargs )
+				charFile._charAbbr = filename[2:4] # Save some work later
+				charFile._colorAbbr = filename[4:6]
+
+				return charFile
 
 		elif filename.startswith( 'MnSlChr' ):
 			return CssFile( *args, **kwargs )
@@ -218,7 +222,9 @@ class FileBase( object ):
 		self.isoPath = isoPath			# e.g. 'GALE01/audio/1padv.ssm' if this is for a file in a disc
 		self.extPath = extPath			# External path. I.e. a full (absolute) system file path if this is a standalone file
 		self.origSize = size			# Should always be the original size of the file (even if its data changes size)
-		self.description = description
+		#self.description = description
+		self._shortDescription = description
+		self._longDescription = description
 		#self.updateSummary = set()		# Summary of changes done to this file
 		self.unsavedChanges = []		# Detailed list of all specific changes to this file
 
@@ -233,6 +239,20 @@ class FileBase( object ):
 			# Add this file to the disc's file dictionary
 			assert isoPath, 'No isoPath given to disc file {}!'.format( self.filename )
 			disc.files[isoPath] = self
+
+	@property
+	def shortDescription( self ):
+		if not self._shortDescription:
+			self.getDescription()
+		
+		return self._shortDescription
+
+	@property
+	def longDescription( self ):
+		if not self._longDescription:
+			self.getDescription()
+		
+		return self._longDescription
 
 	@classmethod
 	def setupDescriptions( cls, gameId ):
@@ -346,9 +366,12 @@ class FileBase( object ):
 			printStatus( 'An error occurred while exporting {}: {}'.format(self.filename, err), error=True )
 			return False
 
-	def getDescription( self, inConvenienceFolder=True ):
+	def getDescription( self ):
 
 		""" Gets a file description; attempts to pull from the GALE01 yaml, or dynamicallys build it. """
+
+		self._shortDescription = ''
+		self._longDescription = ''
 
 		try:
 			# Check if there's a file explicitly defined in the file descriptions config file
@@ -361,58 +384,86 @@ class FileBase( object ):
 				if description:
 					description += ' (English)'
 
-			if not description: # Let's see if we can dynamically build one
+			if description:
+				self._shortDescription = description
+				self._longDescription = description
+				return
+
+			else: # Let's see if we can dynamically build one
 				if self.filename.startswith( 'Ef' ): # Effects files
-					if not inConvenienceFolder: description = 'Effects file for '
-					if self.filename == 'EfFxData.dat': description += 'Fox & Falco'
-					else: description += globalData.charNameLookup.get( self.filename[2:4], '' )
+					charAbbr = self.filename[2:4]
+					if charAbbr == 'Fx':
+						charName = 'Fox & Falco'
+					else:
+						charName = globalData.charNameLookup.get( charAbbr, 'Unknown ({})'.format(charAbbr) )
+					self._shortDescription = charName
+					self._longDescription = 'Effects file for ' + charName
 				elif self.filename.startswith( 'GmRegend' ): # Congratulations screens
-					if not inConvenienceFolder: description = 'Congratulations screen'
+					#if not inConvenienceFolder: description = 'Congratulations screen'
+					self._longDescription = 'Congratulations screen'
 				elif self.filename.startswith( 'GmRstM' ): # Results screen animations
-					if inConvenienceFolder: description = globalData.charNameLookup.get( self.filename[6:8], '' )
-					else: description = 'Results screen animations for ' + globalData.charNameLookup.get( self.filename[6:8], '' )
+					# if inConvenienceFolder: description = globalData.charNameLookup.get( self.filename[6:8], '' )
+					# else: description = 'Results screen animations for ' + globalData.charNameLookup.get( self.filename[6:8], '' )
+					charAbbr = self.filename[6:8]
+					charName = globalData.charNameLookup.get( charAbbr, 'Unknown ({})'.format(charAbbr) )
+					self._shortDescription = charName
+					self._longDescription = 'Results screen animations for ' + charName
 				elif self.filename.startswith( 'MvEnd' ): # 1-P Ending Movies
-					if not inConvenienceFolder: description = '1-P Ending Movie'
+					#if not inConvenienceFolder: description = '1-P Ending Movie'
+					self._shortDescription = '1-P Ending Movie'
+					self._longDescription = '1-P Ending Movie'
 				elif self.filename.startswith( 'Pl' ):
-					character = globalData.charNameLookup.get( self.filename[2:4], '' )
+					charAbbr = self.filename[2:4]
+					colorKey = self.filename[4:6]
+					charName = globalData.charNameLookup.get( charAbbr, 'Unknown ({})'.format(charAbbr) )
 
-					if character:
-						colorKey = self.filename[4:6]
-						color = globalData.charColorLookup.get( colorKey, '' )
+				# 	if charName:
+				# 		color = globalData.charColorLookup.get( colorKey, '' )
 
-						if inConvenienceFolder: # No need to show the name, since it's already displayed
-							description = ''
-						elif character.endswith('s'):
-							description = character + "' "
-						else:
-							description = character + "'s "
+				# 		if inConvenienceFolder: # No need to show the name, since it's already displayed
+				# 			description = ''
+				# 		elif charName.endswith('s'):
+				# 			description = charName + "' "
+				# 		else:
+				# 			description = charName + "'s "
+					if charName.endswith( 's' ):
+						self._longDescription = charName + "' "
+					else:
+						self._longDescription = charName + "'s "
 
-						if color: # It's a character costume (model & textures) file
-							description += color + ' costume'
-							if self.ext == '.lat' or colorKey == 'Rl': description += " ('L' alt)" # For 20XX
-							elif self.ext == '.rat' or colorKey == 'Rr': description += " ('R' alt)"
-						elif colorKey == '.d': description += 'NTSC data & shared textures' # e.g. "PlCa.dat"
-						elif colorKey == '.p': description += 'PAL data & shared textures'
-						elif colorKey == '.s': description += 'SDR data & shared textures'
-						elif colorKey == 'AJ': description += 'animation data'
-						elif colorKey == 'Cp': # Kirb's copy abilities
-							copyChar = globalData.charNameLookup.get( self.filename[6:8], '' )
-							if ']' in copyChar: copyChar = copyChar.split( ']' )[1]
-							description += "copy power textures (" + copyChar + ")"
-						elif colorKey == 'DV': description += 'idle animation data'
+				# 		if color: # It's a character costume (model & textures) file
+				# 			description += color + ' costume'
+				# 			if self.ext == '.lat' or colorKey == 'Rl': description += " ('L' alt)" # For 20XX
+				# 			elif self.ext == '.rat' or colorKey == 'Rr': description += " ('R' alt)"
+					if colorKey == '.d': self._shortDescription == 'NTSC data & shared textures' # e.g. "PlCa.dat"
+					elif colorKey == '.p': self._shortDescription == 'PAL data & shared textures'
+					elif colorKey == '.s': self._shortDescription == 'SDR data & shared textures'
+					elif colorKey == 'AJ': self._shortDescription == 'animation data'
+					elif colorKey == 'Cp': # Kirb's copy abilities
+						copyChar = globalData.charNameLookup.get( self.filename[6:8], '' )
+						if ']' in copyChar: copyChar = copyChar.split( ']' )[1]
+						self._shortDescription == "copy power textures (" + copyChar + ")"
+					elif colorKey == 'DV': self._shortDescription == 'idle animation data'
+					else: self._shortDescription = ''
 
-						# Ensure the first word is capitalized
-						if description and inConvenienceFolder:
-							description = description[0].upper() + description[1:]
+					# Ensure the first word is capitalized
+					#if self._shortDescription and inConvenienceFolder:
+					if self._shortDescription:
+						self._shortDescription = self._shortDescription[0].upper() + self._shortDescription[1:]
+
+					self._longDescription += self._shortDescription
+
 		except Exception as err:
-			description = ''
+			#description = ''
+			self._shortDescription = ''
+			self._longDescription = ''
 			printStatus( 'Error in getting a description for {}; {}'.format(self.filename, err), error=True )
 			
 		#self.description = description.encode( 'utf-8' )
-		if description:
-			self.description = description
+		# if description:
+		# 	self.description = description
 
-		return self.description
+		#return self.description
 
 	def setDescription( self, description, gameId='' ):
 
@@ -423,7 +474,9 @@ class FileBase( object ):
 			assert self.disc, 'No discId provided to set yaml file description!'
 			gameId = self.disc.gameId
 
-		self.description = description
+		#self.description = description
+		self._shortDescription = description
+		self._longDescription = description
 		self.yamlDescriptions[self.filename] = description
 
 		descriptionsFile = os.path.join( globalData.scriptHomeFolder, 'File Descriptions', gameId + '.yaml' )
@@ -2709,7 +2762,8 @@ class StageFile( DatFile ):
 					longName = fullName
 					break
 
-		# If we have a longname, the file matched with a key stage name above (and has something like a .2at file extension), and thus should be a Random Neutral
+		# If we have a longname, the file matched with a key stage name above (and has 
+		# something like a .2at file extension), and thus should be a Random Neutral.
 		if longName:
 			self._isRandomNeutralStage = True
 			self.shortName = shortName
@@ -2721,7 +2775,7 @@ class StageFile( DatFile ):
 		
 		return self._isRandomNeutralStage
 
-	def getDescription( self, inConvenienceFolder=True, updateInternalRef=True ):
+	def getDescription( self ):
 
 		""" Attempts to find a description for this file using multiple methods:
 			 -> Check the yaml from the File Descriptions folder for the current Game ID
@@ -2730,26 +2784,31 @@ class StageFile( DatFile ):
 			 -> Check if it's a Target Test stage
 			 -> Check other vanilla file names """
 			 
-		stageName = ''
+		self._shortDescription = ''
+		self._longDescription = ''
 
 		# Try to recognize stages within the set of 'Random Neutrals' (The sets of 16 stages for each legal neutral stage)
 		if self.isRandomNeutral():
 			# Get the CSS file (which may contain random neutral names)
 			try:
 				cssFile = self.disc.files[self.disc.gameId + '/MnSlChr.0sd']
-				stageName = cssFile.getRandomNeutralName( self.filename )
+				self._shortDescription = cssFile.getRandomNeutralName( self.filename )
 
-				if stageName and not inConvenienceFolder:
-					# Get the vanilla stage name as a base for the descriptive name
-					stageName = self.longName + ', ' + stageName
+				# if stageName and not inConvenienceFolder:
+				# 	# Get the vanilla stage name as a base for the descriptive name
+				# 	stageName = self.longName + ', ' + stageName
+				if self._shortDescription:
+					self._longDescription = self.longName + ', ' + self._shortDescription
 
 			except Exception as err:
 				print 'Unable to get Random Neutral stage name from CSS file;'
 				print err
+			
+			return
 		
 		# Check if there's a file explicitly defined in the file descriptions config file
-		if not stageName:
-			stageName = self.yamlDescriptions.get( self.filename, '' )
+		#if not stageName:
+		stageName = self.yamlDescriptions.get( self.filename, '' )
 
 		# If this is a usd file, check if there's a dat equivalent description
 		if not stageName and self.ext == '.usd':
@@ -2758,8 +2817,14 @@ class StageFile( DatFile ):
 			if stageName:
 				stageName += ' (English)'
 
+		if stageName:
+			self._shortDescription = stageName
+			self._longDescription = stageName
+			return
+
 		# Check for Target Test stages
-		if not stageName and self.filename[2] == 'T':
+		#if not stageName and self.filename[2] == 'T':
+		elif self.filename[2] == 'T':
 			characterName = globalData.charNameLookup.get( self.filename[3:5], '' )
 
 			if characterName:
@@ -2769,13 +2834,15 @@ class StageFile( DatFile ):
 					stageName = characterName + "'s"
 
 				# If convenience folders aren't turned on this name should have more detail
-				if not inConvenienceFolder:
-					stageName += " Target Test stage"
+				# if not inConvenienceFolder:
+				# 	stageName += " Target Test stage"
+				self._shortDescription = stageName
+				self._longDescription = stageName + " Target Test stage"
 		
-		if updateInternalRef:
-			self.description = stageName
+		# if updateInternalRef:
+		# 	self.description = stageName
 
-		return stageName
+		# return stageName
 
 	def setDescription( self, description, gameId='' ):
 
@@ -2787,7 +2854,9 @@ class StageFile( DatFile ):
 				3: Unable to save to the CSS file """
 
 		if self.isRandomNeutral() and self.disc:
-			self.description = description
+			#self.description = description
+			self._shortDescription = description
+			self._longDescription = description
 
 			try:
 				# Names for these are stored in the CSS file... update it there
@@ -2900,19 +2969,10 @@ class CharCostumeFile( DatFile ):
 	def __init__( self, *args, **kwargs ):
 		DatFile.__init__( self, *args, **kwargs )
 
-	# 	self.initialize()
-
 		self._intCharId = -2
 		self._extCharId = -2
 		self._charAbbr = ''
 		self._colorAbbr = ''
-
-	# 	#stringTableEntry = self.stringDict.values()[0]
-	# 	# if '5K' in stringTableEntry:
-	# 	# 	print self.filename, '\t', 'found 5K. split[1]:', stringTableEntry.split( '5K' )[1]
-	# 	# else:
-	# 	#print self.filename, '\t', self.rootNodes[0][1]
-	# 	print self.filename, '\t', self.getCharAbbr(), '|', self.getColorAbbr(), '|', self.buildDiscFileName(), (self.filename == self.buildDiscFileName())
 
 	@property
 	def intCharId( self ):
@@ -2930,7 +2990,6 @@ class CharCostumeFile( DatFile ):
 		if not self._charAbbr:
 			self._charAbbr = self.getCharAbbr()
 		return self._charAbbr
-		
 	@property
 	def colorAbbr( self ):
 		if not self._colorAbbr:
@@ -3003,6 +3062,50 @@ class CharCostumeFile( DatFile ):
 				colorAbbr = 'Nr'
 
 		return colorAbbr
+
+	def getDescription( self ):
+		
+		# Attempt to get the character name this file is for
+		charName = globalData.charNameLookup.get( self.charAbbr, '' )
+		if not charName:
+			self._shortDescription = 'Unknown ({})'.format( self.charAbbr )
+			self._longDescription = self._shortDescription
+			return
+
+		if charName.endswith( 's' ):
+			self._longDescription = charName + "' "
+		else:
+			self._longDescription = charName + "'s "
+
+		colorKey = self.colorAbbr
+		color = globalData.charColorLookup.get( colorKey, '' )
+		assert color, 'Unable to get a color look-up from ' + colorKey
+
+		# if inConvenienceFolder: # No need to show the name, since it's already displayed
+		# 	description = ''
+		# elif charName.endswith('s'):
+		# 	description = charName + "' "
+		# else:
+		# 	description = charName + "'s "
+
+		#if color: # It's a character costume (model & textures) file
+		self._shortDescription = color + ' costume'
+		if self.ext == '.lat' or colorKey == 'Rl': self._shortDescription += " ('L' alt)" # For 20XX
+		elif self.ext == '.rat' or colorKey == 'Rr': self._shortDescription += " ('R' alt)"
+		# elif colorKey == '.d': description += 'NTSC data & shared textures' # e.g. "PlCa.dat"
+		# elif colorKey == '.p': description += 'PAL data & shared textures'
+		# elif colorKey == '.s': description += 'SDR data & shared textures'
+		# elif colorKey == 'AJ': description += 'animation data'
+		# elif colorKey == 'Cp': # Kirb's copy abilities
+		# 	copyChar = globalData.charNameLookup.get( self.filename[6:8], '' )
+		# 	if ']' in copyChar: copyChar = copyChar.split( ']' )[1]
+		# 	description += "copy power textures (" + copyChar + ")"
+		# elif colorKey == 'DV': description += 'idle animation data'
+
+		self._longDescription += self._shortDescription
+
+		# Ensure the first word is capitalized
+		self._shortDescription = self._shortDescription[0].upper() + self._shortDescription[1:]
 
 	def buildDiscFileName( self, defaultToUsd=True ):	# todo: depricate in favor of disc.constructCharFileName( self, charId, colorId, ext='dat', defaultToUsd=True )
 
@@ -3231,7 +3334,7 @@ class MusicFile( FileBase ):
 
 	# 	return self._isHexTrack
 
-	def getDescription( self, inConvenienceFolder=True ):
+	def getDescription( self ):
 
 		description = ''
 
@@ -3246,10 +3349,12 @@ class MusicFile( FileBase ):
 		else: # Check if there's a file explicitly defined in the file descriptions yaml config file
 			description = self.yamlDescriptions.get( self.filename, '' )
 
-		if description:
-			self.description = description
+		# if description:
+		# 	self.description = description
+		self._shortDescription = description
+		self._longDescription = description
 		
-		return self.description
+		#return self.description
 
 	def setDescription( self, description, gameId='' ):
 
@@ -3261,7 +3366,9 @@ class MusicFile( FileBase ):
 				3: Unable to save to the CSS file """
 
 		if self.isHexTrack and self.disc:
-			self.description = description
+			#self.description = description
+			self._shortDescription = description
+			self._longDescription = description
 
 			# Names for these are stored in the CSS file... store it there
 			cssFile = self.disc.files.get( self.disc.gameId + '/MnSlChr.0sd' )

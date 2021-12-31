@@ -202,10 +202,10 @@ class DiscTab( ttk.Frame ):
 			
 		self.clear()
 
-		# if switchTab:
-		# 	currentlySelectedTab = globalData.gui.root.nametowidget( globalData.gui.mainTabFrame.select() )
-		# 	if currentlySelectedTab != globalData.gui.discTab and currentlySelectedTab != globalData.gui.discDetailsTab:
-		# 		globalData.gui.mainTabFrame.select( globalData.gui.discTab ) # Switch to the Disc File Tree tab
+		if switchTab:
+			currentlySelectedTab = globalData.gui.root.nametowidget( globalData.gui.mainTabFrame.select() )
+			if currentlySelectedTab != self and currentlySelectedTab != globalData.gui.discDetailsTab:
+				globalData.gui.mainTabFrame.select( self ) # Switch to the Disc File Tree tab
 
 		usingConvenienceFolders = globalData.checkSetting( 'useDiscConvenienceFolders' ) # Avoiding having to look this up many times
 		disc = globalData.disc
@@ -390,12 +390,11 @@ class DiscTab( ttk.Frame ):
 				parent = 'ty'
 
 		# Add the file to the treeview (all files in the treeview should be added with the line below, but may be modified elsewhere)
-		# description = discFile.description
-		# if not description:
-		description = discFile.getDescription( usingConvenienceFolders )
 		if usingConvenienceFolders:
 			# Add extra space to indent the name from the stage folder name
-			description = '    ' + description
+			description = '     ' + discFile.shortDescription
+		else:
+			description = discFile.longDescription
 		
 		try:
 			# altPath = 'GALE01/' + discFile.filename.replace( '.usd', '.dat' )
@@ -1800,7 +1799,7 @@ class DiscMenu( Tk.Menu, object ):
 			charLimit = cssFile.checkMaxHexTrackNameLen( self.fileObj.trackId )
 
 		# Prompt the user to enter a new name
-		newName = getNewNameFromUser( charLimit, message='Enter a new description:', defaultText=self.fileObj.description )
+		newName = getNewNameFromUser( charLimit, message='Enter a new description:', defaultText=self.fileObj.longDescription )
 		if not newName:
 			globalData.gui.updateProgramStatus( 'Name update canceled' )
 			return

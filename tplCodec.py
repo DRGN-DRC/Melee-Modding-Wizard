@@ -33,18 +33,18 @@ class missingType( Exception ): pass
 class noPalette( Exception ): pass
 
 
-def loadTextureFile( filePath ):
+# def loadTextureFile( filePath ):
 
-	# If the imported file is in TPL format, convert it to PNG
-	if filePath[-4:] == '.tpl':
-		# Get image dimensions
-		with open( filepath, 'rb' ) as binaryFile:
-			binaryFile.seek( 0xC )
-			imageHeaderAddress = toInt( binaryFile.read(4) )
+# 	# If the imported file is in TPL format, convert it to PNG
+# 	if filePath[-4:] == '.tpl':
+# 		# Get image dimensions
+# 		with open( filepath, 'rb' ) as binaryFile:
+# 			binaryFile.seek( 0xC )
+# 			imageHeaderAddress = toInt( binaryFile.read(4) )
 
-		newImage = TplDecoder( filePath, (origWidth, origHeight), origImageType )
-		newFilePath = destinationFolder + newFileName + '.tpl'
-		newImage.createPngFile( newFilePath, creator='DTW - v' + programVersion )
+# 		newImage = TplDecoder( filePath, (origWidth, origHeight), origImageType )
+# 		newFilePath = destinationFolder + newFileName + '.tpl'
+# 		newImage.createPngFile( newFilePath, creator='DTW - v' + programVersion )
 
 
 class CodecBase( object ): # The functions here in CodecBase are inherited by both of the encoder/decoder classes.

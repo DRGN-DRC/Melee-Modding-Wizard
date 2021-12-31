@@ -924,7 +924,10 @@ class Disc( object ):
 
 		for fileObj in unsavedFiles:
 			# Get the file description or filename
-			fileDesc = fileObj.description if fileObj.description else fileObj.filename
+			if fileObj.longDescription:
+				fileDesc = fileObj.longDescription 
+			else:
+				fileDesc = fileObj.filename
 
 			if len( fileObj.unsavedChanges ) == 1:
 				lines.append( u'{}: {}'.format(fileDesc, fileObj.unsavedChanges[0]) )
@@ -1111,7 +1114,7 @@ class Disc( object ):
 			newFileObj.trackNumber = origFileObj.trackNumber
 
 		# Refresh the description (may not have been retrievable during file initialization without a disc reference)
-		newFileObj.getDescription()
+		#newFileObj.getDescription()
 
 		# Update this file's entry size if it's changed, and check if the disc will need to be rebuilt
 		if newFileObj.size != origFileObj.size:
@@ -2132,7 +2135,7 @@ class Disc( object ):
 		# Add the file to the disc if it isn't already present
 		if not self.injectionsCodeFile:
 			# File not yet added to the disc; add it now
-			self.injectionsCodeFile = FileBase( self, -1, -1, self.gameId + '/codes.bin', '', source='self' )
+			self.injectionsCodeFile = FileBase( self, -1, -1, self.gameId + '/codes.bin', source='self' )
 			if self.gameId + '/1padv.ssm' in self.files:
 				self.injectionsCodeFile.insertionKey = self.gameId + '/1padv.ssm' # File will be added just before this path/key
 			else:

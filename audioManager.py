@@ -103,7 +103,7 @@ class AudioManager( ttk.Frame ):
 		ttk.Frame.__init__( self, parent )
 
 		# Add this tab to the main GUI
-		mainGui.mainTabFrame.add( self, text=' Audio Manager ' )
+		mainGui.mainTabFrame.add( self, text=' Music Manager ' )
 		self.audioEngine = mainGui.audioEngine
 		self.lastExportFormat = 'hps'
 		#self.selectedFile = None
@@ -126,7 +126,7 @@ class AudioManager( ttk.Frame ):
 		infoPane = ttk.Frame( self )
 
 		generalLabelFrame = ttk.LabelFrame( infoPane, text='  General Info  ', labelanchor='n', padding=(20, 0, 20, 4) ) # Padding order: Left, Top, Right, Bottom.
-		ttk.Label( generalLabelFrame, text=('Total Tracks:\nTotal Filespace:\nRemaining Filespace:') ).pack( side='left' )
+		ttk.Label( generalLabelFrame, text=('Total Tracks:\nFilespace Used:\nFilespace Remaining:') ).pack( side='left' )
 		self.generalInfoLabel = ttk.Label( generalLabelFrame )
 		self.generalInfoLabel.pack( side='right', padx=6 )
 		generalLabelFrame.pack( pady=(12, 6) )
@@ -235,16 +235,16 @@ class AudioManager( ttk.Frame ):
 				parent = ''
 
 			# Add the musicFile to the treeview
-			self.fileTree.insert( parent, 'end', iid=musicFile.isoPath, text=musicFile.description, values=(musicFile.filename, 'file') )
+			self.fileTree.insert( parent, 'end', iid=musicFile.isoPath, text=musicFile.shortDescription, values=(musicFile.filename, 'file') )
 			# if musicFile.isHexTrack:
-			# 	print humansize(musicFile.size), '  \t', musicFile.description
+			# 	print humansize(musicFile.size), '  \t', musicFile.shortDescription
 			#files.append( musicFile )
 
 		# files.sort( key=lambda item: item.musicId )
 		# for musicFile in files:
 		# 	musicFile.readBlocks()
 		# 	durationString = self.formatDuration( musicFile.duration )
-		# 	print '[tr][td]' + uHex(musicFile.musicId), '[/td][td][COLOR=rgb(97, 189, 109)]', musicFile.description, '[/COLOR][/td][td]', musicFile.filename, '[/td][td]', humansize(musicFile.size), '({})'.format( uHex(musicFile.size) ), '[/td][td]', durationString + '[/td][/tr]'
+		# 	print '[tr][td]' + uHex(musicFile.musicId), '[/td][td][COLOR=rgb(97, 189, 109)]', musicFile.shortDescription, '[/COLOR][/td][td]', musicFile.filename, '[/td][td]', humansize(musicFile.size), '({})'.format( uHex(musicFile.size) ), '[/td][td]', durationString + '[/td][/tr]'
 
 		if restoreState:
 			self.fileTree.restoreState()
@@ -382,11 +382,11 @@ class AudioManager( ttk.Frame ):
 			fileTypeOptions = [('WAV files', '*.wav'), ( "HPS files", '*.hps' ), ( "All files", "*.*" )]
 		
 		# Add the file description to the filename if that option is turned on
-		if globalData.checkSetting( 'exportDescriptionsInFilename' ) and musicFile.description:
+		if globalData.checkSetting( 'exportDescriptionsInFilename' ) and musicFile.shortDescription:
 			name, ext = os.path.splitext( defaultName )
 
 			# Remove illegal characters
-			description = musicFile.description
+			description = musicFile.shortDescription
 			for char in description:
 				if char in ( '\\', '/', ':', '*', '?', '"', '<', '>', '|' ):
 					description = description.replace( char, '-' )
@@ -495,7 +495,7 @@ class AudioManager( ttk.Frame ):
 			charLimit = 42 # Arbitrary; don't want it too long though, for readability
 
 		# Prompt the user to enter a new name
-		newName = getNewNameFromUser( charLimit, message='Enter a new name:', defaultText=musicFile.description )
+		newName = getNewNameFromUser( charLimit, message='Enter a new name:', defaultText=musicFile.shortDescription )
 		if not newName:
 			globalData.gui.updateProgramStatus( 'Name update canceled' )
 			return
@@ -671,8 +671,8 @@ class AudioManager( ttk.Frame ):
 				secondaryReferences.append( fileObj )
 
 		# Reformat the lists of files to descriptive strings
-		primaryReferences = [ u'{} ({})'.format(fileObj.filename, fileObj.getDescription(False, False)) for fileObj in primaryReferences ]
-		secondaryReferences = [ u'{} ({})'.format(fileObj.filename, fileObj.getDescription(False, False)) for fileObj in secondaryReferences ]
+		primaryReferences = [ u'{} ({})'.format(fileObj.filename, fileObj.longDescription) for fileObj in primaryReferences ]
+		secondaryReferences = [ u'{} ({})'.format(fileObj.filename, fileObj.longDescription) for fileObj in secondaryReferences ]
 
 		# Display the result in the info pane
 		if not primaryReferences and not secondaryReferences:
@@ -720,10 +720,10 @@ class AudioManager( ttk.Frame ):
 
 			if fileObj.size < minSize:
 				minSize = fileObj.size
-				minTrackName = fileObj.description
+				minTrackName = fileObj.shortDescription
 			if fileObj.size > maxSize:
 				maxSize = fileObj.size
-				maxTrackName = fileObj.description
+				maxTrackName = fileObj.shortDescription
 
 		# Show some results of the above scan in the GUI
 		details = 'Smallest track:    {}   ({})'.format( humansize(minSize), minTrackName )
@@ -1128,7 +1128,7 @@ class TrackAdder( BasicWindow ):
 			self.hpsFile.isHexTrack = True
 			self.hpsFile.trackNumber = value
 
-		# Get/add the nickname as a file.description
+		# Get/add the nickname as a file description
 		name = self.nicknameEntry.get().strip()
 		if name:
 			try:

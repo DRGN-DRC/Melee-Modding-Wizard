@@ -155,7 +155,6 @@ GmTou4p.dat: Tournament Mode File 4
 GmTrain.dat: Training Mode
 GmTtAll.dat: Title Screen
 IfComSn.dat: '"Coming Soon" Screen'
-IfComSn.usd: '"Coming Soon" Screen (English)'
 IfHrNoCn.dat: Home Run Contest File 1
 IfHrReco.dat: Home Run Contest File 2
 IfPrize.dat: Special Achievement Messages
@@ -169,9 +168,7 @@ LbRb.dat: Controller Rumble Data
 MnExtAll.dat: Extra menu graphics for the CSS
 MnMaAll.dat: Main menu graphics file
 MnSlChr.dat: Character Select Screen
-MnSlChr.usd: Character Select Screen (English)
 MnSlMap.dat: Stage Select Screen
-MnSlMap.usd: Stage Select Screen (English)
 NtAppro.dat: "'New Challenger' Screens"
 opening.dat: Game banner, title, and description texts
 PlCo.dat: Textures common to the cast
@@ -180,7 +177,6 @@ SdMenu.dat: Special menu characters
 # Vanilla Stages
 GrBb.dat: Big Blue
 GrCn.dat: Corneria
-GrCn.usd: Corneria (English)
 GrCs.dat: Princess Peach's Castle
 GrEF1.dat: Goomba Trophy Stage
 GrEF2.dat: Entei Trophy Stage

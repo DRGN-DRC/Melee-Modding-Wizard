@@ -469,13 +469,13 @@ class MusicToolTip( ToolTip ):
 			tw.deiconify()
 			print 'deiconify after creation', self.valueIndex
 		else:
-			print 'deiconify', self.valueIndex
+			#print 'deiconify', self.valueIndex
 			x, y = self.coords()
 			self._tipwindow.wm_geometry("+%d+%d" % (x, y))
 			self._tipwindow.deiconify()
 
 	def _hide(self):
-		print 'hiding', self.valueIndex
+		#print 'hiding', self.valueIndex
 		tw = self._tipwindow
 		#self._tipwindow = None
 		if tw:
@@ -510,7 +510,7 @@ class SongChooser( BasicWindow ):
 			# Exclude fanfare (victory) audio clips and other short tracks most likely not wanted for music
 			elif musicFile.size < 0xF0000 or musicFile.filename == 'howto.hps':
 				if musicFile.filename not in ( '10.hps', 'inis2_02.hps' ): # Allow this track through (both are for MK2 Finale)
-					#print ' - skipping', hex(musicId), '|', musicFile.filename, '-', musicFile.description
+					#print ' - skipping', hex(musicId), '|', musicFile.filename, '-', musicFile.longDescription
 					continue
 
 			musicFiles.append( musicFile )
@@ -528,9 +528,9 @@ class SongChooser( BasicWindow ):
 		self.lineDict[0] = None
 		lineToSelect = -1
 		for musicFile in musicFiles:
-			if musicFile.description:
-				self.listbox.insert( 'end', musicFile.description )
-				#self.lineDict[len(self.lineDict)] = ( musicFile.musicId, musicFile.filename, musicFile.description )
+			if musicFile.longDescription:
+				self.listbox.insert( 'end', musicFile.longDescription )
+				#self.lineDict[len(self.lineDict)] = ( musicFile.musicId, musicFile.filename, musicFile.longDescription )
 			else:
 				self.listbox.insert( 'end', 'No description (' + musicFile.filename + ')' )
 				#self.lineDict[len(self.lineDict)] = ( musicFile.musicId, musicFile.filename, musicFile.filename )
@@ -539,7 +539,7 @@ class SongChooser( BasicWindow ):
 
 			if musicFile.musicId == initialSelection:
 				lineToSelect = len( self.lineDict ) - 1
-		#self.lineDict[-1] = ( -1, musicFile.filename, musicFile.description )
+		#self.lineDict[-1] = ( -1, musicFile.filename, musicFile.longDescription )
 
 		# Initialize an ACM for this window
 		self.acm = AudioControlModule( self.window, globalData.gui.audioEngine )
@@ -579,7 +579,7 @@ class SongChooser( BasicWindow ):
 		musicFile = self.lineDict[lineNumber]
 		if musicFile:
 			musicId = musicFile.musicId
-			newSongName = musicFile.description
+			newSongName = musicFile.longDescription
 		else:
 			musicId = -1
 			newSongName = 'None'
@@ -749,7 +749,9 @@ class StageManager( ttk.Frame ):
 		ttk.Button( self.controlsFrame, text='Add Variation', command=self.addStageVariation ).grid( column=1, row=2, padx=4, ipadx=7, pady=4 )
 		ttk.Button( self.controlsFrame, text='Test', command=self.testStage ).grid( column=0, row=3, padx=4, pady=4 )
 		ttk.Button( self.controlsFrame, text='Rename', command=self.renameStage ).grid( column=1, row=3, padx=4, pady=4 )
-		ttk.Button( self.controlsFrame, text='Rename RSSS Name', command=self.renameRsssName ).grid( column=0, columnspan=2, row=4, padx=4, pady=4 )
+		rsssBtn = ttk.Button( self.controlsFrame, text='Rename RSSS Name', command=self.renameRsssName )
+		ToolTip( rsssBtn, 'Name shown on the Random Stage Select Screen.' )
+		rsssBtn.grid( column=0, columnspan=2, row=4, padx=4, pady=4, ipadx=9 )
 		self.controlsFrame.grid( column=3, row=0, padx=(0, padding), pady=padding )
 
 		row1.grid( column=0, columnspan=2, row=1, sticky='nsew' )
@@ -908,7 +910,6 @@ class StageManager( ttk.Frame ):
 
 		sisFile = globalData.disc.files.get( globalData.disc.gameId + filename )
 		sisFile.initialize()
-		sisFile.identifyTextures()
 
 		return sisFile.getStageMenuName( internalStageId )
 
@@ -1365,17 +1366,18 @@ class StageManager( ttk.Frame ):
 
 	def getVariationDisplayName( self, stageFile, pageNumber ):
 
-		if pageNumber == 1:
-			useShortNames = True
-		else:
-			useShortNames = False
+		# if pageNumber == 1:
+		# 	useShortNames = True
+		# else:
+		# 	useShortNames = False
 		
 		if stageFile.isRandomNeutral():
-			displayName = stageFile.getDescription( inConvenienceFolder=useShortNames, updateInternalRef=False )
-		elif stageFile.filename[2] == 'T': # Target Test stage
-			displayName = stageFile.getDescription( inConvenienceFolder=False, updateInternalRef=False )
-		elif stageFile.description:
-			displayName = stageFile.description
+			#displayName = stageFile.getDescription( inConvenienceFolder=useShortNames, updateInternalRef=False )
+			displayName = stageFile.shortDescription
+		# elif stageFile.filename[2] == 'T': # Target Test stage
+		# 	displayName = stageFile.longDescription
+		elif stageFile.longDescription:
+			displayName = stageFile.longDescription
 		else:
 			displayName = ' - - '
 
@@ -1387,8 +1389,6 @@ class StageManager( ttk.Frame ):
 		if dolFilenameOffset == -1:
 			print 'Unable to determine a stage file name for stage ID', hex( self.selectedStageId )
 			return
-
-		#print 'clicked', dolStageFilename, 'at', uHex( dolFilenameOffset )
 		
 		isoPath = globalData.disc.gameId + '/' + dolStageFilename
 		stageFile = globalData.disc.files.get( isoPath )
@@ -1418,8 +1418,6 @@ class StageManager( ttk.Frame ):
 
 		# Get information from the Stage Swap Table on what file(s) this icon/stage slot should load
 		newExtStageId, stageFlags, byteReplacePointer, byteReplacement, randomByteValues = self.stageSwapTable.getEntryInfo( self.selectedStageId, canvas.pageNumber )
-		#newIntStageId = self.dol.getIntStageIdFromExt( newExtStageId )
-		#print 'new external id:', hex(newExtStageId), '  new internal id:', hex(newIntStageId)
 
 		# Get the Internal Stage ID of the stage to be loaded
 		if newExtStageId == 0: # No change; this will be the currently selected stage slot
@@ -1618,8 +1616,8 @@ class StageManager( ttk.Frame ):
 				musicFile = globalData.disc.getMusicFile( songId )
 
 				if musicFile:
-					if musicFile.description:
-						label['text'] = uHex( songId ) + ' | ' + musicFile.description
+					if musicFile.longDescription:
+						label['text'] = uHex( songId ) + ' | ' + musicFile.longDescription
 					else:
 						label['text'] = uHex( songId ) + ' | Unknown Track'
 				else:
@@ -1688,18 +1686,14 @@ class StageManager( ttk.Frame ):
 		# Increase the width of the image to accommodate more characters (to an extent); the image will later be squished more horizontally to overcome this
 		width, height = bottomTextFont.getsize( bottomText )
 		sizeDiff = width - imageWidth + widthBuffer + 40 # Extra 20 to ensure there's at least a small band between the text and edge of the texture
-		# print 'sizeDiff =', width, '-', imageWidth, '+', widthBuffer
-		# print 'width diff:', sizeDiff
 		if sizeDiff >= 200:
 			imageWidth += 240
 		elif sizeDiff > 0:
 			imageWidth += sizeDiff
 
 		# If still too wide, reduce the font size of the bottom text
-		#width, height = bottomTextFont.getsize( bottomText )
 		while width >= imageWidth - widthBuffer - 5:
 			bottomTextFontSize -= 1
-			# print 'too wide; attempting new font of size', bottomTextFontSize
 			bottomTextFont = ImageFont.FreeTypeFont( bottomTextFontPath, bottomTextFontSize )
 			width, height = bottomTextFont.getsize( bottomText )
 
@@ -1716,22 +1710,17 @@ class StageManager( ttk.Frame ):
 
 		# Crop off the width buffer
 		newTexture = newTexture.crop( (widthBuffer/2, 0, imageWidth-widthBuffer/2, 56) )
-		# print 'new texture width:', newTexture.size
 
 		# Horizontally squish the texture down to its final size
 		newTexture = newTexture.resize( (224, 56), resample=Image.BICUBIC )
 
 		width, height = topTextFont.getsize( topText )
-		# print 'top text char count:', len( topText )
-		# print 'top text width:', width
 		
 		# Adjust the font size of the top text if it's too wide
 		addKerning = False
 		if width >= 224:
-			# print 'top text too wide. shrinking...'
 			while width >= 224:
 				topTextFontSize -= 1
-				# print 'testing new font of size', topTextFontSize
 				topTextFont = ImageFont.FreeTypeFont( os.path.join( globalData.paths['fontsFolder'], 'Palatino Linotype, Bold.ttf'), topTextFontSize )
 				width, height = topTextFont.getsize( topText )
 
@@ -1747,7 +1736,6 @@ class StageManager( ttk.Frame ):
 				width += charWidth + 1
 
 			width -= 1 # Ignore kerning after last character
-			# print 'width with kerning added:', width
 			if width < 210:
 				addKerning = True
 
@@ -1991,8 +1979,6 @@ class StageManager( ttk.Frame ):
 		""" Prompts the user for a new file to add to the disc, initilizes it, and adds it to the disc filesystem. 
 			Returns the new stage object if successful, or None otherwise. """
 
-		print 'attempting to add', newIsoPath
-
 		 # No file by this name in the disc; it's probably a random neutral stage slot selected. User probably wants to add a new file to disc
 		fileTypeOptions = [ ('Stage files', '*.dat *.usd *.0at *.1at *.2at *.3at *.4at *.5at *.6at *.7at *.8at *.9at *.aat *.bat *.cat *.dat *.eat'),
 							('All files', '*.*') ]
@@ -2086,7 +2072,7 @@ class StageManager( ttk.Frame ):
 			charLimit = 42 # Somewhat arbitrary limit
 		
 		# Prompt the user to enter a new name, and validate it
-		defaultText = self.selectedStage.getDescription()
+		defaultText = self.selectedStage.longDescription
 		newName = getNewNameFromUser( charLimit, None, 'Enter a new stage name:', defaultText )
 
 		if not newName:
@@ -2521,8 +2507,6 @@ class StageSwapEditor( BasicWindow ):
 	def useRandoByteToggled( self ):
 
 		""" Repopulates the GUI input for the byte replacement value and random byte replacement values. """
-
-		# print 'radio button toggled to', self.useRandomByteValue.get()
 
 		byteReplacePointer = self.getByteReplacePointer()
 		byteReplacement, randomByteValues = self.getByteReplacementValues()
