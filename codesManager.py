@@ -564,6 +564,9 @@ class CodeManagerTab( ttk.Frame ):
 
 		""" If 20XX is loaded, this attempts to recognize its version and select the appropriate custom code regions. """
 
+		if not globalData.disc:
+			return
+
 		# Check if the loaded DOL is 20XX and get its version
 		dol = globalData.disc.dol
 		if not dol.is20XX:
