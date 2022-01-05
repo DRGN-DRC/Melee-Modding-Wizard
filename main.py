@@ -161,8 +161,8 @@ class FileMenu( Tk.Menu, object ):
 		unsavedFiles = globalData.disc.getUnsavedChangedFiles()
 
 		# Scan for code-related changes
+		pendingCodeChanges = False
 		if globalData.gui.codeManagerTab:
-			pendingCodeChanges = False
 			for mod in globalData.codeMods:
 				if mod.state == 'pendingEnable':
 					pendingCodeChanges = True
@@ -644,6 +644,7 @@ class MainMenuOption( object ):
 		if self.color == '#7b5467': return # temporarily disabled
 		
 		globalData.gui.updateProgramStatus( '' )
+		print('clicked')
 
 		self.callback( event )
 
@@ -657,7 +658,7 @@ class MainMenuOption( object ):
 		globalData.gui.updateProgramStatus( self.hoverText )
 
 		self.canvas['cursor'] = 'hand2'
-		#print('hovered')
+		print('hovered')
 
 		# Swap to the hover image and change the font color
 		self.canvas.itemconfig( self.bdLeft, image=self.canvas.optionBgLeftImageH )
@@ -676,7 +677,7 @@ class MainMenuOption( object ):
 	def unhovered( self, event ):
 		#self.mouseHovered = False
 		self.canvas['cursor'] = ''
-		#print('unhovered')
+		print('unhovered')
 
 		# Swap to the default image and change the font color
 		self.canvas.itemconfig( self.bdLeft, image=self.canvas.optionBgLeftImage )
@@ -693,13 +694,9 @@ class MainMenuOption( object ):
 
 class MainMenuCanvas( Tk.Canvas ):
 
-	imageSets = set( ['ABG00', 'ABG01'] ) # Animated Backgrounds; will be selected randomly during image loading
+	imageSets = set( ['ABG00', 'ABG01', 'ABG02'] ) # Animated Backgrounds; will be selected randomly during image loading
 
 	def __init__( self, mainGui, canvasFrame, width, height ):
-		# mainGui.mainTabFrame.update()
-		# print( mainGui.mainTabFrame.winfo_height(), mainGui.mainTabFrame.winfo_height() )
-		# print( mainGui.mainTabFrame.winfo_reqheight(), mainGui.mainTabFrame.winfo_reqheight() )
-		# print( canvasFrame.winfo_height(), canvasFrame.winfo_reqheight() )
 		Tk.Canvas.__init__( self, canvasFrame, width=width, height=height, borderwidth=0, highlightthickness=0 )
 
 		# Prevent the canvas from being scrollable
@@ -714,7 +711,6 @@ class MainMenuCanvas( Tk.Canvas ):
 		self.animId = -1
 		self.minIdleTime = 10 # Before next animation (character swap or wireframe effect)
 		self.maxIdleTime = 25 # Must be at least double the minimum (due to halving in first use)
-		self.secondaryMenuLoaded = False
 
 		self.currentBorderColor = ''
 		self.borderImgs = {}	# key=color, value=imagesDict (key=imageName, value=image)
@@ -741,18 +737,15 @@ class MainMenuCanvas( Tk.Canvas ):
 
 		self.displayPrimaryMenu()
 
-		# Add click and hover event handlers
-		# self.tag_bind( 'menuOptions', '<1>', self.menuOptionClicked )
-		# self.tag_bind( 'menuOptions', '<Enter>', self.menuOptionHovered )
-		# self.tag_bind( 'menuOptions', '<Leave>', self.menuOptionUnhovered )
-		# self.tag_bind( 'menuOptionsBg', '<1>', self.menuOptionClicked )
-		# self.tag_bind( 'menuOptionsBg', '<Enter>', self.menuOptionHovered )
-		# self.tag_bind( 'menuOptionsBg', '<Leave>', self.menuOptionUnhovered )
-
 		# Start a timer to count down to creating the wireframe effect or swap images
 		timeTilNextAnim = random.randint( self.minIdleTime, self.maxIdleTime / 2 ) # Shorter first idle
 		#print( 'first anim should trigger in', timeTilNextAnim, 'seconds' )
 		self.afterId = self.after( timeTilNextAnim*1000, self.animateCharImage )
+
+		self.create_text( width-40, 80, text='Fade', fill='silver', tags=('testFade',) )
+		self.create_text( width-40, 110, text='Wireframe\nPass', fill='silver', tags=('testWireframe',) )
+		self.tag_bind( 'testFade', '<1>', self.testFade )
+		self.tag_bind( 'testWireframe', '<1>', self.testWireframe )
 
 	def initFont( self, fontName, private=True, enumerable=False ):
 		
@@ -788,6 +781,7 @@ class MainMenuCanvas( Tk.Canvas ):
 	def loadImageSet( self ):
 		# Randomly select an image set (without selecting the current one)
 		self.imageSet = random.choice( list(self.imageSets.difference( [self.imageSet] )) )
+		#self.imageSet = 'ABG02'
 		#print( 'Loading image set', self.imageSet )
 
 		# Load the necessary images (not using the imageBank because we want to work with these as PIL Image objects)
@@ -1043,9 +1037,6 @@ class MainMenuCanvas( Tk.Canvas ):
 		originY = ( int(self['height']) - self.mainBorderHeight ) / 2
 		heightFill = self.mainBorderHeight - 102 # -70 - 32
 
-		# xOffset = 70 # From the main border left origin
-		# yOffset = -12 # Applied to background parts only
-
 		# Calculate position of this menu option
 		spacingBetweenOptions = heightFill / ( self.menuOptionCount + 1 )
 		currentMenuOptionCount = len( self.find_withtag('menuOptions') )
@@ -1054,31 +1045,6 @@ class MainMenuCanvas( Tk.Canvas ):
 		optOriginY = y -12
 
 		# Add the text object
-		# textObj = self.create_text( optOriginX+24, y, text=text, anchor='w', tags=('menuOptions',), font=('A-OTF Folk Pro B', 11), fill='#cb9832' )
-
-		# # Finish creating the middle background element and store it
-		# boundingBox = self.bbox( textObj )
-		# textWidth = boundingBox[2] - boundingBox[0]
-		# bgMiddle = self.optionBgMiddleImages.get( textWidth )
-		# if not bgMiddle: # Need to create a new image for this width
-		# 	resizedImage = self.optionBgMiddlebase.resize( (textWidth+8, 30) )
-		# 	self.optionBgMiddleImages[textWidth] = bgMiddle = ImageTk.PhotoImage( resizedImage )
-
-		# # Add the option background image objects
-		# bd1 = self.create_image( optOriginX, optOriginY, image=self.optionBgLeftImage, anchor='nw', tags=('menuOptionsBg',) )
-		# bd2 = self.create_image( optOriginX+20, optOriginY, image=bgMiddle, anchor='nw', tags=('menuOptionsBg',) )
-		# bd3 = self.create_image( optOriginX+28+textWidth, optOriginY, image=self.optionBgRightImage, anchor='nw', tags=('menuOptionsBg',) )
-
-		# # Layer the menu option background elements over the character image, and the text over the menu option background elements
-		# self.tag_raise( 'menuOptionsBg', 'charImage' )
-		# self.tag_raise( 'menuOptions', 'menuOptionsBg' )
-
-		# # Store info on these canvas objects to be recovered by hover/click events later
-		# self.optionInfo[textObj] = ( borderColor, clickCallback, optOriginX, optOriginY, textWidth )
-		# self.optionInfo[bd1] = ( borderColor, clickCallback, optOriginX, optOriginY, textWidth )
-		# self.optionInfo[bd2] = ( borderColor, clickCallback, optOriginX, optOriginY, textWidth )
-		# self.optionInfo[bd3] = ( borderColor, clickCallback, optOriginX, optOriginY, textWidth )
-
 		MainMenuOption( self, (optOriginX, optOriginY), text, borderColor, clickCallback, currentMenuOptionCount, hoverText )
 
 		if pause:
@@ -1086,60 +1052,15 @@ class MainMenuCanvas( Tk.Canvas ):
 			self.update_idletasks()
 			time.sleep( .07 )
 
-	# def menuOptionClicked( self, event ):
+	def testFade( self, event ):
+		self.after_cancel( self.animId )
+		self._fadeProgress = -99
+		self.animId = self.after_idle( self.updateBgFadeSwap )
 
-	# 	""" Initial method called when a canvas stage icon is clicked on. Determines and 
-	# 		sets the internal stage ID of the icon that was clicked on, and calls the main
-	# 		stage selection method. """
-		
-	# 	globalData.gui.updateProgramStatus( '' )
-
-	# 	# Determine which canvas item was clicked on, and use that to look up the menu item
-	# 	canvas = event.widget
-	# 	itemId = canvas.find_closest( event.x, event.y )[0]
-	# 	targetColor, clickCallback, _, _ = self.optionInfo[itemId]
-	# 	if targetColor == '#7b5467': return
-
-	# 	clickCallback( event )
-
-	# def menuOptionHovered( self, event ):
-
-	# 	# Determine which canvas item was clicked on, and use that to look up the menu item
-	# 	canvas = event.widget
-	# 	itemId = canvas.find_closest( event.x, event.y )[0]
-	# 	targetColor, _, optOrigX, optOrigY, textWidth = self.optionInfo.get( itemId, (None, None, None, None, None) )
-	# 	if not targetColor:
-	# 		# Find all items in a column at this position/area
-	# 		itemIds = self.find_overlapping( event.x-2, event.y-2, event.x+2, event.y+2 )
-	# 		for itemId in itemIds:
-	# 			targetColor, _, optOrigX, optOrigY, textWidth = self.optionInfo.get( itemId, (None, None, None, None, None) )
-	# 			if targetColor: break
-	# 		else:
-	# 			return
-	# 	if targetColor == '#7b5467': return
-
-	# 	self['cursor'] = 'hand2'
-
-	# 	# Remove any existing hover fill color
-	# 	self.delete( 'hoverfill' )
-
-	# 	# Add hover fill
-	# 	fillVertices = [ (5, 18), (12, 6), (37, 6), (37, 24), (10, 24) ]
-	# 	adjustedVertices = []
-	# 	for v in fillVertices:
-	# 		if v[0] >= 37: # Extend the right side
-	# 			adjustedVertices.append( v[0]+optOrigX+textWidth+5 )
-	# 		else:
-	# 			adjustedVertices.append( v[0]+optOrigX )
-	# 		adjustedVertices.append( v[1]+optOrigY )
-	# 	self.create_polygon( *adjustedVertices, fill='#bc8c2f', tags=('hoverfill',) )
-
-	# 	# Update the border color (if it's different from the current color)
-	# 	if targetColor != self.currentBorderColor:
-	# 		self.loadBorderImages( targetColor )
-	
-	# def menuOptionUnhovered( self, event ):
-	# 	self['cursor'] = ''
+	def testWireframe( self, event ):
+		self.after_cancel( self.animId )
+		self._maskPosition = -self.origMask.height
+		self.animId = self.after_idle( self.updateWireframePass )
 
 	def animateCharImage( self ):
 		if not self.winfo_ismapped():
@@ -1147,20 +1068,10 @@ class MainMenuCanvas( Tk.Canvas ):
 
 		try:
 			print( 'anim happening' )
-			if random.choice( (0, 1, 2) ): # 2/3 chance to do a wireframe pass
-			#if False:
-				#self.doWireframePass()
+			if random.choice( (0, 1, 2) ): # Wireframe pass (2/3 chance)
 				self._maskPosition = -self.origMask.height
-				#self.updateWireframePass()
-				#self.mainGui.root.event_generate( '<<wireframePass>>', when='tail' )
 				self.animId = self.after_idle( self.updateWireframePass )
-			else:
-				#self.fadeInNewBgImage()
-
-				# if self.winfo_ismapped():
-				# 	timeTilNextAnim = random.randint( self.minIdleTime, self.maxIdleTime )
-				# 	print( 'next anim should trigger in', timeTilNextAnim, 'seconds' )
-				# 	self.afterId = self.after( timeTilNextAnim*1000, self.animateCharImage )
+			else: # Character fade & swap
 				self._fadeProgress = -99
 				self.animId = self.after_idle( self.updateBgFadeSwap )
 		
@@ -1184,43 +1095,6 @@ class MainMenuCanvas( Tk.Canvas ):
 			self.pack_forget()
 		elif geomManager == 'place':
 			self.place_forget()
-
-	# def doWireframePass( self ):
-	# 	maskPosition = -self.origMask.height
-	# 	processTimes = []
-	# 	sleepsSkipped = 0
-
-	# 	while maskPosition < (self.origMask.height + self.origTopLayer.height):
-	# 		tic = time.clock()
-
-	# 		# Copy the mask of the top layer's alpha channel, and combine it with the mask
-	# 		mask = self.fullSizeMask.copy()
-	# 		mask.paste( self.origMask, (0, maskPosition) )
-	# 		self.topLayer = ImageTk.PhotoImage( Image.composite(self.origTopLayer, self.wireframeLayer, mask) )
-
-	# 		# mask = Image.new( 'L', self.origTopLayer.size, 255 )
-	# 		# mask.paste( self.origMask, (0, maskPosition) )
-	# 		# mask = ImageChops.multiply( self.fullSizeMask, mask )
-	# 		# self.origTopLayer.putalpha( mask )
-	# 		# self.topLayer = ImageTk.PhotoImage( self.origTopLayer )
-
-	# 		maskPosition += 2
-	# 		toc = time.clock()
-			
-	# 		# Sleep for a short amount of time before displaying the new image
-	# 		processTimes.append( toc-tic )
-	# 		timeToSleep = .040 - (toc - tic)
-	# 		if timeToSleep > 0:
-	# 			time.sleep( timeToSleep )
-	# 		else:
-	# 			sleepsSkipped += 1
-
-	# 		# Update the display with the new image
-	# 		self.itemconfigure( self.topLayerId, image=self.topLayer )
-	# 		self.update()
-
-	# 	# print( 'sleeps skipped:', sleepsSkipped, 'out of', len(processTimes) )
-	# 	# print( 'ave frame processing time:', sum(processTimes) / len(processTimes) )
 
 	def updateWireframePass( self ):
 		# Copy the mask of the top layer's alpha channel, and combine it with the mask
@@ -1338,17 +1212,25 @@ class MainMenuCanvas( Tk.Canvas ):
 		self.addMenuOption( 'Load Root Folder', '#077523', self.openRoot, hoverText='Load an extracted filesystem' ) # green
 		self.addMenuOption( 'Browse Code Library', '#9f853b', self.browseCodes, hoverText='Load and view the library for code mods' ) # yellow
 
-	def displayDiscOptions( self ):
-		if self.secondaryMenuLoaded:
-			return
-		
-		# Remove existing options (slide left)
-		for i in range( 8 ):
-			self.move( 'menuOptions', -60, 0 )
-			self.move( 'menuOptionsBg', -60, 0 )
-			self.move( 'blackText', -60, 0 )
-			self.update_idletasks()
-			time.sleep( .016 )
+	def mainMenuSelected( self ):
+
+		""" Returns True/False for whether the Main Menu tab is currently selected in the GUI. """
+
+		currentlySelectedTab = self.mainGui.root.nametowidget( self.mainGui.mainTabFrame.select() )
+		if currentlySelectedTab == self.mainGui.mainMenu.master:
+			return True
+		else:
+			return False
+
+	def displayDiscOptions( self ):		
+		# Remove existing options (slide left); skip the animation if this tab isn't visible
+		if self.mainMenuSelected():
+			for i in range( 7 ):
+				self.move( 'menuOptions', -70, 0 )
+				self.move( 'menuOptionsBg', -70, 0 )
+				self.move( 'blackText', -70, 0 )
+				self.update_idletasks()
+				time.sleep( .016 )
 
 		self.delete( 'menuOptions' )
 		self.delete( 'menuOptionsBg' )
@@ -1380,8 +1262,6 @@ class MainMenuCanvas( Tk.Canvas ):
 			self.addMenuOption( 'Code Manager', '#a13728', self.browseCodes, True, 'Add, remove, or change code-related modifications' ) # red
 			self.addMenuOption( 'Music Manager', '#9f853b', self.loadMusicManager, True, 'Listen to and configure music' ) # yellow
 
-		self.secondaryMenuLoaded = True
-
 	def loadRecentMenu( self, event ):
 
 		""" Spawns a context menu at the mouse's current location. """
@@ -1398,6 +1278,8 @@ class MainMenuCanvas( Tk.Canvas ):
 		
 	def browseCodes( self, event ):
 		self.mainGui.fileMenu.browseCodeLibrary()
+		self.mainGui.root.update()
+		globalData.gui.updateProgramStatus( 'Ready' )
 
 	def loadDiscManagement( self, event ):
 		
@@ -1414,19 +1296,8 @@ class MainMenuCanvas( Tk.Canvas ):
 			self.mainGui.discDetailsTab = DiscDetailsTab( self.mainGui.mainTabFrame, self.mainGui )
 		self.mainGui.discDetailsTab.loadDiscDetails()
 
-	# def loadCodeManager( self, event ):
-
-	# 	""" Add the Code Manager tab to the GUI and select it. """
-		
-	# 	if not self.mainGui.codeManagerTab:
-	# 		self.mainGui.codeManagerTab = CodeManagerTab( self.mainGui.mainTabFrame, self.mainGui )
-
-	# 	self.mainGui.codeManagerTab.autoSelectCodeRegions()
-	# 	self.mainGui.codeManagerTab.scanCodeLibrary()
-	# 	self.mainGui.codeManagerTab.updateControls()
-
-	# 	# Switch to the tab
-	# 	self.mainGui.mainTabFrame.select( self.mainGui.codeManagerTab )
+		self.mainGui.root.update()
+		globalData.gui.updateProgramStatus( 'Ready' )
 
 	def loadStageEditor( self, event ):
 
@@ -1444,6 +1315,9 @@ class MainMenuCanvas( Tk.Canvas ):
 			self.mainGui.stageManagerTab.load20XXStageLists()
 		else:
 			self.mainGui.stageManagerTab.loadVanillaStageLists()
+		
+		self.mainGui.root.update()
+		globalData.gui.updateProgramStatus( 'Ready' )
 
 	def loadMusicManager( self, event ):
 
@@ -1456,6 +1330,9 @@ class MainMenuCanvas( Tk.Canvas ):
 
 		# Switch to the tab
 		self.mainGui.mainTabFrame.select( self.mainGui.audioManagerTab )
+
+		self.mainGui.root.update()
+		globalData.gui.updateProgramStatus( 'Ready' )
 
 	def loadDebugMenuEditor( self, event ):
 
@@ -1475,6 +1352,9 @@ class MainMenuCanvas( Tk.Canvas ):
 
 		# Switch to the tab
 		self.mainGui.mainTabFrame.select( self.mainGui.menuEditorTab )
+		
+		self.mainGui.root.update()
+		globalData.gui.updateProgramStatus( 'Ready' )
 
 #																		/------------\
 #	====================================================================   Main GUI   =========
@@ -1490,7 +1370,7 @@ class MainGui( Tk.Frame, object ):
 
 		globalData.loadProgramSettings( True ) # Load using BooleanVars. Must be done after creating Tk.root
 
-		self._imageBank = {} # Repository for all GUI related images
+		self._imageBank = {} # Repository for GUI related images
 		self.audioEngine = None
 		self.patchBuildProgress = -1
 
@@ -1921,7 +1801,7 @@ class MainGui( Tk.Frame, object ):
 		
 		return returnCode
 
-	def loadRootOrDisc( self, targetPath, updateDefaultDirectory, updateStatus=True, preserveTreeState=False, switchTab=True, updatedFiles=None ):
+	def loadRootOrDisc( self, targetPath, updateDefaultDirectory, updateStatus=True, preserveTreeState=False, switchTab=False, updatedFiles=None ):
 		
 		# Remember this file for future recall
 		globalData.rememberFile( targetPath, updateDefaultDirectory )

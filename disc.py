@@ -861,12 +861,12 @@ class Disc( object ):
 		else:
 			projectedDiscSize = totalSystemFileSpace + totalNonSystemFileSpace + ( interFilePaddingLength * totalNonSystemFiles )
 
-		print 'totalNonSystemFiles determined:', totalNonSystemFiles
-		print 'total system file space:', hex(totalSystemFileSpace)
-		print 'total non-system file space:', hex(totalNonSystemFileSpace)
-		print 'projected disc size:', hex(projectedDiscSize), projectedDiscSize
-		print 'paddingSetting:', paddingSetting
-		print 'inter-file padding:', hex(interFilePaddingLength)
+		# print 'totalNonSystemFiles determined:', totalNonSystemFiles
+		# print 'total system file space:', hex(totalSystemFileSpace)
+		# print 'total non-system file space:', hex(totalNonSystemFileSpace)
+		# print 'projected disc size:', hex(projectedDiscSize), projectedDiscSize
+		# print 'paddingSetting:', paddingSetting
+		# print 'inter-file padding:', hex(interFilePaddingLength)
 
 		return projectedDiscSize, totalSystemFileSpace, fstOffset, interFilePaddingLength, paddingSetting
 

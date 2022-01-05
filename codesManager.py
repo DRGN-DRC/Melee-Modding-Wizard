@@ -397,9 +397,9 @@ class CodeManagerTab( ttk.Frame ):
 
 		# Validate the current Mods Library folder
 		if not os.path.exists( self.libraryFolder ):
-			warningMsg = 'Unable to find this code library:\n\n' + self.libraryFolder
-			ttk.Label( self.codeLibraryNotebook, text=warningMsg, background='white', wraplength=600, justify='center' ).place( relx=0.3, rely=0.5, anchor='center' )
-			ttk.Label( self.codeLibraryNotebook, image=globalData.gui.imageBank('randall'), background='white' ).place( relx=0.3, rely=0.5, anchor='s', y=-20 ) # y not :P
+			warningMsg = 'Unable to find this code library:\n\n' + self.libraryFolder + '\n\nClick on the books icon in the top right to select a library.'
+			ttk.Label( self.codeLibraryNotebook, text=warningMsg, background='white', wraplength=600, justify='center' ).place( relx=0.3, rely=0.5, anchor='s' )
+			ttk.Label( self.codeLibraryNotebook, image=globalData.gui.imageBank('randall'), background='white' ).place( relx=0.3, rely=0.5, anchor='n', y=10 ) # y not :P
 			return
 
 		self.clear()
@@ -456,9 +456,9 @@ class CodeManagerTab( ttk.Frame ):
 
 		# If no mods are present, add a simple message and return
 		if not globalData.codeMods:
-			ttk.Label( self.codeLibraryNotebook, image=globalData.gui.imageBank('randall'), background='white' ).place( relx=0.3, rely=0.5, anchor='s', y=-20 ) # y not :P
 			warningMsg = 'Unable to find code mods in this library:\n\n' + self.libraryFolder
-			ttk.Label( self.codeLibraryNotebook, text=warningMsg, background='white', wraplength=600, justify='center' ).place( relx=0.3, rely=0.5, anchor='center' )
+			ttk.Label( self.codeLibraryNotebook, text=warningMsg, background='white', wraplength=600, justify='center' ).place( relx=0.3, rely=0.5, anchor='s' )
+			ttk.Label( self.codeLibraryNotebook, image=globalData.gui.imageBank('randall'), background='white' ).place( relx=0.3, rely=0.5, anchor='n', y=10 ) # y not :P
 			return
 
 		# If a disc is loaded, check if the parsed mods are installed in it
@@ -551,9 +551,9 @@ class CodeManagerTab( ttk.Frame ):
 		# Add messages to the background of any empty notebooks
 		for notebook in notebookWidgets.values():
 			if not notebook.winfo_children():
-				ttk.Label( notebook, image=globalData.gui.imageBank('randall'), background='white' ).place( relx=0.3, rely=0.5, anchor='s', y=-20 ) # y not :P
-				warningMsg = 'No code mods found in this folder or cetegory.'
-				ttk.Label( notebook, text=warningMsg, background='white', wraplength=600, justify='center' ).place( relx=0.3, rely=0.5, anchor='center' )
+				warningMsg = 'No code mods found in this folder or category.'
+				ttk.Label( notebook, text=warningMsg, background='white', wraplength=600, justify='center' ).place( relx=0.3, rely=0.5, anchor='s' )
+				ttk.Label( notebook, image=globalData.gui.imageBank('randall'), background='white' ).place( relx=0.3, rely=0.5, anchor='n', y=10 ) # y not :P
 
 	def _updateScrollPosition( self, modPanel, sliderYPos ):
 		print 'updating scroll position'
