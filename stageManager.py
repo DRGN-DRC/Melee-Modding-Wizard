@@ -750,7 +750,7 @@ class StageManager( ttk.Frame ):
 		ttk.Button( self.controlsFrame, text='Test', command=self.testStage ).grid( column=0, row=3, padx=4, pady=4 )
 		ttk.Button( self.controlsFrame, text='Rename', command=self.renameStage ).grid( column=1, row=3, padx=4, pady=4 )
 		rsssBtn = ttk.Button( self.controlsFrame, text='Rename RSSS Name', command=self.renameRsssName )
-		ToolTip( rsssBtn, 'Name shown on the Random Stage Select Screen.' )
+		ToolTip( rsssBtn, 'Name shown on the\nRandom Stage Select Screen.', justify='center' )
 		rsssBtn.grid( column=0, columnspan=2, row=4, padx=4, pady=4, ipadx=9 )
 		self.controlsFrame.grid( column=3, row=0, padx=(0, padding), pady=padding )
 

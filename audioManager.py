@@ -96,7 +96,7 @@ def getHpsFile( windowParent=None, isoPath='' ):
 
 class AudioManager( ttk.Frame ):
 
-	""" Info viewer and editor interface for stages in SSBM. """
+	""" Info viewer, import/export, and playback interface for HPS files. """
 
 	def __init__( self, parent, mainGui ):
 
@@ -291,6 +291,20 @@ class AudioManager( ttk.Frame ):
 		minutes, seconds = divmod( seconds, 60 )
 
 		return '{:02}:{:02}.{:03}'.format( int(minutes), int(seconds), int(milliseconds) )
+
+	def selectSong( self, isoPath ):
+
+		# Give input focus to the treeview
+		self.fileTree.focus_set()
+
+		self.fileTree.selection_set( isoPath ) 	# Highlights the item
+		self.fileTree.focus( isoPath ) 		# Sets keyboard focus to the first item
+
+		# Check if the target item is currently visible, and make it visible if it isn't
+		self.fileTree.update_idletasks()
+		if not self.fileTree.bbox( isoPath ):
+			# Open any folders than need opening, and scroll to the target item
+			self.fileTree.see( isoPath )
 
 	def onFileTreeSelect( self, event=None ):
 

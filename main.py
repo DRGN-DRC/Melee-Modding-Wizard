@@ -214,10 +214,13 @@ class SettingsMenu( Tk.Menu, object ):
 		# self.add_checkbutton( label="Export Textures using Dolphin's Naming Convention", underline=32, 
 		# 									variable=globalData.boolSettings['useDolphinNaming'], command=globalData.saveProgramSettings )					# N
 
+		# Image-editing related options; todo
+		#self.add_separator()
 		#self.add_command( label='Open Settings File', )
+		#self.add_command( label='More...', )
 
-	def openSettingsFile( self ):
-		pass
+	# def openSettingsFile( self ):
+	# 	pass
 
 	# def repopulate( self ):
 	# 	# Check the settings file, in case anything has been changed manually/externally.
@@ -231,6 +234,8 @@ class ToolsMenu( Tk.Menu, object ):
 		super( ToolsMenu, self ).__init__( parent, tearoff=tearoff, *args, **kwargs )
 		self.statusUpdateFrequency = 2000 # How frequent the GUI updates xDelta patch progress, in milliseconds
 		self.open = False
+		self.buildingPatch = False
+		self.patchBuildProgress = -1
 
 	def repopulate( self ):
 
@@ -325,6 +330,9 @@ class ToolsMenu( Tk.Menu, object ):
 		if not globalData.disc:
 			msg( 'No disc has been loaded!' )
 			return
+		elif self.buildingPatch: # Prevent multiple simultaneous builds
+			msg( 'Patch building is already in-progress!' )
+			return
 
 		# Get the vanilla disc path
 		vanillaDiscPath = globalData.getVanillaDiscPath()
@@ -352,11 +360,12 @@ class ToolsMenu( Tk.Menu, object ):
 		if not savePath: # User canceled
 			return
 
-		# Send the build command to the xDelta executable
+		# Build the build command for the xDelta executable
 		#command = '"{}" -V "{}" "{}" "{}"'.format( xDeltaPath, vanillaDiscPath, currentDiscPath, savePath )
 		command = '"{}" -B 1363148800 -e -9 -f -v -S djw -s "{}" "{}" "{}"'.format( xDeltaPath, vanillaDiscPath, currentDiscPath, savePath )
-		print(command)
+		self.buildingPatch = True
 		
+		# Run the command in a new thread, so the program is responsive while waiting for it
 		builderThread = Thread( target=self._patchBuilderHelper, args=(currentDiscPath, command) )
 		builderThread.daemon = True # Causes the thread to be stopped when the main program stops
 		builderThread.start()
@@ -369,8 +378,8 @@ class ToolsMenu( Tk.Menu, object ):
 		process = Popen( command, shell=False, stderr=PIPE, creationflags=0x08000000, universal_newlines=True, bufsize=1 )
 
 		# Display initial build progress message in the program's status bar
-		globalData.gui.patchBuildProgress = 0
-		globalData.gui.root.after( 0, self.updatePatchBuildProgress )
+		self.patchBuildProgress = 0
+		globalData.gui.root.after_idle( self.updatePatchBuildProgress )
 
 		# While the process is still running, read output from it to check its progress
 		discSize = os.path.getsize( currentDiscPath ) / 1048576 # Getting the size in MB
@@ -388,25 +397,32 @@ class ToolsMenu( Tk.Menu, object ):
 				megaBytesProcessed = float( megaBytesProcessed )
 				if units == 'GiB:': # Units default to MB, and switch to GB if the current disc is >= 1 GB
 					megaBytesProcessed *= 1024
-				globalData.gui.patchBuildProgress = megaBytesProcessed / discSize * 100
+				self.patchBuildProgress = megaBytesProcessed / discSize * 100
 		except CalledProcessError:
 			pass
 		except: # Should be a parsing error
 			process.returncode = 101
 
+		# External command process has finished
 		if process.returncode == 0:
-			globalData.gui.patchBuildProgress = 100
+			self.patchBuildProgress = 100
 		else:
-			globalData.gui.patchBuildProgress = process.returncode * -1
+			self.patchBuildProgress = process.returncode * -1
+
+		self.buildingPatch = False
 
 	# def updatePatchBuildProgress( self, event, progress ):
 	# 	event.message = 'Building xDelta patch ({}%)'.format( round(progress, 1) )
 	# 	globalData.gui.root.event_generate( '<<ProgressUpdate>>', when='tail' )
 	
 	def updatePatchBuildProgress( self ):
-		progress = globalData.gui.patchBuildProgress
 
-		if progress < 0: # Return code
+		""" Print the current xDelta patch build progress, then recursively calls itself every 
+			few seconds from the GUI's mainloop until the build process is complete. """
+
+		progress = self.patchBuildProgress
+
+		if progress < 0: # There was an error; progress is now the process return code
 			message = 'Unable to build xDelta patch; return code {}'.format( abs(progress) )
 		elif progress == 0:
 			message = 'Initializing xDelta patch creation (this may take a minute)'
@@ -416,6 +432,8 @@ class ToolsMenu( Tk.Menu, object ):
 			globalData.gui.root.after( 2000, self.updatePatchBuildProgress )
 		else: # Progress at or over 100%; operation complete
 			message = 'Building xDelta patch ({}%)'.format( round(progress, 1) )
+
+			# Allow the above to display for a few seconds, then display the following
 			globalData.gui.root.after( 3000, lambda m='xDelta patch complete': globalData.gui.updateProgramStatus( m ) )
 
 		globalData.gui.updateProgramStatus( message )
@@ -644,7 +662,7 @@ class MainMenuOption( object ):
 		if self.color == '#7b5467': return # temporarily disabled
 		
 		globalData.gui.updateProgramStatus( '' )
-		print('clicked')
+		#print('clicked')
 
 		self.callback( event )
 
@@ -658,7 +676,7 @@ class MainMenuOption( object ):
 		globalData.gui.updateProgramStatus( self.hoverText )
 
 		self.canvas['cursor'] = 'hand2'
-		print('hovered')
+		#print('hovered')
 
 		# Swap to the hover image and change the font color
 		self.canvas.itemconfig( self.bdLeft, image=self.canvas.optionBgLeftImageH )
@@ -677,7 +695,7 @@ class MainMenuOption( object ):
 	def unhovered( self, event ):
 		#self.mouseHovered = False
 		self.canvas['cursor'] = ''
-		print('unhovered')
+		#print('unhovered')
 
 		# Swap to the default image and change the font color
 		self.canvas.itemconfig( self.bdLeft, image=self.canvas.optionBgLeftImage )
@@ -720,6 +738,7 @@ class MainMenuCanvas( Tk.Canvas ):
 		self.mainBorderWidth = 800 # Keep this an even number
 		self.mainBorderHeight = 530
 		self.bottomTextWidth = 290
+		self.bottomText = -1 # Item ID for the main menu bottom text
 
 		# Load and apply the main background image
 		self.create_image( 500, 375, image=mainGui.imageBank('bg', 'Main Menu'), anchor='center' )
@@ -737,10 +756,8 @@ class MainMenuCanvas( Tk.Canvas ):
 
 		self.displayPrimaryMenu()
 
-		# Start a timer to count down to creating the wireframe effect or swap images
-		timeTilNextAnim = random.randint( self.minIdleTime, self.maxIdleTime / 2 ) # Shorter first idle
-		#print( 'first anim should trigger in', timeTilNextAnim, 'seconds' )
-		self.afterId = self.after( timeTilNextAnim*1000, self.animateCharImage )
+		if not globalData.checkSetting( 'disableMainMenuAnimations' ):
+			self.queueNewAnimation( shortFirstIdle=True )
 
 		self.create_text( width-40, 80, text='Fade', fill='silver', tags=('testFade',) )
 		self.create_text( width-40, 110, text='Wireframe\nPass', fill='silver', tags=('testWireframe',) )
@@ -999,17 +1016,14 @@ class MainMenuCanvas( Tk.Canvas ):
 		self.create_text( originX+26+widthFillTop/4, originY-4, text=text, anchor='n', tags=('mainBorder',), font=italicFont, fill='#aaaaaa' )
 
 		# Add bottom text
-		text = 'Choose a category to begin.'
+		text = 'Open a disc or root folder.'
 		text = u'\u200A'.join( list(text) )
-		self.create_text( textXCoord, textYCoord+4, text=text, anchor='n', tags=('mainBorder',), font=('A-OTF Folk Pro B', 11), fill='#aaaaaa' )
+		self.bottomText = self.create_text( textXCoord, textYCoord+4, text=text, anchor='n', tags=('mainBorder',), font=('A-OTF Folk Pro B', 11), fill='#aaaaaa' )
 
 	def initOptionImages( self ):
 		
 		""" Image storage for option background images, to prevent 
 			garbage collection and redundant image processing. """
-
-		# self.optionBgMiddleImages = {}
-		# self.optionBgMiddleImagesH = {}
 
 		# Load the option background images
 		imagePath = os.path.join( self.mainMenuFolder, "optionBg.png" )
@@ -1053,17 +1067,36 @@ class MainMenuCanvas( Tk.Canvas ):
 			time.sleep( .07 )
 
 	def testFade( self, event ):
+		self.after_cancel( self.afterId )
 		self.after_cancel( self.animId )
 		self._fadeProgress = -99
 		self.animId = self.after_idle( self.updateBgFadeSwap )
 
 	def testWireframe( self, event ):
+		self.after_cancel( self.afterId )
 		self.after_cancel( self.animId )
 		self._maskPosition = -self.origMask.height
 		self.animId = self.after_idle( self.updateWireframePass )
 
+	def queueNewAnimation( self, shortFirstIdle=False ):
+
+		# Start a timer to count down to creating the wireframe effect or swap images
+		if shortFirstIdle:
+			maxIdle = self.maxIdleTime / 2
+		else:
+			maxIdle = self.maxIdleTime
+
+		timeTilNextAnim = random.randint( self.minIdleTime, maxIdle ) # Shorter first idle
+		#print( 'first anim should trigger in', timeTilNextAnim, 'seconds' )
+		self.afterId = self.after( timeTilNextAnim*1000, self.animateCharImage )
+
 	def animateCharImage( self ):
-		if not self.winfo_ismapped():
+		# if not self.winfo_ismapped():
+		# 	return
+
+		# If the main menu isn't currently visible, skip this animation and queue a new one
+		if not self.mainMenuSelected():
+			self.queueNewAnimation()
 			return
 
 		try:
@@ -1119,57 +1152,8 @@ class MainMenuCanvas( Tk.Canvas ):
 				timeToSleep = 0
 			self.animId = self.after( timeToSleep, self.updateWireframePass )
 		else:
-			# This animation is complete. Queue the next one
-			timeTilNextAnim = random.randint( self.minIdleTime, self.maxIdleTime )
-			print( 'next anim should trigger in', timeTilNextAnim, 'seconds' )
-			self.afterId = self.after( timeTilNextAnim*1000, self.animateCharImage )
-
-	# def fadeInNewBgImage( self ):
-	# 	#transparentMask = Image.new( 'RGBA', self.origTopLayer.size, (0,0,0,0) )
-	# 	sleepTime = .04
-	# 	stepSize = 3
-	# 	#fadeTimes = []
-
-	# 	# Temporarily remove the back layer for the fade
-	# 	# self.delete( self.wireframeLayerId )
-
-	# 	# Fade out the current image
-	# 	for i in range( 100, -stepSize, -stepSize ):
-	# 		tic = time.clock()
-	# 		# Update the layer's alpha
-	# 		#self.origTopLayer.putalpha( i )
-	# 		#self.topLayer = ImageTk.PhotoImage( self.origTopLayer )
-	# 		self.topLayer = ImageTk.PhotoImage( Image.blend(self._transparentMask, self.origTopLayer, float(i)/100) )
-	# 		self.itemconfigure( self.topLayerId, image=self.topLayer )
-	# 		self.update()
-	# 		toc = time.clock()
-	# 		#fadeTimes.append( toc-tic )
-	# 		timeToSleep = sleepTime - (toc - tic)
-	# 		if timeToSleep > 0:
-	# 			time.sleep( timeToSleep )
-	# 	# print( 'ave fade time:', sum(fadeTimes) / len(fadeTimes) )
-	# 	# fadeTimes = []
-
-	# 	# Load the images for the new image set
-	# 	self.loadImageSet( loadTransparent=True )
-
-	# 	for i in range( 0, 100+stepSize, stepSize ):
-	# 		tic = time.clock()
-	# 		# Update the layer's alpha
-	# 		#self.origTopLayer.putalpha( i )
-	# 		#self.topLayer = ImageTk.PhotoImage( self.origTopLayer )
-	# 		self.topLayer = ImageTk.PhotoImage( Image.blend(self._transparentMask, self.origTopLayer, float(i)/100) )
-	# 		self.itemconfigure( self.topLayerId, image=self.topLayer )
-	# 		self.update()
-	# 		toc = time.clock()
-	# 		#fadeTimes.append( toc-tic )
-	# 		timeToSleep = sleepTime - (toc - tic)
-	# 		if timeToSleep > 0:
-	# 			time.sleep( timeToSleep )
-
-	# 	# self.wireframeLayerId = self.create_image( 500, 375, image=self.mainGui.imageBank(self.imageSet + 'W'), anchor='center' )
-	# 	# self.tag_lower( self.wireframeLayerId, self.topLayerId )
-	# 	#print( 'ave fade time:', sum(fadeTimes) / len(fadeTimes) )
+			# This animation is complete
+			self.queueNewAnimation()
 
 	def updateBgFadeSwap( self ):
 		sleepTime = .04
@@ -1201,9 +1185,8 @@ class MainMenuCanvas( Tk.Canvas ):
 				timeToSleep = 0
 			self.animId = self.after( timeToSleep, self.updateBgFadeSwap )
 		else:
-			timeTilNextAnim = random.randint( self.minIdleTime, self.maxIdleTime )
-			print( 'next anim should trigger in', timeTilNextAnim, 'seconds' )
-			self.afterId = self.after( timeTilNextAnim*1000, self.animateCharImage )
+			# This animation is complete
+			self.queueNewAnimation()
 
 	def displayPrimaryMenu( self ):
 		self.menuOptionCount = 4
@@ -1222,45 +1205,94 @@ class MainMenuCanvas( Tk.Canvas ):
 		else:
 			return False
 
-	def displayDiscOptions( self ):		
-		# Remove existing options (slide left); skip the animation if this tab isn't visible
-		if self.mainMenuSelected():
-			for i in range( 7 ):
-				self.move( 'menuOptions', -70, 0 )
-				self.move( 'menuOptionsBg', -70, 0 )
-				self.move( 'blackText', -70, 0 )
-				self.update_idletasks()
-				time.sleep( .016 )
+	def showAnimations( self ):
+		return self.mainMenuSelected() and not globalData.checkSetting( 'disableMainMenuAnimations' )
 
+	# def removeOptions( self ):
+
+	# 	showAnimations = self.showAnimations()
+
+	# 	# Remove existing options (slide left); skip the animation if this tab isn't visible
+	# 	if showAnimations:
+	# 		stepDistance = 70
+
+	# 		self.move( 'menuOptions', -stepDistance, 0 )
+	# 		self.move( 'menuOptionsBg', -stepDistance, 0 )
+	# 		self.move( 'blackText', -stepDistance, 0 )
+
+	# 		# Check if the options have been fully hidden
+	# 		print( self.find_withtag( 'menuOptionsBg' ) )
+	# 		for id in self.find_withtag( 'menuOptionsBg' ):
+	# 			test = self.bbox( id )[3]
+	# 			if test > 0:
+	# 				self.after( 16, self.removeOptions )
+	# 				return
+	# 		#else: # Loop above didn't break; options are hidden and can now be removed
+			
+	# 	self.delete( 'menuOptions' )
+	# 	self.delete( 'menuOptionsBg' )
+	# 	self.delete( 'blackText' )
+
+	# 	if showAnimations:
+	# 		time.sleep( .2 )
+
+	def displayDiscOptions( self ):
+
+		""" Remove existing options, and display a new set of options for disc or root folder operations. """
+
+		showAnimations = self.showAnimations()
+
+		# Slide-left existing options; skip the animation if this tab isn't visible
+		if showAnimations:
+			stepDistance = 70
+
+			self.move( 'menuOptions', -stepDistance, 0 )
+			self.move( 'menuOptionsBg', -stepDistance, 0 )
+			self.move( 'blackText', -stepDistance, 0 )
+
+			# Check if the options have been fully hidden
+			for id in self.find_withtag( 'menuOptionsBg' ):
+				if self.bbox( id )[2] > 0:
+					self.after( 16, self.displayDiscOptions )
+					return
+
+		# Remove existing options
 		self.delete( 'menuOptions' )
 		self.delete( 'menuOptionsBg' )
 		self.delete( 'blackText' )
 
-		time.sleep( .2 )
+		if showAnimations:
+			self.update_idletasks()
+			time.sleep( .1 )
 
 		# Add new options
 		if globalData.disc.isMelee and globalData.disc.is20XX:
 			self.menuOptionCount = 6
-			self.addMenuOption( 'Disc Management', '#394aa6', self.loadDiscManagement, True, 'Load the Disc File Tree and Disc Details tabs for disc operations' ) # blue
-			self.addMenuOption( 'Code Manager', '#a13728', self.browseCodes, True, 'Add, remove, or change code-related modifications' ) # red
-			self.addMenuOption( 'Stage Manager', '#077523', self.loadStageEditor, True, 'Configure stages' ) # green
-			self.addMenuOption( 'Music Manager', '#9f853b', self.loadMusicManager, True, 'Listen to and configure music' ) # yellow
-			self.addMenuOption( 'Sound Effect Editor', '#7b5467', self.loadDiscManagement, True, 'WIP!' ) # pinkish (blended)
-			self.addMenuOption( 'Debug Menu Editor', '#582493', self.loadDebugMenuEditor, True, 'View detailed information on the in-game Debug Menu' ) # purple
+			self.addMenuOption( 'Disc Management', '#394aa6', self.loadDiscManagement, showAnimations, 'Load the Disc File Tree and Disc Details tabs for disc operations' ) # blue
+			self.addMenuOption( 'Code Manager', '#a13728', self.browseCodes, showAnimations, 'Add, remove, or change code-related modifications' ) # red
+			self.addMenuOption( 'Stage Manager', '#077523', self.loadStageEditor, showAnimations, 'Configure stages' ) # green
+			self.addMenuOption( 'Music Manager', '#9f853b', self.loadMusicManager, showAnimations, 'Listen to and configure music' ) # yellow
+			self.addMenuOption( 'Sound Effect Editor', '#7b5467', self.loadDiscManagement, showAnimations, 'WIP!' ) # pinkish (blended)
+			self.addMenuOption( 'Debug Menu Editor', '#582493', self.loadDebugMenuEditor, showAnimations, 'View detailed information on the in-game Debug Menu' ) # purple
 
 		elif globalData.disc.isMelee:
 			self.menuOptionCount = 5
-			self.addMenuOption( 'Disc Management', '#394aa6', self.loadDiscManagement, True, 'Load the Disc File Tree and Disc Details tabs for disc operations' ) # blue
-			self.addMenuOption( 'Code Manager', '#a13728', self.browseCodes, True, 'Add, remove, or change code-related modifications' ) # red
-			self.addMenuOption( 'Stage Manager', '#077523', self.loadStageEditor, True, 'Configure stages' ) # green
-			self.addMenuOption( 'Music Manager', '#9f853b', self.loadMusicManager, True, 'Listen to and configure music' ) # yellow
-			self.addMenuOption( 'Sound Effect Editor', '#7b5467', self.loadDiscManagement, True, 'WIP!' ) # pinkish (blended)
+			self.addMenuOption( 'Disc Management', '#394aa6', self.loadDiscManagement, showAnimations, 'Load the Disc File Tree and Disc Details tabs for disc operations' ) # blue
+			self.addMenuOption( 'Code Manager', '#a13728', self.browseCodes, showAnimations, 'Add, remove, or change code-related modifications' ) # red
+			self.addMenuOption( 'Stage Manager', '#077523', self.loadStageEditor, showAnimations, 'Configure stages' ) # green
+			self.addMenuOption( 'Music Manager', '#9f853b', self.loadMusicManager, showAnimations, 'Listen to and configure music' ) # yellow
+			self.addMenuOption( 'Sound Effect Editor', '#7b5467', self.loadDiscManagement, showAnimations, 'WIP!' ) # pinkish (blended)
 
 		else:
 			self.menuOptionCount = 3
-			self.addMenuOption( 'Disc Management', '#394aa6', self.loadDiscManagement, True, 'Load the Disc File Tree and Disc Details tabs for disc operations' ) # blue
-			self.addMenuOption( 'Code Manager', '#a13728', self.browseCodes, True, 'Add, remove, or change code-related modifications' ) # red
-			self.addMenuOption( 'Music Manager', '#9f853b', self.loadMusicManager, True, 'Listen to and configure music' ) # yellow
+			self.addMenuOption( 'Disc Management', '#394aa6', self.loadDiscManagement, showAnimations, 'Load the Disc File Tree and Disc Details tabs for disc operations' ) # blue
+			self.addMenuOption( 'Code Manager', '#a13728', self.browseCodes, showAnimations, 'Add, remove, or change code-related modifications' ) # red
+			self.addMenuOption( 'Music Manager', '#9f853b', self.loadMusicManager, showAnimations, 'Listen to and configure music' ) # yellow
+
+		# Set the main menu bottom text
+		text = 'Choose a category to begin.'
+		text = u'\u200A'.join( list(text) )
+		self.itemconfigure( self.bottomText, text=text )
 
 	def loadRecentMenu( self, event ):
 
@@ -1326,7 +1358,7 @@ class MainMenuCanvas( Tk.Canvas ):
 		# Load the audio tab
 		if not self.mainGui.audioManagerTab:
 			self.mainGui.audioManagerTab = AudioManager( self.mainGui.mainTabFrame, self.mainGui )
-		self.mainGui.audioManagerTab.loadFileList()
+			self.mainGui.audioManagerTab.loadFileList()
 
 		# Switch to the tab
 		self.mainGui.mainTabFrame.select( self.mainGui.audioManagerTab )
@@ -1365,14 +1397,13 @@ class MainGui( Tk.Frame, object ):
 	def __init__( self ): # Build the interface
 
 		self.root = Tk.Tk()
-		#self.root.withdraw() # Keeps the GUI minimized until it is fully generated
+		self.root.withdraw() # Keeps the GUI minimized until it is fully generated
 		self.style = ttk.Style()
 
 		globalData.loadProgramSettings( True ) # Load using BooleanVars. Must be done after creating Tk.root
 
 		self._imageBank = {} # Repository for GUI related images
 		self.audioEngine = None
-		self.patchBuildProgress = -1
 
 		self.defaultWindowWidth = 1000
 		self.defaultWindowHeight = 750
@@ -1454,6 +1485,9 @@ class MainGui( Tk.Frame, object ):
 		self.root.config( menu=self.menubar )
 		self.menubar.bind( "<<MenuSelect>>", self.updateMenuBarMenus )
 
+		# GUI has been minimized until rendering was complete. This brings it to the foreground
+		self.root.deiconify() # Must be done before checking widget widths/heights below
+
 		# Add a frame for the main menu canvas, and use its height to determine the canvas' height
 		canvasFrame = ttk.Frame( self.mainTabFrame )
 		self.mainTabFrame.add( canvasFrame, text=' Main Menu ' )
@@ -1464,8 +1498,6 @@ class MainGui( Tk.Frame, object ):
 		# Initialize and add the Main Menu
 		self.mainMenu = MainMenuCanvas( self, canvasFrame, mainMenuWidth, mainMenuHeight )
 		self.mainMenu.place( relx=0.5, rely=0.5, anchor='center' )
-
-		#self.root.deiconify() # GUI has been minimized until rendering was complete. This brings it to the foreground
 
 	# def updateProgressDisplay( self, event ):
 

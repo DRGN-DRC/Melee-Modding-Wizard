@@ -25,7 +25,8 @@ import Tkinter as Tk
 # Internal dependencies
 import globalData
 from disc import Disc
-from hsdFiles import fileFactory
+from audioManager import AudioManager
+from hsdFiles import fileFactory, MusicFile
 from basicFunctions import (
 		msg, printStatus, copyToClipboard, 
 		uHex, humansize, createFolders,
@@ -1460,14 +1461,17 @@ class DiscMenu( Tk.Menu, object ):
 
 		# Add main import/export options																				# Keyboard shortcuts:
 		if self.iidSelectionsTuple:
+			# Check if the root (Game ID) is selected
 			rootIid = self.fileTree.get_children()[0]
 			if self.selectionCount == 1 and self.entityName == rootIid:
-				self.add_command( label='Extract Root for Dolphin', underline=0, command=self.extractRootWithNative )				# E
+				self.add_command( label='Extract Root for Dolphin', underline=0, command=self.extractRootWithNative )					# E
 				self.add_command( label='Extract Root with Convenience Folders', underline=0, command=self.extractRootWithConvenience )	# E
 			else:
 				self.add_command( label='Export File(s)', underline=0, command=self.discTab.exportIsoFiles )							# E
 		# 	self.add_command( label='Export Textures From Selected', underline=1, command=exportSelectedFileTextures )					# X
-		if self.selectionCount == 1:
+		if self.fileObj:
+			if self.fileObj.__class__ == MusicFile:
+				self.add_command( label='Listen', underline=0, command=self.listenToMusic )												# L
 		 	self.add_command( label='Import File', underline=0, command=self.discTab.importSingleIsoFile )								# I
 		# self.add_command( label='Import Multiple Files', underline=7, command=importMultipleIsoFiles )								# M
 		self.add_separator()
@@ -1545,6 +1549,23 @@ class DiscMenu( Tk.Menu, object ):
 			globalData.setSetting( 'useDiscConvenienceFolders', True )
 			self.discTab.exportIsoFiles()
 			globalData.setSetting( 'useDiscConvenienceFolders', False )
+
+	def listenToMusic( self ):
+
+		""" Add the Music Manager tab to the GUI and select it. """
+
+		mainGui = globalData.gui
+		
+		# Load the audio tab
+		if not mainGui.audioManagerTab:
+			mainGui.audioManagerTab = AudioManager( mainGui.mainTabFrame, mainGui )
+			mainGui.audioManagerTab.loadFileList()
+
+		# Switch to the tab
+		mainGui.mainTabFrame.select( mainGui.audioManagerTab )
+
+		# Select the file
+		mainGui.audioManagerTab.selectSong( self.fileObj.isoPath )
 
 	def addFilesToIso( self ):
 

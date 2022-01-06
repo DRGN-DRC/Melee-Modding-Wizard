@@ -12,7 +12,7 @@
 """ Container for global data that all scripts may access. 
 	Contains settings, settings-related load/save functions, and look-up tables. """
 
-programVersion = '0.8.10'
+programVersion = '0.9'
 
 # External Dependencies
 import os
@@ -79,6 +79,7 @@ def init( programArgs ):
 		'exportDescriptionsInFilename': '1',
 		'runDolphinInDebugMode': '0',
 		'createHiResCSPs': '0',
+		'disableMainMenuAnimations': '0',
 	}
 	# regionOverwriteDefaults = {
 	# 	'Common Code Regions': True,

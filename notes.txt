@@ -170,4 +170,25 @@ Text_InitializeSubtext		0x803a6754
 
 
 
-Text_CreateTextStruct(r3=Unk,r4=TextCanvasID)	803a6754
+
+
+		SIS Notes:
+
+Text_CreateTextStruct(r3=sisId,r4=canvasID)	803a6754
+
+
+canvas is created first; for example:
+
+    #define SIS_ID 0
+
+    // create text canvas
+    u16 canvas_id = Text_CreateCanvas(SIS_ID, 0, 7, 8, 128, 1, 128, 0);
+
+    // create text object
+    Text *text = Text_CreateText(SIS_ID, canvas_id );		# to add non-premade text?
+
+
+Text_AllocateTextObject(r3=sisID,r4=TextCanvasID)	803a5acc	# to add premade text
+
+
+
