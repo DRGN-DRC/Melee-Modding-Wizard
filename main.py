@@ -750,8 +750,7 @@ class MainMenuCanvas( Tk.Canvas ):
 		self.initOptionImages()
 
 		# Load the character image
-		#self.imageSets = { 'ABG{:02}'.format(i) for i in range(4) } # ABG = Animated BackGrounds
-		self.imageSets = set( ['ABG03'] )
+		self.imageSets = { 'ABG{:02}'.format(i) for i in range(4) } # ABG = Animated BackGrounds
 		self.loadImageSet()
 
 		self.displayPrimaryMenu()
@@ -798,8 +797,7 @@ class MainMenuCanvas( Tk.Canvas ):
 	def loadImageSet( self ):
 		# Randomly select an image set (without selecting the current one)
 		self.imageSet = random.choice( list(self.imageSets.difference( [self.imageSet] )) )
-		#self.imageSet = 'ABG02'
-		#print( 'Loading image set', self.imageSet )
+		#self.imageSet = 'ABG03'
 
 		# Load the necessary images (not using the imageBank because we want to work with these as PIL Image objects)
 		wireframePath = os.path.join( self.mainMenuFolder, self.imageSet + "W.png" )
