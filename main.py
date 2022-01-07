@@ -712,8 +712,6 @@ class MainMenuOption( object ):
 
 class MainMenuCanvas( Tk.Canvas ):
 
-	imageSets = set( ['ABG00', 'ABG01', 'ABG02'] ) # Animated Backgrounds; will be selected randomly during image loading
-
 	def __init__( self, mainGui, canvasFrame, width, height ):
 		Tk.Canvas.__init__( self, canvasFrame, width=width, height=height, borderwidth=0, highlightthickness=0 )
 
@@ -752,6 +750,8 @@ class MainMenuCanvas( Tk.Canvas ):
 		self.initOptionImages()
 
 		# Load the character image
+		#self.imageSets = { 'ABG{:02}'.format(i) for i in range(4) } # ABG = Animated BackGrounds
+		self.imageSets = set( ['ABG03'] )
 		self.loadImageSet()
 
 		self.displayPrimaryMenu()
@@ -849,69 +849,74 @@ class MainMenuCanvas( Tk.Canvas ):
 			self.refreshBorderImages()
 			return
 
+		# Load the main border image
 		imagePath = os.path.join( self.mainMenuFolder, "mainBorder.png" )
 		image = Image.open( imagePath )
 		self.borderImgs[color] = imgsDict = {}
 
+		# Load the main border shadow
+		shadowImagePath = os.path.join( self.mainMenuFolder, "mainBorderShadow.png" )
+		shadowImage = Image.open( shadowImagePath )
+
 		# Add color to the image, and combine it with the 'shadow' portion (dark middle part)
 		colorized = self.colorizeImage( image, color )
+		shadowImage.paste( colorized, mask=colorized )
 
-
+		# Calculate sizes for the fill sections
 		widthFillTop = self.mainBorderWidth - 118 # -26 - 66 - 26
 		widthFillBot = self.mainBorderWidth - self.bottomTextWidth - 76 # -26 - 26 - 12 - 12
 		widthFillBotLeft = int( math.floor(widthFillBot / 7.0) )
 		widthFillBotRight = widthFillBot - widthFillBotLeft
-		#print( widthFillBot, '-', widthFillBotLeft, '=', widthFillBotRight )
 		heightFill = self.mainBorderHeight - 102 # -70 - 32
 
-		cropped = colorized.crop( (0, 70, 26, 88) )
+		cropped = shadowImage.crop( (0, 70, 26, 88) )
 		resized = cropped.resize( (26, heightFill) )
 		imgsDict['borderLeft'] = ImageTk.PhotoImage( resized )
 
-		cropped = colorized.crop( (0, 0, 26, 70) )
+		cropped = shadowImage.crop( (0, 0, 26, 70) )
 		imgsDict['borderTopLeft'] = ImageTk.PhotoImage( cropped )
 
-		cropped = colorized.crop( (26, 0, 48, 70) )
+		cropped = shadowImage.crop( (26, 0, 48, 70) )
 		resized = cropped.resize( (widthFillTop/2, 70) )
 		imgsDict['borderTopLeftFill'] = ImageTk.PhotoImage( resized )
 
-		cropped = colorized.crop( (48, 0, 114, 70) )
+		cropped = shadowImage.crop( (48, 0, 114, 70) )
 		imgsDict['borderTopCenter'] = ImageTk.PhotoImage( cropped )
 
-		cropped = colorized.crop( (114, 0, 150, 70) )
+		cropped = shadowImage.crop( (114, 0, 150, 70) )
 		resized = cropped.resize( (widthFillTop/2, 70) )
 		imgsDict['borderTopRightFill'] = ImageTk.PhotoImage( resized )
 
-		cropped = colorized.crop( (150, 0, 176, 70) )
+		cropped = shadowImage.crop( (150, 0, 176, 70) )
 		imgsDict['borderTopRight'] = ImageTk.PhotoImage( cropped )
 
-		cropped = colorized.crop( (150, 70, 176, 88) )
+		cropped = shadowImage.crop( (150, 70, 176, 88) )
 		resized = cropped.resize( (26, heightFill) )
 		imgsDict['borderRight'] = ImageTk.PhotoImage( resized )
 
-		cropped = colorized.crop( (150, 88, 176, 120) )
+		cropped = shadowImage.crop( (150, 88, 176, 120) )
 		imgsDict['borderBottomRight'] = ImageTk.PhotoImage( cropped )
 
-		cropped = colorized.crop( (138, 88, 150, 120) )
+		cropped = shadowImage.crop( (138, 88, 150, 120) )
 		resized = cropped.resize( (widthFillBotRight, 32) )
 		imgsDict['borderBottomRightFill'] = ImageTk.PhotoImage( resized )
 		resized = cropped.resize( (widthFillBotLeft, 32) )
 		flipped = resized.transpose( Image.FLIP_LEFT_RIGHT )
 		imgsDict['borderBottomLeftFill'] = ImageTk.PhotoImage( flipped )
 
-		cropped = colorized.crop( (126, 88, 138, 120) )
+		cropped = shadowImage.crop( (126, 88, 138, 120) )
 		imgsDict['borderBottomRightInner'] = ImageTk.PhotoImage( cropped )
 		flipped = cropped.transpose( Image.FLIP_LEFT_RIGHT )
 		imgsDict['borderBottomLeftInner'] = ImageTk.PhotoImage( flipped )
 
-		cropped = colorized.crop( (50, 88, 126, 120) )
+		cropped = shadowImage.crop( (50, 88, 126, 120) )
 		resized = cropped.resize( (self.bottomTextWidth, 32) )
 		imgsDict['borderBottomCenter'] = ImageTk.PhotoImage( resized )
 
-		cropped = colorized.crop( (0, 88, 26, 120) )
+		cropped = shadowImage.crop( (0, 88, 26, 120) )
 		imgsDict['borderBottomLeft'] = ImageTk.PhotoImage( cropped )
 		
-		cropped = colorized.crop( (26, 70, 150, 88) )
+		cropped = shadowImage.crop( (26, 70, 150, 88) )
 		resized = cropped.resize( (self.mainBorderWidth-52, heightFill) )
 		imgsDict['borderMiddle'] = ImageTk.PhotoImage( resized )
 
@@ -1096,6 +1101,7 @@ class MainMenuCanvas( Tk.Canvas ):
 
 		# If the main menu isn't currently visible, skip this animation and queue a new one
 		if not self.mainMenuSelected():
+			print( 'anim skipped' )
 			self.queueNewAnimation()
 			return
 

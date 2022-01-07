@@ -175,6 +175,10 @@ Text_InitializeSubtext		0x803a6754
 		SIS Notes:
 
 Text_CreateTextStruct(r3=sisId,r4=canvasID)	803a6754
+	┕> Text_AllocateTextObject(r3=sisID,r4=TextCanvasID)	803a5acc
+	┕> Text_AllocateMenuTextMemory	803a5798
+	┕> Text_AllocateMenuTextMemory	803a5798
+	┕> Text_CopyPremadeTextDataToStruct(r3=textstruct,r4=textID)	803a6368
 
 
 canvas is created first; for example:
@@ -188,7 +192,37 @@ canvas is created first; for example:
     Text *text = Text_CreateText(SIS_ID, canvas_id );		# to add non-premade text?
 
 
-Text_AllocateTextObject(r3=sisID,r4=TextCanvasID)	803a5acc	# to add premade text
+Text_CreateTextStruct is called on rsss load, as well as the following in Think:
+
+
+80237410	CSSRules_LoadRandomStageSelect
+80236cbc		SubmenuLoad_CSSRules_LoadRandomStageSelect_InitializeSelectedStages
+
+
+		RandomStageSelect_Think
+802359c8		RandomStageSelect_LoadStageText	  <- loops over all stage text to be displayed
+803a5acc			Text_AllocateTextObject(r3=sisID,r4=TextCanvasID)
+803a6368			Text_CopyPremadeTextDataToStruct(r3=textstruct,r4=textID)
 
 
 
+
+Text_AllocateTextObject	803a5acc	# to add premade text
+
+	r3: sisID	(sis file ID?)
+	r4: TextCanvasID
+	f0: 
+	f1: x offset (origin is screen center)
+	f2: y offset (origin is screen center)
+	f3: font size?
+	f4: 
+	f5: 
+
+Text_CopyPremadeTextDataToStruct()
+
+	r3: textstruct pointer
+	r4: textID
+
+
+
+canvasId from 'lbz r4, -0x4AEB (r13)'
