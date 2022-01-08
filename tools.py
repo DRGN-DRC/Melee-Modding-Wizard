@@ -12,7 +12,6 @@
 
 # External dependencies
 import os
-from tkMessageBox import Message
 import ttk
 import time
 import codecs
@@ -21,6 +20,7 @@ import struct
 import win32gui
 import subprocess
 import win32process
+import tkFileDialog
 import Tkinter as Tk
 
 from ruamel import yaml
@@ -121,22 +121,21 @@ class AsmToHexConverter( BasicWindow ):
 	""" Tool window to convert assembly to hex and vice-verca. """
 
 	def __init__( self, mod=None ):
-		BasicWindow.__init__( self, globalData.gui.root, 'ASM <-> HEX Converter', offsets=(160, 100), resizable=True, topMost=False )
-		self.window.minsize( width=480, height=350 )
+		BasicWindow.__init__( self, globalData.gui.root, 'ASM <-> HEX Converter', offsets=(160, 100), resizable=True, topMost=False, minsize=(460, 350) )
 
 		# Display info and a few controls
 		topRow = ttk.Frame( self.window )
 		ttk.Label( topRow, text=('This assembles PowerPC assembly code into raw hex,\nor disassembles raw hex into PowerPC assembly.'
 			#"\n\nNote that this functionality is also built into the entry fields for new code in the 'Add New Mod to Library' interface. "
 			#'So you can use your assembly source code in those fields and it will automatically be converted to hex during installation. '
-			'\nComments preceded with "#" will be ignored.'), wraplength=480 ).grid( column=0, row=0, rowspan=3 )
+			'\nComments preceded with "#" will be ignored.'), wraplength=480 ).grid( column=0, row=0, rowspan=4 )
 
 		ttk.Label( topRow, text='Beautify Hex:' ).grid( column=1, row=0 )
 		options = [ '1 Word Per Line', '2 Words Per Line', '3 Words Per Line', '4 Words Per Line', '5 Words Per Line', '6 Words Per Line', 'No Whitespace' ]
 		Dropdown( topRow, options, default=options[1], command=self.beautifyChanged ).grid( column=1, row=1 )
 
 		self.assembleSpecialSyntax = Tk.BooleanVar( value=False )
-		ttk.Checkbutton( topRow, text='Assemble Special Syntax', variable=self.assembleSpecialSyntax ).grid( column=1, row=2 )
+		ttk.Checkbutton( topRow, text='Assemble Special Syntax', variable=self.assembleSpecialSyntax ).grid( column=1, row=2, pady=5 )
 
 		self.assemblyDetectedLabel = ttk.Label( topRow, text='Assembly Detected:      ' ) # Leave space for true/false string
 		self.assemblyDetectedLabel.grid( column=1, row=3 )
@@ -144,7 +143,8 @@ class AsmToHexConverter( BasicWindow ):
 		topRow.grid( column=0, row=0, padx=40, pady=(7, 7), sticky='ew' )
 		
 		# Configure the top row, so it expands properly on window-resize
-		topRow.columnconfigure( 'all', weight=1 )
+		topRow.columnconfigure( 0, weight=1, minsize=400 )
+		topRow.columnconfigure( 0, weight=1 )
 
 		self.lengthString = Tk.StringVar( value='' )
 		self.mod = mod
@@ -166,26 +166,41 @@ class AsmToHexConverter( BasicWindow ):
 		entryFieldsRow = ttk.Frame( self.window )
 		self.sourceCodeEntry = ScrolledText( entryFieldsRow, width=30, height=20 )
 		self.sourceCodeEntry.grid( rowspan=2, column=0, row=0, padx=5, pady=7, sticky='news' )
-		ttk.Button( entryFieldsRow, text='->', command=self.asmToHexCode ).grid( column=1, row=0, pady=20, sticky='s' )
-		ttk.Button( entryFieldsRow, text='<-', command=self.hexCodeToAsm ).grid( column=1, row=1, pady=20, sticky='n' )
+		ttk.Button( entryFieldsRow, text='->', command=self.asmToHexCode ).grid( column=1, row=0, pady=30, sticky='s' )
+		ttk.Button( entryFieldsRow, text='<-', command=self.hexCodeToAsm ).grid( column=1, row=1, pady=30, sticky='n' )
 		self.hexCodeEntry = ScrolledText( entryFieldsRow, width=30, height=20 )
 		self.hexCodeEntry.grid( rowspan=2, column=2, row=0, padx=5, pady=7, sticky='news' )
 		entryFieldsRow.grid( column=0, row=2, sticky='nsew' )
 		
 		# Configure the above columns, so that they expand proportionally upon window resizing
-		entryFieldsRow.columnconfigure( 0, weight=6 )
-		entryFieldsRow.columnconfigure( 1, weight=1 ) # Giving much less weight to this row, since it's just the buttons
-		entryFieldsRow.columnconfigure( 2, weight=6 )
+		entryFieldsRow.columnconfigure( 0, weight=1 )
+		entryFieldsRow.columnconfigure( 1, weight=0 ) # No weight to this row, since it's just the buttons
+		entryFieldsRow.columnconfigure( 2, weight=1 )
 		entryFieldsRow.rowconfigure( 'all', weight=1 )
+
+		bottomRow = ttk.Frame( self.window )
+
+		# Add the assembly time display (as an Entry widget so we can select text from it)
+		self.assemblyTimeDisplay = Tk.Entry( bottomRow, width=25, borderwidth=0 )
+		self.assemblyTimeDisplay.configure( state="readonly" )
+		self.assemblyTimeDisplay.grid( column=0, row=0, sticky='w', padx=(25, 0) )
 
 		# Determine the include paths to be used here, and add a button at the bottom of the window to display them
 		self.detectContext()
-		ttk.Button( self.window, text='View Include Paths', command=self.viewIncludePaths ).grid( column=0, row=3, pady=(2, 6), ipadx=20 )
+		ttk.Button( bottomRow, text='View Include Paths', command=self.viewIncludePaths ).grid( column=1, row=0, ipadx=7 )
+		ttk.Button( bottomRow, text='Save Hex to File', command=self.saveHexToFile ).grid( column=2, row=0, ipadx=7, sticky='e', padx=40 )
+		bottomRow.grid( column=0, row=3, pady=(2, 6), sticky='ew' )
+		bottomRow.columnconfigure( 'all', weight=1 )
 
 		# Add the assembly time display (as an Entry widget so we can select text from it)
-		self.assemblyTimeDisplay = Tk.Entry( self.window, width=25, borderwidth=0 )
-		self.assemblyTimeDisplay.configure( state="readonly" )
-		self.assemblyTimeDisplay.grid( column=0, row=3, sticky='w', padx=(7, 0) )
+		# self.assemblyTimeDisplay = Tk.Entry( self.window, width=25, borderwidth=0 )
+		# self.assemblyTimeDisplay.configure( state="readonly" )
+		# self.assemblyTimeDisplay.place( x=10, rely=1.0, y=-27 )
+
+		# # Determine the include paths to be used here, and add a button at the bottom of the window to display them
+		# self.detectContext()
+		# ttk.Button( self.window, text='View Include Paths', command=self.viewIncludePaths ).grid( column=0, row=3, pady=(2, 6), ipadx=7 )
+		# ttk.Button( self.window, text='Save Hex to File', command=self.saveHexToFile ).place( relx=1.0, rely=1.0, x=-150, y=-31 )
 
 		# Configure this window's expansion as a whole, so that only the text entry row can expand when the window is resized
 		self.window.columnconfigure( 0, weight=1 )
@@ -423,6 +438,42 @@ class AsmToHexConverter( BasicWindow ):
 					 'The exact paths are as follows:\n\n' + paths )
 
 		cmsg( message, 'Include Paths', 'left' )
+
+	def saveHexToFile( self ):
+
+		""" Prompts the user for a save location, and then saves the hex code to file as binary. """
+
+		savePath = tkFileDialog.asksaveasfilename(
+			title="Where would you like to export the file?",
+			parent=self.window,
+			initialdir=globalData.getLastUsedDir(),
+			initialfile='Bin.bin',
+			defaultextension='bin',
+			filetypes=[( "Binary files", '*.bin' ), ( "Data archive files", '*.dat' ), ( "All files", "*.*" )] )
+
+		# The above will return an empty string if the user canceled
+		if not savePath:
+			globalData.gui.updateProgramStatus( 'File save canceled' )
+			return
+
+		# Get the hex code and remove whitespace
+		hexCode = self.hexCodeEntry.get( '1.0', 'end' )
+		hexCode = ''.join( hexCode.split() )
+
+		# Save the hex code to file as binary
+		try:
+			with open( savePath, 'wb' ) as binFile:
+				binFile.write( bytearray.fromhex(hexCode) )
+
+			globalData.gui.updateProgramStatus( 'File saved to "{}"'.format(savePath) )
+
+		except IOError as e: # Couldn't create the file (likely a permission issue)
+			msg( 'Unable to create "' + savePath + '" file! This is likely due to a permissions issue. You might try saving to somewhere else.', 'Error' )
+			globalData.gui.updateProgramStatus( 'Unable to save; could not create the file at the destination' )
+
+		except ValueError as e: # Couldn't convert the hex to a bytearray
+			msg( 'Unable to convert the hex to binary; you may want to check for illegal characters.', 'Error' )
+			globalData.gui.updateProgramStatus( 'Unable to save; hex string could not be converted to bytearray' )
 
 	def beautifyChanged( self, widget, newValue ):
 

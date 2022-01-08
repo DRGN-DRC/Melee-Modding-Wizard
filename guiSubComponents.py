@@ -303,6 +303,8 @@ class BasicWindow( object ):
 		# If utilized, unique windows will be referenceable in a dictionary on the topLevel window
 		self.uniqueWindowName = self.__class__.__name__ + windowTitle
 		if unique:
+			assert topLevel, 'Only windows with a parent may be unique!'
+
 			# Bring into view an existing instance of this window, if already present
 			if hasattr( topLevel, 'uniqueWindows' ):
 				existingWindow = topLevel.uniqueWindows.get( self.uniqueWindowName )

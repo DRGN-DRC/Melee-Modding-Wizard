@@ -2,7 +2,7 @@
 
 :: Get the input file path, without extension
 set inputFile=%~dpn1
-set outputFile="%inputFile%_+256p.png"
+set outputFile=%inputFile%_+256p.png
 
 if ["%inputFile%"]==[] (
     echo No texture file provided.
@@ -14,8 +14,7 @@ if ["%inputFile%"]==[] (
     goto eof
 )
 
-echo Outputting as %outputFile%
+echo Outputting as "%outputFile%"
 
-
-"D:\Games\GameCube\- - SSB Melee - -\Hacks\20XX Hack Pack\20XXHP 5.0\CSS Icon Swapping\pngquant.exe" --speed 1 --output %outputFile% 256 "%inputFile%.png"
-
+cd /d %~dp0
+pngquant.exe --speed 1 --output "%outputFile%" 256 "%inputFile%.png"

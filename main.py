@@ -655,25 +655,25 @@ class MainMenuOption( object ):
 
 	def clicked( self, event ):
 
-		""" Initial method called when a canvas stage icon is clicked on. Determines and 
-			sets the internal stage ID of the icon that was clicked on, and calls the main
-			stage selection method. """
+		""" Initial method called when an option is clicked on. """
 
 		if self.color == '#7b5467': return # temporarily disabled
 		
-		globalData.gui.updateProgramStatus( '' )
+		#globalData.gui.updateProgramStatus( '' )
 		#print('clicked')
 
 		self.callback( event )
 
 	def hovered( self, event ):
 
-		if self.color == '#7b5467': return
 		# if self.mouseHovered: return # Ignore redundant calls
 		# self.mouseHovered = True
 		
 		#if self.hoverText:
-		globalData.gui.updateProgramStatus( self.hoverText )
+		#globalData.gui.updateProgramStatus( self.hoverText )
+		self.canvas.itemconfigure( self.canvas.bottomText, text=self.hoverText )
+
+		if self.color == '#7b5467': return
 
 		self.canvas['cursor'] = 'hand2'
 		#print('hovered')
@@ -684,6 +684,7 @@ class MainMenuOption( object ):
 		self.canvas.itemconfig( self.bdRight, image=self.canvas.optionBgRightImageH )
 		#self.canvas.itemconfig( self.textObj, fill='black' )
 
+		# Update black text position
 		#self.canvas.create_text( self.coords[0]+24, self.coords[1]+12, text=self.text, anchor='w', tags=('menuOptions'), font=self.font, fill='black' )
 		self.canvas.tag_raise( self.blackText1, 'menuOptions' )
 		self.canvas.tag_raise( self.blackText2, 'menuOptions' )
@@ -703,11 +704,9 @@ class MainMenuOption( object ):
 		self.canvas.itemconfig( self.bdRight, image=self.canvas.optionBgRightImage )
 		#self.canvas.itemconfig( self.textObj, fill='#cb9832' )
 
-		#self.canvas.tag_lower( 'blackText'+self.selfTag, 'menuOptionsBg' )
+		# Update black text position
 		self.canvas.tag_lower( self.blackText1, 'menuOptions' )
 		self.canvas.tag_lower( self.blackText2, 'menuOptions' )
-
-		#self.canvas.delete( 'blackText' )
 
 
 class MainMenuCanvas( Tk.Canvas ):
@@ -719,14 +718,16 @@ class MainMenuCanvas( Tk.Canvas ):
 		def noScroll( arg1, arg2 ): return
 		self.yview_scroll = noScroll
 
+		self.testSet = '' # For testing. Set to 'ABGxx' to test a specific character image, or to '' for no testing
+
 		self.mainMenuFolder = os.path.join( globalData.paths['imagesFolder'], 'Main Menu' )
 		self.mainGui = mainGui
 		self.imageSet = ''
 		self.topLayerId = -1
 		self.afterId = -1
 		self.animId = -1
-		self.minIdleTime = 10 # Before next animation (character swap or wireframe effect)
-		self.maxIdleTime = 25 # Must be at least double the minimum (due to halving in first use)
+		self.minIdleTime = 12 # Before next animation (character swap or wireframe effect)
+		self.maxIdleTime = 28 # Must be at least double the minimum (due to halving in first use)
 
 		self.currentBorderColor = ''
 		self.borderImgs = {}	# key=color, value=imagesDict (key=imageName, value=image)
@@ -758,10 +759,13 @@ class MainMenuCanvas( Tk.Canvas ):
 		if not globalData.checkSetting( 'disableMainMenuAnimations' ):
 			self.queueNewAnimation( shortFirstIdle=True )
 
-		self.create_text( width-40, 80, text='Fade', fill='silver', tags=('testFade',) )
-		self.create_text( width-40, 110, text='Wireframe\nPass', fill='silver', tags=('testWireframe',) )
-		self.tag_bind( 'testFade', '<1>', self.testFade )
-		self.tag_bind( 'testWireframe', '<1>', self.testWireframe )
+		if self.testSet:
+			self.create_text( width-40, 80, text='Fade', fill='silver', tags=('testFade',) )
+			self.create_text( width-40, 120, text='Wireframe\nPass', fill='silver', tags=('testWireframe',) )
+			self.tag_bind( 'testFade', '<1>', self.testFade )
+			self.tag_bind( 'testWireframe', '<1>', self.testWireframe )
+
+		#self.after(2000, self.isVisible)
 
 	def initFont( self, fontName, private=True, enumerable=False ):
 		
@@ -795,9 +799,11 @@ class MainMenuCanvas( Tk.Canvas ):
 		return bool( numFontsAdded )
 
 	def loadImageSet( self ):
-		# Randomly select an image set (without selecting the current one)
-		self.imageSet = random.choice( list(self.imageSets.difference( [self.imageSet] )) )
-		#self.imageSet = 'ABG03'
+		# Randomly select an image set (without selecting the current one), unless doing testing
+		if self.testSet:
+			self.imageSet = self.testSet
+		else:
+			self.imageSet = random.choice( list(self.imageSets.difference( [self.imageSet] )) )
 
 		# Load the necessary images (not using the imageBank because we want to work with these as PIL Image objects)
 		wireframePath = os.path.join( self.mainMenuFolder, self.imageSet + "W.png" )
@@ -832,6 +838,7 @@ class MainMenuCanvas( Tk.Canvas ):
 
 		blankImage = Image.new( 'RGBA', image.size, (0, 0, 0, 0) )
 		colorScreen = Image.new( 'RGBA', image.size, color )
+
 		return Image.composite( colorScreen, blankImage, image )
 
 	def loadBorderImages( self, color ):
@@ -1078,10 +1085,13 @@ class MainMenuCanvas( Tk.Canvas ):
 	def testWireframe( self, event ):
 		self.after_cancel( self.afterId )
 		self.after_cancel( self.animId )
-		self._maskPosition = -self.origMask.height
-		self.animId = self.after_idle( self.updateWireframePass )
+		self.startWireframePass()
 
 	def queueNewAnimation( self, shortFirstIdle=False ):
+
+		# Exit if in-testing mode
+		if self.testSet:
+			return
 
 		# Start a timer to count down to creating the wireframe effect or swap images
 		if shortFirstIdle:
@@ -1090,7 +1100,6 @@ class MainMenuCanvas( Tk.Canvas ):
 			maxIdle = self.maxIdleTime
 
 		timeTilNextAnim = random.randint( self.minIdleTime, maxIdle ) # Shorter first idle
-		#print( 'first anim should trigger in', timeTilNextAnim, 'seconds' )
 		self.afterId = self.after( timeTilNextAnim*1000, self.animateCharImage )
 
 	def animateCharImage( self ):
@@ -1098,23 +1107,16 @@ class MainMenuCanvas( Tk.Canvas ):
 		# 	return
 
 		# If the main menu isn't currently visible, skip this animation and queue a new one
-		if not self.mainMenuSelected():
-			print( 'anim skipped' )
+		if not self.mainMenuSelected() or not self.isVisible():
 			self.queueNewAnimation()
 			return
 
-		try:
-			print( 'anim happening' )
-			if random.choice( (0, 1, 2) ): # Wireframe pass (2/3 chance)
-				self._maskPosition = -self.origMask.height
-				self.animId = self.after_idle( self.updateWireframePass )
-			else: # Character fade & swap
-				self._fadeProgress = -99
-				self.animId = self.after_idle( self.updateBgFadeSwap )
-		
-		except: # If an error occurred, the widget is likely no longer attached to the GUI
-			print( 'Exited bg animation edit' )
-			pass
+		if random.choice( (0, 1, 2) ): # Wireframe pass (2/3 chance)
+			self.startWireframePass()
+
+		else: # Character fade & swap
+			self._fadeProgress = -99
+			self.animId = self.after_idle( self.updateBgFadeSwap )
 
 	def remove( self ):
 
@@ -1133,6 +1135,11 @@ class MainMenuCanvas( Tk.Canvas ):
 		elif geomManager == 'place':
 			self.place_forget()
 
+	def startWireframePass( self ):
+		self._maskPosition = -self.origMask.height
+		#self.times = []
+		self.animId = self.after_idle( self.updateWireframePass )
+
 	def updateWireframePass( self ):
 		# Copy the mask of the top layer's alpha channel, and combine it with the mask
 		tic = time.clock()
@@ -1142,14 +1149,13 @@ class MainMenuCanvas( Tk.Canvas ):
 
 		# Update the display with the new image
 		self.itemconfigure( self.topLayerId, image=self.topLayer )
-		self.update_idletasks()
-		#print('processed at', self._maskPosition)
+		#self.update_idletasks()
 
 		self._maskPosition += 2
 
 		if self._maskPosition < (self.origMask.height + self.origTopLayer.height):
-			#self.mainGui.root.event_generate( '<<wireframePass>>', when='tail' )
 			toc = time.clock()
+			#self.times.append( toc-tic )
 			timeToSleep = int( (.040 - (toc - tic)) * 1000 )
 			#print('timeToSleep', timeToSleep)
 			if timeToSleep < 0:
@@ -1157,6 +1163,7 @@ class MainMenuCanvas( Tk.Canvas ):
 			self.animId = self.after( timeToSleep, self.updateWireframePass )
 		else:
 			# This animation is complete
+			#print( 'avg. time:', sum(self.times)/len(self.times) )
 			self.queueNewAnimation()
 
 	def updateBgFadeSwap( self ):
@@ -1178,7 +1185,7 @@ class MainMenuCanvas( Tk.Canvas ):
 		# Update the layer's alpha
 		self.topLayer = ImageTk.PhotoImage( Image.blend(self._transparentMask, self.origTopLayer, opacity) )
 		self.itemconfigure( self.topLayerId, image=self.topLayer )
-		self.update_idletasks()
+		#self.update_idletasks()
 
 		if self._fadeProgress < 100:
 			toc = time.clock()
@@ -1194,10 +1201,10 @@ class MainMenuCanvas( Tk.Canvas ):
 
 	def displayPrimaryMenu( self ):
 		self.menuOptionCount = 4
-		self.addMenuOption( 'Load Recent', '#394aa6', self.loadRecentMenu, hoverText='Load recent files' ) # blue
-		self.addMenuOption( 'Load Disc', '#a13728', self.openDisc, hoverText='Load a ISO or GCM file' ) # red
-		self.addMenuOption( 'Load Root Folder', '#077523', self.openRoot, hoverText='Load an extracted filesystem' ) # green
-		self.addMenuOption( 'Browse Code Library', '#9f853b', self.browseCodes, hoverText='Load and view the library for code mods' ) # yellow
+		self.addMenuOption( 'Load Recent', '#394aa6', self.loadRecentMenu, hoverText='Return to your latest work.' ) # blue
+		self.addMenuOption( 'Load Disc', '#a13728', self.openDisc, hoverText='Load an ISO or GCM file.' ) # red
+		self.addMenuOption( 'Load Root Folder', '#077523', self.openRoot, hoverText='Load an extracted filesystem.' ) # green
+		self.addMenuOption( 'Browse Code Library', '#9f853b', self.browseCodes, hoverText='Browse code-related game mods.' ) # yellow
 
 	def mainMenuSelected( self ):
 
@@ -1272,26 +1279,26 @@ class MainMenuCanvas( Tk.Canvas ):
 		# Add new options
 		if globalData.disc.isMelee and globalData.disc.is20XX:
 			self.menuOptionCount = 6
-			self.addMenuOption( 'Disc Management', '#394aa6', self.loadDiscManagement, showAnimations, 'Load the Disc File Tree and Disc Details tabs for disc operations' ) # blue
-			self.addMenuOption( 'Code Manager', '#a13728', self.browseCodes, showAnimations, 'Add, remove, or change code-related modifications' ) # red
-			self.addMenuOption( 'Stage Manager', '#077523', self.loadStageEditor, showAnimations, 'Configure stages' ) # green
-			self.addMenuOption( 'Music Manager', '#9f853b', self.loadMusicManager, showAnimations, 'Listen to and configure music' ) # yellow
+			self.addMenuOption( 'Disc Management', '#394aa6', self.loadDiscManagement, showAnimations, 'Disc File Tree and Disc Details tabs.' ) # blue
+			self.addMenuOption( 'Code Manager', '#a13728', self.browseCodes, showAnimations, 'Make code-related modifications.' ) # red
+			self.addMenuOption( 'Stage Manager', '#077523', self.loadStageEditor, showAnimations, 'Configure stage loading.' ) # green
+			self.addMenuOption( 'Music Manager', '#9f853b', self.loadMusicManager, showAnimations, 'Listen to and configure music.' ) # yellow
 			self.addMenuOption( 'Sound Effect Editor', '#7b5467', self.loadDiscManagement, showAnimations, 'WIP!' ) # pinkish (blended)
-			self.addMenuOption( 'Debug Menu Editor', '#582493', self.loadDebugMenuEditor, showAnimations, 'View detailed information on the in-game Debug Menu' ) # purple
+			self.addMenuOption( 'Debug Menu Editor', '#582493', self.loadDebugMenuEditor, showAnimations, 'View/edit the in-game Debug Menu.' ) # purple
 
 		elif globalData.disc.isMelee:
 			self.menuOptionCount = 5
-			self.addMenuOption( 'Disc Management', '#394aa6', self.loadDiscManagement, showAnimations, 'Load the Disc File Tree and Disc Details tabs for disc operations' ) # blue
-			self.addMenuOption( 'Code Manager', '#a13728', self.browseCodes, showAnimations, 'Add, remove, or change code-related modifications' ) # red
-			self.addMenuOption( 'Stage Manager', '#077523', self.loadStageEditor, showAnimations, 'Configure stages' ) # green
-			self.addMenuOption( 'Music Manager', '#9f853b', self.loadMusicManager, showAnimations, 'Listen to and configure music' ) # yellow
+			self.addMenuOption( 'Disc Management', '#394aa6', self.loadDiscManagement, showAnimations, 'Disc File Tree and Disc Details tabs.' ) # blue
+			self.addMenuOption( 'Code Manager', '#a13728', self.browseCodes, showAnimations, 'Make code-related modifications.' ) # red
+			self.addMenuOption( 'Stage Manager', '#077523', self.loadStageEditor, showAnimations, 'Configure stage loading.' ) # green
+			self.addMenuOption( 'Music Manager', '#9f853b', self.loadMusicManager, showAnimations, 'Listen to and configure music.' ) # yellow
 			self.addMenuOption( 'Sound Effect Editor', '#7b5467', self.loadDiscManagement, showAnimations, 'WIP!' ) # pinkish (blended)
 
 		else:
 			self.menuOptionCount = 3
-			self.addMenuOption( 'Disc Management', '#394aa6', self.loadDiscManagement, showAnimations, 'Load the Disc File Tree and Disc Details tabs for disc operations' ) # blue
-			self.addMenuOption( 'Code Manager', '#a13728', self.browseCodes, showAnimations, 'Add, remove, or change code-related modifications' ) # red
-			self.addMenuOption( 'Music Manager', '#9f853b', self.loadMusicManager, showAnimations, 'Listen to and configure music' ) # yellow
+			self.addMenuOption( 'Disc Management', '#394aa6', self.loadDiscManagement, showAnimations, 'Disc File Tree and Disc Details tabs.' ) # blue
+			self.addMenuOption( 'Code Manager', '#a13728', self.browseCodes, showAnimations, 'Make code-related modifications.' ) # red
+			self.addMenuOption( 'Music Manager', '#9f853b', self.loadMusicManager, showAnimations, 'Listen to and configure music.' ) # yellow
 
 		# Set the main menu bottom text
 		text = 'Choose a category to begin.'
@@ -1314,6 +1321,7 @@ class MainMenuCanvas( Tk.Canvas ):
 		
 	def browseCodes( self, event ):
 		self.mainGui.fileMenu.browseCodeLibrary()
+
 		self.mainGui.root.update()
 		globalData.gui.updateProgramStatus( 'Ready' )
 
@@ -1332,8 +1340,8 @@ class MainMenuCanvas( Tk.Canvas ):
 			self.mainGui.discDetailsTab = DiscDetailsTab( self.mainGui.mainTabFrame, self.mainGui )
 		self.mainGui.discDetailsTab.loadDiscDetails()
 
-		self.mainGui.root.update()
-		globalData.gui.updateProgramStatus( 'Ready' )
+		# self.mainGui.root.update() # Flush pending hover events that will try to change the program status
+		# globalData.gui.updateProgramStatus( 'Ready' )
 
 	def loadStageEditor( self, event ):
 
@@ -1352,8 +1360,8 @@ class MainMenuCanvas( Tk.Canvas ):
 		else:
 			self.mainGui.stageManagerTab.loadVanillaStageLists()
 		
-		self.mainGui.root.update()
-		globalData.gui.updateProgramStatus( 'Ready' )
+		# self.mainGui.root.update() # Flush pending hover events that will try to change the program status
+		# globalData.gui.updateProgramStatus( 'Ready' )
 
 	def loadMusicManager( self, event ):
 
@@ -1367,8 +1375,8 @@ class MainMenuCanvas( Tk.Canvas ):
 		# Switch to the tab
 		self.mainGui.mainTabFrame.select( self.mainGui.audioManagerTab )
 
-		self.mainGui.root.update()
-		globalData.gui.updateProgramStatus( 'Ready' )
+		# self.mainGui.root.update()
+		# globalData.gui.updateProgramStatus( 'Ready' )
 
 	def loadDebugMenuEditor( self, event ):
 
@@ -1389,8 +1397,24 @@ class MainMenuCanvas( Tk.Canvas ):
 		# Switch to the tab
 		self.mainGui.mainTabFrame.select( self.mainGui.menuEditorTab )
 		
-		self.mainGui.root.update()
-		globalData.gui.updateProgramStatus( 'Ready' )
+		# self.mainGui.root.update()
+		# globalData.gui.updateProgramStatus( 'Ready' )
+
+	def isVisible( self ):
+
+		""" Returns whether this widget is visible (top-level non-child window focused, relative to other programs). """
+
+		width, height, x, y = self.winfo_width(), self.winfo_height(), self.winfo_rootx(), self.winfo_rooty()
+
+		if (width, height, x, y) == (1, 1, 0, 0):
+			is_toplevel = False
+		else:
+			is_toplevel = self.winfo_containing( x + (width // 2), y + (height // 2) ) is not None
+
+		# print('is_toplevel: {}'.format(is_toplevel), 'isMapped: ', self.winfo_ismapped() )
+		# self.after(2000, self.isVisible)
+
+		return is_toplevel
 
 #																		/------------\
 #	====================================================================   Main GUI   =========
