@@ -166,7 +166,7 @@ Configurations: # To be taken from the CSP Configuration file
     uint32 X Coord = 0
     uint32 Y Coord = 0
     uint32 Z Coord = 0
-    uint32 BG Color = 0xFF00FF # Default is magenta
+    uint32 BG Color = 0xFF00FF # RGB; magenta by default
 [DRGN]
 Revision ---- DOL Offset ---- Hex to Replace ---------- ASM Code -
 

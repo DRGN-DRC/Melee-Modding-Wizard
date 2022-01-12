@@ -22,7 +22,7 @@ from subprocess import Popen, PIPE
 
 # Internal Dependencies
 import globalData
-import disc
+#from disc import Disc
 from basicFunctions import roundTo32, toHex, validHex, msg, printStatus
 from guiSubComponents import cmsg
 
@@ -122,7 +122,7 @@ class CodeChange( object ):
 	""" Represents a single code change to be made to the game, such 
 		as a single code injection or static (in-place) overwrite. """
 
-	def __init__( self, mod, changeType, offset, origCode, rawCustomCode, preProcessedCode, returnCode=-1 ):
+	def __init__( self, mod, changeType, offset, origCode, rawCustomCode ):
 
 		self.mod = mod
 		self.type = changeType
@@ -132,8 +132,8 @@ class CodeChange( object ):
 		self.syntaxInfo = []		# A list of lists. Each sub-list is of the form [ offset, length, syntaxType, codeLine, names ]
 		self._origCode = origCode
 		self.rawCode = rawCustomCode
-		self.preProcessedCode = preProcessedCode
-		self.processStatus = returnCode
+		self.preProcessedCode = ''
+		self.processStatus = -1
 
 	@property
 	def origCode( self ):
@@ -166,21 +166,28 @@ class CodeChange( object ):
 		# If no original hexcode, try to get it from the vanilla disc
 		if not self._origCode:
 			# Retrieve the vanilla disc path
-			vanillaDiscPath = globalData.getVanillaDiscPath()
-			if not vanillaDiscPath: # User canceled path input
-				printStatus( 'Unable to get DOL data; no vanilla disc available for reference', error=True )
-				return
+			# vanillaDiscPath = globalData.getVanillaDiscPath()
+			# if not vanillaDiscPath: # User canceled path input
+			# 	printStatus( 'Unable to get DOL data; no vanilla disc available for reference', error=True )
+			# 	return
 			
-			# Load the vanilla disc
-			vanillaDisc = disc.Disc( vanillaDiscPath )
-			vanillaDisc.load()
+			# # Load the vanilla disc
+			# vanillaDisc = Disc( vanillaDiscPath )
+			# vanillaDisc.load()
 
 			# Get the DOL file, normalize the offset string, and get the target file data
-			dol = vanillaDisc.dol
+			#dol = vanillaDisc.dol
+			
+			try:
+				dol = globalData.getVanillaDol()
+			except Exception as err:
+				printStatus( 'Unable to get DOL data; {}'.format(err.message), warning=True )
+				return ''
+
 			dolOffset, error = dol.normalizeDolOffset( self.offset )
 			if error:
 				printStatus( error )
-				return
+				return ''
 			origData = dol.getData( dolOffset, self.getLength() )
 			self._origCode = hexlify( origData )
 
@@ -286,6 +293,7 @@ class CodeChange( object ):
 			self.mod.errors.append( 'Unrecognized configuration option type: {}'.format(codeOrErrorNote) )
 
 		if self.processStatus != 0:
+			self.preProcessedCode = ''
 			print 'Error parsing code change at', self.offset
 			print 'Error code: {}; {}'.format( self.processStatus, self.mod.stateDesc )
 
@@ -334,7 +342,7 @@ class CodeMod( object ):
 		self.name = name
 		self.auth = auth
 		self.desc = desc
-		self.data = {} 					# A dictionary that will be populated by lists of "CodeChange" objects
+		self.data = {} 					# Keys=revision, values=list of "CodeChange" objects
 		self.path = srcPath				# Root folder path that contains this mod
 		self.type = 'static'
 		self.state = 'disabled'
@@ -354,14 +362,14 @@ class CodeMod( object ):
 		#self.missingIncludes = []		# Include filesnames detected to be required by the assembler
 		self.errors = []
 
-	def setState( self, newState ):
+	def setState( self, newState, statusText='' ):
 
 		if self.state == newState:
 			return
 
 		self.state = newState
 		try:
-			self.guiModule.setState( newState )
+			self.guiModule.setState( newState, statusText )
 		except:
 			pass # May not be currently displayed in the GUI
 
@@ -397,7 +405,7 @@ class CodeMod( object ):
 		#returnCode, preProcessedCode = self.preProcessCode( customCodeLines )
 
 		#codeChange = ( 'static', -1, offsetString, origCode, rawCustomCode, preProcessedCode, returnCode )
-		codeChange = CodeChange( self, 'static', offsetString, origCode, rawCustomCode, '' )
+		codeChange = CodeChange( self, 'static', offsetString, origCode, rawCustomCode )
 		self.data[self.currentRevision].append( codeChange )
 
 	# def addShortStatic( self, offsetString, origHex, customCode ):
@@ -414,7 +422,7 @@ class CodeMod( object ):
 
 		# Add the code change
 		#codeChange = ( 'injection', -1, offsetString, origCode, rawCustomCode, preProcessedCode, returnCode )
-		codeChange = CodeChange( self, 'injection', offsetString, origCode, rawCustomCode, '' )
+		codeChange = CodeChange( self, 'injection', offsetString, origCode, rawCustomCode )
 		self.data[self.currentRevision].append( codeChange )
 
 		if self.type == 'static': # 'static' is the only type that 'injection' can override.
@@ -433,7 +441,7 @@ class CodeMod( object ):
 		rawCustomCode = '\n'.join( customCode ).strip() # Collapses the list of collected code lines into one string, removing leading & trailing whitespace
 
 		#codeChange = ( 'gecko', -1, '', '', rawCustomCode, preProcessedCode, returnCode )
-		codeChange = CodeChange( self, 'gecko', '', '', rawCustomCode, '' )
+		codeChange = CodeChange( self, 'gecko', '', '', rawCustomCode )
 		self.data[self.currentRevision].append( codeChange )
 
 		self.type = 'gecko'
@@ -441,11 +449,8 @@ class CodeMod( object ):
 	def addStandalone( self, standaloneName, standaloneRevisions, customCode ):
 		# Pre-process custom code
 		rawCustomCode = '\n'.join( customCode ).strip() # Collapses the list of collected code lines into one string, removing leading & trailing whitespace
-		#returnCode, preProcessedCode = self.preProcessCode( customCode )
 
-		#codeChange = ( 'standalone', -1, standaloneName, '', rawCustomCode, preProcessedCode, returnCode )
-		codeChange = CodeChange( self, 'standalone', standaloneName, '', rawCustomCode, '' )
-		#preProcessedCode = codeChange.getPreProcessedCode()
+		codeChange = CodeChange( self, 'standalone', standaloneName, '', rawCustomCode )
 		
 		# Add this change for each revision that it was defined for
 		for revision in standaloneRevisions:
@@ -455,8 +460,8 @@ class CodeMod( object ):
 
 		codeChange.evaluate()
 
+		# Save this SF in the global dictionary
 		if codeChange.processStatus == 0 and standaloneName not in globalData.standaloneFunctions:
-			#globalData.standaloneFunctions[standaloneName] = ( -1, rawCustomCode, preProcessedCode )
 			globalData.standaloneFunctions[standaloneName] = ( -1, codeChange )
 
 		self.type = 'standalone'
@@ -585,6 +590,131 @@ class CodeMod( object ):
 	# def backupConfiguration( self ): #todo; may be required during mod installation detection
 	# def restoreConfiguration( self ):
 
+	def formatAsGecko( self, vanillaDol, createForGCT ):
+
+		""" Formats a mod's code into Gecko code form. If this is for an INI file, human-readable mod-name/author headers and 
+			whitespace are included. If this is for a GCT file, it'll just be pure hex data (though returned as a string). """
+
+		# def resolveSfReferences( preProcessedCode ): #todo finish allowing SFs in Gecko codes
+		# 	# Check for special syntaxes; only one kind can be adapted to use by Gecko codes (references to SFs)
+		# 	if '|S|' not in preProcessedCustomCode: # Contains no special syntaxes
+		# 		return preProcessedCustomCode
+
+		# 	for section in preProcessedCustomCode.split( '|S|' ):
+		# 		if section.startswith( 'sym__' ): # Contains a function symbol; something like 'lis r3, (<<function>>+0x40)@h'
+		# 			resolvedCode = ''
+		# 			break
+		# 		elif section.startswith( 'sbs__' ): # Something of the form 'bl 0x80001234' or 'bl <function>'; replace the latter with the function code
+		# 			if '<' in section and section.endswith( '>' ): # The syntax references a standalone function
+		# 				targetFunctionName = section.split( '<' )[1].replace( '>', '' )
+		# 				preProcessedSfCode = genGlobals['allStandaloneFunctions'][targetFunctionName][2]
+		# 				resolvedSfCode = resolveSfReferences( preProcessedSfCode )
+
+		# 				if 
+		# 			else: break # Must be a special branch syntax using a RAM address (can't be used since we don't know where this code will be)
+		# 	else: # Success; loop above did not break
+
+		containsSpecialSyntax = False
+		codeChanges = []
+
+		#for changeType, customCodeLength, offset, _, _, preProcessedCustomCode in self.data[dolRevision]:
+		for codeChange in self.data[vanillaDol.revision]:
+			codeChange.evaluate() # Ensure code length has been determined
+
+			# Check for special syntaxes; only one kind can be adapted for use by Gecko codes (references to SFs)
+			if codeChange.syntaxInfo or codeChange.type == 'standalone': # Not supported for Gecko codes
+				containsSpecialSyntax = True
+				break
+			
+			elif codeChange.type == 'static':
+				
+				# Determine the Gecko operation code
+				if codeChange.length == 1:
+					opCode = 0
+					filling = '000000'
+				elif codeChange.length == 2:
+					opCode = 2
+					filling = '0000'
+				elif codeChange.length == 4:
+					opCode = 4
+					filling = ''
+				else:
+					opCode = 6
+					filling = toHex( codeChange.length, 8 ) # Pads a hex string to 8 characters long (extra characters added to left side)
+
+				ramAddress = vanillaDol.normalizeRamAddress( codeChange.offset )[0]
+				if ramAddress > 0x81000000:
+					opCode += 1
+				
+				ramAddress = ramAddress & 0x1FFFFFF # Mask out base address
+				firstWord = '{:02X}{:06X}'.format( opCode, ramAddress )
+
+				if createForGCT:
+					codeChanges.append( firstWord + filling + codeChange.preProcessedCode )
+
+				elif codeChange.length > 4:
+					sByteCount = toHex( codeChange.length, 8 ) # Pads a hex string to 8 characters long (extra characters added to left side)
+					beautifiedHex = globalData.codeProcessor.beautifyHex( codeChange.preProcessedCode )
+					codeChanges.append( firstWord + ' ' + sByteCount + '\n' + beautifiedHex )
+				else:
+					codeChanges.append( firstWord + ' ' + filling + codeChange.preProcessedCode )
+
+			elif codeChange.type == 'injection':
+				opCode = codeChange.preProcessedCode[-8:][:-6].lower() # Of the last instruction
+				ramAddress = vanillaDol.normalizeRamAddress( codeChange.offset )[0]
+				sRamAddress = toHex( ramAddress, 6 ) # Pads a hex string to 6 characters long (extra characters added to left side)
+				
+				# todo: +1 to opcode if address > 0x81000000
+				# if ramAddress > 0x81000000:
+				# 	opCode += 1
+
+				if createForGCT:
+					# Check the last instruction; it may be a branch placeholder, which may be removed
+					if opCode in ( '48', '49', '4a', '4b', '00' ):
+						codeChange.preProcessedCode = codeChange.preProcessedCode[:-8]
+						codeChange.length -= 4
+
+					# Determine the line count and the final bytes that need to be appended
+					quotient, remainder = divmod( codeChange.length, 8 ) # 8 = the final bytes per line
+					sLineCount = toHex( quotient + 1, 8 )
+					if remainder == 0: # The remainder is how many bytes extra there will be after the 'quotient' number of lines above
+						codeChange.preProcessedCode += '6000000000000000'
+					else:
+						codeChange.preProcessedCode += '00000000'
+
+					codeChanges.append( 'C2{}{}{}'.format(sRamAddress, sLineCount, codeChange.preProcessedCode) )
+
+				else: # Creating a human-readable INI file
+					# Check the last instruction; it may be a branch placeholder, which may be removed
+					if opCode in ( '48', '49', '4a', '4b', '00' ):
+						beautifiedHex = globalData.codeProcessor.beautifyHex( codeChange.preProcessedCode[:-8] )
+						codeChange.length -= 4
+					else:
+						beautifiedHex = globalData.codeProcessor.beautifyHex( codeChange.preProcessedCode )
+
+					# Determine the line count and the final bytes that need to be appended
+					quotient, remainder = divmod( codeChange.length, 8 ) # 8 represents the final bytes per line
+					sLineCount = toHex( quotient + 1, 8 )
+					if remainder == 0: # The remainder is how many bytes extra there will be after the 'quotient' number of lines above
+						beautifiedHex += '\n60000000 00000000'
+					else:
+						beautifiedHex += ' 00000000'
+
+					codeChanges.append( 'C2{} {}\n{}'.format(sRamAddress, sLineCount, beautifiedHex ) )
+
+			elif codeChange.type == 'gecko': # Not much going to be needed here!
+				if createForGCT:
+					codeChanges.append( codeChange.preProcessedCode )
+				else: # Creating a human-readable INI file
+					codeChanges.append( globalData.codeProcessor.beautifyHex( codeChange.preProcessedCode ) )
+
+		if containsSpecialSyntax:
+			return ''
+		elif createForGCT:
+			return ''.join( codeChanges )
+		else:
+			return '${} [{}]\n{}'.format( self.name, self.auth, '\n'.join(codeChanges) )
+
 
 class CodeLibraryParser():
 
@@ -623,7 +753,7 @@ class CodeLibraryParser():
 		for item in itemsInDir:
 			if self.stopToRescan:
 				break
-			elif item.startswith( '!' ) or item.startswith( '.' ): 
+			elif item.startswith( '!' ) or item.startswith( '.' ):
 				continue # User can optionally exclude these folders from parsing
 			
 			itemPath = os.path.normpath( os.path.join(folderPath, item) )
@@ -634,6 +764,9 @@ class CodeLibraryParser():
 			elif item.lower().endswith( '.txt' ):
 				# Collect all mod definitions from this file
 				self.parseModsLibraryFile( itemPath, includePaths )
+
+		if self.stopToRescan:
+			print 'stopping to rescan'
 
 	def getModByName( self, name ):
 
@@ -768,8 +901,8 @@ class CodeLibraryParser():
 
 			if modString.strip() == '' or modString.lstrip()[0] == '!':
 				continue # Skip this mod.
-			# elif modsLibraryNotebook.stopToRescan:
-			# 	break
+			elif self.stopToRescan:
+				break
 			
 			basicInfoCollected = False
 			collectingConfigurations = False
@@ -1366,12 +1499,9 @@ class CodeLibraryParser():
 			already has it from a codeChange dictionary. (If it does need to be parsed, the calling function 
 			only had a sourceFile for reference (most likely through a injectFolder code type).) 
 				May return these return codes:
-				->	0: Success
-					1: Compilation placeholder or branch marker detected in original code
-					2: Error during assembly
-					3: Include file(s) could not be found
-				->	4: Missing source file
-				->	5: Encountered an error reading the source file """
+					0: Success
+					4: Missing source file
+					5: Encountered an error reading the source file """
 
 		if not annotation: # Use the file name for the annotation (without file extension)
 			annotation = os.path.splitext( os.path.basename(fullAsmFilePath) )[0]
@@ -1504,24 +1634,7 @@ class CodeLibraryParser():
 			mod.errors.append( 'Unable to find an address for ' + sourceFile )
 			return
 
-		# Normalize the offset of the code change, and get the game's original code at that location
-		# dolOffset = normalizeDolOffset( address, dolObj=mod.vanillaDol )
-		# origHex = getVanillaHex( dolOffset, revision=mod.revision, suppressWarnings=False )
-		# if not origHex:
-		# 	mod.missingVanillaHex = True
-		# 	mod.errors.append( 'Unable to find vanilla hex for {}. Found in {}.'.format(address, sourceFile) )
-		# 	return
-
-		# Get the custom code's length, and store the info for this code change
-		# customCodeLength = getCustomCodeLength( preProcessedCustomCode )
-		# if customCodeLength == 4:
-		# 	#mod.data[mod.revision].append( ('static', customCodeLength, address, origHex, customCode, preProcessedCustomCode) )
-		# 	codeChange = CodeChange( mod, 'static', address, '', customCode, preProcessedCustomCode, returnCode )
-		# else:
-		# 	#mod.data[mod.revision].append( ('injection', customCodeLength, address, origHex, customCode, preProcessedCustomCode) )
-		# 	codeChange = CodeChange( mod, 'injection', address, '', customCode, preProcessedCustomCode, returnCode )
-
-		codeChange = CodeChange( mod, 'static', address, '', customCode, '' )
+		codeChange = CodeChange( mod, 'static', address, '', customCode )
 		codeChange.evaluate()
 
 		if codeChange.length > 4:
@@ -1565,7 +1678,7 @@ class CodeLibraryParser():
 		# mod.data[mod.revision].append( ('static', customCodeLength, offset, origHex, customCode, preProcessedCustomCode) )
 		
 		#mod.addStaticOverwrite( address, codeChangeDict['value'].splitlines() )
-		codeChange = CodeChange( mod, 'static', address, '', customCode, '' )
+		codeChange = CodeChange( mod, 'static', address, '', customCode )
 		mod.data[mod.currentRevision].append( codeChange )
 
 	def processAmfsInjectSubfolder( self, fullFolderPath, mod, isRecursive ):

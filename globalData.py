@@ -28,7 +28,8 @@ from collections import OrderedDict
 # Internal Dependencies
 import codeRegionSettings
 
-from disc import MicroMelee, isExtractedDirectory
+from dol import Dol
+from disc import Disc, MicroMelee, isExtractedDirectory
 from codeMods import CommandProcessor
 from basicFunctions import msg, printStatus
 from guiSubComponents import PopupEntryWindow, VanillaDiscEntry
@@ -61,7 +62,6 @@ def init( programArgs ):
 
 	# These are default settings if they are not defined in the user's settings.ini file
 	defaultSettings = {
-		#'defaultSearchDirectory': os.path.expanduser( '~' ),
 		'codeLibraryPath': os.path.join( scriptHomeFolder, 'Code Library' ),
 		'codeLibraryIndex': '0',
 		'vanillaDiscPath': '',
@@ -178,8 +178,6 @@ def loadProgramSettings( useBooleanVars=False ):
 		This is preferred over having a default file already created to contain the settings so that the file may be deleted, 
 		either to reset all defaults, or re-create the file in case of potential corruption. 
 		Usage of BooleanVars can only be done in the presence of the GUI. """
-
-	#settings = globalData.settings
 
 	# Read the file if it exists
 	if os.path.exists( paths['settingsFile'] ):
@@ -509,6 +507,33 @@ def getVanillaDiscPath():
 	return vanillaDiscPath
 
 
+def getVanillaDol():
+
+	""" Retrieves and returns the Start.dol file from a vanilla disc. 
+		Or, if a path is given for the 'dolSource' setting, that DOL is used. """
+	
+	dolPath = settings.get( 'General Settings', 'dolSource' )
+
+	if dolPath == 'vanilla':
+		# See if we can get a reference to vanilla DOL code
+		vanillaDiscPath = getVanillaDiscPath()
+		if not vanillaDiscPath: # User canceled path input
+			raise Exception( 'no vanilla disc available for reference' )
+		
+		vanillaDisc = Disc( vanillaDiscPath )
+		vanillaDisc.load()
+		dol = vanillaDisc.dol
+
+	elif not os.path.exists( dolPath ):
+		raise Exception( 'the source DOL could not be found' )
+
+	else:
+		# Initialize and return an external DOL file
+		dol = Dol( None, -1, -1, '', 'Main game executable', dolPath, 'file' )
+
+	return dol
+
+
 def getMicroMelee():
 
 	""" Returns a Micro Melee disc object. Either from a pre-built file, 
@@ -524,7 +549,6 @@ def getMicroMelee():
 	else: # Need to make a new MM build
 		vanillaDiscPath = getVanillaDiscPath()
 		if not vanillaDiscPath: # User canceled path input
-			#gui.updateProgramStatus( 'Unable to build the Micro Melee test disc without a vanilla reference disc.' )
 			printStatus( 'Unable to build the Micro Melee test disc without a vanilla reference disc.' )
 			return
 

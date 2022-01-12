@@ -17,12 +17,14 @@ import struct
 import urlparse
 import webbrowser
 import tkMessageBox
+import tkFileDialog
 import Tkinter as Tk
 from urlparse import urlparse 	# For validating and security checking URLs
 
 # Internal Dependencies
 import globalData
-from disc import Disc
+#from disc import Disc
+from dol import RevisionPromptWindow
 from basicFunctions import msg, printStatus, openFolder, validHex
 from codeMods import ConfigurationTypes, regionsOverlap, CodeLibraryParser
 from guiSubComponents import (
@@ -50,7 +52,6 @@ class CodeManagerTab( ttk.Frame ):
 		self.parser = CodeLibraryParser()
 		self.libraryFolder = ''
 		self.isScanning = False
-		self.stopToRescan = False
 		self.lastTabSelected = None		# Used to prevent redundant onTabChange calls
 
 		# Create the control panel
@@ -359,7 +360,6 @@ class CodeManagerTab( ttk.Frame ):
 	def restartScan( self, playAudio ):
 		time.sleep( .2 ) # Give a moment to allow for current settings to be saved via saveOptions.
 		self.isScanning = False
-		self.stopToRescan = False
 		self.parser.stopToRescan = False
 		self.scanCodeLibrary( playAudio )
 
@@ -372,7 +372,6 @@ class CodeManagerTab( ttk.Frame ):
 
 		# If this scan is triggered while it is already running, queue/wait for the previous iteration to cancel and re-run
 		if self.isScanning:
-			self.stopToRescan = True
 			self.parser.stopToRescan = True
 			return
 
@@ -400,6 +399,7 @@ class CodeManagerTab( ttk.Frame ):
 			warningMsg = 'Unable to find this code library:\n\n' + self.libraryFolder + '\n\nClick on the books icon in the top right to select a library.'
 			ttk.Label( self.codeLibraryNotebook, text=warningMsg, background='white', wraplength=600, justify='center' ).place( relx=0.3, rely=0.5, anchor='s' )
 			ttk.Label( self.codeLibraryNotebook, image=globalData.gui.imageBank('randall'), background='white' ).place( relx=0.3, rely=0.5, anchor='n', y=10 ) # y not :P
+			self.isScanning = False
 			return
 
 		self.clear()
@@ -418,7 +418,7 @@ class CodeManagerTab( ttk.Frame ):
 		self.populateCodeLibraryTabs( targetCategory, sliderYPos )
 
 		# Check once more if another scan is queued. (e.g. if the scan mods button was pressed again while checking for installed mods)
-		if self.stopToRescan:
+		if self.parser.stopToRescan:
 			self.restartScan( playAudio )
 		else:
 			toc = time.clock()
@@ -428,7 +428,6 @@ class CodeManagerTab( ttk.Frame ):
 			#totalSFsInLibraryLabel.set( 'Total Standalone Functions in Library: ' + str(len( collectAllStandaloneFunctions(self.codeModModules, forAllRevisions=True) )) )
 
 			self.isScanning = False
-			self.stopToRescan = False
 
 			# Wait to let tab change events fizzle out before reattaching the onTabChange event handler
 			#self.update_idletasks()
@@ -635,8 +634,118 @@ class CodeManagerTab( ttk.Frame ):
 		else:
 			msg( 'No disc has been loaded!' )
 
-	def saveIniFile( self ): pass
-	def saveGctFile( self ): pass
+	def saveGctFile( self ):
+
+		""" Simple wrapper for the 'Save GCT' button. Creates a Gecko Code Type file
+			using a tweak of the function used for creating INI files. """
+
+		self.saveIniFile( createForGCT=True )
+
+	def saveIniFile( self, createForGCT=False ):
+
+		# Check whether there are any mods selected
+		for mod in globalData.codeMods:
+			if mod.state == 'enabled' or mod.state == 'pendingEnable': break
+		else: # The loop above didn't break, meaning there are none selected
+			msg( 'No mods are selected!' )
+			return
+
+		# Decide on a default file name for the GCT file
+		if globalData.disc and globalData.disc.gameId:
+			initialFilename = globalData.disc.gameId
+		else:
+			initialFilename = 'Codes'
+
+		# Set the file type & description
+		if createForGCT:
+			fileExt = '.gct'
+			fileTypeDescription = "Gecko Code Type files"
+		else:
+			fileExt = '.ini'
+			fileTypeDescription = "Code Initialization files"
+
+		# Get a save filepath from the user
+		targetFile = tkFileDialog.asksaveasfilename(
+			title="Where would you like to save the {} file?".format( fileExt[1:].upper() ),
+			initialdir=globalData.getLastUsedDir(),
+			initialfile=initialFilename,
+			defaultextension=fileExt,
+			filetypes=[ (fileTypeDescription, fileExt), ("All files", "*") ]
+			)
+		if targetFile == '':
+			return # No filepath; user canceled
+		
+		# Remember current settings
+		targetFileDir = os.path.split( targetFile )[0].encode('utf-8').strip()
+		globalData.setLastUsedDir( targetFileDir )
+
+		# Get the revision desired for this codeset
+		if globalData.disc:
+			dolRevision = globalData.disc.dol.revision
+		else: # Not yet known; prompt the user for it
+			revisionWindow = RevisionPromptWindow( 'Choose the region and game version that this codeset is for:', 'NTSC', '02' )
+
+			# Check the values gained from the user prompt (empty strings mean they closed or canceled the window)
+			if not revisionWindow.region or not revisionWindow.version:
+				return
+
+			dolRevision = revisionWindow.region + ' ' + revisionWindow.version
+
+		# Load the DOL for this revision (if one is not already loaded).
+		# This may be needed for formatting the code, in order to calculate RAM addresses
+		# vanillaDol = globalData.getVanillaDol()
+		# if not vanillaDol: return
+		try:
+			vanillaDol = globalData.getVanillaDol()
+		except Exception as err:
+			printStatus( 'Unable to create the {} file; {}'.format(fileExt[1:].upper(), err.message) )
+			return False
+
+		#if vanillaDol.revision != dolRevision: # todo
+
+		# Get and format the individual mods
+		geckoFormattedMods = []
+		missingTargetRevision = []
+		containsSpecialSyntax = []
+		for mod in globalData.codeMods:
+			if mod.state == 'enabled' or mod.state == 'pendingEnable':
+				if dolRevision in mod.data:
+					geckoCodeString = mod.formatAsGecko( vanillaDol, createForGCT )
+
+					if geckoCodeString == '':
+						containsSpecialSyntax.append( mod.name )
+					else:
+						geckoFormattedMods.append( geckoCodeString )
+
+						# Update the mod's status (appearance) so the user knows what was saved
+						mod.setState( 'enabled', 'Saved to ' + fileExt[1:].upper() )
+				else:
+					missingTargetRevision.append( mod.name )
+
+		# Save the text string to a GCT/INI file if any mods were able to be formatted
+		if geckoFormattedMods:
+			if createForGCT:
+				# Save the hex code string to the file as bytes
+				hexString = '00D0C0DE00D0C0DE' + ''.join( geckoFormattedMods ) + 'F000000000000000'
+				with open( targetFile, 'wb' ) as newFile:
+					newFile.write( bytearray.fromhex(hexString) )
+			else:
+				# Save as human-readable text
+				with open( targetFile, 'w' ) as newFile:
+					newFile.write( '\n\n'.join(geckoFormattedMods) )
+			printStatus( fileExt[1:].upper() + ' file created' )
+
+		# Notify the user of any codes that could not be included
+		warningMessage = ''
+		if missingTargetRevision:
+			warningMessage = ( "The following mods could not be included because they do not contain "
+						"code changes for the DOL revision you've selected:\n\n" + '\n'.join(missingTargetRevision) )
+		if containsSpecialSyntax:
+			warningMessage += ( "\n\nThe following mods could not be included because they contain special syntax (such as Standalone Functions or "
+						"RAM symbols) which are not currently supported in " + fileExt[1:].upper() + " file creation:\n\n" + '\n'.join(containsSpecialSyntax) )
+
+		if warningMessage:
+			cmsg( warningMessage.lstrip(), 'Warning' )
 
 	def selectAllMods( self, event ):
 		currentTab = self.getCurrentTab()
@@ -740,7 +849,9 @@ class CodeManagerTab( ttk.Frame ):
 		globalData.disc.dol.load()
 
 		if newModsToInstall:
-			globalData.disc.restoreDol( countAsNewFile=False )
+			if not globalData.disc.restoreDol( countAsNewFile=False ):
+				globalData.gui.updateProgramStatus( 'Unable to save code changes; the vanilla or source DOL could not be restored' )
+				return
 
 			globalData.gui.updateProgramStatus( 'Installing {} codes'.format(len(modsToInstall)) )
 			modsNotInstalled = globalData.disc.installCodeMods( modsToInstall )
@@ -793,20 +904,23 @@ class CodeManagerTab( ttk.Frame ):
 		restoreConfirmed = tkMessageBox.askyesno( 'Restoration Confirmation', 'This will replace the currently loaded DOL to a '
 												'vanilla ' + dol.revision + ' DOL (loaded from your chosen vanilla disc). Free '
 												'space regions reserved for custom code (under Code-Space Options) will still '
-												'be zeroed-out. This process does not preserve a copy of the current DOL, '
+												'be zeroed-out when saving. This process does not preserve a copy of the current DOL, '
 												'and any current changes will be lost.\n\nAre you sure you want to do this?' )
-
-		# See if we can get a reference to vanilla DOL code
-		vanillaDiscPath = globalData.getVanillaDiscPath()
-		if not vanillaDiscPath: # User canceled path input
-			printStatus( 'Unable to restore the DOL; no vanilla disc available for reference', warning=True )
+		if not restoreConfirmed:
+			globalData.gui.updateProgramStatus( 'Restoration canceled' )
 			return
 
-		# Restore the DOL and re-scan for installed codes
-		globalData.disc.restoreDol( vanillaDiscPath )
-		globalData.disc.dol.checkForEnabledCodes( globalData.codeMods )
+		# See if we can get a reference to vanilla DOL code
+		# vanillaDiscPath = globalData.getVanillaDiscPath()
+		# if not vanillaDiscPath: # User canceled path input
+		# 	printStatus( 'Unable to restore the DOL; no vanilla disc available for reference', warning=True )
+		# 	return
 
-		globalData.gui.updateProgramStatus( 'Restoration Successful' )
+		# Restore the DOL and re-scan for installed codes
+		if globalData.disc.restoreDol():
+			globalData.disc.dol.checkForEnabledCodes( globalData.codeMods )
+
+			globalData.gui.updateProgramStatus( 'Restoration Successful' )
 
 
 class ModModule( Tk.Frame, object ):

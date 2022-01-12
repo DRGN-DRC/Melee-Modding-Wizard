@@ -87,7 +87,7 @@ def parseSettingsFileRegionName( fullRegionName ):
 	return revisionList, regionName
 
 
-class revisionPromptWindow( BasicWindow ):
+class RevisionPromptWindow( BasicWindow ):
 
 	""" Prompts the user to select a DOL region and version (together, these are the dol 'revision'). """
 
@@ -315,7 +315,7 @@ class Dol( FileBase ):
 		userMessage += ' Note that codes may not be able to be installed or detected properly if these are set incorrectly.'
 
 		# Prompt the user (using the disc region/version above for predictors)
-		revisionWindow = revisionPromptWindow( userMessage, regionSuggestion, versionSuggestion )
+		revisionWindow = RevisionPromptWindow( userMessage, regionSuggestion, versionSuggestion )
 
 		if revisionWindow.region and revisionWindow.version: # Save the user-confirmed revision
 			self.region = revisionWindow.region

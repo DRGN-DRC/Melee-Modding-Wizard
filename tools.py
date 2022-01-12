@@ -899,7 +899,7 @@ class TriCspCreator( object ):
 			targetFrameId = targetFrame >> 16 # Just need the first two bytes of the float for this
 		except KeyError as err:
 			msg( 'Unable to find CSP "{}" info for character ID 0x{:X} in "CSP Configuration.yml".'.format(err.message, charId), 'CSP Config Error' )
-			return
+			return ''
 
 		# Replace the character in the Micro Melee disc with the 20XX skin
 		origFile = microMelee.files[microMelee.gameId + '/' + microMelee.constructCharFileName(charId, costumeId, 'dat')]
@@ -924,7 +924,7 @@ class TriCspCreator( object ):
 		assetTest = coreCodes.getModByName( 'Asset Test' )
 		if not assetTest:
 			msg( 'Unable to find the Asset Test mod in the Core Codes library!', warning=True )
-			return
+			return ''
 		assetTest.configure( "Player 1 Character", charId )
 		assetTest.configure( "P1 Costume ID", costumeId )
 		assetTest.configure( "Player 2 Character", charId )
@@ -980,7 +980,7 @@ class TriCspCreator( object ):
 			actionStateMod = coreCodes.getModByName( 'Enter Action State On Match Start' )
 			if not actionStateMod:
 				msg( 'Unable to find the Enter Action State On Match Start mod in the Core Codes library!', warning=True )
-				return
+				return ''
 
 		# Convert the pose target frame to an int start frame
 		# startFrame = struct.unpack( '>f', struct.pack('>I', targetFrame) )[0]
@@ -1005,7 +1005,7 @@ class TriCspCreator( object ):
 		actionStateFreeze = coreCodes.getModByName( 'Action State Freeze' )
 		if not actionStateFreeze:
 			msg( 'Unable to find the Action State Freeze mod in the Core Codes library!', warning=True )
-			return
+			return ''
 		actionStateFreeze.configure( 'Action State ID', actionState )
 		actionStateFreeze.configure( 'Frame ID', targetFrameId )
 		codesToInstall.append( actionStateFreeze )
@@ -1031,7 +1031,8 @@ class TriCspCreator( object ):
 		dc.stopAllDolphinInstances()
 
 		# Restore the disc's DOL data to vanilla and then install the necessary codes
-		microMelee.restoreDol( countAsNewFile=False )
+		if not microMelee.restoreDol( countAsNewFile=False ):
+			return ''
 		microMelee.installCodeMods( codesToInstall )
 		microMelee.save()
 

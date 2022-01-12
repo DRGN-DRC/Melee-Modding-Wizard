@@ -231,6 +231,8 @@ class FileBase( object ):
 		if isoPath:
 			self.filename = os.path.basename( isoPath )		# Includes file extension
 		elif extPath:
+			if size == -1:
+				self.size = self.origSize = os.path.getsize( extPath )
 			self.filename = os.path.basename( extPath )		# Includes file extension
 		else:
 			raise Exception( 'Invalid input to initialize file; no isoPath or extPath given.' )

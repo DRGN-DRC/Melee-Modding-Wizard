@@ -19,7 +19,6 @@ import struct
 import tempfile
 import subprocess
 import tkMessageBox
-import ConfigParser
 
 from sys import argv as programArgs
 from string import hexdigits 				# For checking that a string only consists of hexadecimal characters
@@ -355,10 +354,7 @@ class Disc( object ):
 		# Get the relative difference between the root folder's "files" path and the current file path
 		isoPath = self.gameId + filePath.replace( rootFilesFolder, '' ).replace( '\\', '/' )
 
-		# Get the file's size
-		fileSize = os.path.getsize( filePath )
-
-		fileFactory( self, -1, fileSize, isoPath, extPath=filePath, source='file', trustNames=True )
+		fileFactory( self, -1, -1, isoPath, extPath=filePath, source='file', trustNames=True )
 
 	def loadGameCubeMediaFile( self ):
 
@@ -2764,32 +2760,43 @@ class Disc( object ):
 		
 		return 0
 
-	def restoreDol( self, vanillaDiscPath='', countAsNewFile=True ):
+	def restoreDol( self, countAsNewFile=True ):
 
 		""" Replaces the Start.dol file with a vanilla copy from a vanilla disc. 
-			Or, if a path is given for the 'dolSource' setting, that DOL is used. """
+			Or, if a path is given for the 'dolSource' setting, that DOL is used. 
+			Returns True/False depending on whether the operation succeeded. """
 		
-		dolPath = globalData.checkSetting( 'dolSource' )
+		# dolPath = globalData.checkSetting( 'dolSource' )
 
-		if dolPath == 'vanilla':
-			if not vanillaDiscPath:
-				# See if we can get a reference to vanilla DOL code
-				vanillaDiscPath = globalData.getVanillaDiscPath()
-				if not vanillaDiscPath: # User canceled path input
-					printStatus( 'Unable to restore the DOL; no vanilla disc available for reference', error=True )
-					return
+		# if dolPath == 'vanilla':
+		# 	if not vanillaDiscPath:
+		# 		# See if we can get a reference to vanilla DOL code
+		# 		vanillaDiscPath = globalData.getVanillaDiscPath()
+		# 		if not vanillaDiscPath: # User canceled path input
+		# 			printStatus( 'Unable to restore the DOL; no vanilla disc available for reference', error=True )
+		# 			return
 			
-			vanillaDisc = Disc( vanillaDiscPath )
-			vanillaDisc.load()
+		# 	vanillaDisc = Disc( vanillaDiscPath )
+		# 	vanillaDisc.load()
 
-			self.replaceFile( self.dol, vanillaDisc.dol, countAsNewFile=countAsNewFile )
+		# 	self.replaceFile( self.dol, vanillaDisc.dol, countAsNewFile=countAsNewFile )
 
-		elif not os.path.exists( dolPath ):
-			printStatus( 'Unable to restore the DOL; the source DOL could not be found', error=True )
+		# elif not os.path.exists( dolPath ):
+		# 	printStatus( 'Unable to restore the DOL; the source DOL could not be found', error=True )
 
-		else:
-			print 'not yet supported'
-			print dolPath
+		# else:
+		# 	print 'not yet supported'
+		# 	print dolPath
+
+		try:
+			newDol = globalData.getVanillaDol()
+		except Exception as err:
+			printStatus( 'Unable to restore the DOL; {}'.format(err.message) )
+			return False
+			
+		self.replaceFile( self.dol, newDol, countAsNewFile=countAsNewFile )
+
+		return True
 
 	def clearMapSymbols( self, regionStart, regionEnd=-1, regionName='' ):
 
