@@ -2521,8 +2521,21 @@ class SisFile( DatFile ):
 		-1, # 0x22 - F-Zero Grand Prix
 		-1, # 0x23 - TEST; In other words, not used (same as 0x01)
 		32, # 0x24 - Battlefield
-		33, # 0x25 - Final Destination
+		33  # 0x25 - Final Destination
 	]
+
+	def validate( self ):
+
+		""" Verifies whether this is actually a menu text file by checking the string table. """
+
+		self.initialize()
+
+		# Check for a SIS data table symbol
+		for symbolString in self.stringDict.values():
+			if symbolString.startswith( 'SIS_'):
+				break
+		else: # The loop above didn't break; no SIS string found
+			raise Exception( 'Invalid menu text file; no SIS_ symbol node found.' )
 
 	def getStageMenuName( self, intStageId ):
 
@@ -2588,6 +2601,9 @@ class SisFile( DatFile ):
 		textStructOffset = sisTable.getValues()[sisId]
 
 		# Convert the given stage menu text to bytes
+		# byties = bytearray()
+		# for char in newName:
+
 
 		# Add padding and end bytes
 		stringOffset = textStructOffset + 6 # Consistent for all stage name strings

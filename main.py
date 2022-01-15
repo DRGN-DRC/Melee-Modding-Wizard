@@ -1831,7 +1831,6 @@ class MainGui( Tk.Frame, object ):
 
 			if not returnCode == 0:
 				msg( 'A problem occurred while saving codes to the game. Error code: {}'.format(returnCode), 'Unable to Save', error=True )
-				self.updateProgramStatus( 'Unable to save. There was an error while saving codes to the game', error=True )
 				return -1
 
 		# Save all file changes to the disc

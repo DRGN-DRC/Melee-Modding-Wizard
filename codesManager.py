@@ -851,7 +851,7 @@ class CodeManagerTab( ttk.Frame ):
 		if newModsToInstall:
 			if not globalData.disc.restoreDol( countAsNewFile=False ):
 				globalData.gui.updateProgramStatus( 'Unable to save code changes; the vanilla or source DOL could not be restored' )
-				return
+				return 1
 
 			globalData.gui.updateProgramStatus( 'Installing {} codes'.format(len(modsToInstall)) )
 			modsNotInstalled = globalData.disc.installCodeMods( modsToInstall )

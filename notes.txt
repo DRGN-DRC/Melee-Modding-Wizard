@@ -211,18 +211,32 @@ Text_AllocateTextObject	803a5acc	# to add premade text
 
 	r3: sisID	(sis file ID?)
 	r4: TextCanvasID
-	f0: 
-	f1: x offset (origin is screen center)
+
+	f0?
+	f1: x offset (origin is screen center)		
 	f2: y offset (origin is screen center)
-	f3: font size?
-	f4: 
-	f5: 
+	f3: z offset					4031800000000000	17.5
+	f4: 						4064000000000000	160
+	f5: 						4072c00000000000	300
+
+	returns textStruct pointer
+
+		col 1 x:	c02a666680000000	-13.200000762939453
+		col 2 x: 	3ff3333440000000	1.2000010013580322
+		row 1 y:	c0199999a0000000	-6.400000095367432
 
 Text_CopyPremadeTextDataToStruct()
 
-	r3: textstruct pointer
-	r4: textID
+	r3: textStruct pointer
+	r4: textID (index into SIS pointer table)
 
 
 
 canvasId from 'lbz r4, -0x4AEB (r13)'
+
+
+new custom injection: 80235c30
+
+
+
+r4 values: 8, 9, 0x11, 0xa, 0xc, 6, b, 7, e

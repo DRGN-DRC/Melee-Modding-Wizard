@@ -1,41 +1,3 @@
-# Character Name Lookups:
-#   &Bo Male Wireframe (Boy)
-#   &Ca Captain Falcon
-#   &Ch Crazy Hand
-#   &Cl Child/Young Link
-  # &Co Common to the cast
-  # &Dk Donkey Kong
-  # &Dr Dr. Mario
-  # &Fc Falco
-  # &Fe Roy (Fire Emblem)
-  # &Fx Fox
-  # &Gk GigaBowser (GigaKoopa)
-  # &Gl Female Wireframe (Girl)
-  # &Gn Ganondorf
-  # &Gw Game 'n Watch
-  # &Ic Ice Climbers
-  # &Kb Kirby
-  # &Kp Bowser (Koopa)
-  # &Lg Luigi
-  # &Lk Link
-  # &Mh Master Hand
-  # &Mn Menus Data
-  # &Mr Mario
-  # &Ms Marth (Mars)
-  # &Mt Mewtwo
-  # &Nn Ice Climbers (Nana)
-  # &Ns Ness
-  # &Pc Pichu
-  # &Pe Peach
-  # &Pk Pikachu
-  # &Pn Ice Climbers (Popo/Nana)
-  # &Pp Ice Climbers (Popo)
-  # &Pr Jigglypuff (Purin)
-  # &Sb SandBag
-  # &Sk Sheik
-  # &Ss Samus
-  # &Ys Yoshi
-  # &Zd Zelda
 
 # Videos
 MvHowto.mth: The How to Play video
@@ -172,7 +134,8 @@ MnSlMap.dat: Stage Select Screen
 NtAppro.dat: "'New Challenger' Screens"
 opening.dat: Game banner, title, and description texts
 PlCo.dat: Textures common to the cast
-SdMenu.dat: Special menu characters
+SdMenu.dat: General menu text
+SdSlChr.dat: Stage names and VS menu text
 
 # Vanilla Stages
 GrBb.dat: Big Blue
@@ -229,6 +192,10 @@ IfComS2.dat: Turbo Mode Infographic
 IfComS3.dat: NBA Jam Infographic
 IfComS4.dat: SD Remix Infographic
 IfComS5.dat: SSBM Teir List
+SdSlChr.1sd: Stage names and VS menu text
+SdSlChr.2sd: Stage names and VS menu text
+SdSlChr.3sd: Stage names and VS menu text
+SdSlChr.4sd: Stage names and VS menu text
 
 # Misc. Custom Files in 20XX HP (v5.0+)
 AI_Engine.bin: Main Code for the 20XX AI

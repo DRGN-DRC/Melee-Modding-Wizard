@@ -166,6 +166,19 @@ class DiscTab( ttk.Frame ):
 		self.isoOffsetText.set( 'Disc Offset: ' )
 		self.internalFileSizeText.set( 'File Size: ' )
 		self.internalFileSizeLabelSecondLine.set( '' )
+		
+	def updateIids( self, iids ): # Simple function to change the Game ID for all iids in a given list or tuple
+
+		""" Updates the Game ID for all isoPaths/iids in the given list or tuple. """
+
+		disc = globalData.disc
+		updatedList = []
+
+		for iid in iids:
+			if '/' in iid: updatedList.append( disc.gameId + '/' + '/'.join(iid.split('/')[1:]) )
+			else: updatedList.append( iid )
+
+		return tuple( updatedList )
 
 	def loadDisc( self, updateStatus=True, preserveTreeState=False, switchTab=False, updatedFiles=None ):
 
@@ -181,25 +194,12 @@ class DiscTab( ttk.Frame ):
 		if preserveTreeState:
 			self.isoFileTree.saveState()
 
-			# Get the iids of all open folders
-			# openIids = []
-			# def getOpenFolders( openIids, parentIid='' ):
-			# 	for iid in self.isoFileTree.get_children( parentIid ):
-			# 		if self.isoFileTree.item( iid, 'open' ):
-			# 			openIids.append( iid )
-			# 		openIids = getOpenFolders( openIids, iid )
-			# 	return openIids
-			# openFolders = getOpenFolders( openIids )
-
-			# # Remember the selection, focus, and current scroll position of the treeview
+		# Remember the current Game ID in case it has changed (iids collected above will need to be updated before restoration)
 		rootItems = self.isoFileTree.get_children()
 		if rootItems:
-			originalGameId = rootItems[0] # The gameId might have been modified. If so, the iids collected below will need to be updated before restoration.
+			originalGameId = rootItems[0]
 		else:
 			originalGameId = globalData.disc.gameId
-			# originalTreeSelection = self.isoFileTree.selection()
-			# originalTreeFocus = self.isoFileTree.focus()
-			# originalTreeScrollPosition = self.isoFileScroller.get()[0] # .get() returns e.g. (0.49505277044854884, 0.6767810026385225)
 			
 		self.clear()
 
@@ -225,39 +225,24 @@ class DiscTab( ttk.Frame ):
 		for widget in self.isoOpsPanelButtons.winfo_children():
 			widget.config( state='normal' )
 		if updateStatus: globalData.gui.updateProgramStatus( 'Disc Scan Complete' )
-		
-		def updateIids( iids ): # Simple function to change the Game ID for all iids in a given list or tuple
-			updatedIidList = []
-			for iid in iids:
-				if '/' in iid: updatedIidList.append( disc.gameId + '/' + '/'.join(iid.split('/')[1:]) )
-				else: updatedIidList.append( iid )
-			return tuple( updatedIidList )
 			
-		# Recreate the prior state of the treeview
+		# Recreate the prior state of the treeview (open folders, selection/focus, and scroll position)
 		if preserveTreeState:
 			# Update the file/folder selections and focus iids with the new game Id if it has changed.
 			if originalGameId != disc.gameId:
-				self.isoFileTree.openFolders = updateIids( self.isoFileTree.openFolders )
-				self.isoFileTree.selectionState = updateIids( self.isoFileTree.selectionState )
-				if '/' in focusState:
-					focusState = disc.gameId + '/' + '/'.join(focusState.split('/')[1:])
+				self.isoFileTree.openFolders = self.updateIids( self.isoFileTree.openFolders )
+				self.isoFileTree.selectionState = self.updateIids( self.isoFileTree.selectionState )
+				if '/' in self.isoFileTree.focusState:
+					self.isoFileTree.focusState = disc.gameId + '/' + '/'.join(self.isoFileTree.focusState.split('/')[1:])
 
-			# # Open all folders that were previously open.
-			# for folderIid in openFolders:
-			# 	if self.isoFileTree.exists( folderIid ): # Checking in case it was deleted
-			# 		self.isoFileTree.item( folderIid, open=True )
-
-			# # Set the current selections and scroll position back to what it was.
-			# self.isoFileTree.selection_set( originalTreeSelection )
-			# self.isoFileTree.focus( originalTreeFocus )
-			# self.isoFileTree.yview_moveto( originalTreeScrollPosition )
+			# Restore state
 			self.isoFileTree.restoreState()
 
 		# Highlight recently updated files in green
 		if updatedFiles:
 			# Update the file iids with the new gameId if it has changed.
 			if originalGameId != disc.gameId:
-				updatedFiles = updateIids( updatedFiles )
+				updatedFiles = self.updateIids( updatedFiles )
 
 			# Add save highlighting tags to the given items
 			for iid in updatedFiles:
@@ -908,6 +893,7 @@ class DiscDetailsTab( ttk.Frame ):
 		#self.dnd.bindtarget( self.discDetailsTab, lambda event: mainGui.dndHandler( event, 'discTab' ), 'text/uri-list' ) # Drag-and-drop functionality treats this as the discTab
 		mainGui.dnd.bindtarget( self, mainGui.dndHandler, 'text/uri-list' )
 
+		self.mainGui = mainGui
 		self.bannerFile = None
 		
 			# Row 1 | Disc file path entry
@@ -1138,7 +1124,7 @@ class DiscDetailsTab( ttk.Frame ):
 			stringVar.set( enteredValue[:maxCharacters] )
 
 		# Update all of the game ID strings
-		elif stringVar == globalData.gui.discTab.gameIdText:
+		elif stringVar == self.mainGui.discTab.gameIdText:
 			self.consoleIdText.set( '' )
 			self.gameCodeText.set( '' )
 			self.regionCodeText.set( '' )
@@ -1157,7 +1143,7 @@ class DiscDetailsTab( ttk.Frame ):
 			the Disc Details tab. Verifies the given path and loads the file for viewing. """
 
 		filepath = self.isoDestination.get().replace( '"', '' )
-		globalData.gui.fileHandler( [filepath] )
+		self.mainGui.fileHandler( [filepath] )
 			
 	def loadDiscDetails( self, discSize=0 ):
 
@@ -1171,21 +1157,23 @@ class DiscDetailsTab( ttk.Frame ):
 			This function also updates the disc filepath on the Disc File Tree tab (and the hover/tooltip text for it). """
 
 		disc = globalData.disc
+		discTab = self.mainGui.discTab
 
 		# Set the filepath field in the GUI, and create a shorthand string that will fit nicely on the Disc File Tree tab
 		self.isoDestination.set( disc.filePath )
-		frameWidth = globalData.gui.discTab.isoOverviewFrame.winfo_width()
+		discTab.isoOverviewFrame.update_idletasks()
+		frameWidth = discTab.isoOverviewFrame.winfo_width()
 		accumulatingName = ''
 		for character in reversed( disc.filePath ):
 			accumulatingName = character + accumulatingName
-			globalData.gui.discTab.isoPathShorthand.set( accumulatingName )
-			if globalData.gui.discTab.isoPathShorthandLabel.winfo_reqwidth() > frameWidth:
+			discTab.isoPathShorthand.set( accumulatingName )
+			if discTab.isoPathShorthandLabel.winfo_reqwidth() > frameWidth:
 				# Reduce the path to the closest folder (that fits in the given space)
 				normalizedPath = os.path.normpath( accumulatingName[1:] )
-				if '\\' in normalizedPath: globalData.gui.discTab.isoPathShorthand.set( '\\' + '\\'.join( normalizedPath.split('\\')[1:] ) )
-				else: globalData.gui.discTab.isoPathShorthand.set( '...' + normalizedPath[3:] ) # Filename is too long to fit; show as much as possible
+				if '\\' in normalizedPath: discTab.isoPathShorthand.set( '\\' + '\\'.join( normalizedPath.split('\\')[1:] ) )
+				else: discTab.isoPathShorthand.set( '...' + normalizedPath[3:] ) # Filename is too long to fit; show as much as possible
 				break
-		ToolTip( globalData.gui.discTab.isoPathShorthandLabel, disc.filePath, delay=500, wraplength=400, follow_mouse=1 )
+		ToolTip( discTab.isoPathShorthandLabel, disc.filePath, delay=500, wraplength=400, follow_mouse=1 )
 
 		# Look up info within boot.bin (gameID, disc version, and disc region)
 		#bootBinData = getFileDataFromDiscTreeAsBytes( iid=scanDiscForFile('boot.bin') )
@@ -1204,7 +1192,7 @@ class DiscDetailsTab( ttk.Frame ):
 		# 	else: self.isoVersionText.set( 'PAL 1.' + versionHex )
 		# 	imageName = bootBinData[0x20:0x20 + 0x3e0].split('\x00')[0].decode( 'ascii' ) # Splitting on the first stop byte
 
-		globalData.gui.discTab.gameIdText.set( disc.gameId )
+		discTab.gameIdText.set( disc.gameId )
 		ntscRegions = ( 'A', 'E', 'J', 'K', 'R', 'W' )
 		if disc.gameId[3] in ntscRegions:
 			self.isoVersionText.set( 'NTSC 1.{0:0{1}}'.format(disc.revision, 2) ) # Converts an int to string, padded to two zeros
@@ -1221,8 +1209,8 @@ class DiscDetailsTab( ttk.Frame ):
 		# 	else: countryCodeOffset = 0x18
 
 		# 	# Set the country code
-		# 	if toInt( bi2Data[countryCodeOffset:countryCodeOffset+4] ) == 1: globalData.gui.countryCode.set( 'us' )
-		# 	else: globalData.gui.countryCode.set( 'jp' )
+		# 	if toInt( bi2Data[countryCodeOffset:countryCodeOffset+4] ) == 1: self.mainGui.countryCode.set( 'us' )
+		# 	else: self.mainGui.countryCode.set( 'jp' )
 
 		if disc.countryCode == 1:
 			self.countryCode.set( 'us' )
@@ -1337,9 +1325,9 @@ class DiscDetailsTab( ttk.Frame ):
 				# globalData.disc.unsavedChanges.append(  )
 
 				globalData.disc.makeChange( targetFile, offset, bytearray.fromhex(newPaddedStringHex), updateName + ' updated.' )
-				globalData.gui.discTab.isoFileTree.item( targetFile.isoPath, values=('Disc details updated', 'file'), tags='changed' )
+				self.mainGui.discTab.isoFileTree.item( targetFile.isoPath, values=('Disc details updated', 'file'), tags='changed' )
 
-				globalData.gui.updateProgramStatus( updateName + ' updated. Press CRTL-S to save changes to file.' )
+				self.mainGui.updateProgramStatus( updateName + ' updated. Press CRTL-S to save changes to file.' )
 
 		return 'break' # Prevents the 'Return' keystroke that called this from propagating to the widget and creating a line break
 
@@ -1412,10 +1400,10 @@ class DiscDetailsTab( ttk.Frame ):
 				# 	self.fileTree.item( targetFileIid, values=('Disc details updated', entity, isoOffset, fileSize, isoPath, 'ram', hexlify(targetFileData)), tags='changed' )
 				# 	unsavedDiscChanges.append( updateName + ' updated.' )
 
-				globalData.gui.discTab.isoFileTree.item( self.bannerFile.isoPath, values=('Disc details updated', 'file'), tags='changed' )
+				self.mainGui.discTab.isoFileTree.item( self.bannerFile.isoPath, values=('Disc details updated', 'file'), tags='changed' )
 				globalData.disc.makeChange( self.bannerFile, offset, bytearray.fromhex(newPaddedStringHex), updateName + ' updated.' )
 
-				globalData.gui.updateProgramStatus( updateName + ' updated. Press CRTL-S to save changes to file.' )
+				self.mainGui.updateProgramStatus( updateName + ' updated. Press CRTL-S to save changes to file.' )
 
 		return 'break' # Prevents the 'Return' keystroke that called this from propagating to the widget and creating a line break
 

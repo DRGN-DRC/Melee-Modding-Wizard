@@ -2122,9 +2122,9 @@ class StageManager( ttk.Frame ):
 		# Construct the filename which contains the string
 		if self.stageSwapTable: # Means it's 20XX
 			canvas = self.getCurrentCanvas()
-			filename = 'SdSlChr.{}sd'.format( canvas.pageNumber )
+			filename = 'SdMenu.{}sd'.format( canvas.pageNumber )
 		else:
-			filename = 'SdSlChr.usd'
+			filename = 'SdMenu.usd'
 
 		# Get the Sd file and the current name string
 		sisFile = globalData.disc.files.get( globalData.disc.gameId + '/' + filename )
@@ -2138,8 +2138,8 @@ class StageManager( ttk.Frame ):
 			return 0
 
 		# Save the new name to file
-		#sisFile.setStageMenuName( self.selectedStage.internalId, newName )
-		#globalData.gui.updateProgramStatus( 'Stage name updated in the {} file'.format(filename), success=True )
+		sisFile.setStageMenuName( self.selectedStage.internalId, newName )
+		globalData.gui.updateProgramStatus( 'Stage name updated in the {} file'.format(filename), success=True )
 
 	def renameTreeviewItem( self, targetIsoPath, newName ):
 
