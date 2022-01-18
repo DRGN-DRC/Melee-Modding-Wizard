@@ -147,7 +147,7 @@ def importGameFiles( fileExt='', multiple=False, title='', fileTypeOptions=None,
 			title = "Choose a game file to import"
 
 	# Prompt the user to choose a file to import
-	defaultDir = globalData.getLastUsedDir( category )
+	defaultDir = globalData.getLastUsedDir( category, fileExt )
 	filePaths = tkFileDialog.askopenfilename(
 		title=title,
 		multiple=multiple,
@@ -244,7 +244,7 @@ def checkTextLen( text, isMenuText ):
 		return len( text )
 
 
-def getNewNameFromUser( charLimit, excludeChars=None, message='Enter a new name:', defaultText='', width=40, isMenuText=False ):
+def getNewNameFromUser( charLimit, excludeChars=None, message='Enter a new name:', defaultText='', width=40, isMenuText=False, title='' ):
 
 	""" Creates a basic pop-up window with a text input field to get a name from the user, and
 		performs validation on it before allowing the user to continue. """
@@ -254,7 +254,7 @@ def getNewNameFromUser( charLimit, excludeChars=None, message='Enter a new name:
 		excludeChars = ( '\n', '\t', ':' )
 
 	while not nameChecksOut:
-		popupWindow = PopupEntryWindow( globalData.gui.root, message=message, defaultText=defaultText, width=width, charLimit=charLimit, isMenuText=isMenuText )
+		popupWindow = PopupEntryWindow( globalData.gui.root, message, defaultText, title, width, charLimit=charLimit, isMenuText=isMenuText )
 		newName = popupWindow.entryText.replace( '"', '' ).strip()
 
 		if newName == '': break
@@ -272,8 +272,7 @@ def getNewNameFromUser( charLimit, excludeChars=None, message='Enter a new name:
 		else: # The above loop didn't break (meaning an invalid character wasn't found)
 			# Convert the name to bytes and validate the length (char length may differ for special characters?)
 			try:
-				nameBytes = bytearray()
-				nameBytes.extend( newName )
+				nameBytes = bytearray( newName, encoding='utf-8' )
 
 				if isMenuText and checkTextLen( newName, True ) <= charLimit:
 					nameChecksOut = True
@@ -281,8 +280,8 @@ def getNewNameFromUser( charLimit, excludeChars=None, message='Enter a new name:
 					nameChecksOut = True
 				else:
 					msg( 'This name must fit into the space of {} bytes. Try shortening the name.'.format(charLimit) )
-			except:
-				msg( 'Unable to encode the new name into {} bytes. There may be an invalid character.'.format(charLimit) )
+			except Exception as err:
+				msg( 'Unable to encode the new name into {} bytes; {}.\n\nThere may be an invalid character.'.format(charLimit, err) )
 
 	return newName
 

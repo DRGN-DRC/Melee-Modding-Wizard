@@ -135,6 +135,19 @@ def floatToHex( input ):
 	return '0x' + hex( intValue )[2:].upper()
 
 
+def dictReverseLookup( dict, value, defaultValue=None ):
+
+	""" Looks up a key in a dictionary for a given value. 
+		Returns the first match, so naturally this assumes unique values. 
+		Returns None or the given default value if the value isn't found. """
+
+	try:
+		key = next( k for k, v in dict.items() if v == value )
+		return key
+	except:
+		return defaultValue
+
+
 def humansize( nbytes ):
 
 	""" Converts a file size in bytes to a human-readable string. 

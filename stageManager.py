@@ -26,11 +26,10 @@ import globalData
 from tplCodec import TplEncoder
 from hsdFiles import StageFile
 from hsdStructures import MapMusicTableEntry
-from basicFunctions import uHex, validHex, humansize, grammarfyList, msg, createFolders
+from basicFunctions import uHex, validHex, humansize, msg, createFolders
 from guiSubComponents import (
 	getColoredShape, importGameFiles, exportSingleFileWithGui, importSingleFileWithGui, importSingleTexture,
-	getNewNameFromUser, BasicWindow, HexEditDropdown, 
-	VerticalScrolledFrame, ToolTip, ToolTipEditor, ToolTipButton )
+	getNewNameFromUser, BasicWindow, HexEditDropdown, ToolTip, ToolTipEditor, ToolTipButton )
 from audioManager import AudioControlModule
 
 
@@ -680,7 +679,7 @@ class StageManager( ttk.Frame ):
 		mainGui.mainTabFrame.add( self, text=' Stage Manager ' )
 
 		self.selectedStage = None
-		self.selectedStageId = -1	# Internal Stage ID
+		self.selectedStageSlotId = -1	# Internal Stage ID for the vanilla slot, not necessarily the stage the slot is set to load
 		self.musicTableStruct = None
 		self.stageSwapTable = None # For use with 20XX
 		self.toolTips = {}
@@ -897,21 +896,20 @@ class StageManager( ttk.Frame ):
 		self.musicTableOptionMenu.set_menu( None )
 		self.musicTableOptionMenu._variable.set( '' )
 
-	def getRsssName( self, internalStageId ):
+	def getRsssName( self, stageSlotId ):
 
 		""" Gets the name for this stage used on the Random Stage Select Screen. """
 
 		# Construct the filename to pull the string from
 		if self.stageSwapTable: # Means it's 20XX
 			canvas = self.getCurrentCanvas()
-			filename = '/SdSlChr.{}sd'.format( canvas.pageNumber )
+			filename = '/SdMenu.{}sd'.format( canvas.pageNumber )
 		else:
-			filename = '/SdSlChr.usd'
+			filename = '/SdMenu.usd'
 
 		sisFile = globalData.disc.files.get( globalData.disc.gameId + filename )
-		sisFile.initialize()
 
-		return sisFile.getStageMenuName( internalStageId )
+		return sisFile.getStageMenuName( stageSlotId )
 
 	# def setRsssName( self, internalStageId, newName ):
 
@@ -930,7 +928,7 @@ class StageManager( ttk.Frame ):
 
 	def updateBasicInfo( self, stageFile ):
 		
-		rsssName = self.getRsssName( stageFile.internalId )
+		rsssName = self.getRsssName( self.selectedStageSlotId ).encode( 'utf8' )
 		readableSize = humansize( stageFile.size )
 
 		self.basicInfoLabel['text'] = '{}\n{}\n{:X}\n{:X}'.format( rsssName, readableSize, stageFile.initFunction, stageFile.onGoFunction )
@@ -941,13 +939,13 @@ class StageManager( ttk.Frame ):
 			strings to be displayed in the GUI for the Stage Swap Details information display panel. """
 		
 		# Create a string for the original stage to load
-		origStageName = globalData.internalStageIds[self.selectedStageId]
-		filename = self.dol.getStageFileName( self.selectedStageId )[1]
-		origBaseStage = '0x{:X} | {} ({})'.format( self.selectedStageId, origStageName, filename )
+		origStageName = globalData.internalStageIds[self.selectedStageSlotId]
+		filename = self.dol.getStageFileName( self.selectedStageSlotId )[1]
+		origBaseStage = '0x{:X} | {} ({})'.format( self.selectedStageSlotId, origStageName, filename )
 		
 		# Create a string for the new stage to load
 		# Check if the new stage is the same as the original stage (no file swap on the base stage)
-		if self.selectedStageId == newIntStageId or newIntStageId == 0:
+		if self.selectedStageSlotId == newIntStageId or newIntStageId == 0:
 			newBaseStage = '0x{:X} | {} (same)'.format( newIntStageId, origStageName ) # Use the same file description as above
 		elif newIntStageId == 0x1A: # i.e. external stage ID 0x15, Akaneia (a deleted stage)
 			newBaseStage = '0x1A | Akaneia (deleted stage)'
@@ -1053,7 +1051,7 @@ class StageManager( ttk.Frame ):
 		except: # e.g. for 'Vanilla SSS'
 			canvas.pageNumber = 1
 		canvas.iconImages = {} # Used to store the images, to prevent garbage collection
-		canvas.iconCanvasIds = {} # key=canvasIconIid, value=internalStageId
+		canvas.iconCanvasIds = {} # key=canvasIconIid, value=internalStageSlotId
 		canvas.pack()
 
 		# Init the stage select screen file (separate data groups, build pointer and offset lists, etc.)
@@ -1313,39 +1311,41 @@ class StageManager( ttk.Frame ):
 
 		# Determine which canvas item was clicked on, and use that to look up the stage
 		canvas = event.widget
-		itemId = canvas.find_closest( event.x, event.y )[0]
-		self.selectedStageId = canvas.iconCanvasIds[itemId]
+		iconIid = canvas.find_closest( event.x, event.y )[0]
 
-		self.selectStage( canvas, itemId )
+		self.selectStage( canvas, iconIid )
 
 	def getCanvasIconId( self, canvas, internalStageId ):
 
-		""" Canvas Icon IDs are the IDs assigned to images, lines, and other items added to the 
+		""" Canvas IDs are the IDs assigned to images, lines, and other items added to the 
 			canvases. This returns an ID for the stage icon image for a given internal stage ID. """
 
 		for canvasIconIid, intStageId in canvas.iconCanvasIds.items():
 			if intStageId == internalStageId:
 				return canvasIconIid
 		else:
-			raise Exception( 'Unable to find a canvas icon ID for internal stage ID 0x{:X}.'.format(self.selectedStageId) )
+			raise Exception( 'Unable to find a canvas icon ID for internal stage ID 0x{:X}.'.format(self.selectedStageSlotId) )
 
-	def selectStage( self, canvas, itemId=None ):
+	def selectStage( self, canvas, iconIid=None ):
 		
 		""" Moves the selection border to the new icon, clears the Variations list, and calls the appropriate click method. """
 
-		# Remove any pre-existing selection border
-		canvas.delete( 'selectionBorder' )
+		# Remove any pre-existing selection border (from all canvases)
+		for tab in self.pagesNotebook.winfo_children():
+			tab.canvas.delete( 'selectionBorder' )
 
 		# Get the canvas item id of the currently selected stage
-		if not itemId:
-			itemId = self.getCanvasIconId( canvas, self.selectedStageId )
+		if not iconIid:
+			iconIid = self.getCanvasIconId( canvas, self.selectedStageSlotId )
+			
+		self.selectedStageSlotId = canvas.iconCanvasIds[iconIid]
 
 		# Highlight the newly selected icon
-		selectionCoords = canvas.coords( itemId )
+		selectionCoords = canvas.coords( iconIid )
 		borderWidth = 3
 		newX = selectionCoords[0] - borderWidth
 		newY = selectionCoords[1] - borderWidth
-		if self.selectedStageId in ( 0x24, 0x25, 0x1C, 0x1D, 0x1E ): # These icons are 48x48 in size
+		if self.selectedStageSlotId in ( 0x24, 0x25, 0x1C, 0x1D, 0x1E ): # These icons are 48x48 in size
 			canvas.create_rectangle( newX, newY, newX+52, newY+52, outline='gold', width=borderWidth, tags='selectionBorder' )
 		else:
 			canvas.create_rectangle( newX, newY, newX+68, newY+60, outline='gold', width=borderWidth, tags='selectionBorder' )
@@ -1385,9 +1385,9 @@ class StageManager( ttk.Frame ):
 
 	def clickedVanillaIcon( self, canvas ):
 		# Find the stage file string in the DOL for the selected stage
-		dolFilenameOffset, dolStageFilename = self.dol.getStageFileName( self.selectedStageId )
+		dolFilenameOffset, dolStageFilename = self.dol.getStageFileName( self.selectedStageSlotId )
 		if dolFilenameOffset == -1:
-			print 'Unable to determine a stage file name for stage ID', hex( self.selectedStageId )
+			print 'Unable to determine a stage file name for stage ID', hex( self.selectedStageSlotId )
 			return
 		
 		isoPath = globalData.disc.gameId + '/' + dolStageFilename
@@ -1398,10 +1398,10 @@ class StageManager( ttk.Frame ):
 		else:
 			self.variationsTreeview.insert( '', 'end', text='- No File -', values=(dolStageFilename, isoPath), tags='fileNotFound' )
 			
-		self.stageSwapDetailsLabel['text'] = '0x{:X}\nN/A (no swap)\nN/A (no swap)\nN/A\nN/A\nN/A\nN/A'.format( self.selectedStageId )
+		self.stageSwapDetailsLabel['text'] = '0x{:X}\nN/A (no swap)\nN/A (no swap)\nN/A\nN/A\nN/A\nN/A'.format( self.selectedStageSlotId )
 
 		# Set the Preview Text image
-		previewTextureOffset = self.getTextureOffset( self.selectedStageId, previewText=True )[0]
+		previewTextureOffset = self.getTextureOffset( self.selectedStageSlotId, previewText=True )[0]
 		newPreviewImage = canvas.sssFile.getTexture( previewTextureOffset, 224, 56, 0, 0x1880, getAsPilImage=True )
 		self.updatePreviewImage( newPreviewImage )
 
@@ -1417,11 +1417,11 @@ class StageManager( ttk.Frame ):
 		""" Check the 20XX Stage Engine system to determine what file(s) this icon may load, and populate the GUI with information. """
 
 		# Get information from the Stage Swap Table on what file(s) this icon/stage slot should load
-		newExtStageId, stageFlags, byteReplacePointer, byteReplacement, randomByteValues = self.stageSwapTable.getEntryInfo( self.selectedStageId, canvas.pageNumber )
+		newExtStageId, stageFlags, byteReplacePointer, byteReplacement, randomByteValues = self.stageSwapTable.getEntryInfo( self.selectedStageSlotId, canvas.pageNumber )
 
 		# Get the Internal Stage ID of the stage to be loaded
 		if newExtStageId == 0: # No change; this will be the currently selected stage slot
-			newIntStageId = self.selectedStageId
+			newIntStageId = self.selectedStageSlotId
 		else:
 			newIntStageId = self.dol.getIntStageIdFromExt( newExtStageId )
 			if newIntStageId == 0x16: # i.e. external stage ID 0x1A, Icicle Mountain (anticipating no hacked stages of this); switch to current Target Test stage
@@ -1454,7 +1454,7 @@ class StageManager( ttk.Frame ):
 		self.updateSwapDetails( newIntStageId, newExtStageId, dolFilenameOffset, byteReplacePointer, byteReplacement, randomByteValues, stageFlags )
 
 		# Set the Preview Text image
-		previewTextureOffset = self.getTextureOffset( self.selectedStageId, previewText=True )[0]
+		previewTextureOffset = self.getTextureOffset( self.selectedStageSlotId, previewText=True )[0]
 		newPreviewImage = canvas.sssFile.getTexture( previewTextureOffset, 224, 56, 0, 0x1880, getAsPilImage=True )
 		self.updatePreviewImage( newPreviewImage )
 
@@ -1514,8 +1514,8 @@ class StageManager( ttk.Frame ):
 		if not stageFile:
 			self.stageVariationUnselected()
 			return
-		elif stageFile == self.selectedStage: # This was already selected
-			return
+		# elif stageFile == self.selectedStage: # This was already selected
+		# 	return
 		else:
 			self.selectedStage = stageFile
 
@@ -1771,7 +1771,7 @@ class StageManager( ttk.Frame ):
 		sssFile = canvas.sssFile
 
 		# Get the offset for the preview texture and set it in the SSS file
-		imageDataOffset = self.getTextureOffset( self.selectedStageId, previewText=True )[0]
+		imageDataOffset = self.getTextureOffset( self.selectedStageSlotId, previewText=True )[0]
 		returnCode, _, _ = sssFile.setTexture( imageDataOffset, self.previewTextCanvas.pilImage, textureName='Preview text texture' ) # Will also record the change
 
 		if returnCode == 0:
@@ -2128,18 +2128,20 @@ class StageManager( ttk.Frame ):
 
 		# Get the Sd file and the current name string
 		sisFile = globalData.disc.files.get( globalData.disc.gameId + '/' + filename )
-		currentName = sisFile.getStageMenuName( self.selectedStage.internalId )
+		currentName = sisFile.getStageMenuName( self.selectedStageSlotId )
 		
 		# Prompt the user to enter a new name, and validate it
-		newName = getNewNameFromUser( 28, None, 'Enter a new stage name:', currentName, isMenuText=True ) # 28 = char limit; 0x38 bytes / 2
+		newName = getNewNameFromUser( 24, None, 'Enter a new RSSS stage name:', currentName, isMenuText=True ) # 28 = char limit; 0x38 bytes / 2
 
 		if not newName:
 			globalData.gui.updateProgramStatus( 'Name update canceled' )
 			return 0
 
 		# Save the new name to file
-		sisFile.setStageMenuName( self.selectedStage.internalId, newName )
-		globalData.gui.updateProgramStatus( 'Stage name updated in the {} file'.format(filename), success=True )
+		if newName != currentName:
+			sisFile.setStageMenuName( self.selectedStageSlotId, newName )
+			self.updateBasicInfo( self.selectedStage )
+			globalData.gui.updateProgramStatus( 'Stage name updated in the {} file'.format(filename), success=True )
 
 	def renameTreeviewItem( self, targetIsoPath, newName ):
 
@@ -2280,7 +2282,7 @@ class StageManager( ttk.Frame ):
 
 		# Determine the currently selected SSS tab and canvas, and create a Stage Swap Editor gui instance
 		canvas = self.getCurrentCanvas()
-		stageSwapEditor = StageSwapEditor( self, self.selectedStageId, canvas )
+		stageSwapEditor = StageSwapEditor( self, self.selectedStageSlotId, canvas )
 
 
 class StageSwapEditor( BasicWindow ):
@@ -2786,7 +2788,7 @@ class StageSwapEditor( BasicWindow ):
 		self.close()
 
 		# If this window is for the currently selected stage, force a re-select of this stage, to repopulate the GUI with updated information
-		if self.stageManagerTab.selectedStageId == self.internalStageId:
+		if self.stageManagerTab.selectedStageSlotId == self.internalStageId:
 			self.stageManagerTab.selectStage( self.canvas )
 
 	def showStageFlagsHelp( self, event ):

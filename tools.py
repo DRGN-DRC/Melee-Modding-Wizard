@@ -14,6 +14,7 @@
 import os
 import ttk
 import time
+import math
 import codecs
 import psutil
 import struct
@@ -31,11 +32,12 @@ from PIL import ImageGrab
 
 # Internal dependencies
 import globalData
+import hsdStructures
 
 from disc import Disc
 from codeMods import CodeLibraryParser
-from basicFunctions import msg, uHex, cmdChannel, printStatus
-from guiSubComponents import BasicWindow, cmsg, Dropdown
+from basicFunctions import msg, uHex, cmdChannel, printStatus, humansize
+from guiSubComponents import BasicWindow, VerticalScrolledFrame, cmsg, Dropdown, getNewNameFromUser, LabelButton
 
 
 #class NumberConverter( BasicWindow ):
@@ -1455,3 +1457,120 @@ class DolphinController( object ):
 			raise Exception( 'too many processes found' )
 
 		return processList[0]
+
+
+class SisTextEditor( BasicWindow ):
+
+	""" Tool window to view and edit pre-made game text in Sd___.dat files. """
+
+	def __init__( self, sisFile ):
+		BasicWindow.__init__( self, globalData.gui.root, 'SIS Text Editor', resizable=True, topMost=False, minsize=(460, 350) )
+
+		self.sisFile = sisFile
+
+		# Parse out text structures
+		sisFile.initialize()
+		totalTextStructs = sisFile.headerInfo['rtEntryCount'] - 2 # Skip first two structures
+
+		header = 'Editing {}\nTotal Strings: {}\n_________________________________'.format( self.sisFile.filename, totalTextStructs )
+		ttk.Label( self.window, text=header ).pack( fill='x', expand=True, padx=40 )
+
+		#ttk.Separator( self.window ).pack( fill='x', width=200, expand=True, padx=40 )
+
+		# Build the main window interface
+		mainFrame = VerticalScrolledFrame( self.window )
+
+		for sisIndex in range( 2, totalTextStructs ):
+
+			frame = ttk.Frame( mainFrame.interior )
+
+			# Line number
+			label = ttk.Label( frame, text=sisIndex )
+			label.pack( side='left' )
+
+			# Text string
+			text = sisFile.getText( sisIndex )
+			label = ttk.Label( frame, text=text )
+			label.pack( side='left', padx=25 )
+
+			# Edit button
+			editButton = LabelButton( frame, 'editButton', self.editText )
+			editButton.sisIndex = sisIndex
+			editButton.origText = text
+			editButton.label = label
+			editButton.pack( side='right', padx=(55, 55), pady=6 )
+
+			frame.pack( fill='x', expand=True, padx=40 )
+
+		mainFrame.pack( fill='both', expand=True )
+
+	def editText( self, event ):
+
+		""" Prompts the user to enter a new string, and updates it in the SIS file. """
+
+		buttonWidget = event.widget
+		newText = getNewNameFromUser( 1000, None, 'Enter new text:', buttonWidget.origText )
+
+		if newText != buttonWidget.origText:
+			endBytes = self.determineEndBytes( buttonWidget.sisIndex )
+			description = 'Text string in {} (SIS ID {}) changed to {}'.format( self.sisFile.filename, buttonWidget.sisIndex, newText )
+			self.sisFile.setText( buttonWidget.sisIndex, newText, description, endBytes )
+
+			# Update the label in this window showing the edited text
+			buttonWidget.label['text'] = newText
+
+	def determineEndBytes( self, sisIndex ):
+
+		""" Rudimentary method to attempt to determine what end bytes should follow the string. 
+			Only considered text opcodes that precede the text. If you want to add start/end 
+			tags/opcodes mid-string, you'll have to do it manually for now. (Increase the text 
+			string data space by renaming to a longer-than needed string beforehand.) """
+
+		textStruct = self.sisFile.getTextStruct( sisIndex )
+		
+		# Parse the text struct's data for the text string
+		endBytes = bytearray( 1 ) # Starts with 1 null byte
+		byte = textStruct.data[0]
+		position = 0
+		while byte: # Breaks on byte value of 0, or no byte remaining
+			if byte == 0x5: # Text Pause; the next short is for this opCode
+				position += 3
+			elif byte == 0x6: # Fade-in; the next 2 shorts are for this opCode
+				position += 5
+			elif byte == 0x7: # Offset; the next 2 shorts are for this opCode
+				position += 5
+			elif byte == 0xA: # Kerning (was SCALING); the next 2 shorts are for this opCode
+				position += 5
+				endBytes.insert( 0, 0x0B )
+			elif byte == 0xC: # Color; the next 3 bytes are for this opCode
+				position += 4
+				endBytes.insert( 0, 0x0D )
+			elif byte == 0xE: # Scaling (was SET_TEXTBOX); the next 2 shorts are for this opCode
+				position += 5
+				endBytes.insert( 0, 0x0F )
+			# elif byte == 0x10: # Centered. Does not seem to be complimented by RESET_CENTERED
+			# 	position += 1
+			elif byte == 0x12: # Left align
+				position += 1
+				endBytes.insert( 0, 0x13 )
+			elif byte == 0x14: # Right align
+				position += 1
+				endBytes.insert( 0, 0x15 )
+			# elif byte == 0x16: # Kerning
+			# 	position += 1
+			# 	endBytes.insert( 0, 0x17 )
+			elif byte == 0x18: # Fitting
+				position += 1
+				endBytes.insert( 0, 0x19 )
+			elif byte == 0x20: # Regular characters (from DOL)
+				position += 2
+				break
+			elif byte == 0x40: # Special characters (from this file)
+				position += 2
+				break
+			else:
+				position += 1
+			
+			byte = textStruct.data[position]
+
+		return endBytes

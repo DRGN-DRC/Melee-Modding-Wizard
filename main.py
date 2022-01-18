@@ -1074,7 +1074,7 @@ class MainMenuCanvas( Tk.Canvas ):
 		if pause:
 			# Used to animate option additions (delay between displaying multiple options)
 			self.update_idletasks()
-			time.sleep( .07 )
+			time.sleep( .04 )
 
 	def testFade( self, event ):
 		self.after_cancel( self.afterId )
@@ -1255,7 +1255,7 @@ class MainMenuCanvas( Tk.Canvas ):
 
 		# Slide-left existing options; skip the animation if this tab isn't visible
 		if showAnimations:
-			stepDistance = 70
+			stepDistance = 80
 
 			self.move( 'menuOptions', -stepDistance, 0 )
 			self.move( 'menuOptionsBg', -stepDistance, 0 )

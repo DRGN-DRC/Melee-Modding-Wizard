@@ -1,4 +1,3 @@
-
 # Videos
 MvHowto.mth: The How to Play video
 MvOmake15.mth: The 15-Minute "Special Movie"
@@ -164,7 +163,7 @@ GrNBr.dat: F-Zero Grand Prix
 GrNFg.dat: Trophy Collector [Figure Get]
 GrNKr.dat: Mushroom Kingdom Adventure
 GrNLa.dat: Final Destination
-GrNPo.dat: Pushon?
+GrNPo.dat: Race to the Finish [Pushon]
 GrNSr.dat: Hyrule Maze
 GrNZr.dat: Brinstar Escape Shaft [Zebes]
 GrOk.dat: Kongo Jungle (N64)
@@ -192,6 +191,10 @@ IfComS2.dat: Turbo Mode Infographic
 IfComS3.dat: NBA Jam Infographic
 IfComS4.dat: SD Remix Infographic
 IfComS5.dat: SSBM Teir List
+SdMenu.1sd: General menu strings (with SSS Page 1 names)
+SdMenu.2sd: General menu strings (with SSS Page 2 names)
+SdMenu.3sd: General menu strings (with SSS Page 3 names)
+SdMenu.4sd: General menu strings (with SSS Page 4 names)
 SdSlChr.1sd: Stage names and VS menu text
 SdSlChr.2sd: Stage names and VS menu text
 SdSlChr.3sd: Stage names and VS menu text
@@ -279,7 +282,7 @@ GrTNs.0at: Throne Room (Wario Land)      # 20XXHP 5.0+
 GrTPe.hat: Hyrule Castle (N64)
 GrTSk.0at: Meta Crystal                  # 20XXHP 5.0+
 GrYt.0at: Yoshi's Island
-GrYt.1at: Yoshi's Island Hacked
+GrYt.1at: Omega Yoshi's Island
 GrYt.2at: Milun's Island - Form A        # 20XXHP 5.0+
 GrYt.3at: Milun's Island - Form B        # 20XXHP 5.0+
 GrYt.4at: Milun's Island - Form C        # 20XXHP 5.0+

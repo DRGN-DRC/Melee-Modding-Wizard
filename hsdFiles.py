@@ -28,7 +28,7 @@ import hsdStructures
 import standaloneStructs
 from tplCodec import TplDecoder, TplEncoder
 #from globalData import globalData.charNameLookup, globalData.charColorLookup
-from basicFunctions import allAreEqual, uHex, msg, printStatus, toInt, createFolders, cmdChannel
+from basicFunctions import allAreEqual, uHex, msg, dictReverseLookup, printStatus, toInt, createFolders, cmdChannel
 
 showLogs = True
 
@@ -266,8 +266,8 @@ class FileBase( object ):
 		descriptionsFile = os.path.join( globalData.scriptHomeFolder, 'File Descriptions', gameId + '.yaml' )
 		
 		try:
-			#with codecs.open( descriptionsFile, 'r', encoding='utf-8' ) as stream: # Using a different read method to accommodate UTF-8 encoding
-			with codecs.open( descriptionsFile, 'r' ) as stream: # Using a different read method to accommodate UTF-8 encoding
+			with codecs.open( descriptionsFile, 'r', encoding='utf-8' ) as stream: # Using a different read method to accommodate UTF-8 encoding
+			#with codecs.open( descriptionsFile, 'r' ) as stream: # Using a different read method to accommodate UTF-8 encoding
 				#cls.yamlDescriptions = yaml.safe_load( stream ) # Vanilla yaml module method (loses comments when saving/dumping back to file)
 				cls.yamlDescriptions = yaml.load( stream, Loader=yaml.RoundTripLoader )
 		except IOError: # Couldn't find the file
@@ -329,7 +329,7 @@ class FileBase( object ):
 			case is relative to the start of the file. Does not record the change to self.unsavedChanges. """
 
 		if type( newData ) == int: # Just a single byte/integer value (0-255)
-		 	assert newData >= 0 and newData < 256, 'Invalid input to FileBase.setData(): ' + str(newData)
+			assert newData >= 0 and newData < 256, 'Invalid input to FileBase.setData(): ' + str(newData)
 			newData = ( newData, ) # Need to make it an iterable, for the splicing operation
 			dataLength = 1
 		else:
@@ -1040,50 +1040,79 @@ class DatFile( FileBase ):
 		# Look at the available structures, and determine whether this structure matches any of them
 		for structClass in hsdStructures.CommonStructureClasses + hsdStructures.AnimationStructureClasses:
 
-			newStructObject = structClass( self, structOffset, parentOffset, structDepth )
+			newStruct = structClass( self, structOffset, parentOffset, structDepth )
 
-			if newStructObject.validated( deducedStructLength=deducedStructLength ): break
+			if newStruct.validated( deducedStructLength=deducedStructLength ): break
 
 		else: # The loop above didn't break; no structure match found
 			# Use the base arbitrary class, which will work for any struct
-			newStructObject = hsdStructures.StructBase( self, structOffset, parentOffset, structDepth )
+			newStruct = hsdStructures.StructBase( self, structOffset, parentOffset, structDepth )
 
-			newStructObject.data = self.getData( structOffset, deducedStructLength )
-			newStructObject.formatting = '>' + 'I' * ( deducedStructLength / 4 ) # Assume a basic formatting if this is an unknown struct
-			newStructObject.fields = ()
-			newStructObject.length = deducedStructLength
-			newStructObject.padding = 0
+			newStruct.data = self.getData( structOffset, deducedStructLength )
+			newStruct.formatting = '>' + 'B' * deducedStructLength # Assume a basic formatting if this is an unknown struct
+			newStruct.fields = ()
+			newStruct.length = deducedStructLength
+			newStruct.padding = 0
 
 		# Add this struct to the DAT's structure dictionary
-		self.structs[structOffset] = newStructObject
+		self.structs[structOffset] = newStruct
 
 		# Ensure that even if orphaned structs are somehow initialized, they're still found.
-		if not newStructObject.parents:
-			self.checkForOrphans( newStructObject )
+		if not newStruct.parents:
+			self.checkForOrphans( newStruct )
 
-		return newStructObject
+		return newStruct
 
-	def initGenericStruct( self, offset, parentOffset=-1, structDepth=None, deducedStructLength=-1 ):
+	def initGenericStruct( self, offset, parentOffset=-1, structDepth=None, deducedStructLength=-1, asPointerTable=False ):
+
+		existingStruct = self.structs.get( offset, None )
+		if existingStruct:
+			return existingStruct
 
 		if deducedStructLength == -1:
 			deducedStructLength = self.getStructLength( offset ) # This length will include any padding too
 
-		newStructObject = hsdStructures.StructBase( self, offset, parentOffset, structDepth )
+		newStruct = hsdStructures.StructBase( self, offset, parentOffset, structDepth )
 
-		newStructObject.data = self.getData( offset, deducedStructLength )
-		newStructObject.formatting = '>' + 'I' * ( deducedStructLength / 4 ) # Assume a basic formatting if this is an unknown struct
-		newStructObject.fields = ()
-		newStructObject.length = deducedStructLength
-		newStructObject.padding = 0
+		newStruct.data = self.getData( offset, deducedStructLength )
+		if asPointerTable:
+			newStruct.formatting = '>' + 'I' * ( deducedStructLength / 4 ) # Assume a basic formatting if this is an unknown struct
+		else:
+			newStruct.formatting = '>' + 'B' * deducedStructLength # Assume a basic formatting if this is an unknown struct
+		newStruct.fields = ()
+		newStruct.length = deducedStructLength
+		newStruct.padding = 0
 
 		# Add this struct to the DAT's structure dictionary
-		self.structs[offset] = newStructObject
+		self.structs[offset] = newStruct
 
 		# Ensure that even if orphaned structs are somehow initialized, they're still found.
-		if not newStructObject.parents:
-			self.checkForOrphans( newStructObject )
+		if not newStruct.parents:
+			self.checkForOrphans( newStruct )
 
-		return newStructObject
+		return newStruct
+
+	# def initPointerTable( self, offset, parentOffset=-1, structDepth=None, deducedStructLength=-1 ):
+
+	# 	if deducedStructLength == -1:
+	# 		deducedStructLength = self.getStructLength( offset ) # This length will include any padding too
+
+	# 	newStruct = hsdStructures.StructBase( self, offset, parentOffset, structDepth )
+
+	# 	newStruct.data = self.getData( offset, deducedStructLength )
+	# 	newStruct.formatting = '>' + 'I' * ( deducedStructLength / 4 ) # Assume a basic formatting if this is an unknown struct
+	# 	newStruct.fields = ()
+	# 	newStruct.length = deducedStructLength
+	# 	newStruct.padding = 0
+
+	# 	# Add this struct to the DAT's structure dictionary
+	# 	self.structs[offset] = newStruct
+
+	# 	# Ensure that even if orphaned structs are somehow initialized, they're still found.
+	# 	if not newStruct.parents:
+	# 		self.checkForOrphans( newStruct )
+
+	# 	return newStruct
 
 	def initSpecificStruct( self, newStructClass, offset, parentOffset=-1, structDepth=None, printWarnings=True ):
 
@@ -1190,7 +1219,7 @@ class DatFile( FileBase ):
 
 		# Add the final properties
 		newStructure.data = self.getData( offset, dataLength )
-		newStructure.formatting = '>' + 'I' * ( dataLength / 4 )
+		newStructure.formatting = '>' + 'B' * dataLength
 		newStructure.length = dataLength
 		newStructure.padding = deducedStructLength - dataLength
 		newStructure._siblingsChecked = True
@@ -1323,12 +1352,14 @@ class DatFile( FileBase ):
 
 	def setData( self, dataOffset, newData ):
 
-		""" Directly updates (replaces) data in this file, in either the data section or tail data. The 
-			data input should be a single int (if the data is only one byte) or a bytearray. The offset is 
-			relative to the start of that section. Does not record the change in self.unsavedChanges. """
+		""" Directly updates (replaces) data in this file, in either the data section or tail data. The data 
+			input should be a single int (if the data is only one byte) or a bytearray. The offset is relative 
+			to the start of that section. Data in pre-initialized structs will not be updated. Does not record 
+			the change in self.unsavedChanges; for that, see .recordChange() or the .updateData() method. 
+			If you're not sure which to use, you should probably be using .updateData(). """
 
 		if type( newData ) == int: # Just a single byte/integer value (0-255)
-		 	assert newData >= 0 and newData < 256, 'Invalid input to DatFile.setData(): ' + str(newData)
+			assert newData >= 0 and newData < 256, 'Invalid input to DatFile.setData(): ' + str(newData)
 			newData = ( newData, ) # Need to make it an iterable, for the splicing operation
 			dataLength = 1
 		else:
@@ -1348,20 +1379,23 @@ class DatFile( FileBase ):
 
 	def updateData( self, offset, newData, description='', trackChange=True ):
 
-		""" This is a direct change to self.data itself, rather a struct. However, it will also update 
-			any structs that have already been initialized for that location in the file. This method 
-			will then also record that this change was made (updating self.unsavedChanges). """
+		""" Directly updates (replaces) data in this file, in either the data section or tail data. The 
+			data input should be a single int (if the data is only one byte) or a bytearray. The offset is 
+			relative to the start of that section. Will also update any structs that have already been 
+			initialized for that location in the file. This method will then also record that this 
+			change was made (updating self.unsavedChanges). """
 
 		# Perform a bit of validation on the input
 		if type( newData ) == int: # Just a single byte/integer value (0-255)
-		 	assert newData >= 0 and newData < 256, 'Invalid input to DatFile.updateData(): ' + str(newData)
-		 	dataLength = 1
+			assert newData >= 0 and newData < 256, 'Invalid input to DatFile.updateData(): ' + str(newData)
+			dataLength = 1
 		else:
 			dataLength = len( newData )
 		self.setData( offset, newData )
 
 		# If a structure has been initialized that contains the modifications, update it too
-		targetStruct = self.getPointerOwner( offset )
+		structOffset = self.getPointerOwner( offset, offsetOnly=True )
+		targetStruct = self.structs.get( structOffset, None )
 		if targetStruct and not isinstance( targetStruct, str ):
 			# Pull new data for the structure
 			targetStruct.data = self.getData( targetStruct.offset, targetStruct.length )
@@ -1522,7 +1556,8 @@ class DatFile( FileBase ):
 
 		# Null the pointer in the file/structure data and structure values
 		self.setData( offset, bytearray(4) ) # Bytearray initialized with 4 null bytes
-		targetStruct = self.getPointerOwner( offset )
+		structOffset = self.getPointerOwner( offset, offsetOnly=True )
+		targetStruct = self.structs.get( structOffset, None )
 		if targetStruct and not isinstance( targetStruct, str ):
 			# Update the structure's data
 			targetStruct.data = self.getData( targetStruct.offset, targetStruct.length )
@@ -1695,7 +1730,8 @@ class DatFile( FileBase ):
 
 	def extendDataSpace( self, extensionOffset, amount ):
 
-		""" Increases the amount of file/data space at the given offset. """
+		""" Increases the amount of file/data space at the given offset. 
+			This will also clear the .structs dictionary, since their data will be bad. """
 
 		# Perform some validation on the input
 		if amount == 0: return
@@ -1711,9 +1747,9 @@ class DatFile( FileBase ):
 
 		# Adjust the amount, if necessary, to preserve file alignment (rounding up)
 		if amount % 0x20 != 0:
-			adjustment = 0x20 - ( amount % 0x20 )
-			amount += adjustment
-			print 'Exension amount increased by', hex(adjustment) + ' bytes, to preserve file alignment'
+			amountAdjustment = 0x20 - ( amount % 0x20 )
+			amount += amountAdjustment
+			print 'Exension amount increased by', hex(amountAdjustment) + ' bytes, to preserve other potential structure alignments'
 
 		# Adjust the values in the pointer offset and structure offset lists (these changes are later saved to the Relocation table)
 		rtEntryCount = self.headerInfo['rtEntryCount']
@@ -1779,7 +1815,7 @@ class DatFile( FileBase ):
 		# Rebuild the structure offset and pointer lists
 		self.evaluateStructs()
 
-		# Add the data space
+		# Add the new bytes to .data
 		newBytes = bytearray( amount )
 		if extensionOffset < len( self.data ):
 			self.data = self.data[ :extensionOffset ] + newBytes + self.data[ extensionOffset: ]
@@ -2537,20 +2573,23 @@ class SisFile( DatFile ):
 		else: # The loop above didn't break; no SIS string found
 			raise Exception( 'Invalid menu text file; no SIS_ symbol node found.' )
 
-	def getStageMenuName( self, intStageId ):
+	def getTextStruct( self, sisId ):
 
-		""" Gets the stage name for a given internal stage ID to be displayed on the Random Stage Select Screen. 
-			See here for details on the string format opCodes: 
-				https://github.com/Ploaj/HSDLib/blob/master/HSDRaw/Tools/Melee/MeleeMenuText.cs """
+		""" Uses the SIS data table to look up a pointer to the target struct. """
 
-		# Get the text struct pointer
-		sisId = self.RSSS_pointerLookup[intStageId]
-		assert sisId > 0, 'Invalid stage ID given to SIS file stage name look-up: ' + str( sisId )
-		sisTable = self.getStruct( 0 )
+		self.initialize()
+
+		# Get the text struct
+		sisTable = self.initGenericStruct( 0, structDepth=(3, 0), asPointerTable=True )
 		textStructOffset = sisTable.getValues()[sisId]
 
-		# Get the text struct data and parse it
-		textStruct = self.initDataBlock( hsdStructures.DataBlock, textStructOffset )
+		return self.initDataBlock( hsdStructures.DataBlock, textStructOffset )
+
+	def getText( self, sisId ):
+
+		textStruct = self.getTextStruct( sisId )
+
+		# Parse the text struct's data for the text string
 		chars = []
 		byte = textStruct.data[0]
 		position = 0
@@ -2590,26 +2629,64 @@ class SisFile( DatFile ):
 
 		return ''.join( chars )
 
-	def setStageMenuName( self, intStageId, newName ):
+	def setText( self, sisId, newText, description='', endBytes=b'\x00' ):
 
-		""" Sets the stage name for a given internal stage ID to be displayed on the Random Stage Select Screen. """
+		textStruct = self.getTextStruct( sisId )
+
+		# Convert the given stage menu text to bytes and add the ending bytes
+		byteStrings = []
+		for char in newText:
+			sBytes = dictReverseLookup( globalData.DolCharacters, char )
+
+			# Check special characters (defined in this file) if a normal one wasn't found (defined in the DOL)
+			if not sBytes:
+				sBytes = dictReverseLookup( globalData.SdCharacters_1, char, defaultValue='20eb' ) # Default to question mark
+			
+			byteStrings.append( sBytes )
+		hexString = ''.join( byteStrings )
+		textData = bytearray.fromhex( hexString ) + endBytes
+
+		# Add space to the file structure, if needed, and add padding to the string data to fill the remaining structure space
+		textStartRelOffset = textStruct.data.find( b'\x20' ) # Exclude formatting preceding the text
+		requiredStructLength = textStartRelOffset + len( textData )
+		stringFileOffset = textStruct.offset + textStartRelOffset
+		if requiredStructLength > textStruct.length:
+			extraSpaceNeeded = requiredStructLength - textStruct.length
+			self.extendDataSpace( stringFileOffset, extraSpaceNeeded )
+			
+			# Add padding to overwrite the data shifted above as well (the above method will round to nearest 0x20 bytes)
+			amountAdjustment = 0x20 - ( extraSpaceNeeded % 0x20 )
+			textData += bytearray( amountAdjustment )
+		elif textStruct.length > requiredStructLength:
+			paddingLength = textStruct.length - requiredStructLength
+			textData += bytearray( paddingLength )
+
+		# Save the string data to file
+		if not description:
+			description = 'Updated "{}" text at 0x{:X} (SIS ID 0x{:X})'.format( newText, stringFileOffset, sisId )
+		self.updateData( stringFileOffset, textData, description )
+
+	def getStageMenuName( self, intStageId ):
+
+		""" Gets the stage name for a given internal stage ID to be displayed on the Random Stage Select Screen. 
+			See here for details on the string format opCodes: 
+				https://github.com/Ploaj/HSDLib/blob/master/HSDRaw/Tools/Melee/MeleeMenuText.cs """
 
 		# Get the text struct pointer
 		sisId = self.RSSS_pointerLookup[intStageId]
 		assert sisId > 0, 'Invalid stage ID given to SIS file stage name look-up: ' + str( sisId )
-		sisTable = self.getStruct( 0 )
-		textStructOffset = sisTable.getValues()[sisId]
+		
+		return self.getText( sisId )
 
-		# Convert the given stage menu text to bytes
-		# byties = bytearray()
-		# for char in newName:
+	def setStageMenuName( self, intStageId, newName ):
 
+		""" Sets the stage name for a given internal stage ID to be displayed on the Random Stage Select Screen. """
 
-		# Add padding and end bytes
-		stringOffset = textStructOffset + 6 # Consistent for all stage name strings
+		# Get the text struct pointer and struct
+		sisId = self.RSSS_pointerLookup[intStageId]
+		assert sisId > 0, 'Invalid stage ID given to SIS file stage name look-up: ' + str( sisId )
 
-		# Save the string data to file
-
+		self.setText( sisId, newName, 'Updated stage name for ' + newName, b'\x0F\x00' )
 
 	def identifyTextures( self ):
 
@@ -2617,9 +2694,11 @@ class SisFile( DatFile ):
 				( imageDataOffset, imageHeaderOffset, paletteDataOffset, paletteHeaderOffset, width, height, imageType, mipmapCount ) """
 
 		# Get the first pointer in the SIS table
-		imageDataStart = self.getStruct( 0 ).getValues()[0]
+		#imageDataStart = self.getStruct( 0 ).getValues()[0]
+		sisTable = self.initGenericStruct( 0, structDepth=(3, 0), asPointerTable=True )
+		imageDataStart = sisTable.getValues()[0]
 		imageDataStruct = self.getStruct( imageDataStart )
-		imageCount = imageDataStruct.length / 0x380
+		#imageCount = imageDataStruct.length / 0x380
 		imageDataEnd = imageDataStart + imageDataStruct.length
 
 		for imageDataOffset in range( imageDataStart, imageDataEnd, 0x380 ):

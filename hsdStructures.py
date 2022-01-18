@@ -16,7 +16,6 @@ import struct
 import inspect
 import os, sys
 import time, math
-import tkMessageBox
 
 from collections import OrderedDict
 from itertools import izip, izip_longest
@@ -342,10 +341,10 @@ class StructBase( object ):
 
 		# Sibling determination not possible without knowing the structure.
 		if self.__class__ == StructBase:
-		 	return False
+			return False
 
 		# Check if siblings have already been determined
-		if self._siblingsChecked:
+		elif self._siblingsChecked:
 			return ( structOffset in self.siblings )
 
 		# Preliminary check; no siblings for these potential structs: file header, node tables, string table
@@ -799,6 +798,26 @@ class TableStruct( StructBase ):
 		# Get the absolute value index (from the start of this structure) and send that to the standard .setValue method
 		absIndex = ( self.entryValueCount * entryIndex ) + valueIndex
 		self.setValue( absIndex, value )
+
+
+# class PointerTable( StructBase ):
+
+# 	def __init__( self, *args, **kwargs ):
+# 		StructBase.__init__( self, *args, **kwargs )
+
+# 		self.name = 'Pointer Table ' + uHex( 0x20 + args[1] )
+# 		self.formatting = '>IiiiiHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHI'
+# 		self.fields = ()
+# 		self.length = 0x64
+# 		self.childClassIdentities = {}
+# 		self._siblingsChecked = True
+# 		self._childrenChecked = True
+
+# 		# Check the parent's Music_Table_Entry_Count to see how many entries should be in this table structure
+# 		parentOffset = self.getAnyDataSectionParent()
+# 		parentStruct = self.dat.initSpecificStruct( MapGroundParameters, parentOffset )
+# 		self.entryCount = parentStruct.getValues()[63]
+# 		#print 'entry count for Area Table:', hex( self.entryCount ), 'length:', hex(0x64*self.entryCount), 'apparent length:', hex(self.dat.getStructLength( self.offset ))
 
 
 class DataBlock( StructBase ):

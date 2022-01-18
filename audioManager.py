@@ -667,7 +667,6 @@ class AudioManager( ttk.Frame ):
 			fileObj.initialize()
 			musicTable = fileObj.getMusicTableStruct()
 			values = musicTable.getValues()
-			valuesPerEntry = len( values ) / musicTable.entryCount
 			
 			# Check for primary references; check music IDs in the first table entry
 			if musicFile.musicId in values[1:5]:
@@ -675,6 +674,7 @@ class AudioManager( ttk.Frame ):
 				continue # Exclude from secondaries list
 
 			# Check for secondary references; get all song IDs from the music table values beyond the first table entry
+			valuesPerEntry = len( values ) / musicTable.entryCount
 			secondaryRefs = []
 			for i in range( 1, musicTable.entryCount ):
 				# Pick out the external stage ID names to get the names for each entry

@@ -26,7 +26,7 @@ import Tkinter as Tk
 import globalData
 from disc import Disc
 from audioManager import AudioManager
-from hsdFiles import fileFactory, MusicFile
+from hsdFiles import fileFactory, SisFile, MusicFile
 from basicFunctions import (
 		msg, printStatus, copyToClipboard, 
 		uHex, humansize, createFolders,
@@ -39,6 +39,7 @@ from guiSubComponents import (
 		DisguisedEntry,
 		ToolTip, NeoTreeview
 	)
+from tools import SisTextEditor
 
 
 class DiscTab( ttk.Frame ):
@@ -1457,10 +1458,14 @@ class DiscMenu( Tk.Menu, object ):
 			else:
 				self.add_command( label='Export File(s)', underline=0, command=self.discTab.exportIsoFiles )							# E
 		# 	self.add_command( label='Export Textures From Selected', underline=1, command=exportSelectedFileTextures )					# X
+
+		# Add file-type-specific options if only a single file is selected
 		if self.fileObj:
+			self.add_command( label='Import File', underline=0, command=self.discTab.importSingleIsoFile )								# I
 			if self.fileObj.__class__ == MusicFile:
 				self.add_command( label='Listen', underline=0, command=self.listenToMusic )												# L
-		 	self.add_command( label='Import File', underline=0, command=self.discTab.importSingleIsoFile )								# I
+			elif self.fileObj.__class__ == SisFile:
+				self.add_command( label='Browse Strings', underline=7, command=self.openSisTextEditor )									# S
 		# self.add_command( label='Import Multiple Files', underline=7, command=importMultipleIsoFiles )								# M
 		self.add_separator()
 
@@ -1554,6 +1559,9 @@ class DiscMenu( Tk.Menu, object ):
 
 		# Select the file
 		mainGui.audioManagerTab.selectSong( self.fileObj.isoPath )
+
+	def openSisTextEditor( self ):
+		SisTextEditor( self.fileObj )
 
 	def addFilesToIso( self ):
 
