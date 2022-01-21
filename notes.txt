@@ -1,5 +1,5 @@
 
-	char
+	char search
 
 80085820 000000c4 80085820 0 loadFile_CharCostumeDat
 800855c8 00000164 800855c8 0 Load_CharID->FileNames
@@ -25,7 +25,7 @@
 8026407c 00000024 8026407c 0 zz_026407c_
 
 
-	css
+	css search
 
 8016795c 000000b8 8016795c 0 CSS_InitializeCSSMatchPlayerInfo
 80167b50 00000078 80167b50 0 CSS_InitMajorData
@@ -85,8 +85,17 @@ P4		Depths/Fourside
 
 
 
+8045C388; random stage select flags from memory card data?
+    ^ "current" RSS flags (updated on saving data)
+
+
 can update 'current' random SSS flags at 8045C388 to update current
 random stage selection (for Random Stage Select screen and stage striking code)
+
+803FA1B0: start point for RSS flag storage for other pages
+  - accessed 1-indexed (first 4 bytes not used?)
+  - P1@ 803FA1B4, P2@ 803FA1B8, P3@ 803FA1BC, P4@ 803FA1C0
+  - values updated on SSS change (previously by Every Frame Code)
 
 
 
@@ -206,6 +215,8 @@ Text_CreateTextStruct is called on rsss load, as well as the following in Think:
 
 
 
+803a62a0	Text_LoadPremadeTextFile(r3=unk, r4=file, r5=symbol)
+
 
 Text_AllocateTextObject	803a5acc	# to add premade text
 
@@ -240,3 +251,11 @@ new custom injection: 80235c30
 
 
 r4 values: 8, 9, 0x11, 0xa, 0xc, 6, b, 7, e
+
+
+SdMenu.1sd @ 0x3E95C0|803EC5C0
+	1 @ 0x3E95C7|803EC5C7
+
+stage swap undo flags: 0x3F9250|803FC250
+
+current hacked stage byte: 803FA2E4

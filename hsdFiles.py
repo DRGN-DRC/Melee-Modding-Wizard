@@ -2559,6 +2559,8 @@ class SisFile( DatFile ):
 		32, # 0x24 - Battlefield
 		33  # 0x25 - Final Destination
 	]
+	# See here for details on the string format opCodes: 
+	#			https://github.com/Ploaj/HSDLib/blob/master/HSDRaw/Tools/Melee/MeleeMenuText.cs 
 
 	def validate( self ):
 
@@ -2668,9 +2670,7 @@ class SisFile( DatFile ):
 
 	def getStageMenuName( self, intStageId ):
 
-		""" Gets the stage name for a given internal stage ID to be displayed on the Random Stage Select Screen. 
-			See here for details on the string format opCodes: 
-				https://github.com/Ploaj/HSDLib/blob/master/HSDRaw/Tools/Melee/MeleeMenuText.cs """
+		""" Gets the stage name for a given internal stage ID to be displayed on the Random Stage Select Screen. """
 
 		# Get the text struct pointer
 		sisId = self.RSSS_pointerLookup[intStageId]

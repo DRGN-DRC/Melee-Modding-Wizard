@@ -323,33 +323,37 @@ def getRecentFilesLists():
 	return ISOs, DATs
 
 
-def setLastUsedDir( savePath, category='default', saveSettings=True ):
+def setLastUsedDir( savePath, category='default', fileExt='', saveSettings=True ):
 	
 	""" Normalizes the give path (and converts to a folder path if a file path was given) 
 		and sets it as the default program directory. This can be used on a per-file-type 
-		basis; for example, a last used dir for discs, or a last used dir for music files. 
-		If category is not given, "default" will be used. However, this should be avoided. """
+		basis; for example, a last used dir for discs, or a last used dir for music files. """
 
 	# Get the folder path if this is a path to a file
 	if not os.path.isdir( savePath ):
 		# Try to determine the category by the file extension
-		if category == 'auto':
+		if category == 'auto' and not fileExt:
 			fileExt = os.path.splitext( savePath )[1].replace( '.', '' )
 
-			if fileExt in ( 'hps', 'wav', 'dsp', 'mp3', 'aiff', 'wma', 'm4a' ): # Audio files
-				category = 'hps'
-			elif fileExt in ( 'iso', 'gcm' ): # Discs
-				category = 'iso'
-			elif fileExt.endswith( 'at' ) or fileExt.endswith( 'sd' ): # To match .dat/.usd as well as .0sd/.1at etc. variants
-				category = 'dat'
-			elif fileExt in ( 'mth', 'thp' ): # Video files
-				category = 'mth'
-			elif fileExt == 'dol':
-				category = 'dol'
-			else:
-				category = 'default'
-
 		savePath = os.path.dirname( savePath )
+	
+	if fileExt:
+		if fileExt in ( 'hps', 'wav', 'dsp', 'mp3', 'aiff', 'wma', 'm4a' ): # Audio files
+			category = 'hps'
+		elif fileExt in ( 'iso', 'gcm' ): # Discs
+			category = 'iso'
+		elif fileExt.endswith( 'at' ) or fileExt.endswith( 'sd' ): # To match .dat/.usd as well as .0sd/.1at etc. variants
+			category = 'dat'
+		elif fileExt in ( 'mth', 'thp' ): # Video files
+			category = 'mth'
+		elif fileExt == 'dol':
+			category = 'dol'
+		else:
+			category = 'default'
+
+	# Unable to determine a category without a file extension; use the default
+	elif category == 'auto':
+		category = 'default'
 
 	# Normalize the path and make sure it's composed of legal characters
 	savePath = os.path.normpath( savePath ).encode( 'utf-8' ).strip()
@@ -370,9 +374,9 @@ def getLastUsedDir( category='default', fileExt='' ):
 		class of files; e.g. for "dat" or "disc". """
 
 	# If no category is specified, use the last saved directory out of all of them
-	if category == 'default':
-		category = settings.get( 'Default Search Directories', 'lastCategory' )
-	elif fileExt:
+	# if category == 'default':
+	# 	category = settings.get( 'Default Search Directories', 'lastCategory' )
+	if fileExt:
 		if fileExt in ( 'hps', 'wav', 'dsp', 'mp3', 'aiff', 'wma', 'm4a' ): # Audio files
 			category = 'hps'
 		elif fileExt in ( 'iso', 'gcm' ): # Discs
@@ -385,6 +389,10 @@ def getLastUsedDir( category='default', fileExt='' ):
 			category = 'dol'
 		else:
 			category = 'default'
+			
+	# Unable to determine a category without a file extension; use the default
+	elif category == 'auto':
+		category = 'default'
 
 	# Get a default directory location for this specific type of file
 	try:
@@ -425,9 +433,9 @@ def rememberFile( filepath, updateDefaultDirectory=True ):
 	# Update the default search directory.
 	if updateDefaultDirectory:
 		if extension == '.iso' or extension == '.gcm':
-			setLastUsedDir( filepath, 'iso', False )
+			setLastUsedDir( filepath, 'iso', saveSettings=False )
 		else:
-			setLastUsedDir( filepath, 'dat', False )
+			setLastUsedDir( filepath, 'dat', saveSettings=False )
 
 	# Save this filepath with a timestamp
 	timeStamp = str( datetime.today() )

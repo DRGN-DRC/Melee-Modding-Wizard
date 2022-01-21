@@ -107,7 +107,7 @@ def exportSingleFileWithGui( fileObj ):
 		return ''
 
 
-def importGameFiles( fileExt='', multiple=False, title='', fileTypeOptions=None, category='' ):
+def importGameFiles( fileExt='', multiple=False, title='', fileTypeOptions=None, category='default' ):
 
 	""" Prompts the user to choose one or more external/standalone files to import. 
 		If fileExt is provided, it should be a 3 character file type string (with "." included); 
@@ -162,7 +162,7 @@ def importGameFiles( fileExt='', multiple=False, title='', fileTypeOptions=None,
 			newDir = os.path.dirname( filePaths )
 
 		if newDir != defaultDir: # Update and save the new directory if it's different
-			globalData.setLastUsedDir( newDir, category )
+			globalData.setLastUsedDir( newDir, category, fileExt )
 
 	else: # The above will return an empty string if the user canceled
 		globalData.gui.updateProgramStatus( 'Operation canceled' )
