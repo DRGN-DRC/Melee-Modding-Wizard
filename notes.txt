@@ -223,6 +223,13 @@ Text_CreateTextStruct is called on rsss load, as well as the following in Think:
 803a5a2c 000000a0 803a5a2c 0 Text_DestroyAllMenuTextAllocations		called first on leaving RSSS
 
 
+80236bc8 - begin text removal loop in RandomStageSelect_Think
+
+803a5cc4	Text_RemoveText
+			GObj_RunUserDataRemoveFunc
+803a5a2c			Text_DestroyAllMenuTextAllocations
+803a594c				Text_DestroyMenuTextAllocation
+
 Text_AllocateTextObject	803a5acc	# to add premade text
 
 	r3: sisID	(sis file ID?)
@@ -269,7 +276,7 @@ current hacked stage byte: 803FA2E4
 
 
 
-struct Text
+struct Text		// size = 0x104?
 {
     Vec3 trans;  // 0x0-0xC (x, y, z coords)
     Vec2 aspect; // 0xC-0x14 CHANGE THIS TO BOUND (x, y boundaries)
@@ -315,3 +322,30 @@ struct Text
     u8 is_fit;                // 0x9c
     int x100;                 // 0x100
 };
+
+
+8137cca8
+
+80bd5ca4 80bd5d6c 80bd5e34 80bd5efc
+80bd5fc4 80bd608c
+
+
+new 80bd734c
+
+
+
+80236be0	mr	r3, r26
+
+
+
+
+
+
+# Reload the scene
+li r12,2
+lis r11, 0x80479D35+0x10000@h	# 80489D35
+stb r12, -0x49F1(r13)		# 804DB6A0 - 0x49f1 = 804D6CAF
+stb r12, 0x80479D35-0x10000@l(r11)
+# trigger ID (2) is stored in r13 global
+# target scene ID + 1 (2) is stored in
+
