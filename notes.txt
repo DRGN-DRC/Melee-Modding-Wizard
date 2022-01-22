@@ -218,6 +218,11 @@ Text_CreateTextStruct is called on rsss load, as well as the following in Think:
 803a62a0	Text_LoadPremadeTextFile(r3=unk, r4=file, r5=symbol)
 
 
+
+803a594c 000000e0 803a594c 0 Text_DestroyMenuTextAllocation
+803a5a2c 000000a0 803a5a2c 0 Text_DestroyAllMenuTextAllocations		called first on leaving RSSS
+
+
 Text_AllocateTextObject	803a5acc	# to add premade text
 
 	r3: sisID	(sis file ID?)
@@ -259,3 +264,54 @@ SdMenu.1sd @ 0x3E95C0|803EC5C0
 stage swap undo flags: 0x3F9250|803FC250
 
 current hacked stage byte: 803FA2E4
+
+
+
+
+
+struct Text
+{
+    Vec3 trans;  // 0x0-0xC (x, y, z coords)
+    Vec2 aspect; // 0xC-0x14 CHANGE THIS TO BOUND (x, y boundaries)
+    int x14;
+    int x18;
+    int x1c;
+    int x20;
+    Vec2 scale; // 0x24-0x2C (x, y float sizes)
+    int x2C;
+    GXColor color; // 0x30
+    Vec2 stretch;  // 0x34-0x3C
+    int x3c;       // 0x3c
+    int x40;       // 0x40
+    int x44;       // 0x44
+    u8 use_aspect; // 0x48
+    u8 kerning;    // 0x49
+    u8 align;      // 0x4a
+    u8 x4b;
+    u8 x4c;
+    u8 hidden; // 0x4D
+    u8 x4e;
+    u8 sis_id; // 0x4F, id of the premade text file to use
+    int x50;		      // 0x50, next text struct
+    GOBJ *gobj;               // 0x54, pointer to GObj data
+    void *callback;           // 0x58, read at 803a878c
+    u8 *text_start;           // 0x5C, start parsing text data at this ptr
+    u8 *text_end;             // 0x60, stops parsing text data at this ptr
+    TextAllocInfo *allocInfo; // 0x64
+    void *x68;                // 0x68, some alloc used for dialogue?
+    u16 x6c;                  // 0x6c, flags?
+    u16 x6e;                  // 0x6e
+    int x70;                  // 0x70
+    int x74;                  // 0x74
+    int x78;                  // 0x78
+    int x7c;                  // 0x7c
+    int x80;                  // 0x80
+    int x84;                  // 0x84
+    int x88;                  // 0x88
+    int x8c;                  // 0x8c
+    int x90;                  // 0x90
+    int x94;                  // 0x94
+    int char_display_num;     // 0x98, how many characters to display
+    u8 is_fit;                // 0x9c
+    int x100;                 // 0x100
+};

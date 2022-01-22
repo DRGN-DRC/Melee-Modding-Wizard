@@ -1470,22 +1470,26 @@ class SisTextEditor( BasicWindow ):
 
 		# Parse out text structures
 		sisFile.initialize()
-		totalTextStructs = sisFile.headerInfo['rtEntryCount'] - 2 # Skip first two structures
+		sisTable = sisFile.initGenericStruct( 0, structDepth=(3, 0), asPointerTable=True )
+		sisTablePointers = sisTable.getValues()
+		totalTextStructs = len( sisTablePointers ) - 2 # Skip first two structures
+		print 'displaying', totalTextStructs, 'strings'
 
-		header = 'Editing {}\nTotal Strings: {}\n_________________________________'.format( self.sisFile.filename, totalTextStructs )
-		ttk.Label( self.window, text=header ).pack( fill='x', expand=True, padx=40 )
-
-		#ttk.Separator( self.window ).pack( fill='x', width=200, expand=True, padx=40 )
+		# Add header string and a spacer
+		header = '\t\tEditing {}\n\t\tTotal Strings: {}\n\n       SIS Index:    Offset:'.format( self.sisFile.filename, totalTextStructs )
+		ttk.Label( self.window, text=header ).grid( column=0, row=0, sticky='w', pady=6 )
+		ttk.Separator( self.window ).grid( column=0, row=1, sticky='ew', padx=40 )
 
 		# Build the main window interface
 		mainFrame = VerticalScrolledFrame( self.window )
 
-		for sisIndex in range( 2, totalTextStructs ):
+		for sisIndex in range( 2, len(sisTablePointers) ):
 
 			frame = ttk.Frame( mainFrame.interior )
 
-			# Line number
-			label = ttk.Label( frame, text=sisIndex )
+			# Line number and file offset
+			structOffset = sisTablePointers[sisIndex] + 0x20
+			label = ttk.Label( frame, text='{}             0x{:X}'.format(sisIndex, structOffset) )
 			label.pack( side='left' )
 
 			# Text string
@@ -1502,7 +1506,14 @@ class SisTextEditor( BasicWindow ):
 
 			frame.pack( fill='x', expand=True, padx=40 )
 
-		mainFrame.pack( fill='both', expand=True )
+		#mainFrame.pack( fill='both', expand=True )
+		mainFrame.grid( column=0, row=2, sticky='nsew' )
+
+		# Configure space-fill and resize behavior
+		self.window.columnconfigure( 'all', weight=1 )
+		self.window.rowconfigure( 0, weight=0 )
+		self.window.rowconfigure( 1, weight=0 )
+		self.window.rowconfigure( 2, weight=1 )
 
 	def editText( self, event ):
 
