@@ -133,8 +133,22 @@ MnSlMap.dat: Stage Select Screen
 NtAppro.dat: "'New Challenger' Screens"
 opening.dat: Game banner, title, and description texts
 PlCo.dat: Textures common to the cast
+
+# UI / Menu text strings
+SdDec.dat: Bonuses text
+SdIntro.dat: Bonus stage intro screen text
 SdMenu.dat: General menu text
+SdMsgBox.dat: Memory card management text
+SdPrize.dat: Special messages and character/trophy names
+SdProge.dat: Enable progressive scan mode text
+SdRst.dat: Results screen and bonuses
 SdSlChr.dat: Stage names and VS menu text
+SdStRoll.dat: Staff roll / credits shooting game
+SdTou.dat: Tournament mode strings
+SdToy.dat: Trophy names
+SdToyExp.dat: Trophy descriptions
+SdTrain.dat: Training mode strings
+SdVsCam.dat: Camera mode snapshot management text
 
 # Vanilla Stages
 GrBb.dat: Big Blue

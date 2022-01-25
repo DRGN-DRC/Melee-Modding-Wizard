@@ -304,21 +304,30 @@ class DiscTab( ttk.Frame ):
 
 		# Add convenience folders (those not actually in the disc's file system)
 		if globalData.disc.isMelee and usingConvenienceFolders:
+			# System files
 			if entryName in ( 'Boot.bin', 'Bi2.bin', 'ISO.hdr', 'AppLoader.img', 'Start.dol', 'Game.toc' ):
 				parent = discFile.isoPath.split( '/' )[0] + '/sys' # Adding to the System Files folder ([GAMEID]/sys)
-			elif discFile.__class__.__name__ == 'MusicFile' and discFile.isHexTrack: # These are 20XX's added custom tracks, e.g. 01.hps, 02.hps, etc.
+
+			# "Hex Tracks"; 20XX's custom tracks, e.g. 01.hps, 02.hps, etc.
+			elif discFile.__class__.__name__ == 'MusicFile' and discFile.isHexTrack:
 				if not self.isoFileTree.exists( 'hextracks' ):
 					self.isoFileTree.insert( parent, 'end', iid='hextracks', text=' Hex Tracks', values=('\t\t --< 20XX Custom Tracks >--', 'cFolder'), image=globalData.gui.imageBank('musicIcon') )
 				parent = 'hextracks'
+
+			# Original audio folder
 			elif parent.split('/')[-1] == 'audio' and entryName.startswith( 'ff_' ):
 				if not self.isoFileTree.exists( 'fanfare' ):
 					self.isoFileTree.insert( parent, 'end', iid='fanfare', text=' Fanfare', values=('\t\t --< Victory Audio Clips >--', 'cFolder'), image=globalData.gui.imageBank('audioIcon') )
 				parent = 'fanfare'
-			elif entryName.startswith( 'Ef' ): # Character Effect files
+
+			# Character Effect files
+			elif entryName.startswith( 'Ef' ):
 				if not self.isoFileTree.exists( 'ef' ):
 					self.isoFileTree.insert( parent, 'end', iid='ef', text=' Ef__Data.dat', values=('\t\t --< Character Graphical Effects >--', 'cFolder'), image=globalData.gui.imageBank('folderIcon') )
 				parent = 'ef'
-			elif entryName.startswith( 'GmRegend' ): # Congratulations Screens
+			
+			# Congratulations Screens
+			elif entryName.startswith( 'GmRegend' ):
 				if not self.isoFileTree.exists( 'gmregend' ):
 					self.isoFileTree.insert( parent, 'end', iid='gmregend', text=' GmRegend__.thp', values=("\t\t --< 'Congratulation' Screens (1P) >--", 'cFolder'), image=globalData.gui.imageBank('folderIcon') )
 				parent = 'gmregend'
@@ -356,23 +365,27 @@ class DiscTab( ttk.Frame ):
 						else: folderName = ' {}._at'.format( discFile.shortName )
 						self.isoFileTree.insert( 'gr', 'end', iid=iid, text=folderName, values=(discFile.longName + ' (RN)', 'cFolder'), image=globalData.gui.imageBank('folderIcon') )
 					parent = iid
-			elif discFile.ext == '.mth': # a video file.
-				if entryName.startswith( 'MvEnd' ): # 1-P Ending Movie.
-					if not self.isoFileTree.exists('mvend'): 
+			elif discFile.ext == '.mth': # a video file
+				if entryName.startswith( 'MvEnd' ): # 1-P Ending Movie
+					if not self.isoFileTree.exists('mvend'):
 						self.isoFileTree.insert( parent, 'end', iid='mvend', text=' MvEnd__.dat', values=('\t\t --< 1P Mode Ending Movies >--', 'cFolder'), image=globalData.gui.imageBank('folderIcon') )
 					parent = 'mvend'
-			elif entryName.startswith( 'Pl' ) and entryName != 'PlCo.dat': # Character file.
-				if not self.isoFileTree.exists('pl'):
+			elif entryName.startswith( 'Pl' ) and entryName != 'PlCo.dat': # Character file
+				if not self.isoFileTree.exists( 'pl' ):
 					self.isoFileTree.insert( parent, 'end', iid='pl', text=' Pl__.dat', values=('\t\t --< Character Files >--', 'cFolder'), image=globalData.gui.imageBank('charIcon') )
 				character = globalData.charNameLookup.get( entryName[2:4], '' )
 				if character:
 					# Create a folder for the character (and the copy ability files if this is Kirby) if one does not already exist.
 					charFolderIid = 'pl' + character.replace(' ', '').replace('[','(').replace(']',')') # Spaces or brackets can't be used in the iid.
-					if not self.isoFileTree.exists( charFolderIid ): 
+					if not self.isoFileTree.exists( charFolderIid ):
 						self.isoFileTree.insert( 'pl', 'end', iid=charFolderIid, text=' ' + character, values=('', 'cFolder'), image=globalData.gui.imageBank('folderIcon') )
 					parent = charFolderIid
+			elif entryName.startswith( 'Sd' ): # Menu text files
+				if not self.isoFileTree.exists( 'sd' ):
+					self.isoFileTree.insert( parent, 'end', iid='sd', text=' Sd__.dat', values=('\t\t --< UI Text Files >--', 'cFolder'), image=globalData.gui.imageBank('folderIcon') )
+				parent = 'sd'
 			elif entryName.startswith( 'Ty' ): # Trophy file
-				if not self.isoFileTree.exists('ty'):
+				if not self.isoFileTree.exists( 'ty' ):
 					self.isoFileTree.insert( parent, 'end', iid='ty', text=' Ty__.dat', values=('\t\t --< Trophies >--', 'cFolder'), image=globalData.gui.imageBank('folderIcon') )
 				parent = 'ty'
 

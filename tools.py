@@ -1464,32 +1464,32 @@ class SisTextEditor( BasicWindow ):
 	""" Tool window to view and edit pre-made game text in Sd___.dat files. """
 
 	def __init__( self, sisFile ):
-		BasicWindow.__init__( self, globalData.gui.root, 'SIS Text Editor', resizable=True, topMost=False, minsize=(460, 350) )
+		BasicWindow.__init__( self, globalData.gui.root, 'SIS Text Editor', resizable=True, topMost=False, minsize=(380, 350) )
 
 		self.sisFile = sisFile
 
-		# Parse out text structures
+		# Get pointers for the text structures
 		sisFile.initialize()
-		sisTable = sisFile.initGenericStruct( 0, structDepth=(3, 0), asPointerTable=True )
-		sisTablePointers = sisTable.getValues()
-		totalTextStructs = len( sisTablePointers ) - 2 # Skip first two structures
-		print 'displaying', totalTextStructs, 'strings'
+		self.sisTable = sisFile.initGenericStruct( 0, structDepth=(3, 0), asPointerTable=True )
+		sisTablePointers = self.sisTable.getValues()
 
 		# Add header string and a spacer
-		header = '\t\tEditing {}\n\t\tTotal Strings: {}\n\n       SIS Index:    Offset:'.format( self.sisFile.filename, totalTextStructs )
-		ttk.Label( self.window, text=header ).grid( column=0, row=0, sticky='w', pady=6 )
-		ttk.Separator( self.window ).grid( column=0, row=1, sticky='ew', padx=40 )
+		totalTextStructs = len( sisTablePointers ) - 2 # Skip first two structures
+		symbol = ', '.join( [node[1] for node in sisFile.rootNodes] ).encode( 'utf8' )
+		header = '\t\tEditing {}\n\t\tTotal Strings:  {}\n\t\tRoot Symbol:    {}\n\n      SIS Index:     Offset:'.format( self.sisFile.filename, totalTextStructs, symbol )
+		ttk.Label( self.window, text=header ).grid( column=0, row=0, sticky='w', pady=(10, 4) )
+		ttk.Separator( self.window ).grid( column=0, row=1, sticky='ew', padx=20 )
 
 		# Build the main window interface
 		mainFrame = VerticalScrolledFrame( self.window )
 
-		for sisIndex in range( 2, len(sisTablePointers) ):
+		for sisIndex in range( 2, len(sisTablePointers[:500]) ):
 
 			frame = ttk.Frame( mainFrame.interior )
 
 			# Line number and file offset
 			structOffset = sisTablePointers[sisIndex] + 0x20
-			label = ttk.Label( frame, text='{}             0x{:X}'.format(sisIndex, structOffset) )
+			label = ttk.Label( frame, text='{}              0x{:X}'.format(sisIndex, structOffset) )
 			label.pack( side='left' )
 
 			# Text string
@@ -1502,18 +1502,22 @@ class SisTextEditor( BasicWindow ):
 			editButton.sisIndex = sisIndex
 			editButton.origText = text
 			editButton.label = label
-			editButton.pack( side='right', padx=(55, 55), pady=6 )
+			editButton.pack( side='right', pady=6 )
 
-			frame.pack( fill='x', expand=True, padx=40 )
+			frame.pack( fill='x', expand=True, padx=40, ipadx=40 )
 
-		#mainFrame.pack( fill='both', expand=True )
 		mainFrame.grid( column=0, row=2, sticky='nsew' )
+
+		# Display Next/Previous buttons if there are too many to display
+		if totalTextStructs > 500:
+			ttk.Label( self.window, text='Too many text structs to display!' ).grid( column=0, row=3, sticky='ew', padx=(20, 80) ) #todo
 
 		# Configure space-fill and resize behavior
 		self.window.columnconfigure( 'all', weight=1 )
 		self.window.rowconfigure( 0, weight=0 )
 		self.window.rowconfigure( 1, weight=0 )
 		self.window.rowconfigure( 2, weight=1 )
+		self.window.rowconfigure( 3, weight=0 )
 
 	def editText( self, event ):
 
@@ -1522,7 +1526,7 @@ class SisTextEditor( BasicWindow ):
 		buttonWidget = event.widget
 		newText = getNewNameFromUser( 1000, None, 'Enter new text:', buttonWidget.origText )
 
-		if newText != buttonWidget.origText:
+		if newText and newText != buttonWidget.origText:
 			endBytes = self.determineEndBytes( buttonWidget.sisIndex )
 			description = 'Text string in {} (SIS ID {}) changed to {}'.format( self.sisFile.filename, buttonWidget.sisIndex, newText )
 			self.sisFile.setText( buttonWidget.sisIndex, newText, description, endBytes )

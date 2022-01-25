@@ -2036,14 +2036,23 @@ def parseArguments(): # Parses command line arguments
 
 		# Define "disc" options
 		discOpsParser = subparsers.add_parser( 'disc', help='Perform operations on ISO/GCM files, such as adding or getting files.' )
-		discOpsParser.add_argument( '-d', '--discPath', help='Provide a filepath for a target disc for the program to operate on.' )
-		discOpsParser.add_argument( '-i', '--info', action="store_true", help='Show various information on the given disc.' )
-		discOpsParser.add_argument( '-l', '--listFiles', action="store_true", help='List the files within the given disc.' )
 		discOpsParser.add_argument( '-b', '--build', dest='rootFolderPath', help='Builds a disc file (ISO or GCM) from a given root folder path. '
 					'The folder should contain a "sys" folder, and optionally a "files" folder (or files will be taken from the same root folder). '
 					'The disc will be built in the root path given, unless the -o option is also provided.' )
+		discOpsParser.add_argument( '-d', '--discPath', help='Provide a filepath for a target disc for the program to operate on. '
+															 'This is required for most disc operations.' )
+		discOpsParser.add_argument( '-e', '--export', help='Provide a filepath for an external/standalone file to be exported from a given disc. '
+														   'Supplement this with the --isoPath (-p) argument to define what file to target. '
+														   'The given filepath may be a single path, or a line-separated list of paths for multiple files.' )
+		discOpsParser.add_argument( '-i', '--import', help='Provide a filepath for an external/standalone file to be imported into a given disc. '
+														   'Supplement this with the --isoPath (-p) argument to define what file to target. '
+														   'The given filepath may be a single path, or a line-separated list of paths for multiple files.' )
+		discOpsParser.add_argument( '-l', '--listFiles', action="store_true", help='List the files within the given disc. Can be used with --info' )
+		discOpsParser.add_argument( '-n', '--info', action="store_true", help='Show various information on the given disc. Can be used with --listFiles' )
 		discOpsParser.add_argument( '-o', '--output', dest='outputFilePath', help='Provides an output path for various operations. May be just a folder path, '
 																				  'or it may include the file name in order to name the finished file.' )
+		discOpsParser.add_argument( '-p', '--isoPath', help='Used to target a specific file within a disc. e.g. "PlSsNr.dat" or ".\\audio\\us\\mario.ssm" '
+															'If operating on multiple files, this should be a line-separated list of iso paths.' )
 		
 		# Define "test" options
 		testOpsParser = subparsers.add_parser( 'test', help='Asset test tool. Uses Micro Melee to test assets such as characters or stages.' )
@@ -2052,8 +2061,8 @@ def parseArguments(): # Parses command line arguments
 		
 		# Define "code" options
 		codeOpsParser = subparsers.add_parser( 'code', help='Add custom code to a DOL or ISO, or examine one for installed codes.' )
-		testOpsParser.add_argument( '-l', '--library', help='A path to a Code Library directory. If not provided, the current default will be used.' )
 		testOpsParser.add_argument( '-i', '--install', help='Install code to a given DOL or ISO. Input should be a line-separated list of mod names.' )
+		testOpsParser.add_argument( '-l', '--library', help='A path to a Code Library directory. If not provided, the current default will be used.' )
 
 	except Exception as err:
 		# Exit the program on error (with exit code 1)
@@ -2131,7 +2140,7 @@ def buildDiscFromRoot():
 	print( '\nDisc built successfully.  Build time:', toc-tic )
 
 
-def performAssetTest( assetPath ):
+def loadAssetTest( assetPath ):
 
 	""" Function from command-line usage. Boots an instance of the game with the given asset. 
 		Currently supported are stage and character files. """
@@ -2191,6 +2200,23 @@ def performAssetTest( assetPath ):
 		microMelee.testCharacter( newFileObj )
 
 
+def loadDisc( discPath ):
+
+	""" Simple function to load a given disc image, for command-line program usage. """
+
+	disc = Disc( args.discPath )
+	disc.load()
+
+	if not disc.files:
+		if not os.path.exists( args.discPath ): # A warning will have already been given if this is the case
+			sys.exit( 2 )
+		else:
+			print( 'Unable to load the disc.' )
+			sys.exit( 3 )
+
+	return disc
+
+
 # Function & class definitions complete
 if __name__ == '__main__':
 
@@ -2203,33 +2229,55 @@ if __name__ == '__main__':
 	# Check for "disc" operation group
 	if args.opsParser == 'disc':
 
-		if args.info or args.listFiles:
-			disc = Disc( args.discPath )
-			disc.load()
-			if not disc.files:
-				if not os.path.exists( args.discPath ): # A warning will have already been given if this is the case
-					sys.exit( 2 )
-				else:
-					print( 'Unable to load the disc.' )
-					sys.exit( 3 )
+		# Make sure required arguments are present
+		if not args.discPath and not args.rootFolderPath:
+			print( 'No disc path or root folder path provided to operate on.' )
+
+		# Check for informational commands
+		elif args.info or args.listFiles:
+
+			# disc = Disc( args.discPath )
+			# disc.load()
+			# if not disc.files:
+			# 	if not os.path.exists( args.discPath ): # A warning will have already been given if this is the case
+			# 		sys.exit( 2 )
+			# 	else:
+			# 		print( 'Unable to load the disc.' )
+			# 		sys.exit( 3 )
+			disc = loadDisc( args.discPath ) # Will give an error message and exit the program on error
 
 			if args.info:
 				print( disc.listInfo() )
 			if args.listFiles:
 				print( disc.listFiles() )
-			
-		elif args.rootFolderPath: # The --build parameter was given; the user wants to build a disc from a root folder
+
+		elif args.export:
+			if not args.isoPath:
+				print( 'No --isoPath argument provided! This is required in order to specify the file(s) to export.' )
+
+			disc = loadDisc( args.discPath ) # Will give an error message and exit the program on error
+#			disc.exportFiles
+
+
+		# elif args.import:
+		# 	if not args.isoPath:
+		# 		print( 'No --isoPath argument provided! This is required in order to specify the file(s) to replace.' )
+		
+		# Build a disc from root (the --build parameter was given)
+		elif args.rootFolderPath:
 			globalData.loadProgramSettings()
 			buildDiscFromRoot()
 
+		# Not enough args
 		else:
 			print( 'Insufficient command line aguments given. No operation pending.' )
 
 	# Check for "test" operation group
 	elif args.opsParser == 'test':
 		globalData.loadProgramSettings()
-		performAssetTest( args.path )
+		loadAssetTest( args.path )
 
+	# Check for "code" operation group
 	elif args.opsParser == 'code':
 		print( 'todo' )
 	

@@ -1021,8 +1021,9 @@ class Disc( object ):
 
 	def exportFiles( self, fileList, outputDir ):
 
-		""" Export file(s) by isoPath. Only opens the disc file once if multiple files are requested. 
-			Returns True/False, on whether or not the operation was successful. """
+		""" Export file(s) from the disc to the OS filesystem. 'fileList' should be a list of isoPaths.
+			Only opens the disc file once if multiple files are requested. 
+			Returns a list of files (isoPaths) that failed to be exported. """
 
 		if len( fileList ) == 0:
 			msg( 'No files given to export!' )
@@ -1032,7 +1033,7 @@ class Disc( object ):
 			fileObj = self.files.get( fileList[0] )
 
 			if not fileObj:
-				msg( 'Unable to export; the file "{}" could not be found in the disc.'.format(fileList[0]) )
+				msg( 'Unable to export "{}"; it could not be found in the disc.'.format(fileList[0]) )
 				return [ fileList[0] ]
 
 			# Construct the output file path and export the file
@@ -1043,7 +1044,6 @@ class Disc( object ):
 			else: return [ fileList[0] ]
 		
 		else: # Multiple files to export
-			#filesExported = 0
 			failedExports = []
 
 			# Open the disc and begin exporting files
