@@ -1030,30 +1030,32 @@ class Disc( object ):
 			return []
 		
 		elif len( fileList ) == 1:
-			fileObj = self.files.get( fileList[0] )
+			isoPath = fileList[0]
+			fileObj = self.files.get( isoPath )
 
 			if not fileObj:
-				msg( 'Unable to export "{}"; it could not be found in the disc.'.format(fileList[0]) )
-				return [ fileList[0] ]
+				msg( 'Unable to export "{}"; it could not be found in the disc.'.format(isoPath) )
+				return [ isoPath ]
 
 			# Construct the output file path and export the file
-			savePath = os.path.join( outputDir, '/'.join(fileList.split('/')[1:]) ) # Excludes the Game ID
+			pathEnd = '/'.join( isoPath.split('/')[1:] ) # Removes the Game ID
+			savePath = os.path.join( outputDir, pathEnd )
 			successful = fileObj.export( savePath )
 
 			if successful: return []
-			else: return [ fileList[0] ]
+			else: return [ isoPath ]
 		
 		else: # Multiple files to export
 			failedExports = []
 
 			# Open the disc and begin exporting files
-			err = None
 			with open( self.filePath, 'rb') as isoBinary:
 				for isoPath in fileList:
 					fileObj = self.files.get( isoPath )
 					
 					# Attempt to get the file data
 					if not fileObj:
+						print 'Unable to export {}; unable to find this ISO path in the disc.'.format( isoPath )
 						failedExports.append( isoPath )
 						continue
 					elif fileObj.source == 'disc':
@@ -1066,7 +1068,8 @@ class Disc( object ):
 					# Attempt to export the data to file
 					try:
 						# Make sure the folders exist for the given output path
-						savePath = os.path.join( outputDir, '/'.join(fileList.split('/')[1:]) ) # Excludes the Game ID
+						pathEnd = '/'.join( isoPath.split('/')[1:] ) # Removes the Game ID
+						savePath = os.path.join( outputDir, pathEnd )
 						createFolders( os.path.split(savePath)[0] )
 
 						# Save the data to a new file
@@ -1074,12 +1077,36 @@ class Disc( object ):
 							newFile.write( fileData )
 
 					except Exception as err:
+						print 'Unable to export {}; {}'.format( pathEnd, err )
 						failedExports.append( isoPath )
 
-			if err:
-				print 'Unable to export; ', err
-
 			return failedExports
+
+	def importFiles( self, isoPaths, filePaths ):
+
+		""" Import one or more external/standalone files into this disc, replacing existing files. 
+			Returns a list of files (isoPaths) that failed to be imported. """
+
+		failedImports = []
+
+		# Iterate over the iso paths and external file paths together
+		for isoPath, externalPath in zip( isoPaths, filePaths ):
+			# Validate the external filepath
+			if not os.path.exists( externalPath ):
+				print 'Unable to import {}; unable to find the target standalone file.'.format( isoPath )
+				failedImports.append( isoPath )
+				continue
+
+			# Get the file to replace
+			origFile = self.files.get( isoPath )
+			if not origFile:
+				print 'Unable to import {}; unable to find this ISO path in the disc.'.format( isoPath )
+				failedImports.append( isoPath )
+				continue
+
+			# Initialize and replace the file
+			newFile = FileBase( self, -1, -1, isoPath, extPath=externalPath, source='file' )
+			self.replaceFile( origFile, newFile )
 
 	def replaceFile( self, origFileObj, newFileObj, countAsNewFile=True ):
 

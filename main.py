@@ -2041,18 +2041,19 @@ def parseArguments(): # Parses command line arguments
 					'The disc will be built in the root path given, unless the -o option is also provided.' )
 		discOpsParser.add_argument( '-d', '--discPath', help='Provide a filepath for a target disc for the program to operate on. '
 															 'This is required for most disc operations.' )
-		discOpsParser.add_argument( '-e', '--export', help='Provide a filepath for an external/standalone file to be exported from a given disc. '
+		discOpsParser.add_argument( '-e', '--export', help='Export one or more files from a given disc. Use an ISO path to target a specific file within a disc. '
+														   'e.g. "--export PlSsNr.dat" or "--export .\\audio\\us\\mario.ssm" '
+														   'If operating on multiple files, this should be a colon-separated list of ISO paths. '
+														   'If the --output argument is not also used, files are output to the current working directory.', nargs='+' )
+		discOpsParser.add_argument( '-i', '--import', dest='_import', help='Provide a filepath for an external/standalone file to be imported into a given disc. '
 														   'Supplement this with the --isoPath (-p) argument to define what file to target. '
-														   'The given filepath may be a single path, or a line-separated list of paths for multiple files.' )
-		discOpsParser.add_argument( '-i', '--import', help='Provide a filepath for an external/standalone file to be imported into a given disc. '
-														   'Supplement this with the --isoPath (-p) argument to define what file to target. '
-														   'The given filepath may be a single path, or a line-separated list of paths for multiple files.' )
+														   'The given filepath may be a single path, or a colon-separated list of paths for multiple files.', nargs='+' )
 		discOpsParser.add_argument( '-l', '--listFiles', action="store_true", help='List the files within the given disc. Can be used with --info' )
 		discOpsParser.add_argument( '-n', '--info', action="store_true", help='Show various information on the given disc. Can be used with --listFiles' )
 		discOpsParser.add_argument( '-o', '--output', dest='outputFilePath', help='Provides an output path for various operations. May be just a folder path, '
 																				  'or it may include the file name in order to name the finished file.' )
 		discOpsParser.add_argument( '-p', '--isoPath', help='Used to target a specific file within a disc. e.g. "PlSsNr.dat" or ".\\audio\\us\\mario.ssm" '
-															'If operating on multiple files, this should be a line-separated list of iso paths.' )
+															'If operating on multiple files, this should be a colon-separated list of ISO paths.', nargs='+' )
 		
 		# Define "test" options
 		testOpsParser = subparsers.add_parser( 'test', help='Asset test tool. Uses Micro Melee to test assets such as characters or stages.' )
@@ -2061,7 +2062,7 @@ def parseArguments(): # Parses command line arguments
 		
 		# Define "code" options
 		codeOpsParser = subparsers.add_parser( 'code', help='Add custom code to a DOL or ISO, or examine one for installed codes.' )
-		testOpsParser.add_argument( '-i', '--install', help='Install code to a given DOL or ISO. Input should be a line-separated list of mod names.' )
+		testOpsParser.add_argument( '-i', '--install', help='Install code to a given DOL or ISO. Input should be a colon-separated list of mod names.' )
 		testOpsParser.add_argument( '-l', '--library', help='A path to a Code Library directory. If not provided, the current default will be used.' )
 
 	except Exception as err:
@@ -2217,6 +2218,56 @@ def loadDisc( discPath ):
 	return disc
 
 
+def parseInputList( inputList, gameId='' ):
+
+	""" Input list is expected to be a string; either a colon-separated list, 
+		or a path to a file to open containing items. Returns a list of items. """
+
+	# Check if it's a standalone text file containing items
+	# if not '|' in inputList and inputList.lower().endswith( '.txt' ) and os.path.exists( inputList ):
+	# 	with open( inputList, 'r' ) as listFile:
+	# 		paths = listFile.read().splitlines()
+
+	# elif '|' in inputList: # A list of items was given directly as a string
+	# 	print( 'splitting by newline')
+	# 	paths = inputList.split( '|' )
+
+	# else: # Single item given; convert to list
+	# 	print( 'else' )
+	# 	paths = [ inputList ]
+
+	print( 'input:', inputList )
+	print( type(inputList) )
+
+	if len( inputList ) == 1 and inputList[0].lower().endswith( '.txt' ) and os.path.exists( inputList[0] ):
+		with open( inputList[0], 'r' ) as listFile:
+			paths = listFile.read().splitlines()
+
+	else:
+		paths = inputList
+
+	# If this is to process ISO paths, restore the Game ID in the path (initially will likely be e.g. './PlSsNr.dat')
+	if gameId:
+		gameId += '/'
+		fullPaths = []
+
+		#paths = [ gameId + '/' + '/'.join( path.split('/')[1:] ) for path in paths ]
+		for path in paths:
+			path = path.replace( '\\', '/' )
+
+			if not '/' in path:
+				fullPaths.append( gameId + path )
+			else:
+				endPath = '/'.join( path.split('/')[1:] )
+				fullPaths.append( gameId + endPath )
+
+		paths = fullPaths
+
+	print( 'using these paths: ', paths )
+
+	return paths
+
+
 # Function & class definitions complete
 if __name__ == '__main__':
 
@@ -2232,6 +2283,7 @@ if __name__ == '__main__':
 		# Make sure required arguments are present
 		if not args.discPath and not args.rootFolderPath:
 			print( 'No disc path or root folder path provided to operate on.' )
+			print( """Please provide one via -d or --discPath. For example, '-d "C:\\folder\\game.iso' """ )
 
 		# Check for informational commands
 		elif args.info or args.listFiles:
@@ -2244,7 +2296,7 @@ if __name__ == '__main__':
 			# 	else:
 			# 		print( 'Unable to load the disc.' )
 			# 		sys.exit( 3 )
-			disc = loadDisc( args.discPath ) # Will give an error message and exit the program on error
+			disc = loadDisc( args.discPath ) # Will give an error message and exit the program if there's a problem
 
 			if args.info:
 				print( disc.listInfo() )
@@ -2252,16 +2304,37 @@ if __name__ == '__main__':
 				print( disc.listFiles() )
 
 		elif args.export:
+			disc = loadDisc( args.discPath ) # Will give an error message and exit the program if there's a problem
+
+			# Parse and normalize the isoPaths input
+			isoPaths = parseInputList( args.export, disc.gameId )
+
+			# Check for --output arg, or use CWD
+			if args.outputFilePath:
+				outputFolder = args.outputFilePath
+			else:
+				outputFolder = os.getcwd()
+
+			# Export the files
+			failedExports = disc.exportFiles( isoPaths, outputFolder )
+
+			if failedExports:
+				sys.exit( 6 )
+
+		elif args._import:
 			if not args.isoPath:
-				print( 'No --isoPath argument provided! This is required in order to specify the file(s) to export.' )
+				print( 'No --isoPath argument provided! This is required in order to specify the file(s) to replace.' )
 
-			disc = loadDisc( args.discPath ) # Will give an error message and exit the program on error
-#			disc.exportFiles
+			disc = loadDisc( args.discPath ) # Will give an error message and exit the program if there's a problem
+			
+			# Parse and normalize the isoPaths and filePath input
+			isoPaths = parseInputList( args.isoPath, disc.gameId )
+			filePaths = parseInputList( args._import )
 
-
-		# elif args.import:
-		# 	if not args.isoPath:
-		# 		print( 'No --isoPath argument provided! This is required in order to specify the file(s) to replace.' )
+			failedImports = disc.importFiles( isoPaths, filePaths )
+			
+			if failedImports:
+				sys.exit( 6 )
 		
 		# Build a disc from root (the --build parameter was given)
 		elif args.rootFolderPath:
@@ -2310,3 +2383,4 @@ if __name__ == '__main__':
 #	3: Unable to initialize the given input file or root folder
 #	4: Unable to build output disc or save root folder
 #	5: Unable to initialize Micro Melee disc image
+#	6: One or more operations failed to complete
