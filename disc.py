@@ -1583,8 +1583,7 @@ class Disc( object ):
 					except: pass
 				return 4, []
 
-		#try:
-		if 1:
+		try:
 			# Write the new ISO's system files
 			for systemFileName in ( '/Boot.bin', '/Bi2.bin', '/AppLoader.img', '/Start.dol' ):
 				systemFile = self.files.get( self.gameId + systemFileName )
@@ -1675,8 +1674,8 @@ class Disc( object ):
 			filesUpdated.add( self.gameId + '/Boot.bin' )
 			fileWriteSuccessful = True
 
-		# except Exception as err:
-		# 	print 'Unrecognized error while writing the new disc files (rebuild required = True);', err
+		except Exception as err:
+			print 'Unrecognized error while writing the new disc files (rebuild required = True);', err
 		
 		# Close files
 		if newIsoBinary:
@@ -1715,7 +1714,7 @@ class Disc( object ):
 			os.rename( newIsoBinary.name, newFilePath )
 			self.filePath = newFilePath
 
-		else: # No new file path (e.g. for a back-up file) requested; Use the original filename
+		else: # No new file path requested (e.g. for a back-up file); Use the original filename
 			# Rename the original file, rename the back-up to the original file's name. Then, if successful, delete the original file.
 			try:
 				os.rename( self.filePath, self.filePath + '.bak' ) # Change the name of the original file so the new file can be named to it. Not deleted first in case the op below fails.
@@ -1803,7 +1802,7 @@ class Disc( object ):
 					folderPath = os.path.dirname( newDiscPath )
 					createFolders( folderPath )
 
-					# Copy the disc
+					# Copy the disc (in chunks, to conserve memory usage)
 					origFileSize = int( os.path.getsize(self.filePath) )
 					dataCopiedSinceLastUpdate = 0
 					with open( newDiscPath, 'wb' ) as newFile:
@@ -1869,8 +1868,6 @@ class Disc( object ):
 			for fileObj in filesToSave:
 				fileObj.source = 'disc'
 				fileObj.unsavedChanges = []
-
-			print 'updated files:', updatedFiles
 
 		return returnCode, updatedFiles
 

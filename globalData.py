@@ -12,7 +12,7 @@
 """ Container for global data that all scripts may access. 
 	Contains settings, settings-related load/save functions, and look-up tables. """
 
-programVersion = '0.9'
+programVersion = '0.9.1'
 
 # External Dependencies
 import os
@@ -37,6 +37,8 @@ from tools import DolphinController
 
 
 def init( programArgs ):
+
+	""" If any check on settings will be required, call 'globalData.loadProgramSettings()' first to fully initialize them. """
 
 	global scriptHomeFolder, paths, defaultSettings, defaultBoolSettings, settings, boolSettings
 	global overwriteOptions, codeProcessor, dolphinController, gui, disc, codeMods, standaloneFunctions, programEnding

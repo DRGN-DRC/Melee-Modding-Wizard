@@ -17,7 +17,8 @@ import codecs
 import os, sys
 import time, math
 import tkMessageBox
-from ruamel import yaml
+#from ruamel import yaml
+import ruamel.yaml
 from string import hexdigits
 from PIL import Image, ImageTk
 
@@ -268,8 +269,8 @@ class FileBase( object ):
 		try:
 			with codecs.open( descriptionsFile, 'r', encoding='utf-8' ) as stream: # Using a different read method to accommodate UTF-8 encoding
 			#with codecs.open( descriptionsFile, 'r' ) as stream: # Using a different read method to accommodate UTF-8 encoding
-				#cls.yamlDescriptions = yaml.safe_load( stream ) # Vanilla yaml module method (loses comments when saving/dumping back to file)
-				cls.yamlDescriptions = yaml.load( stream, Loader=yaml.RoundTripLoader )
+				#cls.yamlDescriptions = ruamel.yaml.safe_load( stream ) # Vanilla yaml module method (loses comments when saving/dumping back to file)
+				cls.yamlDescriptions = ruamel.yaml.load( stream, Loader=ruamel.yaml.RoundTripLoader )
 		except IOError: # Couldn't find the file
 			printStatus( "Couldn't find a yaml config file for " + gameId, warning=True )
 		except Exception as err: # Problem parsing the file
@@ -485,8 +486,8 @@ class FileBase( object ):
 
 		try:
 			with codecs.open( descriptionsFile, 'w', encoding='utf-8' ) as stream:
-				#yaml.safe_dump( self.yamlDescriptions, stream ) # Vanilla yaml module method (loses comments when saving/dumping back to file)
-				yaml.dump( self.yamlDescriptions, stream, Dumper=yaml.RoundTripDumper )
+				#ruamel.yaml.safe_dump( self.yamlDescriptions, stream ) # Vanilla yaml module method (loses comments when saving/dumping back to file)
+				ruamel.yaml.dump( self.yamlDescriptions, stream, Dumper=ruamel.yaml.RoundTripDumper )
 			return 0
 		except Exception as err: # Problem parsing the file
 			msg( 'Unable to save the new name to the yaml config file:\n\n{}'.format(err) )

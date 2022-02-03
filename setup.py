@@ -11,7 +11,7 @@
 
 programName = "Melee Modding Wizard"
 
-import main
+import globalData
 import sys, os
 from cx_Freeze import setup, Executable
 
@@ -19,10 +19,14 @@ from cx_Freeze import setup, Executable
 if sys.maxsize > 2**32: environIs64bit = True
 else: environIs64bit = False
 
+# Module dependencies not automatically picked-up by cx_Freeze
+moduleIncludes = [ 'ruamel.yaml' ]
+
 # Dependencies are typically automatically detected, but they might need fine tuning.
 buildOptions = dict(
 	packages = [], 
 	excludes = [], 
+	includes = moduleIncludes,
 	# include_files=[
 	# 	#'bin',
 	# 	'imgs',
@@ -44,7 +48,7 @@ else:
 sys.argv = sys.argv[:2]
 
 # Normalize the version string for setup ('version' below must be a string, with only numbers or dots)
-simpleVersion = '.'.join( [char for char in main.programVersion.split('.') if char.isdigit()] )
+simpleVersion = '.'.join( [char for char in globalData.programVersion.split('.') if char.isdigit()] )
 
 setup(
 	name=programName,
@@ -76,11 +80,13 @@ else: # The loop above didn't break; programFolder not found
 	
 # Set the new program name
 if environIs64bit:
-	newFolderName = '{} - v{} (x64)'.format( programName, main.programVersion )
+	newFolderName = '{} - v{} (x64)'.format( programName, globalData.programVersion )
 else:
-	newFolderName = '{} - v{} (x86)'.format( programName, main.programVersion )
+	newFolderName = '{} - v{} (x86)'.format( programName, globalData.programVersion )
 oldFolderPath = os.path.join( scriptHomeFolder, 'build', programFolder )
 newFolderPath = os.path.join( scriptHomeFolder, 'build', newFolderName )
+# print 'old folder name:', oldFolderPath
+# print 'new folder name:', newFolderPath
 os.rename( oldFolderPath, newFolderPath )
 print '\nNew program folder successfully created and renamed to "' + newFolderName + '".'
 

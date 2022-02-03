@@ -2050,6 +2050,8 @@ def parseArguments(): # Parses command line arguments
 														   'The given filepath may be a single path, or a colon-separated list of paths for multiple files.', nargs='+' )
 		discOpsParser.add_argument( '-l', '--listFiles', action="store_true", help='List the files within the given disc. Can be used with --info' )
 		discOpsParser.add_argument( '-n', '--info', action="store_true", help='Show various information on the given disc. Can be used with --listFiles' )
+		discOpsParser.add_argument( '-nbu', '--no-backup-on-rebuild', dest='noBackupOnRebuild', action="store_true", help='Do not back up (create a copy of) '
+											'the disc in cases where it needs to be rebuilt. Instead, the original disc will be replaced by a new file by the same name.' )
 		discOpsParser.add_argument( '-o', '--output', dest='outputFilePath', help='Provides an output path for various operations. May be just a folder path, '
 																				  'or it may include the file name in order to name the finished file.' )
 		discOpsParser.add_argument( '-p', '--isoPath', help='Used to target a specific file within a disc. e.g. "PlSsNr.dat" or ".\\audio\\us\\mario.ssm" '
@@ -2075,17 +2077,95 @@ def parseArguments(): # Parses command line arguments
 	return parser.parse_args()
 
 
+def determineSavePath( disc ):
+
+	""" Function for command-line usage. """
+
+	filename = ''
+	
+	# Determine the new disc filepath output
+	if args.outputFilePath:
+		# Check for a file extension to determine if this is a folder or file path
+		if os.path.splitext( args.outputFilePath )[1]:
+			directory, filename = os.path.split( args.outputFilePath )
+		else: # No extension
+			directory = args.outputFilePath
+
+	elif args.rootFolderPath:
+		# Build in the same directory as the root folder
+		directory = os.path.dirname( args.rootFolderPath )
+
+	else: # No output path specified; output to the same directory as the original disc
+		assert not disc.isRootFolder, 'Expected to be able to get a file name from a non-root-folder path.'
+
+		return '' # No specific path will allow the save method to determine a new name itself
+
+	# Determine a filename from the disc if one has not been given
+	if not filename:
+		if disc.isRootFolder:
+			# Try to use the Long Title for the default filename if the banner file is present (which it should be!)
+			bannerFile = disc.files.get( disc.gameId + '/opening.bnr', None )
+			if bannerFile:
+				stringData = bannerFile.getData( 0x1860, 0x40 ).split( '\x00' )[0]
+
+				if disc.countryCode == 1:
+					filename = stringData.decode( 'latin_1' ) + '.iso'
+				else: # The country code is for Japanese
+					filename = stringData.decode( 'shift_jis' ) + '.iso'
+			
+			else: # Just use the Game ID
+				filename = disc.gameId + '.iso'
+
+		else: # Use the original file name of the disc
+			filename = os.path.split( disc.filePath )[1]
+
+	savePath = os.path.join( directory, filename )
+
+	return savePath
+
+
+def importFilesToDisc():
+
+	""" Function for command-line usage. """
+	
+	if not args.isoPath:
+		print( 'No --isoPath argument provided! This is required in order to specify the file(s) to replace.' )
+		sys.exit( 2 )
+
+	disc = loadDisc( args.discPath )
+	
+	# Parse and normalize the isoPaths and filePath input
+	isoPaths = parseInputList( args.isoPath, disc.gameId )
+	filePaths = parseInputList( args._import )
+
+	if len( isoPaths ) != len( filePaths ):
+		print( 'The number of filepaths given does not match the number of ISO paths given for replacement.' )
+		sys.exit( 2 )
+
+	# Import the given files
+	failedImports = disc.importFiles( isoPaths, filePaths )
+
+	# Load settings (will be referenced for disc saving/rebuilding)
+	globalData.loadProgramSettings()
+	if args.noBackupOnRebuild:
+		globalData.setSetting( 'backupOnRebuild', False )
+
+	# Save the disc
+	savePath = determineSavePath( disc )
+	returnCode = disc.save( savePath )[0]
+
+	if returnCode == 0:
+		print( 'Disc output path: "' + disc.filePath + '"' )
+	
+	if returnCode != 0: # Problem during disc saving
+		sys.exit( returnCode + 100 )
+	elif failedImports:
+		sys.exit( 6 )
+
+
 def buildDiscFromRoot():
 
-	""" Function from command-line usage.debug
-	
-		Exit codes (should be the same as program exit codes):
-
-			0: All operations completed successfully
-			1: A problem occurred in parsing command line arguments
-			2: Invalid input path given (file/folder not found, or invalid root folder)
-			3: Unable to initialize the given input file or root folder
-			4: Unable to build output disc or save root folder """
+	""" Function for command-line usage. """
 
 	# Load and initialize a new disc image and the files presented in the root folder
 	try:
@@ -2097,72 +2177,53 @@ def buildDiscFromRoot():
 		if systemFilePaths:
 			newDisc.loadRootFolder( systemFilePaths )
 		else:
-			sys.exit( 2 )
+			sys.exit( 3 )
 
 	except Exception as err:
 		print( '\nUnable to initialize and load the root files.' )
 		print( err )
-		sys.exit( 3 )
+		sys.exit( 4 )
 
-	# Determine the new disc filepath output
-	if args.outputFilePath:
-		savePath = args.outputFilePath
-	else:
-		# Build in the same directory as the root folder
-		rootFolderParent = os.path.dirname( args.rootFolderPath )
-
-		# Try to use the Long Title for the default filename if the banner file is present (which it should be!)
-		bannerFile = newDisc.files.get( newDisc.gameId + '/opening.bnr', None )
-		fileName = ''
-
-		if bannerFile:
-			if newDisc.countryCode == 1:
-				fileName = bannerFile.getData()[0x1860:(0x18A0)].split('\x00')[0].decode('latin_1') + '.iso'
-			else: # The country code is for Japanese
-				fileName = bannerFile.getData()[0x1860:(0x18A0)].split('\x00')[0].decode('shift_jis') + '.iso'
-		
-		if not fileName: # Just use the Game ID
-			fileName = newDisc.gameId + '.iso'
-
-		savePath = os.path.join( rootFolderParent, fileName )
-	print( '\nDisc output path set to "' + savePath + '".' )
-	print( '' )
+	savePath = determineSavePath( newDisc )
+	print( 'Disc output path: "' + savePath + '"' )
 
 	# Build the new disc (the progress bar will be printed by the following method)
+	globalData.loadProgramSettings()
 	tic = time.clock()
-	fileWriteSuccessful = newDisc.buildNewDisc( savePath )[0]
+	returnCode = newDisc.buildNewDisc( savePath )[0]
 	toc = time.clock()
 
 	# Check for problems
-	if not fileWriteSuccessful:
+	if returnCode != 0:
 		print( '\nUnable to build the disc.' )
-		sys.exit( 4 )
+		sys.exit( returnCode + 100 )
 
 	print( '\nDisc built successfully.  Build time:', toc-tic )
 
 
 def loadAssetTest( assetPath ):
 
-	""" Function from command-line usage. Boots an instance of the game with the given asset. 
+	""" Function for command-line usage. Boots an instance of the game with the given asset. 
 		Currently supported are stage and character files. """
 
-	# Perform some quick/basic validation based on file extension
+	# Perform some quick and basic validation based on the file extension
 	ext = os.path.splitext( assetPath )[1]
+	validExtension = False
 	if ext in ( '.png', '.jpg', '.jpeg', '.gif' ):
 		print( 'This appears to be an image file! This feature expects a stage or character file.' )
-		sys.exit( 3 )
 	elif ext == '.dol':
 		print( 'This appears to be a DOL file! This feature expects a stage or character file.' )
-		sys.exit( 3 )
 	elif ext in ( '.iso', '.gcm' ):
 		print( 'This appears to be a disc image file! This feature expects a stage or character file.' )
-		sys.exit( 3 )
 	elif ext in ( '.hps', '.ssm', 'wav', 'dsp', 'mp3', 'aiff', 'wma', 'm4a' ):
 		print( 'This appears to be an audio file! This feature expects a stage or character file.' )
-		sys.exit( 3 )
 	elif ext in ( '.mth', '.thp' ):
 		print( 'This appears to be a video file! This feature expects a stage or character file.' )
-		sys.exit( 3 )
+	else:
+		validExtension = True
+
+	if not validExtension:
+		sys.exit( 4 )
 
 	# See if this is a stage file
 	try:
@@ -2182,9 +2243,10 @@ def loadAssetTest( assetPath ):
 	# Exit if unable to initialize the given file as one of the above classes
 	if not newFileObj:
 		print( 'Unable to initialize and validate the given file; it does not appear to be a stage or character file.' )
-		sys.exit( 3 )
+		sys.exit( 4 )
 
 	# Get the micro melee disc object, and use it to test the given file
+	globalData.loadProgramSettings()
 	microMelee = globalData.getMicroMelee()
 	if not microMelee:
 		sys.exit( 5 )
@@ -2203,17 +2265,18 @@ def loadAssetTest( assetPath ):
 
 def loadDisc( discPath ):
 
-	""" Simple function to load a given disc image, for command-line program usage. """
+	""" Simple function to load a given disc image, for command-line program usage. 
+		Will give an error message and exit the program if there's a problem. """
 
 	disc = Disc( args.discPath )
 	disc.load()
 
 	if not disc.files:
 		if not os.path.exists( args.discPath ): # A warning will have already been given if this is the case
-			sys.exit( 2 )
+			sys.exit( 3 )
 		else:
 			print( 'Unable to load the disc.' )
-			sys.exit( 3 )
+			sys.exit( 4 )
 
 	return disc
 
@@ -2235,9 +2298,6 @@ def parseInputList( inputList, gameId='' ):
 	# else: # Single item given; convert to list
 	# 	print( 'else' )
 	# 	paths = [ inputList ]
-
-	print( 'input:', inputList )
-	print( type(inputList) )
 
 	if len( inputList ) == 1 and inputList[0].lower().endswith( '.txt' ) and os.path.exists( inputList[0] ):
 		with open( inputList[0], 'r' ) as listFile:
@@ -2263,8 +2323,6 @@ def parseInputList( inputList, gameId='' ):
 
 		paths = fullPaths
 
-	print( 'using these paths: ', paths )
-
 	return paths
 
 
@@ -2284,19 +2342,11 @@ if __name__ == '__main__':
 		if not args.discPath and not args.rootFolderPath:
 			print( 'No disc path or root folder path provided to operate on.' )
 			print( """Please provide one via -d or --discPath. For example, '-d "C:\\folder\\game.iso' """ )
+			sys.exit( 2 )
 
 		# Check for informational commands
 		elif args.info or args.listFiles:
-
-			# disc = Disc( args.discPath )
-			# disc.load()
-			# if not disc.files:
-			# 	if not os.path.exists( args.discPath ): # A warning will have already been given if this is the case
-			# 		sys.exit( 2 )
-			# 	else:
-			# 		print( 'Unable to load the disc.' )
-			# 		sys.exit( 3 )
-			disc = loadDisc( args.discPath ) # Will give an error message and exit the program if there's a problem
+			disc = loadDisc( args.discPath )
 
 			if args.info:
 				print( disc.listInfo() )
@@ -2304,7 +2354,7 @@ if __name__ == '__main__':
 				print( disc.listFiles() )
 
 		elif args.export:
-			disc = loadDisc( args.discPath ) # Will give an error message and exit the program if there's a problem
+			disc = loadDisc( args.discPath )
 
 			# Parse and normalize the isoPaths input
 			isoPaths = parseInputList( args.export, disc.gameId )
@@ -2322,23 +2372,10 @@ if __name__ == '__main__':
 				sys.exit( 6 )
 
 		elif args._import:
-			if not args.isoPath:
-				print( 'No --isoPath argument provided! This is required in order to specify the file(s) to replace.' )
-
-			disc = loadDisc( args.discPath ) # Will give an error message and exit the program if there's a problem
-			
-			# Parse and normalize the isoPaths and filePath input
-			isoPaths = parseInputList( args.isoPath, disc.gameId )
-			filePaths = parseInputList( args._import )
-
-			failedImports = disc.importFiles( isoPaths, filePaths )
-			
-			if failedImports:
-				sys.exit( 6 )
+			importFilesToDisc()
 		
 		# Build a disc from root (the --build parameter was given)
 		elif args.rootFolderPath:
-			globalData.loadProgramSettings()
 			buildDiscFromRoot()
 
 		# Not enough args
@@ -2347,7 +2384,6 @@ if __name__ == '__main__':
 
 	# Check for "test" operation group
 	elif args.opsParser == 'test':
-		globalData.loadProgramSettings()
 		loadAssetTest( args.path )
 
 	# Check for "code" operation group
@@ -2379,8 +2415,17 @@ if __name__ == '__main__':
 #
 #	0: All operations completed successfully
 #	1: A problem occurred in parsing command line arguments
-#	2: Invalid input path given (file/folder not found)
-#	3: Unable to initialize the given input file or root folder
-#	4: Unable to build output disc or save root folder
+#	2: Invalid or incomplete combination of input arguments
+#	3: Invalid input path given (file/folder not found)
+#	4: Unable to initialize the given input file or root folder
 #	5: Unable to initialize Micro Melee disc image
 #	6: One or more operations failed to complete
+#
+# 100 series codes (disc save failure; from disc.save, disc.saveFilesToDisc, or disc.buildNewDisc):
+#	101: No changes to be saved
+#	102: Missing system files
+#	103: Unable to create a new disc file
+#	104: Unable to open the original disc
+#	105: Unrecognized error during file writing
+#	106: Unable to overwrite existing file
+#	107: Could not rename discs or remove original
