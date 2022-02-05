@@ -19,22 +19,21 @@ from cx_Freeze import setup, Executable
 if sys.maxsize > 2**32: environIs64bit = True
 else: environIs64bit = False
 
-# Module dependencies not automatically picked-up by cx_Freeze
-moduleIncludes = [ 'ruamel.yaml' ]
-
 # Dependencies are typically automatically detected, but they might need fine tuning.
 buildOptions = dict(
 	packages = [], 
 	excludes = [], 
-	includes = moduleIncludes,
-	# include_files=[
-	# 	#'bin',
-	# 	'imgs',
-	# 	#'Installers',
-	# 	#'PNG to-from TPL.bat',
+	namespace_packages = [ "ruamel.yaml" ], # Must have ruamel.base installed as well
+	include_files = [
+		'.include',
+		'bin',
+		'Code Library',
+		'File Descriptions',
+		'fonts',
+		'imgs'
 	# 	#'ReadMe.txt',
 	# 	#'tk', # Includes a needed folder for drag 'n drop functionality.
-	# ])
+	]
 )
 
 # Check whether to preserve the console window that opens with the GUI 
@@ -51,16 +50,16 @@ sys.argv = sys.argv[:2]
 simpleVersion = '.'.join( [char for char in globalData.programVersion.split('.') if char.isdigit()] )
 
 setup(
-	name=programName,
+	name = programName,
 	version = simpleVersion,
 	description = 'Modding program for SSBM',
 	options = dict( build_exe = buildOptions ),
 	executables = [
 		Executable(
-			script="main.py", 
-			targetName=programName + '.exe',
-			#icon='appIcon5.ico', # For the executable icon. "appIcon.png" (in main) is for the running program's window icon.
-			base=base)
+			script = "main.py", 
+			targetName = programName + '.exe',
+			#icon = 'appIcon5.ico', # For the executable icon. "appIcon.png" (in main) is for the running program's window icon.
+			base = base)
 		]
 	)
 
@@ -85,8 +84,6 @@ else:
 	newFolderName = '{} - v{} (x86)'.format( programName, globalData.programVersion )
 oldFolderPath = os.path.join( scriptHomeFolder, 'build', programFolder )
 newFolderPath = os.path.join( scriptHomeFolder, 'build', newFolderName )
-# print 'old folder name:', oldFolderPath
-# print 'new folder name:', newFolderPath
 os.rename( oldFolderPath, newFolderPath )
 print '\nNew program folder successfully created and renamed to "' + newFolderName + '".'
 
