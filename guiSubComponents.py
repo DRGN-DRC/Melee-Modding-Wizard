@@ -1173,7 +1173,7 @@ class LabelButton( Tk.Label ):
 
 	def __init__( self, parent, imageName, callback, hovertext='' ):
 		# Get the images needed
-		self.nonHoverImage = globalData.gui.imageBank( imageName + 'Gray', False )
+		self.nonHoverImage = globalData.gui.imageBank( imageName + 'Gray', showWarnings=False )
 		self.hoverImage = globalData.gui.imageBank( imageName )
 		if not self.nonHoverImage:
 			self.nonHoverImage = self.hoverImage

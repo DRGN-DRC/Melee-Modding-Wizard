@@ -220,7 +220,7 @@ mr r0, r30  # recover last instruction from backup sp value
 
 	-==-
 
-!
+
 Boot to Match [TEST]
 Boots directly into a match, with configurable options.
 <https://smashboards.com/threads/boot-to-custom-match.474651/>

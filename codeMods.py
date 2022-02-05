@@ -242,7 +242,7 @@ class CodeChange( object ):
 	def evaluate( self ):
 
 		""" Assembles source code if it's not already in hex form, checks for assembly errors, and
-			ensures configuration options are present and configured correctly (parsed from codes.json). """
+			ensures configuration options are present and configured correctly. """
 
 		if self.processStatus != -1:
 			return self.processStatus
@@ -346,6 +346,7 @@ class CodeMod( object ):
 		self.path = srcPath				# Root folder path that contains this mod
 		self.type = 'static'
 		self.state = 'disabled'
+		self.category = ''
 		self.stateDesc = ''				# Describes reason for the state. Shows as a text status on the mod in the GUI
 		self.configurations = {}		# Will be a dict of option dictionaries			required keys: name, type, value
 																						# optional keys: default, members, 
@@ -730,18 +731,21 @@ class CodeLibraryParser():
 	def __init__( self ):
 
 		self.stopToRescan = False
-		self.codeMods = []
-		self.modNames = set()
 		self.includePaths = []
+		self.modNames = set()
+		self.codeMods = []
 
 	def processDirectory( self, folderPath ):
 
+		""" Starting point for processing a Code Library. Recursively processes sub-folders. """
+
+		parentFolderName = os.path.split( os.path.split(folderPath)[0] )[1]
 		itemsInDir = os.listdir( folderPath ) # May be files or folders
 		includePaths = [ folderPath ] + self.includePaths
 
 		# Check if this folder is a mod in AMFS format
 		if 'codes.json' in itemsInDir:
-			self.parseAmfs( folderPath, includePaths )
+			self.parseAmfs( folderPath, includePaths, parentFolderName )
 			return
 
 		# Check if there are any items in this folder to be processed exclusively (item starting with '+')
@@ -757,16 +761,22 @@ class CodeLibraryParser():
 				continue # User can optionally exclude these folders from parsing
 			
 			itemPath = os.path.normpath( os.path.join(folderPath, item) )
+			ext = os.path.splitext( item )[1].lower()
 
+			# Process sub-folders. Recursive fun!
 			if os.path.isdir( itemPath ):
-				self.processDirectory( itemPath ) # Recursive fun!
+				self.processDirectory( itemPath )
 
-			elif item.lower().endswith( '.txt' ):
+			# Process MCM format files
+			elif ext == '.txt':
 				# Collect all mod definitions from this file
 				self.parseModsLibraryFile( itemPath, includePaths )
 
-		if self.stopToRescan:
-			print 'stopping to rescan'
+			# Process standalone .asm/.s files as their own mod
+			elif ext == '.asm':
+				self.parseStandaloneInjection( item, itemPath, includePaths )
+			elif ext == '.s':
+				self.parseStandaloneOverwrite( item, itemPath, includePaths )
 
 	def getModByName( self, name ):
 
@@ -1117,8 +1127,6 @@ class CodeLibraryParser():
 
 				if isVersionHeader:
 					# Remember the version that subsequent code lines are for
-					# currentRevision = self.normalizeRegionString( headerStringStart )
-					# if currentRevision not in mod.data: mod.data[currentRevision] = []
 					mod.setCurrentRevision( self.normalizeRegionString(headerStringStart) )
 
 					if self.isGeckoCodeHeader( line ):
@@ -1251,9 +1259,74 @@ class CodeLibraryParser():
 
 			self.storeMod( mod )
 
-		# 	collectedMods.append( mod )
+	def parseStandaloneInjection( self, item, sourceFile, includePaths ):
 
-		# return collectedMods
+		""" Creates a mod from a single, standalone .asm file. """
+
+		# Create the mod object
+		modName = os.path.splitext( item )[0] # i.e. filename without extension
+		mod = CodeMod( modName, 'TBD', '', sourceFile, True )
+		mod.setCurrentRevision( 'NTSC 1.02' ) # Assumption time #todo (optionally add param to header)
+		mod.desc = 'Injection from standalone file "{}"'.format( sourceFile )
+		mod.includePaths = includePaths
+		
+		# Read the file for info and the custom code
+		returnCode, address, author, customCode = self.getCustomCodeFromFile( sourceFile, mod, True, modName )
+
+		# Check for errors
+		if returnCode != 0:
+			return # Errors have already been recorded and reported
+		elif not address:
+			mod.parsingError = True
+			mod.stateDesc = 'Missing address for "{}"'.format( sourceFile )
+			mod.errors.append( 'Unable to find an address for ' + sourceFile )
+			return
+
+		if author:
+			mod.auth = author
+
+		codeChange = CodeChange( mod, 'static', address, '', customCode )
+		codeChange.evaluate()
+
+		if codeChange.length > 4:
+			codeChange.type = 'injection'
+			if mod.type == 'static':
+				mod.type = 'injection'
+
+		mod.data[mod.currentRevision].append( codeChange )
+		self.storeMod( mod )
+
+	def parseStandaloneOverwrite( self, item, sourceFile, includePaths ):
+
+		""" Creates a mod from a single, standalone .s file. """
+
+		# Create the mod object
+		modName = os.path.splitext( item )[0] # i.e. filename without extension
+		mod = CodeMod( modName, 'TBD', '', sourceFile, True )
+		mod.setCurrentRevision( 'NTSC 1.02' ) # Assumption time #todo (optionally add param to header)
+		mod.desc = 'Injection from standalone file "{}"'.format( sourceFile )
+		mod.includePaths = includePaths
+		
+		# Read the file for info and the custom code
+		returnCode, address, author, customCode = self.getCustomCodeFromFile( sourceFile, mod, True, modName )
+
+		# Check for errors
+		if returnCode != 0:
+			return # Errors have already been recorded and reported
+		elif not address:
+			mod.parsingError = True
+			mod.stateDesc = 'Missing address for "{}"'.format( sourceFile )
+			mod.errors.append( 'Unable to find an address for ' + sourceFile )
+			return
+
+		if author:
+			mod.auth = author
+
+		codeChange = CodeChange( mod, 'static', address, '', customCode )
+		codeChange.evaluate()
+
+		mod.data[mod.currentRevision].append( codeChange )
+		self.storeMod( mod )
 
 	def storeMod( self, mod ):
 
@@ -1381,12 +1454,12 @@ class CodeLibraryParser():
 
 		return title, authors, '\n'.join( description ), codeChanges
 
-	def parseAmfs( self, folderPath, includePaths ):
+	def parseAmfs( self, folderPath, includePaths, categoryDefault ):
 
 		""" This method is the primary handler of the ASM Mod Folder Structure (AMFS). This will 
 			create a mod container object to store the mod's code changes and other data, and 
 			step through each code change dictionary in the JSON file's build list. """
-			
+
 		# Open the json file and get its file contents (need to do this early so we can check for a mod category)
 		try:
 			with open( os.path.join(folderPath, 'codes.json'), 'r' ) as jsonFile:
@@ -1397,7 +1470,8 @@ class CodeLibraryParser():
 			return
 
 		codeSection = jsonContents.get( 'codes' )
-		primaryCategory = jsonContents.get( 'category', 'Uncategorized' ) # Applies to all in this json's "codes" list
+		#primaryCategory = jsonContents.get( 'category', 'Uncategorized' ) # Applies to all in this json's "codes" list
+		primaryCategory = jsonContents.get( 'category', categoryDefault ) # Applies to all in this json's "codes" list
 
 		if codeSection:
 			for codeset in codeSection:
@@ -1427,16 +1501,16 @@ class CodeLibraryParser():
 					elif isinstance( item, (str, unicode) ): # Assume it's just a url, missing a comment
 						mod.webLinks.append( (item, '') )
 
-				buildSet = codeset.get( 'build' )
+				buildList = codeset.get( 'build' )
 
-				if buildSet:
-					for codeChangeDict in buildSet:
+				if buildList:
+					for codeChangeDict in buildList:
 						codeType = codeChangeDict['type']
 						
 						if codeType == 'replace': # Static Overwrite; basically an 02/04 Gecko codetype (hex from json)
 							mod.addStaticOverwrite( codeChangeDict['address'], codeChangeDict['value'].splitlines() )
 
-						elif codeType == 'inject': # Standard code injection
+						elif codeType == 'inject': # Standard code injection (hex from file)
 							self.parseAmfsInject( codeChangeDict, mod )
 
 						elif codeType == 'replaceCodeBlock': # Static overwrite of variable length (hex from file)
@@ -1445,7 +1519,7 @@ class CodeLibraryParser():
 						elif codeType == 'branch' or codeType == 'branchAndLink':
 							mod.errors.append( 'The ' + codeType + ' AMFS code type is not yet supported' )
 
-						elif codeType == 'injectFolder':
+						elif codeType == 'injectFolder': # Process a folder of .asm files; all as code injections
 							self.parseAmfsInjectFolder( codeChangeDict, mod )
 
 						elif codeType == 'replaceBinary':
@@ -1472,30 +1546,42 @@ class CodeLibraryParser():
 			#self.errors.append( "No 'codes' section found in codes.json" ) #todo
 			msg( 'No "codes" section found in codes.json for the mod in "{}".'.format(folderPath) )
 
-	def readInjectionAddressHeader( self, asmFile ):
+	def parseSourceFileHeader( self, asmFile ):
 
 		""" Reads and returns the address for a custom code overwrite or injection from a .asm file header. """
 
 		# Parse the first line to get an injection site (offset) for this code
-		headerLine = asmFile.readline()
+		firstLine = asmFile.readline()
+		address = ''
+		author = '??'
 
 		# Check for the original 1-line format
-		if headerLine.startswith( '#' ) and 'inserted' in headerLine:
-			return headerLine.split()[-1] # Splits by whitespace and gets the resulting last item
+		if firstLine.startswith( '#' ) and 'inserted' in firstLine:
+			address = firstLine.split()[-1] # Splits by whitespace and gets the resulting last item
+
+			# Parse the second line to check for an author
+			secondLine = asmFile.readline()
+			if secondLine.startswith( '#' ) and 'Author:' in secondLine:
+				author = secondLine.split()[-1]
 
 		# Check for the multi-line format
-		elif headerLine.startswith( '#######' ):
+		elif firstLine.startswith( '#######' ):
 			while 1:
 				line = asmFile.readline()
+
 				if 'Address:' in line:
-					return line.split()[2]
+					address = line.split()[-1]
+				elif 'Author:' in line:
+					author = line.split()[-1]
 				elif line.startswith( '#######' ) or not line:
-					return -1 # Failsafe; reached the end of the header (or file!) without finding the address
+					break # Failsafe; reached the end of the header (or file!) without finding the address
 
-	def getCustomCodeFromFile( self, fullAsmFilePath, mod, parseOffset=False, annotation='' ):
+		return address, author
 
-		""" Gets custom code from a given file and pre-processes it (removes whitespace, and/or assembles it). 
-			If parseOffset is False, the offset in the file header isn't needed because the calling function 
+	def getCustomCodeFromFile( self, fullAsmFilePath, mod, parseHeader=False, annotation='' ):
+
+		""" Gets address, author (if present), and custom code from a given file. 
+			If parseHeader is False, the offset/author in the file header isn't needed because the calling function 
 			already has it from a codeChange dictionary. (If it does need to be parsed, the calling function 
 			only had a sourceFile for reference (most likely through a injectFolder code type).) 
 				May return these return codes:
@@ -1510,12 +1596,13 @@ class CodeLibraryParser():
 		try:
 			# Open the file in byte-reading mode (rb). Strings will then need to be encoded.
 			with codecs.open( fullAsmFilePath, encoding='utf-8' ) as asmFile: # Using a different read method for UTF-8 encoding
-				if parseOffset:
-					offset = self.readInjectionAddressHeader( asmFile )
+				if parseHeader:
+					offset, author = self.parseSourceFileHeader( asmFile )
 					decodedString = asmFile.read().encode( 'utf-8' )
 					customCode = '# {}\n{}'.format( annotation, decodedString )
 				else:
 					offset = ''
+					author = ''
 
 					# Collect all of the file contents
 					firstLine = asmFile.readline().encode( 'utf-8' )
@@ -1533,7 +1620,7 @@ class CodeLibraryParser():
 			#mod.state = 'unavailable'
 			mod.stateDesc = 'Missing source files'
 			mod.errors.append( "Unable to find the file " + os.path.basename(fullAsmFilePath) )
-			return 4, '', ''
+			return 4, '', '', ''
 			
 		except Exception as err: # Unknown error
 			print err
@@ -1541,9 +1628,9 @@ class CodeLibraryParser():
 			#mod.state = 'unavailable'
 			mod.stateDesc = 'File reading error with ' + annotation
 			mod.errors.append( 'Encountered an error while reading {}: {}'.format(os.path.basename(fullAsmFilePath), err) )
-			return 5, '', ''
+			return 5, '', '', ''
 
-		return 0, offset, customCode
+		return 0, offset, author, customCode
 			
 		# Pre-process the custom code (make sure there's no whitespace, and/or assemble it)
 		# returnCode, preProcessedCustomCode = globalData.codeProcessor.preAssembleRawCode( customCode, [os.path.dirname(fullAsmFilePath)] + mod.includePaths, suppressWarnings=True )
@@ -1590,9 +1677,9 @@ class CodeLibraryParser():
 
 		# Record an error message for this
 		if address and not sourceFile:
-			mod.errors.append( 'Injection at {} missing "sourceFile"'.format(address) )
-		if not address and sourceFile:
-			mod.errors.append( '{} injection missing its "address" field'.format(sourceFile) )
+			mod.errors.append( 'Injection at {} missing "sourceFile" path'.format(address) )
+		if sourceFile and not address:
+			mod.errors.append( '{} injection missing its "address" value'.format(sourceFile) )
 		elif not address and not sourceFile:
 			# Combine like messages
 			for i, errMsg in enumerate( mod.errors ):
@@ -1611,19 +1698,18 @@ class CodeLibraryParser():
 
 		""" AMFS Injection; custom code sourced from an assembly file. """
 
+		# There will be no codeChangeDict if a source file was provided (i.e. an inject folder is being processed)
 		if not sourceFile:
 			address, sourceFile = self.getAddressAndSourceFile( codeChangeDict, mod )
 			fullAsmFilePath = os.path.join( mod.path, sourceFile )
 			annotation = codeChangeDict.get( 'annotation', '' )
-		else: # No codeChangeDict if a source file was provided (this is an inject folder being processed)
+		else:
 			address = ''
 			fullAsmFilePath = sourceFile # This will be a full path in this case
 			annotation = ''
 
-		# Get the custom code from the ASM file and pre-process it (make sure there's no whitespace, and/or assemble it)
-		#returnCode, address, customCode, preProcessedCustomCode = self.getCustomCodeFromFile( fullAsmFilePath, mod, True, annotation )
-
-		returnCode, address, customCode = self.getCustomCodeFromFile( fullAsmFilePath, mod, True, annotation )
+		# Read the file for info and the custom code
+		returnCode, address, _, customCode = self.getCustomCodeFromFile( fullAsmFilePath, mod, True, annotation )
 
 		# Check for errors
 		if returnCode != 0:
@@ -1642,7 +1728,6 @@ class CodeLibraryParser():
 			if mod.type == 'static':
 				mod.type = 'injection'
 
-		#codeChange.length = customCodeLength
 		mod.data[mod.currentRevision].append( codeChange )
 
 	def parseAmfsReplaceCodeBlock( self, codeChangeDict, mod ):
@@ -1660,9 +1745,13 @@ class CodeLibraryParser():
 		fullAsmFilePath = '\\\\?\\' + os.path.normpath( os.path.join(mod.path, sourceFile) )
 		annotation = codeChangeDict.get( 'annotation', '' ) # Optional; may not be there
 		
-		# Get the custom code from the ASM file and pre-process it (make sure there's no whitespace, and/or assemble it)
-		returnCode, _, customCode = self.getCustomCodeFromFile( fullAsmFilePath, mod, False, annotation )
-		if returnCode != 0: return
+		# Read the file for info and the custom code
+		returnCode, _, _, customCode = self.getCustomCodeFromFile( fullAsmFilePath, mod, False, annotation )
+		if returnCode != 0:
+			# mod.parsingError = True
+			# mod.stateDesc = 'Parsing error; unable to get code from file'
+			# mod.errors.append( "Unable to read the 'sourceFile' {}".format(sourceFile) )
+			return
 
 		# Get the offset of the code change, and the original code at that location
 		#offset = codeChangeDict.get( 'address', '' )
@@ -1704,8 +1793,15 @@ class CodeLibraryParser():
 		sourceFolder = codeChangeDict['sourceFolder']
 		sourceFolderPath = os.path.join( mod.path, sourceFolder )
 
+		# Check recursive flag
+		isRecursive = codeChangeDict.get( 'isRecursive', -1 )
+		if isRecursive == -1: # Flag not found!
+			mod.parsingError = True
+			mod.errors.append( 'No "isRecursive" flag defined for the {} folder.'.format(sourceFolder) )
+			return
+
 		# try:
-		self.processAmfsInjectSubfolder( sourceFolderPath, mod, codeChangeDict['isRecursive'] )
+		self.processAmfsInjectSubfolder( sourceFolderPath, mod, isRecursive )
 		# except WindowsError as err:
 		#	# Try again with extended path formatting
 		# 	print 'second try for', sourceFolderPath

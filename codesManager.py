@@ -139,7 +139,7 @@ class CodeManagerTab( ttk.Frame ):
 		# Prevent focus on the tabs themselves (prevents appearance of selection box)
 		# currentTab = globalData.gui.root.nametowidget( self.codeLibraryNotebook.select() )
 		# currentTab.focus()
-		#print 'tab changed; called with event:', event
+		print 'tab changed; called with event:', event
 		#time.sleep(2)
 
 		# Remove existing ModModules, and only add those for the currently selected tab
@@ -265,6 +265,8 @@ class CodeManagerTab( ttk.Frame ):
 			child.destroy()
 
 		self.installTotalLabel.set( '' )
+
+		self.lastTabSelected = None # Allows the next onTabChange to proceed if this was called independently of it
 
 	def _reattachTabChangeHandler( self, notebook ):
 
@@ -415,7 +417,14 @@ class CodeManagerTab( ttk.Frame ):
 		self.parser.processDirectory( self.libraryFolder )
 		globalData.codeMods = self.parser.codeMods
 
-		self.populateCodeLibraryTabs( targetCategory, sliderYPos )
+		# Add the mods parsed above to the GUI
+		if globalData.codeMods:
+			self.populateCodeLibraryTabs( targetCategory, sliderYPos )
+
+		else: # If no mods are present, add a simple message for the user
+			warningMsg = 'Unable to find code mods in this library:\n\n' + self.libraryFolder
+			ttk.Label( self.codeLibraryNotebook, text=warningMsg, background='white', wraplength=600, justify='center' ).place( relx=0.3, rely=0.5, anchor='s' )
+			ttk.Label( self.codeLibraryNotebook, image=globalData.gui.imageBank('randall'), background='white' ).place( relx=0.3, rely=0.5, anchor='n', y=10 ) # y not :P
 
 		# Check once more if another scan is queued. (e.g. if the scan mods button was pressed again while checking for installed mods)
 		if self.parser.stopToRescan:
@@ -453,13 +462,6 @@ class CodeManagerTab( ttk.Frame ):
 		modsPanels = {}
 		modPanelToScroll = None
 
-		# If no mods are present, add a simple message and return
-		if not globalData.codeMods:
-			warningMsg = 'Unable to find code mods in this library:\n\n' + self.libraryFolder
-			ttk.Label( self.codeLibraryNotebook, text=warningMsg, background='white', wraplength=600, justify='center' ).place( relx=0.3, rely=0.5, anchor='s' )
-			ttk.Label( self.codeLibraryNotebook, image=globalData.gui.imageBank('randall'), background='white' ).place( relx=0.3, rely=0.5, anchor='n', y=10 ) # y not :P
-			return
-
 		# If a disc is loaded, check if the parsed mods are installed in it
 		if globalData.disc:
 			globalData.disc.dol.checkForEnabledCodes( globalData.codeMods )
@@ -467,20 +469,27 @@ class CodeManagerTab( ttk.Frame ):
 		#print '\tThese mods detected as installed:'
 
 		for mod in globalData.codeMods:
-			if mod.isAmfs: # Its source path is already a directory
-				modParentFolder = mod.path
-			else:
-				modParentFolder = os.path.dirname( mod.path )
+			# if mod.isAmfs: # Its source path is already a directory
+			# 	parentFolderPath = mod.path
+			# else:
+			parentFolderPath = os.path.dirname( mod.path )
+			parentFolderName = os.path.split( parentFolderPath )[1]
 			
 			# Get a path for this mod, relative to the library root (display core codes as relative to root as well)
-			if mod.isAmfs and os.path.dirname( modParentFolder ) == globalData.paths['coreCodes']:
+			#if mod.isAmfs and os.path.dirname( parentFolderPath ) == globalData.paths['coreCodes']:
+			if mod.isAmfs and parentFolderPath == globalData.paths['coreCodes']:
 				relPath = ''
-			elif modParentFolder == globalData.paths['coreCodes']: # For the "Core Codes.txt" file
+			elif parentFolderPath == globalData.paths['coreCodes']: # For the "Core Codes.txt" file
+				relPath = ''
+			elif parentFolderName == mod.category:
 				relPath = ''
 			else:
-				relPath = os.path.relpath( modParentFolder, self.libraryFolder )
+				relPath = os.path.relpath( parentFolderPath, self.libraryFolder )
 				if relPath == '.': relPath = ''
 
+			# 
+			# 	modsPanel = modsPanels.get( '\\' + mod.category )
+			# else:
 			modsPanel = modsPanels.get( relPath + '\\' + mod.category )
 
 			# Add parent notebooks, if needed, and/or get the parent for this mod
@@ -537,6 +546,7 @@ class CodeManagerTab( ttk.Frame ):
 
 		# If a previous tab and scroll position are desired, set them here
 		if modPanelToScroll:
+			self.lastTabSelected = None # Allows the next onTabChange to proceed if this was called independently of it
 			self.selectCodeLibraryTab( modPanelToScroll.master )
 
 			# Update idle tasks so the modPanel's height and scroll position calculate correctly

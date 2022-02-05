@@ -1,233 +1,3 @@
-
-!
-	[  These codes are for testing MCM/MMW code installation functionality.	]
-	[  Applying these codes should create a DOL with hash _.  		]
-	[  And should have these effects:					]
-	[	- Bowser can Flame Cancel					]
-	[	- Captain Falcon cannot rapid-jab				]
-	[	- 					]
-	[	- 					]
-
-
-	-==-
-
-
-Bowser - Flame Cancel [TEST]
-Test for static overwrite functionality.
-Restores his Flame Cancel ability to as it was in v1.00.
-[Achilles]
-Version -- DOL Offset ------ Hex to Replace ---------- ASM Code
-1.02 ------ 0x132264 ---- 38800155 -> 38800156
-
-
-	-==-
-
-
-Captain Falcon - No Rapid Jabs [TEST]
-Test for code injection functionality.
-[Achilles]
-Version -- DOL Offset ------ Hex to Replace ---------- ASM Code
-1.02 ------ 0xD376C ---- 7C0802A6 -> Branch
-
-81DE0064 2C0E0002
-40820008 4E800020
-7C0802A6 00000000
-
-
-	-==-
-
-
-Uses TEST_Func
-[DRGN]
-Revision ---- DOL Offset ---- Hex to Replace ---------- ASM Code -
-NTSC 1.02 ----- 0x1234 ------ 00000000 -> Branch
-
-81DE0064 2C0E0002
-40820008 4E800020
-7C0802A6 00000000
-bl <TEST_Func>
-7C0802A6 00000000
-
-<TEST_Func> ALL
-7C0802A6 00000000
-7C0802A6 00000000
-
-
-	-==-
-
-
-Configuration A TEST
-Example mod demonstration for various configurations types.
-Configurations:
-    float Float Slider = .6 (0xFF); 0-1.0 # You can even set comments
-    int32 Int Slider = 42; 0-100 # You can even set comments
-    uint32 Object = 0x4 # Select your preferred vegetable features
-        0: Point # Optional comment/description
-        1: Line
-        2: Square
-        3: Cube # Another comment
-        4: Tesseract
-    int16 Some INT16 = 0x16
-    int16 Object 2 = 0x2 # Select your preferred vegetable features
-        0: Point # Optional comment/description
-        1: Line
-        2: Square
-        3: Cube # Another comment
-        4: Tesseract
-[DRGN]
-Version -- DOL Offset ------ Hex to Replace ---------- ASM Code
-1.02 ----- 0x802BD410 --- 7CC83378 -> 390000[[Object 2]]
-1.02 ----- 0x8011D090 --- 40820010 -> 48000010
-
-
-	-==-
-
-
-Configuration B TEST
-Testing for reading an installed mod configuration within a DOL, including multiple values ORed to the same location.
-Configurations:
-    int32 VarInt32 = 50 (0xFF00)
-    int8 VarInt8 = 50 (0xFF)
-[DRGN]
-Revision ---- DOL Offset ---- Hex to Replace ---------- ASM Code -
-NTSC 1.02 ----- 0x1234 ------ 00000000 -> Branch
-
-81DE0064 2C0E0002
-40820008 [[VarInt32|VarInt8]]
-7C0802A6 00000000
-bl <TEST_Func>
-7C0802A6 00000000
-
-<TEST_Func> ALL
-7C0802A6 00000000
-7C0802A6 00000000
-
-
-	-==-
-
-
-Peach - Always Pull Specific Turnip [TEST]
-The default for this code is Stitch Face, but it can be changed to any of the turnips.
-Configurations:
-    uint8 Turnip Type = 0x7; 0-0x7 # Select your preferred vegetable features
-        0: Smile # The smile Turnip. (This is an optional comment/description)
-        1: T Eyes # A comment on T Eyes
-        2: Line Eyes
-        3: Circle Eyes
-        4: Upward Curve Eyes
-        5: Wink # Knows something you don't
-        6: Dot Eyes
-        7: Stitch Face # The deadliest of vegetables
-[??]
-Version -- DOL Offset ------ Hex to Replace ---------- ASM Code
-1.02 ----- 0x802BD410 --- 7CC83378 -> 390000[[Turnip Type]]
-1.02 ----- 0x8011D090 --- 40820010 -> 48000010
-1.01 ----- 0x802BC988 --- 7CC83378 -> 390000[[Turnip Type]]
-1.01 ----- 0x8011CE04 --- 40820010 -> 48000010
-1.00 ----- 0x802BBDA0 --- 38C60001 -> 390000[[Turnip Type]]
-1.00 ------ 0x11CA54 ---- 7FE3FB78 -> 48000010
-
-
-	-==-
-
-!
-testcode
-testDesc
-[Punkline]
-Revision ---- DOL Offset ---- Hex to Replace ---------- ASM Code -
-<mytestfunc> ALL
-00000000 00000000
-00000000 00000000
-
-NTSC 1.02 ---- 0xBF980 ------ 38B80001 -> Branch
-
-lis r0, <<mytestfunc>>@h
-ori r4, r0, <<mytestfunc>>@l
-80A3000C 7C842A14
-00000000
-
-
-	-==-
-
-!
-Just an SF
-[DRGN]
-<TEST_Func> NTSC 1.02
-.long 0x01234567
-.long 0x01234567
-
-.long 0x01234567
-
-.long 0x01234567
-.long 0x01234567
-
-
-	-==-
-
-Err!
-[DRGN]
-<TEST_Func> NTSC 1.02
-notCode
-
-
-	-==-
-
-!
-Test End File Alignment on Main Menu Load
-Tests for alignment error
-[Punkline]
-Version -- DOL Offset ------ Hex to Replace ---------- ASM Code
-1.02 ------ 0x1ADF4C ---- 80010024 -> branch
-
-# --- SDATA offsets
-r13.xFSTEntries = -0x4424
-r13.xFSTPaths   = -0x4420
-r13.xFSTCount   = -0x441C
-r13.xDVDAsyncQueue = -0x3ea8
-
-# rFST:
-FST.xStr    = 0x0
-FST.xOffset = 0x4
-FST.xSize   = 0x8
-FST.size    = 0xC
-
-
-rFST = 31
-
-lwz r3, r13.xFSTCount(r13)
-subi r3, r3, 1
-lwz rFST, r13.xFSTEntries(r13)
-mulli r3, r3, FST.size
-add rFST, rFST, r3
-# rFST = last file in FST entries
-
-lwz r3, FST.xSize(rFST)
-bl 0x80381fa8  # hsdAllocMemPiece
-# allocate space for loading file
-
-lwz r30, 0x24(sp)  # backup sp value for safe return
-mr r4, r3                  # r3 = path str
-lwz r3, FST.xStr(rFST)     # r4 = file output
-addi r5, sp, 0x24          # r5 = temp value to store file size
-lwz rFST, r13.xFSTPaths(r13)
-add r3, r3, rFST
-bl 0x8001668c  # DVD.load
-# attempt to load last file in ISO into allocated space
-
-mr r0, r30  # recover last instruction from backup sp value
-.long 0     # return from injection
-
-
-	-==-
-
-!
-Boot to Match [TEST]
-Boots directly into a match, with configurable options.
-<https://smashboards.com/threads/boot-to-custom-match.474651/>
-[UnclePunch]
-Revision ---- DOL Offset ---- Hex to Replace ---------- ASM Code -
-NTSC 1.02 --- 0x801b148c ---- BB610014 -> Branch
-
 #To be inserted at 801b148c
 .macro branchl reg, address
 lis \reg, \address @h
@@ -251,41 +21,13 @@ ori \reg, \reg, \address @l
 ################################
 ## Match variable definitions ##
 ################################
-.set Timer_Frozen,0x0
-.set Timer_Unknown,0x1
-.set Timer_CountDown,0x02
-.set Timer_CountUp,0x03
-
-.set HUDCount_One,0x04
-.set HUDCount_Two,0x08
-.set HUDCount_Three,0x0C
-.set HUDCount_Four,0x10
-.set HUDCount_Five,0x14
-.set HUDCount_Six,0x18
-
-.set MatchType_Stock,0x20
-.set MatchType_Time,0x00
-########################
-.set Music_On,0x8
-.set Music_Off,0x0
 
 .set READY_On,0x00
 .set READY_Off,0x20
 ########################
 .set Offscreen_Unk,0x40
 .set Offscreen_Unk2,0x00
-
-.set HUD_Create,0x02
-.set HUD_DontCreate,0x00
-
-.set SingleButton_On,0x10
-.set SingleButton_Off,0x00
 ########################
-.set HUD_ShowScore,0x80
-.set HUD_HideScore,0x00
-
-.set Timer_RunWhilePaused,0x01
-.set Timer_StopWhilePaused,0x00
 .set Pause_HideHUD,0x02
 .set Pause_ShowLRAStart,0x04
 .set Pause_CheckForLRAStart,0x08
@@ -296,9 +38,6 @@ ori \reg, \reg, \address @l
 .set Stock_RunStockLogic,0x20
 .set Stock_NoStockLogic,0x0
 ########################
-.set HitboxCollision_Disable,0x20
-.set HitboxCollision_Enable,0x00
-
 .set Stock_SkipUnkStockCode,0x40
 
 .set Match_SkipCheckForGameEnd,0x80
@@ -312,76 +51,6 @@ ori \reg, \reg, \address @l
 ########################
 .set KOCounter_Enable,0x1
 .set KOCounter_Disable,0x0
-########################
-.set Items_Off,-1
-.set Items_VeryLow,0
-.set Items_Low,1
-.set Items_Medium,2
-.set Items_High,3
-.set Items_VeryHigh,4
-########################
-#Character External IDs
-.set CaptainFalcon,0x0
-.set DK,0x1
-.set Fox,0x2
-.set GaW,0x3
-.set Kirby,0x4
-.set Bowser,0x5
-.set Link,0x6
-.set Luigi,0x7
-.set Mario,0x8
-.set Marth,0x9
-.set Mewtwo,0xA
-.set Ness,0xB
-.set Peach,0xC
-.set Pikachu,0xD
-.set IceClimbers,0xE
-.set Jigglypuff,0xF
-.set Samus,0x10
-.set Yoshi,0x11
-.set Zelda,0x12
-.set Sheik,0x13
-.set Falco,0x14
-.set YLink,0x15
-.set Doc,0x16
-.set Roy,0x17
-.set Pichu,0x18
-.set Ganondorf,0x19
-########################
-
-#Stage External IDs
-.set FoD,0x2
-.set PokemonStadium,0x3
-.set PeachsCastle,0x4
-.set KongoJungle,0x5
-.set Brinstar,0x6
-.set Corneria,0x7
-.set YoshiStory,0x8
-.set Onett,0x9
-.set MuteCity,0xA
-.set RainbowCruise,0xB
-.set JungleJapes,0xC
-.set GreatBay,0xD
-.set HyruleTemple,0xE
-.set BrinstarDepths,0xF
-.set YoshiIsland,0x10
-.set GreenGreens,0x11
-.set Fourside,0x12
-.set MushroomKingdomI,0x13
-.set MushroomKingdomII,0x14
-.set Akaneia,0x15
-.set Venom,0x16
-.set PokeFloats,0x17
-.set BigBlue,0x18
-.set IcicleMountain,0x19
-.set IceTop,0x1A
-.set FlatZone,0x1B
-.set DreamLand,0x1C
-.set YoshiIsland64,0x1D
-.set KongoJungle64,0x1E
-.set Battlefield,0x1F
-.set FinalDestination,0x20
-
 ########################
 .set PlayerStatus_Human,0x0
 .set PlayerStatus_CPU,0x1
@@ -448,24 +117,24 @@ blrl
 ################
 
 #Timer, HUD, Pause, and Player Count
-  .byte Timer_CountDown | HUDCount_Two | MatchType_Stock
-  .byte Music_On | READY_On
-  .byte Offscreen_Unk2 | HUD_Create
-  .byte HUD_HideScore | Timer_StopWhilePaused | Pause_ShowLRAStart | Pause_CheckForLRAStart | Pause_ShowAnalogStick
+  .byte [[Timer]] | [[HUD Count]] | [[Match Type]]
+  .byte [[Music]] | [[GO! Display]]
+  .byte [[Offscreen Unknown]] | [[Show HUD]]
+  .byte [[Show Player Scores]] | [[Timer Stops While Paused]] | Pause_ShowLRAStart | Pause_CheckForLRAStart | Pause_ShowAnalogStick
 #Stocks, Grab behavior, Game End Logic, Bomb Rain
   .byte Stock_RunStockLogic
-  .byte HitboxCollision_Enable | Match_CheckForGameEnd
+  .byte [[Hitbox Collisions]] | Match_CheckForGameEnd
   .byte BombRain_Off
   .byte 0
 #Teams, KO Counter, Item frequency
   .byte Teams_Off
   .byte KOCounter_Disable
   .byte 0
-  .byte Items_Off
+  .byte [[Items]]
 #Item behavior, Stage ID
   .byte 0
   .byte 0
-  .hword FinalDestination
+  .hword [[Stage]]
 #Timer (in seconds)
   .long 480       #seconds
   .byte 0         #milliseconds
@@ -514,13 +183,13 @@ blrl
 #################
 
 #Player 1
-.byte Marth
+.byte [[Player 1 Character]]
 .byte PlayerStatus_Human
 .byte 4                         #Stock Count
-.byte 0                         #Costume ID
+.byte [[P1 Costume ID]]         #Costume ID
 .byte 0                         #Port number override (0 = default)
 .byte -1                        #Spawn point override (-1 = default)
-.byte 0                         #Initial Facing Direction? (0 is default)
+.byte [[P1 Facing Direction]]   #Initial Facing Direction? (0 is default)
 .byte Subcolor_Normal           #Subcolor
 .byte 9                         #Handicap (9 seems to be the default)
 .byte Team_None                 #Team ID
@@ -539,13 +208,13 @@ blrl
 .float 1.0                      #Model Scale
 
 #Player 2 Info
-.byte Marth
+.byte [[Player 2 Character]]
 .byte PlayerStatus_Human
 .byte 4                         #Stock Count
-.byte 0                         #Costume ID
+.byte [[P2 Costume ID]]         #Costume ID
 .byte 0                         #Port number override (0 = default)
 .byte -1                        #Spawn point override (-1 = default)
-.byte 0                         #Initial Facing Direction? (0 is default)
+.byte [[P2 Facing Direction]]   #Initial Facing Direction? (0 is default)
 .byte Subcolor_Normal           #Subcolor
 .byte 9                         #Handicap (9 seems to be the default)
 .byte Team_None                 #Team ID
@@ -564,13 +233,13 @@ blrl
 .float 1.0                      #Model Scale
 
 #Player 3 Info
-.byte Marth
+.byte [[Player 3 Character]]
 .byte PlayerStatus_None
 .byte 4                         #Stock Count
-.byte 0                         #Costume ID
+.byte [[P3 Costume ID]]         #Costume ID
 .byte 0                         #Port number override (0 = default)
 .byte -1                        #Spawn point override (-1 = default)
-.byte 0                         #Initial Facing Direction? (0 is default)
+.byte [[P3 Facing Direction]]   #Initial Facing Direction? (0 is default)
 .byte Subcolor_Normal           #Subcolor
 .byte 9                         #Handicap (9 seems to be the default)
 .byte Team_None                 #Team ID
@@ -589,13 +258,13 @@ blrl
 .float 1.0                      #Model Scale
 
 #Player 4 Info
-.byte Marth
+.byte [[Player 4 Character]]
 .byte PlayerStatus_None
 .byte 4                         #Stock Count
-.byte 0                         #Costume ID
+.byte [[P4 Costume ID]]         #Costume ID
 .byte 0                         #Port number override (0 = default)
 .byte -1                        #Spawn point override (-1 = default)
-.byte 0                         #Initial Facing Direction? (0 is default)
+.byte [[P4 Facing Direction]]   #Initial Facing Direction? (0 is default)
 .byte Subcolor_Normal           #Subcolor
 .byte 9                         #Handicap (9 seems to be the default)
 .byte Team_None                 #Team ID
@@ -617,4 +286,4 @@ blrl
 
 exit:
 lmw    r27, 0x0014 (sp)
-b 0
+b 0 	# Branch back to injection site (branch distance calculated upon installation)

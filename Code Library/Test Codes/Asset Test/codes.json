@@ -1,0 +1,396 @@
+{
+	"codes": [
+		{
+			"name": "Asset Test",
+			"authors": [ "UnclePunch" ],
+			"description": [ "Configures the game to boot strait into a match or menu, with configurable settings." ],
+			"category": "Asset Test",
+			"webLinks": [ "https://smashboards.com/threads/boot-to-custom-match.474651/", "" ],
+
+			"configurations": {
+				"Timer": {
+					"type": "uint8",
+					"value": 0,
+					"default": 2,
+					"members": [
+						[ "None", 0 ],
+						[ "Unknown", 1 ],
+						[ "Count Down", 2 ],
+						[ "Count Up", 3 ]
+					]
+				},
+				"HUD Count": {
+					"type": "uint8",
+					"value": 8,
+					"default": 8,
+					"members": [
+						[ "One", 4 ],
+						[ "Two", 8 ],
+						[ "Three", 12 ],
+						[ "Four", 16 ],
+						[ "Five", 20 ],
+						[ "Six", 24 ]
+					]
+				},
+				"Match Type": {
+					"type": "uint8",
+					"value": 0,
+					"default": 32,
+					"members": [
+						[ "Stock", 32 ],
+						[ "Time", 0 ]
+					]
+				},
+				"Music": {
+					"type": "uint8",
+					"value": 0,
+					"default": 8,
+					"members": [
+						[ "On", 8 ],
+						[ "Off", 0 ]
+					]
+				},
+				"GO! Display": {
+					"type": "uint8",
+					"value": 20,
+					"default": 0,
+					"members": [
+						[ "On", 0 ],
+						[ "Off", 20 ]
+					]
+				},
+				"Offscreen Unknown": {
+					"type": "uint8",
+					"value": 0,
+					"default": 0,
+					"members": [
+						[ "Option 1", 64 ],
+						[ "Option 2", 0 ]
+					]
+				},
+				"Show HUD": {
+					"type": "uint8",
+					"value": 2,
+					"default": 2,
+					"members": [
+						[ "Yes", 2 ],
+						[ "No", 0 ]
+					]
+				},
+				"Show Player Scores": {
+					"type": "uint8",
+					"value": 0,
+					"default": 0,
+					"members": [
+						[ "Yes", 128 ],
+						[ "No", 0 ]
+					]
+				},
+				"Timer Stops While Paused": {
+					"type": "uint8",
+					"value": 0,
+					"default": 0,
+					"members": [
+						[ "Yes", 0 ],
+						[ "No", 1 ]
+					]
+				},
+				"Hitbox Collisions": {
+					"type": "uint8",
+					"value": 0,
+					"default": 0,
+					"members": [
+						[ "Enabled", 0 ],
+						[ "Disabled", 32 ]
+					]
+				},
+				"Items": {
+					"type": "int8",
+					"value": -1,
+					"default": -1,
+					"members": [
+						[ "Off", -1 ],
+						[ "Very Low", 0 ],
+						[ "Low", 1 ],
+						[ "Medium", 2 ],
+						[ "High", 3 ],
+						[ "Very High", 4 ]
+					]
+				},
+				"Player 1 Character": {
+					"type": "uint8",
+					"value": 0,
+					"default": 0,
+					"members": [
+						[ "Captain Falcon", 0 ],
+						[ "DK", 1 ],
+						[ "Fox", 2 ],
+						[ "Game & Watch", 3 ],
+						[ "Kirby", 4 ],
+						[ "Bowser", 5 ],
+						[ "Link", 6 ],
+						[ "Luigi", 7 ],
+						[ "Mario", 8 ],
+						[ "Marth", 9 ],
+						[ "Mewtwo", 10 ],
+						[ "Ness", 11 ],
+						[ "Peach", 12 ],
+						[ "Pikachu", 13 ],
+						[ "Ice Climbers", 14 ],
+						[ "Jigglypuff", 15 ],
+						[ "Samus", 16 ],
+						[ "Yoshi", 17 ],
+						[ "Zelda", 18 ],
+						[ "Sheik", 19 ],
+						[ "Falco", 20 ],
+						[ "Young Link", 21 ],
+						[ "Doc", 22 ],
+						[ "Roy", 23 ],
+						[ "Pichu", 24 ],
+						[ "Ganondorf", 25 ],
+						[ "Master Hand", 26 ],
+						[ "Male Wireframe", 27 ],
+						[ "Female Wireframe", 28 ],
+						[ "Giga Bowser", 29 ],
+						[ "Crazy Hand", 30 ],
+						[ "Sandbag", 31 ],
+						[ "Solo Popo", 32 ]
+					]
+				},
+				"Player 2 Character": {
+					"type": "uint8",
+					"value": 0,
+					"default": 0,
+					"members": [
+						[ "Captain Falcon", 0 ],
+						[ "DK", 1 ],
+						[ "Fox", 2 ],
+						[ "Game & Watch", 3 ],
+						[ "Kirby", 4 ],
+						[ "Bowser", 5 ],
+						[ "Link", 6 ],
+						[ "Luigi", 7 ],
+						[ "Mario", 8 ],
+						[ "Marth", 9 ],
+						[ "Mewtwo", 10 ],
+						[ "Ness", 11 ],
+						[ "Peach", 12 ],
+						[ "Pikachu", 13 ],
+						[ "Ice Climbers", 14 ],
+						[ "Jigglypuff", 15 ],
+						[ "Samus", 16 ],
+						[ "Yoshi", 17 ],
+						[ "Zelda", 18 ],
+						[ "Sheik", 19 ],
+						[ "Falco", 20 ],
+						[ "Young Link", 21 ],
+						[ "Doc", 22 ],
+						[ "Roy", 23 ],
+						[ "Pichu", 24 ],
+						[ "Ganondorf", 25 ],
+						[ "Master Hand", 26 ],
+						[ "Male Wireframe", 27 ],
+						[ "Female Wireframe", 28 ],
+						[ "Giga Bowser", 29 ],
+						[ "Crazy Hand", 30 ],
+						[ "Sandbag", 31 ],
+						[ "Solo Popo", 32 ]
+					]
+				},
+				"Player 3 Character": {
+					"type": "uint8",
+					"value": 0,
+					"default": 0,
+					"members": [
+						[ "Captain Falcon", 0 ],
+						[ "DK", 1 ],
+						[ "Fox", 2 ],
+						[ "Game & Watch", 3 ],
+						[ "Kirby", 4 ],
+						[ "Bowser", 5 ],
+						[ "Link", 6 ],
+						[ "Luigi", 7 ],
+						[ "Mario", 8 ],
+						[ "Marth", 9 ],
+						[ "Mewtwo", 10 ],
+						[ "Ness", 11 ],
+						[ "Peach", 12 ],
+						[ "Pikachu", 13 ],
+						[ "Ice Climbers", 14 ],
+						[ "Jigglypuff", 15 ],
+						[ "Samus", 16 ],
+						[ "Yoshi", 17 ],
+						[ "Zelda", 18 ],
+						[ "Sheik", 19 ],
+						[ "Falco", 20 ],
+						[ "Young Link", 21 ],
+						[ "Doc", 22 ],
+						[ "Roy", 23 ],
+						[ "Pichu", 24 ],
+						[ "Ganondorf", 25 ],
+						[ "Master Hand", 26 ],
+						[ "Male Wireframe", 27 ],
+						[ "Female Wireframe", 28 ],
+						[ "Giga Bowser", 29 ],
+						[ "Crazy Hand", 30 ],
+						[ "Sandbag", 31 ],
+						[ "Solo Popo", 32 ]
+					]
+				},
+				"Player 4 Character": {
+					"type": "uint8",
+					"value": 0,
+					"default": 0,
+					"members": [
+						[ "Captain Falcon", 0 ],
+						[ "DK", 1 ],
+						[ "Fox", 2 ],
+						[ "Game & Watch", 3 ],
+						[ "Kirby", 4 ],
+						[ "Bowser", 5 ],
+						[ "Link", 6 ],
+						[ "Luigi", 7 ],
+						[ "Mario", 8 ],
+						[ "Marth", 9 ],
+						[ "Mewtwo", 10 ],
+						[ "Ness", 11 ],
+						[ "Peach", 12 ],
+						[ "Pikachu", 13 ],
+						[ "Ice Climbers", 14 ],
+						[ "Jigglypuff", 15 ],
+						[ "Samus", 16 ],
+						[ "Yoshi", 17 ],
+						[ "Zelda", 18 ],
+						[ "Sheik", 19 ],
+						[ "Falco", 20 ],
+						[ "Young Link", 21 ],
+						[ "Doc", 22 ],
+						[ "Roy", 23 ],
+						[ "Pichu", 24 ],
+						[ "Ganondorf", 25 ],
+						[ "Master Hand", 26 ],
+						[ "Male Wireframe", 27 ],
+						[ "Female Wireframe", 28 ],
+						[ "Giga Bowser", 29 ],
+						[ "Crazy Hand", 30 ],
+						[ "Sandbag", 31 ],
+						[ "Solo Popo", 32 ]
+					]
+				},
+				"Stage": {
+					"annotation": "Uses External Stage ID",
+					"type": "uint16",
+					"value": 14,
+					"default": 14,
+					"members": [
+						[ "Fountain of Dreams", 2 ],
+						[ "Pokemon Stadium", 3 ],
+						[ "Peach's Castle", 4 ],
+						[ "Kongo Jungle", 5 ],
+						[ "Brinstar", 6 ],
+						[ "Corneria", 7 ],
+						[ "Yoshi's Story", 8 ],
+						[ "Onett", 9 ],
+						[ "Mute City", 10 ],
+						[ "Rainbow Cruise", 11 ],
+						[ "Jungle Japes", 12 ],
+						[ "Great Bay", 13 ],
+						[ "Hyrule Temple", 14 ],
+						[ "Brinstar Depths", 15 ],
+						[ "Yoshi's Island", 16 ],
+						[ "Green Greens", 17 ],
+						[ "Fourside", 18 ],
+						[ "Mushroom Kingdom I", 19 ],
+						[ "Mushroom Kingdom II", 20 ],
+						[ "Akaneia", 21 ],
+						[ "Venom", 22 ],
+						[ "PokeFloats", 23 ],
+						[ "Big Blue", 24 ],
+						[ "Icicle Mountain", 25 ],
+						[ "IceTop", 26 ],
+						[ "Flat Zone", 27 ],
+						[ "Dream Land", 28 ],
+						[ "Yoshi's Island 64", 29 ],
+						[ "Kongo Jungle 64", 30 ],
+						[ "Battlefield", 31 ],
+						[ "Final Destination", 32 ]
+					]
+				},
+				"P1 Costume ID": {
+					"type": "uint8",
+					"value": 0,
+					"default": 0
+				},
+				"P2 Costume ID": {
+					"type": "uint8",
+					"value": 0,
+					"default": 0
+				},
+				"P3 Costume ID": {
+					"type": "uint8",
+					"value": 0,
+					"default": 0
+				},
+				"P4 Costume ID": {
+					"type": "uint8",
+					"value": 0,
+					"default": 0
+				},
+				"P1 Facing Direction": {
+					"type": "uint8",
+					"value": 0,
+					"default": 0,
+					"members": [
+						[ "Default", 0 ],
+						[ "Left", -1 ],
+						[ "Right", 1 ]
+					]
+				},
+				"P2 Facing Direction": {
+					"type": "uint8",
+					"value": 0,
+					"default": 0,
+					"members": [
+						[ "Default", 0 ],
+						[ "Left", -1 ],
+						[ "Right", 1 ]
+					]
+				},
+				"P3 Facing Direction": {
+					"type": "uint8",
+					"value": 0,
+					"default": 0,
+					"members": [
+						[ "Default", 0 ],
+						[ "Left", -1 ],
+						[ "Right", 1 ]
+					]
+				},
+				"P4 Facing Direction": {
+					"type": "uint8",
+					"value": 0,
+					"default": 0,
+					"members": [
+						[ "Default", 0 ],
+						[ "Left", -1 ],
+						[ "Right", 1 ]
+					]
+				}
+			},
+			"build": [
+				{
+					"annotation": "Boot to Match",
+					"type": "replace",
+					"address": "801A45A0",
+					"value": "3800000E"
+				},
+				{
+					"annotation": "Custom Match Code",
+					"type": "inject",
+					"address": "801B148C",
+					"sourceFile": "Custom Match Code.asm"
+				}
+			]
+		}
+	]
+}
