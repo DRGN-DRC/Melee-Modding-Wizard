@@ -16,7 +16,7 @@
 
 import math, copy
 import Tkinter as Tk
-import hsdStructures
+from FileSystem import hsdStructures
 
 class Engine3D( Tk.Canvas ):
 

@@ -23,8 +23,6 @@ import tkMessageBox
 
 from string import hexdigits
 from collections import OrderedDict as _OrderedDict
-#from guiSubComponents import CopyableMessageWindow
-#import guiSubComponents
 
 # Conversion solutions:
 # 		int 			-> 		bytes objects 		struct.pack( )

@@ -32,9 +32,9 @@ from PIL import ImageGrab
 
 # Internal dependencies
 import globalData
-import hsdStructures
+import FileSystem.hsdStructures as hsdStructures
 
-from disc import Disc
+from FileSystem.disc import Disc
 from codeMods import CodeLibraryParser
 from basicFunctions import msg, uHex, cmdChannel, printStatus, humansize
 from guiSubComponents import BasicWindow, VerticalScrolledFrame, cmsg, Dropdown, getNewNameFromUser, LabelButton

@@ -9,22 +9,23 @@
 #		╚═╝     ╚═╝ ╚═╝     ╚═╝  ╚══╝╚══╝ 			 ------                                                   ------
 #		  -  - Melee Modding Wizard -  -  
 
-import os
 import ttk
 import time
 import struct
-import globalData
 import tkMessageBox
 import Tkinter as Tk
-import codeRegionSettings
 
 from binascii import hexlify
-from hsdFiles import FileBase
 from itertools import izip, count
 from collections import OrderedDict
-#from codeMods import getCustomSectionLength
+
+# Internal dependencies
+import globalData
+import codeRegionSettings
+
+from fileBases import FileBase
 from codeMods import ConfigurationTypes
-from basicFunctions import uHex, toHex, toInt, validHex, grammarfyList, findAll, msg
+from basicFunctions import uHex, toInt, validHex, grammarfyList, findAll, msg
 from guiSubComponents import BasicWindow
 
 
@@ -1217,7 +1218,6 @@ class Dol( FileBase ):
 							# Check whether the function is in a disabled region
 							found = False
 							for regionName, regions in self.customCodeRegions.items():
-								#if regionName in globalData.overwriteOptions and not globalData.overwriteOptions[regionName].get():
 								if globalData.checkRegionOverwrite( regionName ):
 									# Scan the regions for the offset
 									for regionStart, regionEnd in regions:

@@ -38,11 +38,11 @@ FR_NOT_ENUM = 0x20
 import globalData
 
 from tools import TriCspCreator, AsmToHexConverter, CodeLookup
-from disc import Disc, isExtractedDirectory
-from hsdFiles import StageFile, CharCostumeFile
+from FileSystem import StageFile, CharCostumeFile
+from FileSystem.disc import Disc, isExtractedDirectory
 from basicFunctions import msg, openFolder, printStatus
 from guiSubComponents import (
-		cmsg, importGameFiles, DisguisedEntry, VerticalScrolledFrame,
+		cmsg, importGameFiles, VerticalScrolledFrame,
 		HexEditEntry, CharacterChooser
 	)
 from guiDisc import DiscTab, DiscDetailsTab
@@ -2058,14 +2058,18 @@ def parseArguments(): # Parses command line arguments
 															'If operating on multiple files, this should be a colon-separated list of ISO paths.', nargs='+' )
 		
 		# Define "test" options
-		testOpsParser = subparsers.add_parser( 'test', help='Asset test tool. Uses Micro Melee to test assets such as characters or stages.' )
+		testOpsParser = subparsers.add_parser( 'test', help='Asset test tool. Used to validate or boot test assets such as characters or stage files.' )
 		testOpsParser.add_argument( '-d', '--debug', action="store_true", help='If included, Dolphin will run in Debug Mode.' )
-		testOpsParser.add_argument( '-p', '--path', required=True, help='Provide a filepath for a character/stage/etc. for the program to load.' )
+		testOpsParser.add_argument( '-p', '--path', help='Provide a filepath for a character/stage/etc., to have boot-tested in Dolphin.' )
+		testOpsParser.add_argument( '-v', '--validate', help='Provide one or more filepaths for files to validate. You may pair this with '
+															 'the --validationType arg to provide the expected file type. (Default is "dat".)', nargs='+' )
+		testOpsParser.add_argument( '-t', '--validationType', help='Provide the expected file type for the --validate argument. Default is "dat". '
+																   'Other allowable validation types are disc, ssm, hps, dol, stage, and character.', default='dat' )
 		
 		# Define "code" options
 		codeOpsParser = subparsers.add_parser( 'code', help='Add custom code to a DOL or ISO, or examine one for installed codes.' )
-		testOpsParser.add_argument( '-i', '--install', help='Install code to a given DOL or ISO. Input should be a colon-separated list of mod names.' )
-		testOpsParser.add_argument( '-l', '--library', help='A path to a Code Library directory. If not provided, the current default will be used.' )
+		codeOpsParser.add_argument( '-i', '--install', help='Install code to a given DOL or ISO. Input should be a colon-separated list of mod names.' )
+		codeOpsParser.add_argument( '-l', '--library', help='A path to a Code Library directory. If not provided, the current default will be used.' )
 
 	except Exception as err:
 		# Exit the program on error (with exit code 1)
@@ -2201,13 +2205,17 @@ def buildDiscFromRoot():
 	print( '\nDisc built successfully.  Build time:', toc-tic )
 
 
-def loadAssetTest( assetPath ):
+def validateAssets():
+	pass
+
+
+def loadAssetTest():
 
 	""" Function for command-line usage. Boots an instance of the game with the given asset. 
 		Currently supported are stage and character files. """
 
 	# Perform some quick and basic validation based on the file extension
-	ext = os.path.splitext( assetPath )[1]
+	ext = os.path.splitext( args.path )[1]
 	validExtension = False
 	if ext in ( '.png', '.jpg', '.jpeg', '.gif' ):
 		print( 'This appears to be an image file! This feature expects a stage or character file.' )
@@ -2227,7 +2235,7 @@ def loadAssetTest( assetPath ):
 
 	# See if this is a stage file
 	try:
-		newFileObj = StageFile( None, -1, -1, '', extPath=assetPath, source='file' )
+		newFileObj = StageFile( None, -1, -1, '', extPath=args.path, source='file' )
 		newFileObj.validate()
 	except:
 		newFileObj = None
@@ -2235,7 +2243,7 @@ def loadAssetTest( assetPath ):
 	if not newFileObj:
 		# See if this is a character file
 		try:
-			newFileObj = CharCostumeFile( None, -1, -1, '', extPath=assetPath, source='file' )
+			newFileObj = CharCostumeFile( None, -1, -1, '', extPath=args.path, source='file' )
 			newFileObj.validate()
 		except:
 			newFileObj = None
@@ -2381,10 +2389,17 @@ if __name__ == '__main__':
 		# Not enough args
 		else:
 			print( 'Insufficient command line aguments given. No operation pending.' )
+			sys.exit( 2 )
 
 	# Check for "test" operation group
 	elif args.opsParser == 'test':
-		loadAssetTest( args.path )
+		if args.validate:
+			validateAssets()
+		elif args.path:
+			loadAssetTest()
+		else:
+			print( 'Insufficient command line aguments given; no validation or boot path(s).' )
+			sys.exit( 2 )
 
 	# Check for "code" operation group
 	elif args.opsParser == 'code':

@@ -22,14 +22,16 @@ import pyaudio
 import tkFileDialog
 import tkMessageBox
 import Tkinter as Tk
+
 from threading import Thread, Event
 
 # Internal dependencies
-import disc
 import globalData
-from hsdFiles import MusicFile
-from basicFunctions import uHex, humansize, createFolders, msg, cmdChannel
-from guiSubComponents import importSingleFileWithGui, getNewNameFromUser, BasicWindow, NeoTreeview
+import FileSystem
+
+from FileSystem import MusicFile
+from basicFunctions import uHex, humansize, msg, cmdChannel
+from guiSubComponents import getNewNameFromUser, BasicWindow, NeoTreeview
 
 
 def getHpsFile( windowParent=None, isoPath='' ):
@@ -278,7 +280,7 @@ class AudioManager( ttk.Frame ):
 				totalMusicSize += musicFile.size
 
 		totalDiscFilesize = globalData.disc.getDiscSizeCalculations( ignorePadding=True )[0]
-		spaceRemaining = disc.defaultGameCubeMediaSize - totalDiscFilesize
+		spaceRemaining = FileSystem.disc.defaultGameCubeMediaSize - totalDiscFilesize
 		
 		self.generalInfoLabel['text'] = '\n'.join( [str(filecount), humansize(totalMusicSize), humansize(spaceRemaining) ] )
 
@@ -652,7 +654,6 @@ class AudioManager( ttk.Frame ):
 
 		# Get a set of stage files referenced by the game
 		#referecedFiles = globalData.disc.checkReferencedStageFiles()
-		gameId = globalData.disc.gameId
 		gameFiles = globalData.disc.files
 		primaryReferences = []
 		secondaryReferences = []

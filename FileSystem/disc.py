@@ -17,10 +17,8 @@ import time
 import copy
 import struct
 import tempfile
-import subprocess
 import tkMessageBox
 
-from sys import argv as programArgs
 from string import hexdigits 				# For checking that a string only consists of hexadecimal characters
 from binascii import hexlify, unhexlify 	# Convert from bytearrays to strings (and vice verca via unhexlify)
 
@@ -28,9 +26,11 @@ from binascii import hexlify, unhexlify 	# Convert from bytearrays to strings (a
 import globalData
 
 from dol import Dol
+from . import fileFactory
+from audioFiles import MusicFile
 from stageManager import StageSwapTable
+from fileBases import FileBase, BootBin
 from codeMods import regionsOverlap, CodeLibraryParser
-from hsdFiles import fileFactory, FileBase, BootBin, CssFile, MusicFile
 from basicFunctions import roundTo32, uHex, toHex, toInt, toBytes, humansize, grammarfyList, createFolders, msg, printStatus, ListDict
 
 

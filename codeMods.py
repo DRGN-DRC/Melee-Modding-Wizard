@@ -22,7 +22,6 @@ from subprocess import Popen, PIPE
 
 # Internal Dependencies
 import globalData
-#from disc import Disc
 from basicFunctions import roundTo32, toHex, validHex, msg, printStatus
 from guiSubComponents import cmsg
 

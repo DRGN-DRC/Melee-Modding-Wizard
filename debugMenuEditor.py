@@ -10,13 +10,10 @@
 #		  -  - Melee Modding Wizard -  -  
 
 import ttk
-import time
-import struct
 import Tkinter as Tk
-from binascii import hexlify
 
 import globalData
-import standaloneStructs
+import FileSystem.standaloneStructs as standaloneStructs
 
 
 class DebugMenuEditor( ttk.Frame ):

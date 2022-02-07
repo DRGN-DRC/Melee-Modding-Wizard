@@ -12,15 +12,17 @@
 # DTW's Structural Analysis tab or the following thread/post are useful for more details on structures:
 # 		https://smashboards.com/threads/melee-dat-format.292603/post-21913374
 
+import sys
 import struct
 import inspect
-import os, sys
 import time, math
 
 from collections import OrderedDict
 from itertools import izip, izip_longest
 
+#import globalData
 from basicFunctions import uHex
+#from . import fileStructures
 
 showLogs = True
 
@@ -782,6 +784,8 @@ class TableStruct( StructBase ):
 		self.formatting = '>' + ( self.formatting[1:] * self.entryCount )
 		self.fields = self.fields * self.entryCount
 		self.length = self.length * self.entryCount
+		
+		self._siblingsChecked = True
 
 	def getEntryValues( self, entryIndex ):
 
@@ -2405,7 +2409,6 @@ class MapMusicTableEntry( TableStruct ):
 					)
 		self.length = 0x64
 		self.childClassIdentities = {}
-		self._siblingsChecked = True
 		self._childrenChecked = True
 
 		# Check the parent's Music_Table_Entry_Count to see how many entries should be in this table structure
@@ -2414,12 +2417,9 @@ class MapMusicTableEntry( TableStruct ):
 		self.entryCount = parentStruct.getValues()[63]
 		#print 'entry count for Area Table:', hex( self.entryCount ), 'length:', hex(0x64*self.entryCount), 'apparent length:', hex(self.dat.getStructLength( self.offset ))
 
+		# Reinitialize this as a Table Struct to duplicate this entry struct for all enties in this table
 		TableStruct.__init__( self )
 		#super( MapMusicTableEntry, self ).__init__( self ) # probably should use this instead
-		# Use the above info to dynamically rebuild this struct's properties
-		# self.formatting = '>' + ( self.formatting[1:] * self.entryCount )
-		# self.fields = self.fields * self.entryCount
-		# self.length = 0x64 * self.entryCount
 
 
 class CharSelectScreenDataTable( StructBase ):

@@ -11,9 +11,8 @@
 
 # External logic dependencies
 import os
-from posixpath import basename
 import time
-import subprocess
+from posixpath import basename
 from binascii import hexlify
 from tkMessageBox import askyesno
 
@@ -24,9 +23,9 @@ import Tkinter as Tk
 
 # Internal dependencies
 import globalData
-from disc import Disc
 from audioManager import AudioManager
-from hsdFiles import fileFactory, SisFile, MusicFile
+from FileSystem import fileFactory, SisFile, MusicFile
+from FileSystem.disc import Disc
 from basicFunctions import (
 		msg, printStatus, copyToClipboard, 
 		uHex, humansize, createFolders,
@@ -60,7 +59,7 @@ class DiscTab( ttk.Frame ):
 		ttk.Label( isoQuickLinks, text='|' ).pack( side='left', padx=4 )
 		ttk.Label( isoQuickLinks, text='Characters', foreground='#00F', cursor='hand2' ).pack( side='left', padx=4 )
 		ttk.Label( isoQuickLinks, text='|' ).pack( side='left', padx=4 )
-		ttk.Label( isoQuickLinks, text='Menus (CSS/SSS)', foreground='#00F', cursor='hand2' ).pack( side='left', padx=4 )
+		ttk.Label( isoQuickLinks, text='Menus', foreground='#00F', cursor='hand2' ).pack( side='left', padx=4 )
 		ttk.Label( isoQuickLinks, text='|' ).pack( side='left', padx=4 )
 		ttk.Label( isoQuickLinks, text='Stages', foreground='#00F', cursor='hand2' ).pack( side='left', padx=4 )
 		for label in isoQuickLinks.winfo_children():
@@ -402,10 +401,15 @@ class DiscTab( ttk.Frame ):
 			# 	print discFile.filename, humansize(discFile.size)
 			# if discFile.filename.endswith( '.mth' ):
 			# 	print discFile.filename
+
+			if discFile.__class__.__name__ == 'CharDataFile':
+				table = discFile.getFighterActionTable()
+				
+				print discFile.filename, hex( table.offset + 0x20 )
 			
 			self.isoFileTree.insert( parent, 'end', iid=discFile.isoPath, text=' ' + entryName, values=(description, 'file') )
 		except Exception as err:
-			printStatus( u'Unable to add {} to the Disc File Tree; {}'.format(description, err) )
+			printStatus( u'Unable to add {} to the Disc File Tree; {}'.format(discFile.longDescription, err) )
 
 	def scanDiscItemForStats( self, iidSelectionsTuple, folderContents ):
 

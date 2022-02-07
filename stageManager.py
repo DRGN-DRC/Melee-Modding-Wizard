@@ -24,8 +24,8 @@ from PIL import Image, ImageTk, ImageDraw, ImageFont
 import globalData
 
 from tplCodec import TplEncoder
-from hsdFiles import StageFile
-from hsdStructures import MapMusicTableEntry
+from FileSystem import StageFile
+from FileSystem.hsdStructures import MapMusicTableEntry
 from basicFunctions import uHex, validHex, humansize, msg, createFolders
 from guiSubComponents import (
 	getColoredShape, importGameFiles, exportSingleFileWithGui, importSingleFileWithGui, importSingleTexture,

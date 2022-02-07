@@ -9,7 +9,6 @@
 #		╚═╝     ╚═╝ ╚═╝     ╚═╝  ╚══╝╚══╝ 			 ------                                                   ------
 #		  -  - Melee Modding Wizard -  -  
 
-import time
 import struct
 
 import globalData
@@ -96,8 +95,8 @@ class StandaloneStruct( object ):
 
 class StageInfoTable( StandaloneStruct ):
 
-	""" These are located in the DOL. Referenced by a pointer table 
-		at 803DFEDC / 0x3DCEDC, which is indexed by internal stage IDs. """
+	""" These are located in the DOL (one for each stage). Referenced by a pointer 
+		table at 803DFEDC / 0x3DCEDC, which is indexed by internal stage IDs. """
 
 	def __init__( self, hostFile, offset ):
 		StandaloneStruct.__init__( self, hostFile, offset )

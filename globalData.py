@@ -26,10 +26,11 @@ from datetime import datetime
 from collections import OrderedDict
 
 # Internal Dependencies
+import FileSystem
 import codeRegionSettings
 
-from dol import Dol
-from disc import Disc, MicroMelee, isExtractedDirectory
+from FileSystem.dol import Dol
+from FileSystem.disc import Disc, MicroMelee, isExtractedDirectory
 from codeMods import CommandProcessor
 from basicFunctions import msg, printStatus
 from guiSubComponents import PopupEntryWindow, VanillaDiscEntry
@@ -41,7 +42,7 @@ def init( programArgs ):
 	""" If any check on settings will be required, call 'globalData.loadProgramSettings()' first to fully initialize them. """
 
 	global scriptHomeFolder, paths, defaultSettings, defaultBoolSettings, settings, boolSettings
-	global overwriteOptions, codeProcessor, dolphinController, gui, disc, codeMods, standaloneFunctions, programEnding
+	global overwriteOptions, codeProcessor, dolphinController, gui, disc, codeMods, standaloneFunctions, fileStructureClasses, programEnding
 
 	scriptHomeFolder = os.path.abspath( os.path.dirname(programArgs[0]) ) # Can't use __file__; incompatible with cx_freeze process
 
@@ -103,6 +104,10 @@ def init( programArgs ):
 
 	codeMods = []
 	standaloneFunctions = {} # Key='functionName', value=( functionRamAddress, codeChangeObj )
+	
+	# All internal file structure classes should be registered in this dictionary
+	fileStructureClasses = {}
+	FileSystem.registerStructureClasses()
 
 	programEnding = False
 

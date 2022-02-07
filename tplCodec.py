@@ -22,7 +22,7 @@ from binascii import hexlify
 try: from cStringIO import StringIO # Preferred for performance.
 except: from StringIO import StringIO
 
-from basicFunctions import toInt
+#from basicFunctions import toInt
 
 # These paths cannot be left as relative, because drag-n-drop functionality with the main program (when opening) may change the active working directory.
 scriptHomeFolder = os.path.abspath( os.path.dirname(sys.argv[0]) ) # Can't use __file__ after freeze

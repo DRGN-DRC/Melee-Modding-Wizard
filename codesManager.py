@@ -23,8 +23,7 @@ from urlparse import urlparse 	# For validating and security checking URLs
 
 # Internal Dependencies
 import globalData
-#from disc import Disc
-from dol import RevisionPromptWindow
+from FileSystem.dol import RevisionPromptWindow
 from basicFunctions import msg, printStatus, openFolder, validHex
 from codeMods import ConfigurationTypes, regionsOverlap, CodeLibraryParser
 from guiSubComponents import (

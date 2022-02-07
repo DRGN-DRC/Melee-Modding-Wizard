@@ -9,18 +9,16 @@
 #		╚═╝     ╚═╝ ╚═╝     ╚═╝  ╚══╝╚══╝ 			 ------                                                   ------
 #		  -  - Melee Modding Wizard -  -  
 
-
 import os
 import ttk
-import math
 import time
 import tkFileDialog
-import hsdStructures
 import Tkinter as Tk
 from PIL import Image, ImageTk
 
 import globalData
-from hsdFiles import fileFactory, isValidReplacement
+import FileSystem
+
 from ScrolledText import ScrolledText
 from basicFunctions import uHex, humansize, msg, getFileMd5
 
@@ -173,7 +171,7 @@ def importGameFiles( fileExt='', multiple=False, title='', fileTypeOptions=None,
 def importSingleFileWithGui( origFileObj, validate=True ):
 
 	""" Prompts the user to choose an external/standalone file to import, and then 
-		replacing the given file in the disc with the chosen file. 
+		replaces the given file in the disc with the chosen file. 
 		Updates the default directory to search in when opening or exporting files. 
 		Also handles updating the GUI with the operation's success/failure status. 
 		Returns True/False on success. """
@@ -185,7 +183,7 @@ def importSingleFileWithGui( origFileObj, validate=True ):
 
 	# Initialize the new file
 	try:
-		newFileObj = fileFactory( None, -1, -1, origFileObj.isoPath, extPath=newFilePath, source='file' )
+		newFileObj = FileSystem.fileFactory( None, -1, -1, origFileObj.isoPath, extPath=newFilePath, source='file' )
 		newFileObj.getData()
 	except Exception as err:
 		print 'Exception during file replacement;', err
@@ -194,7 +192,7 @@ def importSingleFileWithGui( origFileObj, validate=True ):
 
 	# Check that this is an appropriate replacement file
 	if validate:
-		if not isValidReplacement( origFileObj, newFileObj ): # Will provide user feedback if untrue
+		if not FileSystem.isValidReplacement( origFileObj, newFileObj ): # Will provide user feedback if untrue
 			globalData.gui.updateProgramStatus( 'Invalid file replacement. Operation canceled', warning=True )
 			return False
 

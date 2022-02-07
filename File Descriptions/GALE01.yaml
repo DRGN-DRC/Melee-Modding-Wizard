@@ -132,7 +132,7 @@ MnSlChr.dat: Character Select Screen
 MnSlMap.dat: Stage Select Screen
 NtAppro.dat: "'New Challenger' Screens"
 opening.dat: Game banner, title, and description texts
-PlCo.dat: Textures common to the cast
+PlCo.dat: Textures & global data common to the cast
 
 # UI / Menu text strings
 SdDec.dat: Bonuses text
