@@ -402,10 +402,15 @@ class DiscTab( ttk.Frame ):
 			# if discFile.filename.endswith( '.mth' ):
 			# 	print discFile.filename
 
-			if discFile.__class__.__name__ == 'CharDataFile':
-				table = discFile.getFighterActionTable()
-				
-				print discFile.filename, hex( table.offset + 0x20 )
+			#if discFile.__class__.__name__ == 'CharDataFile':
+			# if discFile.filename == 'PlCa.dat' or discFile.filename == 'PlCa.sat':
+			# 	table = discFile.getFighterActionTable()
+			# 	print discFile.filename, hex( table.offset + 0x20 )
+
+			# 	for i, values in table.iterateEntries():
+			# 		actionName = discFile.getString( values[0] )
+			# 		offset = table.entryIndexToOffset( i )
+			# 		print '\t', i, ' | ', uHex( offset + 0x20 ), actionName
 			
 			self.isoFileTree.insert( parent, 'end', iid=discFile.isoPath, text=' ' + entryName, values=(description, 'file') )
 		except Exception as err:
@@ -529,7 +534,7 @@ class DiscTab( ttk.Frame ):
 			else:
 				iid = self.scanDiscForFile( 'Pl' ) # previously: 'plgk.dat'
 
-		elif target == 'Menus (CSS/SSS)':
+		elif target == 'Menus':
 			iid = self.scanDiscForFile( 'MnExtAll.' )
 			indexOffset = 14
 

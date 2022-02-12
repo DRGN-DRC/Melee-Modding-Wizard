@@ -127,7 +127,7 @@
 								StageInitialization_Prefunction
 								CameraIno_GetDefaultFOV
 								CameraInfo_FOVStore
-								PlayerBlock_LoadPlayers / MatchStartRead/WriteValues
+8016e2bc							PlayerBlock_LoadPlayers / MatchStartRead/WriteValues
 80036da4								CreatePlayerBlockAllocationSkeleton?_Pre_Prefunction
 										CreatePlayerBlockAllocationSkeleton?_Prefunction
 											CreatePlayerBlockAllocationSkeleton?
@@ -141,6 +141,18 @@
 800327dc		-	-	-	-	-	-	PlayerBlock_StoreInitialX/YCoords
 									PlayerBlock_LoadControllerIndex
 80031AD0								SetupPlayerSlot
+80068e98									AllocateAndInitPlayer
+											GObj_Create (r3=GObjType,r4=Subclass,r5=BehaviorBitflags)
+											GObj_AddGXLink (r3 =GObj,r4=Function,r5=gx_link,r6=gx_pri)
+											HSD_ObjAlloc		<- Init character data struct
+											HSD_ObjAlloc
+											GObj_AddUserData (r3=entity,r4=UserDataKind,r5=destructor,r6=dataspace)
+8008572c										fileLoad_PlXX.dat	(r3=int char ID)
+80017040											loadFile_GameEngineFiles_Prefunction	(r4=filenamePointer)
+8001819c												Preload_LoadGameEngineFiles
+80017ebc													Preload_AllocateAndLoadFile (DATfile_StageFileLoad_CharFileLoad?)
+															Archive_InitOnLoad
+											
 80225298							Stage_RunOnLoadFunction_Prefunction
 801c5800							Pause_UnpauseStoreCameraType
 8002f3ac							Camera_CorrectPosition

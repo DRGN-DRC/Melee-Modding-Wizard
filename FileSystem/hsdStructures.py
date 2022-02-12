@@ -17,12 +17,10 @@ import struct
 import inspect
 import time, math
 
+from itertools import izip
 from collections import OrderedDict
-from itertools import izip, izip_longest
 
-#import globalData
 from basicFunctions import uHex
-#from . import fileStructures
 
 showLogs = True
 
@@ -789,7 +787,8 @@ class TableStruct( StructBase ):
 
 	def getEntryValues( self, entryIndex ):
 
-		""" Gets values only for one specific table/array entry. """
+		""" Gets values only for one specific table/array entry. If you'd like to 
+			iterate over all entries/values, .iterateEntries() will be more efficient. """
 
 		valuesIndex = self.entryValueCount * entryIndex
 		return self.getValues()[valuesIndex:valuesIndex+self.entryValueCount]
@@ -803,6 +802,20 @@ class TableStruct( StructBase ):
 		absIndex = ( self.entryValueCount * entryIndex ) + valueIndex
 		self.setValue( absIndex, value )
 
+	def iterateEntries( self ):
+
+		""" Generator method to loop over entries in this table. Each iteration 
+			yields the entry count (iteration number) and values for that entry. """
+		
+		values = self.getValues()
+
+		for i in range( self.entryCount ):
+			valuesIndex = i * self.entryValueCount
+			yield i, values[valuesIndex:valuesIndex+self.entryValueCount]
+
+	def entryIndexToOffset( self, index ):
+
+		return self.offset + ( struct.calcsize(self.entryFormatting) * index )
 
 # class PointerTable( StructBase ):
 

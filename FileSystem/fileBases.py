@@ -30,17 +30,9 @@ from basicFunctions import uHex, msg, printStatus, createFolders
 showLogs = True
 
 
-# def findBytes( bytesRange, target ): # Searches a bytearray for a given (target) set of bytes, and returns the location (index)
-# 	targetLength = len( target )
-
-# 	for index, _ in enumerate( bytesRange ):
-# 		if bytesRange[index:index+targetLength] == target: return index
-# 	else: return -1
-
-
-					# = ----------------------- = #
-					#  [   Disc File Classes   ]  #
-					# = ----------------------- = #
+					# = ---------------------------- = #
+					#  [   Disc Base File Classes   ]  #
+					# = ---------------------------- = #
 
 class FileBase( object ):
 
@@ -175,7 +167,7 @@ class FileBase( object ):
 		assert dataOffset + dataLength <= len( self.data ), '0x{:X} is too much data to set at offset 0x{:X}.'.format( dataLength, dataOffset )
 		self.data[dataOffset:dataOffset+dataLength] = newData # This will also work for bytearrays of length 1
 
-	def readString( self, offset, dataLength=0x40 ):
+	def getString( self, offset, dataLength=0x40 ):
 
 		return self.getData( offset, dataLength ).split( b'\x00' )[0].decode( 'ascii' )
 
@@ -407,9 +399,9 @@ class BannerFile( FileBase ):
 		return ( magicWord == bytearray(b'BNR1') or magicWord == bytearray(b'BNR2') )
 
 
-					# = ---------------------- = #
-					#  [   HSD File Classes   ]  #
-					# = ---------------------- = #
+					# = ------------------------- = #
+					#  [   DAT File Base Class   ]  #
+					# = ------------------------- = #
 
 class DatFile( FileBase ):
 

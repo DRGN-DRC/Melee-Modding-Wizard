@@ -1565,7 +1565,7 @@ class StageManager( ttk.Frame ):
 			# Pick out the external stage ID names to get the names for each entry
 			externalId = values[i*valuesPerEntry]
 			externalIdName = globalData.externalStageIds.get( externalId, 'Unknown External ID' )
-			options.append( '{} | {}'.format(i+1, externalIdName) )
+			options.append( 'Entry {} | {}'.format(i+1, externalIdName) )
 
 		# Update the dropdown menu with the above options
 		self.musicTableOptionMenu['state'] = 'normal'
