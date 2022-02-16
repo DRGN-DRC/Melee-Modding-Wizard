@@ -381,8 +381,9 @@ def getLastUsedDir( category='default', fileExt='' ):
 		class of files; e.g. for "dat" or "disc". """
 
 	# If no category is specified, use the last saved directory out of all of them
-	# if category == 'default':
-	# 	category = settings.get( 'Default Search Directories', 'lastCategory' )
+	if category == 'default':
+		category = settings.get( 'Default Search Directories', 'lastCategory' )
+
 	if fileExt:
 		if fileExt in ( 'hps', 'wav', 'dsp', 'mp3', 'aiff', 'wma', 'm4a' ): # Audio files
 			category = 'hps'
@@ -513,13 +514,21 @@ def getVanillaDiscPath():
 
 	vanillaDiscPath = settings.get( 'General Settings', 'vanillaDiscPath' )
 
-	if not os.path.exists( vanillaDiscPath ):
+	if not vanillaDiscPath:
 		message = ( 'Please specify the full path to a vanilla NTSC 1.02 SSBM game disc. This path only '
 					'needs to be given once, and can be changed at any time in the settings.ini file. '
-					"If you have already set this, the path seems to have broken."
-					'\n\nPro-tip: In Windows, if you hold Shift while right-clicking on a file, there appears a context menu '
-					"""option called "Copy as path". This will copy the file's full path into your clipboard. Or if it's a shortcut, """
-					"""you can quickly get the full file path by right-clicking on the icon and going to Properties.""" )
+					"If you have already set this, the path seems to have broken." )
+	elif not os.path.exists( vanillaDiscPath ):
+		message = ( 'The path provided for a vanilla reference disc seems to be broken.'
+					'\nPlease specify a new full path to a vanilla NTSC 1.02 SSBM game disc.' )
+	else:
+		message = ''
+
+	if message:
+		message += (
+			'\n\nPro-tip: In Windows, if you hold Shift while right-clicking on a file, there appears a context menu '
+			"""option called "Copy as path". This will copy the file's full path into your clipboard. Or if it's a shortcut, """
+			"""you can quickly get the full file path by right-clicking on the icon and going to Properties.""" )
 
 		if gui:
 			popupWindow = VanillaDiscEntry( gui.root, message=message, title='Set Vanilla Disc Path' )

@@ -28,7 +28,6 @@ import ttk, tkMessageBox, tkFileDialog
 from threading import Thread
 from subprocess import Popen, PIPE, CalledProcessError
 from sys import argv as programArgs 	# Access command line arguments, and files given (drag-and-dropped) to the program icon
-from binascii import hexlify, unhexlify 	# Convert from bytearrays to strings (and vice verca via unhexlify)
 from PIL import Image, ImageTk, ImageDraw, ImageFilter, ImageChops
 from ctypes import windll, byref, create_unicode_buffer, create_string_buffer
 FR_PRIVATE  = 0x10
@@ -1822,23 +1821,40 @@ class MainGui( Tk.Frame, object ):
 		""" Saves changes to the currently loaded ISO/GCM disc image or root folder. 
 			If newPath is provided, e.g. from .saveAs() a new file is created. """
 
-		if not globalData.disc:
+		disc = globalData.disc
+
+		if not disc:
 			return -1
 
 		# Save code mods if that tab is open
 		if self.codeManagerTab:
 			returnCode = self.codeManagerTab.saveCodeChanges()
 
+			# Check for an error, and ask whether to save other changes anyway
 			if not returnCode == 0:
-				msg( 'A problem occurred while saving codes to the game. Error code: {}'.format(returnCode), 'Unable to Save', error=True )
-				return -1
+				if returnCode == 1:
+					message = ( 'Code changes could not be saved, because the DOL could not be restored.' 
+								'\n\nWould you like to continue and save other changes anyway?' )
+				elif returnCode == 2:
+					message = ( 'Some code changes could not be saved.' 
+								'\n\nWould you like to continue and save other changes anyway?' )
+				elif returnCode == 3:
+					message = ( 'No code changes could not be saved.' 
+								'\n\nWould you like to continue and save other changes anyway?' )
+				else:
+					Exception( 'Unrecognized return code from code manager save method! {}'.format(returnCode) )
+
+				if not tkMessageBox.askyesno( 'Unable to Save Code Changes', message ):
+					return -1
 
 		# Save all file changes to the disc
-		returnCode, updatedFiles = globalData.disc.save( newPath )
+		returnCode, updatedFiles = disc.save( newPath )
+
+		message = ''
 
 		if returnCode == 0:
 			# Reload the disc and show a save confirmation
-			self.loadRootOrDisc( globalData.disc.filePath, True, False, True, False, updatedFiles )
+			self.loadRootOrDisc( disc.filePath, True, False, True, False, updatedFiles )
 			self.updateProgramStatus( 'Save Successful', success=True )
 
 		elif returnCode == 1:
@@ -1846,17 +1862,37 @@ class MainGui( Tk.Frame, object ):
 		elif returnCode == 2:
 			self.updateProgramStatus( 'Unable to save the disc; there are missing system files!', error=True ) # todo: report which are missing
 		elif returnCode == 3:
-			self.updateProgramStatus( 'Unable to create a new disc file. Be sure the program has write permissions', error=True )
+			message = ( "Unable to create a new copy of the disc. Be sure there is write access to the destination, and if there is a file being "
+						 "replaced, be sure it's not write-locked (meaning another program has it open, preventing it from being overwritten)." )
+			self.updateProgramStatus( 'Unable to create a new disc file. Be sure this program has write permissions', error=True )
 		elif returnCode == 4:
-			self.updateProgramStatus( 'Unable to open the original disc. Be sure that it has not been moved or renamed', error=True )
+			if not os.path.exists( disc.filePath ):
+				message = ( 'Unable to open the original disc file for saving. Be sure that it has not been moved or deleted.' )
+			elif not disc.rebuildReason:
+				message = ( 'Unable to open the original disc file for saving. Be sure that the file is not being used by another program (like Dolphin :P).' )
+			else: # Only opening in read mode in this case (not sure how this might fail)
+				message = ( 'Unable to open the original disc file for reading.' )
+			self.updateProgramStatus( 'Unable to open the original disc', error=True )
 		elif returnCode == 5:
-			self.updateProgramStatus( 'Unable to save the disc; there was an unrecognized error during file writing', error=True )
+			message = 'Unable to save the disc; there was an unrecognized error during file writing.'
+			self.updateProgramStatus( message[:-1], error=True )
 		elif returnCode == 6:
+			message = ( 'The disc file to replace could not be overwritten.\n\n'
+						"Be sure there is write access to the destination, and that the file isn't write-"
+						"locked (meaning another program has it open, preventing it from being overwritten)." )
 			self.updateProgramStatus( 'Unable to save the disc; unable to overwrite existing file', error=True )
 		elif returnCode == 7:
+			message = ( 'A back-up file was successfully created, however there was an error while attempting to rename the files and remove the original.\n\n'
+						"This can happen if the original file is locked for editing (for example, if it's open in another program)." )
 			self.updateProgramStatus( 'Unable to save the disc; could not rename discs or rename original', error=True )
 		else:
-			self.updateProgramStatus( 'Unable to save the disc; unrecognized save method return code: ' + str(returnCode) , error=True )
+			message = 'Unable to save the disc; unrecognized save method return code: ' + str( returnCode )
+			self.updateProgramStatus( message, error=True )
+
+		# For most errors, ask if the user would like to try saving again
+		if returnCode > 2:
+			if tkMessageBox.askretrycancel( 'Problem While Saving', message ):
+				returnCode = self.save( newPath )
 		
 		return returnCode
 
@@ -2197,12 +2233,36 @@ def buildDiscFromRoot():
 	returnCode = newDisc.buildNewDisc( savePath )[0]
 	toc = time.clock()
 
-	# Check for problems
+	# Print result message
+	if returnCode == 0:
+		print( '\nDisc built successfully.  Build time:', toc-tic )
+	elif returnCode == 1:
+		print( '\nThere were no changes detected to be saved.' )
+	elif returnCode == 3:
+		print( "\nUnable to create a new copy of the disc. Be sure there is write access to the destination, and if there is a file being "
+				"replaced, be sure it's not write-locked (meaning another program has it open, preventing it from being overwritten)." )
+	elif returnCode == 4:
+		if not os.path.exists( newDisc.filePath ):
+			print( '\nUnable to open the original disc file for saving. Be sure that it has not been moved or deleted.' )
+		elif not globalData.disc.rebuildReason:
+			print( '\nUnable to open the original disc file for saving. Be sure that the file is not being used by another program (like Dolphin :P).' )
+		else: # Only opening in read mode in this case (not sure how this might fail)
+			print( '\nUnable to open the original disc file for reading.' )
+	elif returnCode == 5:
+		print( '\nUnable to save the disc; there was an unrecognized error during file writing.' )
+	elif returnCode == 6:
+		print( '\nThe disc file to replace could not be overwritten.\n\n'
+				"Be sure there is write access to the destination, and that the file isn't write-"
+				"locked (meaning another program has it open, preventing it from being overwritten)." )
+	elif returnCode == 7:
+		print( '\nA back-up file was successfully created, however there was an error while attempting to rename the files and remove the original.\n\n'
+				"This can happen if the original file is locked for editing (for example, if it's open in another program)." )
+	else:
+		print( '\nUnable to save the disc; unrecognized save method return code: ' + str(returnCode) )
+
 	if returnCode != 0:
-		print( '\nUnable to build the disc.' )
 		sys.exit( returnCode + 100 )
 
-	print( '\nDisc built successfully.  Build time:', toc-tic )
 
 
 def validateAssets():

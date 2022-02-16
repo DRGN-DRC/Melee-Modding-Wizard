@@ -241,12 +241,18 @@ class CodeManagerTab( ttk.Frame ):
 		scrollingFrameChildren = scrollingFrame.interior.winfo_children()
 
 		# Count the mods enabled or selected for installation
-		enabledMods = 0
+		thisTabSelected = 0
 		for modModule in scrollingFrameChildren:
 			if modModule.mod.state == 'enabled' or modModule.mod.state == 'pendingEnable':
-				enabledMods += 1
+				thisTabSelected += 1
 
-		self.installTotalLabel.set( 'Enabled on this tab:  {} / {}'.format(enabledMods, len( scrollingFrameChildren )) )
+		# Check total selected mods
+		librarySelected = 0
+		for mod in globalData.codeMods:
+			if mod.state == 'enabled' or mod.state == 'pendingEnable':
+				librarySelected += 1
+
+		self.installTotalLabel.set( 'Enabled on this tab:   {} / {}\nEnabled in library:   {} / {}'.format(thisTabSelected, len(scrollingFrameChildren), librarySelected, len(globalData.codeMods)) )
 
 	def clear( self ):
 
@@ -802,7 +808,14 @@ class CodeManagerTab( ttk.Frame ):
 			and calls the appropriate disc methods for code mod installation and saving. If only 
 			code un-installations are required, those are performed on the DOL as-is. If code 
 			installations (with or without un-installations) are requested, the whole DOL will be 
-			restored to vanilla, and then only the requested codes will be installed to it. """
+			restored to vanilla, and then only the requested codes will be installed to it. 
+			
+			May return with these codes:
+			
+				0: Success; all selected codes installed or uninstalled
+				1: Unable to restore the DOL (likely no vanilla disc reference)
+				2: One or more selected codes could not installed or uninstalled
+				3: No selected codes could be installed or uninstalled	"""
 
 		modsToInstall = []
 		modsToUninstall = []
@@ -847,29 +860,34 @@ class CodeManagerTab( ttk.Frame ):
 		modInstallCount = 0
 		modUninstallCount = 0
 		
-		# if modsToUninstall:
-		# 	globalData.gui.updateProgramStatus( 'Uninstalling {} codes'.format(len(modsToUninstall)) )
-		# 	modsNotUninstalled = globalData.disc.uninstallCodeMods( modsToUninstall, vanillaDisc )
-		# 	modUninstallCount = modUninstallCount - len( modsNotUninstalled )
-		# else:
-		# 	modUninstallCount = 0
-		
 		# Make sure the DOL has been initialized (header parsed and properties determined)
 		globalData.disc.dol.load()
 
+		# Install or uninstall selected code mods
 		if newModsToInstall:
 			if not globalData.disc.restoreDol( countAsNewFile=False ):
-				globalData.gui.updateProgramStatus( 'Unable to save code changes; the vanilla or source DOL could not be restored' )
+				globalData.gui.updateProgramStatus( 'Unable to save code changes; the vanilla or source DOL could not be restored', warning=True )
 				return 1
 
 			globalData.gui.updateProgramStatus( 'Installing {} codes'.format(len(modsToInstall)) )
+
 			modsNotInstalled = globalData.disc.installCodeMods( modsToInstall )
 			modInstallCount = len( modsToInstall ) - len( modsNotInstalled )
+			modUninstallCount = len( modsToUninstall )
 
-		elif modsToUninstall:
+			if modInstallCount == 0: # None could be installed
+				globalData.gui.updateProgramStatus( 'No code mods could be installed' )
+				return 3
+
+		elif modsToUninstall: # If installing new mods, all mods selected for uninstall will automatically be excluded
 			globalData.gui.updateProgramStatus( 'Uninstalling {} codes'.format(len(modsToUninstall)) )
+
 			modsNotUninstalled = globalData.disc.uninstallCodeMods( modsToUninstall )
 			modUninstallCount = len( modsToUninstall ) - len( modsNotUninstalled )
+
+			if modUninstallCount == 0: # None could be uninstalled
+				globalData.gui.updateProgramStatus( 'No code mods could be uninstalled' )
+				return 3
 
 		else:
 			print 'no code changes to be made'
@@ -885,6 +903,7 @@ class CodeManagerTab( ttk.Frame ):
 
 		# Build a message to be displayed in the program's status bar
 		statusMsg = ''
+		returnCode = 0
 		if modUninstallCount > 0:
 			if modUninstallCount == 1: statusMsg = '1 code mod uninstalled'
 			else: statusMsg = '{} code mods uninstalled'.format( modUninstallCount )
@@ -895,10 +914,11 @@ class CodeManagerTab( ttk.Frame ):
 		if modsNotUninstalled or modsNotInstalled:
 			if statusMsg: statusMsg += '. '
 			statusMsg += '{} mod change(s) failed'.format( len(modsNotUninstalled + modsNotInstalled) )
+			returnCode = 2
 		if statusMsg:
 			globalData.gui.updateProgramStatus( statusMsg )
 
-		return 0
+		return returnCode
 
 	def askRestoreDol( self ):
 

@@ -1453,10 +1453,6 @@ class Disc( object ):
 		try:
 			isoBinary = open( self.filePath, 'r+b' )
 		except Exception as err:
-			if os.path.exists( self.filePath ):
-				msg( 'Unable to open the original disc file. Be sure that it has not been moved or deleted.', 'Unable to Save', warning=True )
-			else:
-				msg( 'Unable to open the original disc file. Be sure that the file is not being used by another program (like Dolphin :P).', 'Unable to Save', warning=True )
 			return 4, []
 
 		try:
@@ -1491,7 +1487,9 @@ class Disc( object ):
 					else: # The file is expected to be in the FST (other system file size changes aren't supported)
 						self.updateFstEntry( fileObj.offset, fileObj.size )
 
-				self.updateProgressDisplay( 'Updating disc files:', 0, updateIndex, totalUnsavedChanges )
+				# Update progress display (don't bother if there's only one file)
+				if totalUnsavedChanges > 1:
+					self.updateProgressDisplay( 'Updating disc files:', 0, updateIndex, totalUnsavedChanges )
 
 				filesUpdated.add( fileObj.isoPath )
 
@@ -1504,8 +1502,7 @@ class Disc( object ):
 				filesUpdated.add( fst.isoPath )
 
 		except Exception as err:
-			msg( 'Unrecognized error while writing the new disc files (rebuild required = False); ' + str(err) )
-			print err
+			print 'Unrecognized error while writing the new disc files (rebuild required = False);', err
 			return 5, []
 
 		isoBinary.close()
@@ -1532,12 +1529,6 @@ class Disc( object ):
 		#tic = time.clock() # for performance testing
 
 		self.buildFstEntries()
-		
-		# # Calculate the FST file offset and size
-		# #dol = self.files[ self.gameId + '/Start.dol' ]
-		# fstOffset = self.getFstOffset()
-		# fstStrings = [ entry[-2] for entry in self.fstEntries[1:] ] # Skips the root entry
-		# fstFileSize = len( self.fstEntries ) * 0xC + len( '.'.join(fstStrings) ) + 1 # Final +1 to account for last stop byte
 
 		# Determine file space and how much padding to add between files (will also rebuild the FST list)
 		projectedDiscSize, totalSystemFileSpace, fstOffset, interFilePaddingLength, paddingSetting = self.getDiscSizeCalculations()
@@ -1556,12 +1547,11 @@ class Disc( object ):
 		filesUpdated = set()
 		newIsoBinary = None
 
-		# Create a new file to begin writing the new disc to
+		# Create a new file to begin writing the new disc
 		try:
 			newIsoBinary = tempfile.NamedTemporaryFile( mode='r+b', dir=os.path.dirname(self.filePath), suffix='.tmp', delete=False )
 		except Exception as err:
-			msg( "Unable to create a new copy of the disc. Be sure there is write access to the destination." )
-			print err
+			print 'Error creating new temporary file;', err
 			return 3, []
 
 		# Open the original disc file for reading if this isn't a root folder, to get its files
@@ -1571,11 +1561,7 @@ class Disc( object ):
 			try:
 				originalIsoBinary = open( self.filePath, 'rb' ) # Will only be referenced below when rebuilding an existing disc image.
 			except Exception as err:
-				if os.path.exists( self.filePath ):
-					msg( 'Unable to open the original disc binary. Be sure that it has not been moved or deleted.', 'Unable to Save', warning=True )
-				else:
-					msg( 'Unable to open the original disc binary. Be sure that the file is not being used by another program (like Dolphin :P).', 'Unable to Save', warning=True )
-				print err
+				print 'Error opening "{}";'.format(self.filePath), err
 				if newIsoBinary:
 					newIsoBinary.close()
 					try: # Save not successful; delete the temp file if it's present
@@ -1707,9 +1693,6 @@ class Disc( object ):
 				if os.path.exists( newFilePath ):
 					os.remove( newFilePath )
 			except:
-				msg( 'The file to replace could not be overwritten.\n\n'
-					 "Be sure there is write access to the destination, and that the file isn't write-"
-					 "locked (another program has it open, preventing it from being overwritten)." )
 				return 6, []
 			os.rename( newIsoBinary.name, newFilePath )
 			self.filePath = newFilePath
@@ -1722,8 +1705,6 @@ class Disc( object ):
 
 				os.remove( self.filePath + '.bak' ) # Delete the original file.
 			except:
-				msg( 'A back-up file was successfully created, however there was an error while attempting to rename the files and remove the original.\n\n'
-					 "This can happen if the original file is locked for editing (for example, if it's open in another program).")
 				return 7, []
 
 		self.rebuildReason = ''
@@ -1798,7 +1779,7 @@ class Disc( object ):
 			# Create a copy of the file and operate on that instead if using the 'Save Disc As' option
 			if newDiscPath:
 				try:
-					# Ensure containing folders exist
+					# Ensure containing folders exist for the new disc path
 					folderPath = os.path.dirname( newDiscPath )
 					createFolders( folderPath )
 
@@ -1815,8 +1796,6 @@ class Disc( object ):
 					# Switch to using this new file instead (the original shouldn't have been modified)
 					self.filePath = newDiscPath
 				except:
-					msg( "Unable to create a new copy of the disc. Be sure there is write access to the destination, and that if there is "
-						 "a file being replaced, it's not write-locked (meaning another program has it open, preventing it from being overwritten)." )
 					return 3, []
 
 			# Save each file to the ISO directly, modifying the FST if required. Only FST file lengths may need to be updated.
@@ -2031,6 +2010,11 @@ class Disc( object ):
 					# 	else:
 					# 		replaceHex( dolOffset, vanillaCode )
 					# 		msg( 'Warning! Invalid hex was found in the original code for "' + mod.name + '". The original code from a vanilla DOL was used instead.')
+
+					# Remove from modified regions list (todo if this is kept)
+					# for regionStart, codeLength, modPurpose in self.modifiedRegions:
+					# 	address = 
+					# 	if regionStart == address:
 					
 				# elif codeChange.type == 'gecko' and mod.state == 'pendingDisable': 
 				# 	removingSomeGeckoCodes = True # This state means they were previously enabled, which also means gecko.environmentSupported = True

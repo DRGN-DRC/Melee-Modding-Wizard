@@ -97,20 +97,25 @@ class CharDataFile( CharFileBase ):
 		self.structs[dataTableOffset] = 'FighterDataTable'
 
 	def getDescription( self ):
-
-		self._shortDescription = 'data file'
 		
 		# Attempt to get the character name this file is for
 		charName = globalData.charNameLookup.get( self.charAbbr, '' )
 		if not charName:
-			self._shortDescription = 'Unknown ({}) data file'.format( self.charAbbr )
-			self._longDescription = self._shortDescription
-			return
-
-		if charName.endswith( 's' ):
-			self._longDescription = charName + "' " + self._shortDescription
+			self._longDescription = 'Unknown ({}) data file'.format( self.charAbbr )
+		elif charName.endswith( 's' ):
+			self._longDescription = charName + "' data file"
 		else:
-			self._longDescription = charName + "'s " + self._shortDescription
+			self._longDescription = charName + "'s data file"
+
+		# First two are for 20XX files
+		if self.ext[1] == 'p':
+			self._shortDescription = 'PAL Data file'
+			self._longDescription.replace( 'data', 'PAL data' )
+		elif self.ext[1] == 's':
+			self._shortDescription = 'SDR Data file'
+			self._longDescription.replace( 'data', 'SDR data' )
+		else:
+			self._shortDescription = 'Data file'
 
 	def getFighterActionTable( self ):
 
@@ -168,14 +173,13 @@ class ActionTableEntry( TableStruct ):
 		StructBase.__init__( self, *args, **kwargs )
 
 		self.name = 'Action Table ' + uHex( 0x20 + args[1] )
-		self.formatting = '>IIIIBBBBI'
+		self.formatting = '>IIIIBHBI'
 		self.fields = ( 'Action_Name_Pointer',
 						'Animation_Offset',
 						'Animation_Size',
 						'SubAction_Pointer',
 						'SubAction_ID',				# 0x10
-						'Flags_0x11',
-						'Flags_0x12',
+						'Flags',
 						'Internal_Character_ID',
 						'Padding'
 					)

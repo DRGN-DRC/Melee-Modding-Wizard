@@ -12,20 +12,13 @@
 # DTW's Structural Analysis tab or the following thread/post are useful for more details on structures:
 # 		https://smashboards.com/threads/melee-dat-format.292603/post-21913374
 
-# import inspect
-# import globalData
-
-# from . import hsdFiles
-# from . import charFiles
-
-import dol
+import dol		# Not imported like the rest to prevent cyclic import
 from .audioFiles import *
 from .charFiles import *
 from .fileBases import *
 from .hsdFiles import *
 from .hsdStructures import *
 
-#from fileInstantiation import fileFactory, isValidReplacement
 
 def registerStructureClasses():
 	

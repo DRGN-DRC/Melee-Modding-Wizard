@@ -3129,7 +3129,7 @@ class CommandProcessor( object ):
 
 			# Strip whitespace and check for non-hex characters
 			#if not validHex( ''.join(line.split()) ):
-			if all( char in hexdigits for char in ''.join(line.split()) ):
+			if not all( char in hexdigits for char in ''.join(line.split()) ):
 				return True
 
 		if onlySpecialSyntaxes:

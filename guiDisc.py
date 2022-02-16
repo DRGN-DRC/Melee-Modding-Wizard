@@ -402,7 +402,8 @@ class DiscTab( ttk.Frame ):
 			# if discFile.filename.endswith( '.mth' ):
 			# 	print discFile.filename
 
-			#if discFile.__class__.__name__ == 'CharDataFile':
+			# if discFile.__class__.__name__ == 'CharDataFile':
+
 			# if discFile.filename == 'PlCa.dat' or discFile.filename == 'PlCa.sat':
 			# 	table = discFile.getFighterActionTable()
 			# 	print discFile.filename, hex( table.offset + 0x20 )

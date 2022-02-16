@@ -634,7 +634,7 @@ class VanillaDiscEntry( PopupEntryWindow ):
 		md5Hash = ''
 
 		try:
-			self.showResult( 'Calculating hash. This may take a few moments....', 'black' )
+			self.showResult( 'Validating disc. This may take a few moments....', 'black' )
 			self.resultLabel.update() # Refresh GUI so this is shown before below line is reached
 			md5Hash = getFileMd5( givenPath )
 		except IOError:
@@ -649,7 +649,7 @@ class VanillaDiscEntry( PopupEntryWindow ):
 			self.showResult( result, 'red' )
 
 		elif md5Hash == self.ntsc102: # Success!
-			self.showResult( 'Checks out!', '#292' )
+			self.showResult( 'This disc checks out!', '#292' )
 			self.resultLabel.update() # Refresh GUI so this is shown before below line is reached
 			time.sleep( 3 ) # Give the user a few seconds to read the above message (if they don't that's fine; carry on)
 			self.cleanup() # Store the above path and close this window
