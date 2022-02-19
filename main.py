@@ -2099,8 +2099,8 @@ def parseArguments(): # Parses command line arguments
 		testOpsParser.add_argument( '-p', '--path', help='Provide a filepath for a character/stage/etc., to have boot-tested in Dolphin.' )
 		testOpsParser.add_argument( '-v', '--validate', help='Provide one or more filepaths for files to validate. You may pair this with '
 															 'the --validationType arg to provide the expected file type. (Default is "dat".)', nargs='+' )
-		testOpsParser.add_argument( '-t', '--validationType', help='Provide the expected file type for the --validate argument. Default is "dat". '
-																   'Other allowable validation types are disc, ssm, hps, dol, stage, and character.', default='dat' )
+		testOpsParser.add_argument( '-t', '--validationType', help='Provide the expected file type for the --validate argument. Default is "dat". Other allowable '
+																   'validation types are disc, ssm, hps, dol, stage, and character.', default='dat', nargs='+' )
 		
 		# Define "code" options
 		codeOpsParser = subparsers.add_parser( 'code', help='Add custom code to a DOL or ISO, or examine one for installed codes.' )
@@ -2266,7 +2266,31 @@ def buildDiscFromRoot():
 
 
 def validateAssets():
-	pass
+
+	""" Function for command-line usage. Validates that a list of given files is of an expected type. """
+
+	# Validate arguments; if validation type is more than one, it should match 1-to-1 with the filepaths list
+	if len( args.validationType ) > 1 and len( args.validationType ) != len( args.validate ):
+		print( 'Invalid command line aguments. There must be only one validation' )
+		print( 'type parameter, or it must match the number of filepaths given.' )
+		sys.exit( 2 )
+
+	# More argument validation; check for valid validation types
+	for vType in args.validationType:
+		if vType not in 
+		print( 'Invalid command line agument; unrecognized validationType parameter: {}'.format(vType) )
+		sys.exit( 2 )
+
+	# Expand the validation type list if only one type is present
+	if len( args.validationType ) == 1 and len( args.validate ) > 1:
+		validationTypes = [  ]
+	else:
+		validationTypes = args.validationType
+
+	for i, path in enumerate( args.validate ):
+		expectedType = validationTypes[i]
+
+		if expectedType == 'dat':
 
 
 def loadAssetTest():

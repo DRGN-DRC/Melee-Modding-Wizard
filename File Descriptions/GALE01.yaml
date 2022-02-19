@@ -204,7 +204,7 @@ IfComS1.dat: Chess Melee Infographic
 IfComS2.dat: Turbo Mode Infographic
 IfComS3.dat: NBA Jam Infographic
 IfComS4.dat: SD Remix Infographic
-IfComS5.dat: SSBM Teir List
+IfComS5.dat: 2015 Teir List
 SdMenu.1sd: General menu strings (with SSS Page 1 names)
 SdMenu.2sd: General menu strings (with SSS Page 2 names)
 SdMenu.3sd: General menu strings (with SSS Page 3 names)
@@ -216,10 +216,26 @@ SdSlChr.4sd: Stage names and VS menu text
 
 # Misc. Custom Files in 20XX HP (v5.0+)
 AI_Engine.bin: Main Code for the 20XX AI
-IfComNJ.dat: NBA Jam Explanation
+IfComAM.dat: About Achilles
+IfComCM.dat: Chess Melee
+IfComD1.dat: Dual 1v1
+IfComDb.dat: Turbo Mode
+IfComDI.dat: Directional Influence Draw
+IfComDW.dat: DAT Texture Wizard
+IfComM1.dat: Basic Unlock-All Save File
+IfComM2.dat: "Memory Card Mod: Stage Expansion"
+IfComM3.dat: "Memory Card Mod: 20XX TE"
+IfComM4.dat: "Memory Card Mod: SD Remix Lite"
+IfComM5.dat: "Memory Card Mod: Minigames Mod"
+IfComM6.dat: "Memory Card Mod: Crazy Mod"
+IfComM7.dat: "Memory Card Mod: Stage Expansion"
+IfComNI.dat: Nintendont
+IfComNJ.dat: NBA Jam
+IfComSD.dat: SD Remix
+IfComT1.dat: General 20XX Hotkeys/Toggles
 IfComT2.dat: Develop Mode Toggles
-IfComTL.dat: 2015 Tier List
-IfComTT.dat: Tag Team Explanation
+IfComTL.dat: SSBM Tier List
+IfComTT.dat: Tag Team
 MnSlChr.0sd: Character Select Screen - 5.0 Style with Tri-CSPs
 MnSlChr.1sd: Character Select Screen - 5.0 Style with Vanilla CSPs
 MnSlChr.2sd: Character Select Screen - 4.0 Style with Tri-CSPs
