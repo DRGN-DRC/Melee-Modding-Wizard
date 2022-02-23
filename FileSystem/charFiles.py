@@ -9,15 +9,16 @@
 #		╚═╝     ╚═╝ ╚═╝     ╚═╝  ╚══╝╚══╝ 			 ------                                                   ------
 #		  -  - Melee Modding Wizard -  -  
 
+import struct
 import globalData
 
+from fileBases import FileBase
 from hsdFiles import DatFile
 from hsdStructures import StructBase, TableStruct
-from basicFunctions import uHex
-#from . import fileStructures
+from basicFunctions import uHex, roundTo32
 
 
-class CharFileBase( DatFile ):
+class CharFileBase( object ):
 
 	# Character file abbreviations; the key comes from the root node of the character file
 	charAbbrs = { 	'Boy': 'Bo', 'Crazyhand': 'Ch', 'Gkoopa': 'Gk', 'Girl': 'Gl', 'Masterhand': 'Mh', 'Sandbag': 'Sb',
@@ -42,14 +43,6 @@ class CharFileBase( DatFile ):
 					'Pp': 0x0E, 'Pr': 0x0F, 'Ss': 0x10, 'Ys': 0x11, 'Zd': 0x12, 'Sk': 0x13, 'Fc': 0x14,
 					'Cl': 0x15, 'Dr': 0x16, 'Fe': 0x17, 'Pc': 0x18, 'Gn': 0x19, 'Mh': 0x1A, 'Bo': 0x1B,
 					'Gl': 0x1C, 'Gk': 0x1D, 'Ch': 0x1E, 'Sb': 0x1F, 'Nn': 0x0E } # Excluding 0x20 (Solo Popo)
-	
-	def __init__( self, *args, **kwargs ):
-		DatFile.__init__( self, *args, **kwargs )
-
-		self._intCharId = -2
-		self._extCharId = -2
-		self._charAbbr = ''
-		self._colorAbbr = ''
 
 	@property
 	def intCharId( self ):
@@ -70,9 +63,16 @@ class CharFileBase( DatFile ):
 		return self._charAbbr
 
 
-class CharDataFile( CharFileBase ):
+class CharDataFile( CharFileBase, DatFile ):
 
 	""" Pl__.dat (ftData_) """
+	
+	def __init__( self, *args, **kwargs ):
+		super( CharDataFile, self ).__init__( *args, **kwargs )
+
+		self._intCharId = -2
+		self._extCharId = -2
+		self._charAbbr = ''
 
 	def getCharAbbr( self ):
 
@@ -117,7 +117,7 @@ class CharDataFile( CharFileBase ):
 		else:
 			self._shortDescription = 'Data file'
 
-	def getFighterActionTable( self ):
+	def getActionTable( self ):
 
 		self.initialize()
 
@@ -175,12 +175,12 @@ class ActionTableEntry( TableStruct ):
 		self.name = 'Action Table ' + uHex( 0x20 + args[1] )
 		self.formatting = '>IIIIBHBI'
 		self.fields = ( 'Action_Name_Pointer',
-						'Animation_Offset',
+						'Animation_Offset',			# Offset into the AJ files
 						'Animation_Size',
 						'SubAction_Pointer',
-						'SubAction_ID',				# 0x10
-						'Flags',
-						'Internal_Character_ID',
+						'SubAction_ID',				# 0x10 (byte)
+						'Flags',					# 0x11 (halfword)
+						'Internal_Character_ID',	# 0x13 (byte)
 						'Padding'
 					)
 		self.length = 0x18
@@ -191,61 +191,142 @@ class ActionTableEntry( TableStruct ):
 
 		# Reinitialize this as a Table Struct to duplicate this entry struct for all enties in this table
 		TableStruct.__init__( self )
-		#super( MapMusicTableEntry, self ).__init__( self ) # probably should use this instead
+		#super( ActionTableEntry, self ).__init__( self ) # probably should use this instead
 
 
-class CharCostumeFile( CharFileBase ):
+class CharAnimFile( CharFileBase, FileBase ):
+
+	""" Character animation files (Pl__AJ.dat files); i.e. Ply[charAbbr]5K_Share_ACTION_Wait1_figatree 
+		This file format is just a container/list of DAT files, where each DAT is an animation. 
+		These sub-files are stored end-to-end (with no header to define said list), but aligned to 0x20 bytes. """
+
+	def __init__( self, *args, **kwargs ):
+		super( CharAnimFile, self ).__init__( *args, **kwargs )
+
+		self.animations = []
+		self.animNames = []
+		
+		self._intCharId = -2
+		self._extCharId = -2
+		self._charAbbr = ''
+
+	def validate( self ):
+
+		""" Verifies whether this is actually a character animation file by 
+			checking the first animation file symbol. """
+			
+		# Make sure file data has been loaded
+		self.getData()
+
+		readOffset = 0
+
+		# Get the size of this animation
+		headerData = self.getData( readOffset, 0x14 )
+		animSize, rtStart, rtEntryCount, rootNodeCount, referenceNodeCount = struct.unpack( '>5I', headerData )
+
+		if rootNodeCount != 1:
+			raise Exception( 'Invalid character animation file; root node count is not 1.' )
+		elif referenceNodeCount != 0:
+			raise Exception( 'Invalid character animation file; reference node count is not 0.' )
+
+		# Get the name of this animation (the symbol). Simpler method than initializing the file
+		nameOffset = readOffset + rtStart + ( rtEntryCount * 4 ) + 8
+		stringLength = readOffset + animSize - nameOffset
+		symbol = self.getString( nameOffset, stringLength )
+
+		if not symbol.startswith( 'Ply' ) or '_ACTION_' not in symbol:
+			raise Exception( 'Invalid character animation file; invalid symbol name: {}.'.format(symbol) )
+
+	def initialize( self ):
+
+		""" Parse out the file's individual DAT files within, and collect information on them. """
+
+		if self.animations:
+			return # This file has already been initialized!
+			
+		# Make sure file data has been loaded
+		self.getData()
+
+		readOffset = 0
+
+		# Create a DAT file for each animation
+		while 1:
+			# Get the size of this animation
+			headerData = self.getData( readOffset, 0xC )
+			if len( headerData ) != 0xC:
+				break # Reached the end of the file
+			animSize, rtStart, rtEntryCount = struct.unpack( '>3I', headerData )
+
+			# Create a DAT file for this animation and attach its data
+			anim = DatFile( None, readOffset, animSize, self.filename )
+			anim.data = self.getData( readOffset, animSize )
+
+			# Get the name of this animation (the symbol). Simpler method than initializing the file
+			nameOffset = readOffset + 0x20 + rtStart + ( rtEntryCount * 4 ) + 8
+			stringLength = readOffset + animSize - nameOffset
+			anim.name = self.getString( nameOffset, stringLength )
+			self.animNames.append( anim.name )
+
+			self.animations.append( anim )
+
+			# Calculate offset of next animation (round up to nearest 0x20 bytes)
+			readOffset += roundTo32( animSize )
+
+	def getCharAbbr( self ):
+
+		# Ensure root nodes and the string table have been parsed
+		self.initialize()
+
+		symbol = self.animations[0].name
+		symbolBase = symbol[3:].split( '_' )[0] # Remove 'Ply' and everything after first underscore
+
+		return symbolBase.replace( '5K', '' )
+
+	def getDescription( self ):
+		
+		# Attempt to get the character name this file is for
+		charName = globalData.charNameLookup.get( self.charAbbr, '' )
+		if not charName:
+			self._shortDescription = 'Unknown ({})'.format( self.charAbbr )
+			self._longDescription = self._shortDescription
+			return
+
+		self._shortDescription = 'Animation data'
+		if charName.endswith( 's' ):
+			self._longDescription = charName + "' animation data"
+		else:
+			self._longDescription = charName + "'s animation data"
+
+
+class CharIdleAnimFile( CharFileBase, FileBase ):
+
+	""" Character idle animation files (Pl__DViWaitAJ.dat files); i.e. ftDemoViWaitMotionFile[charAbbr]
+		This file format is basically a DAT file contained within another DAT file. Both have a header 
+		and string table, but the outer archive/DAT file has no relocation table. """
+
+	def __init__( self, *args, **kwargs ):
+		super( CharIdleAnimFile, self ).__init__( *args, **kwargs )
+
+		self.animations = []
+		self.animNames = []
+		
+		self._intCharId = -2
+		self._extCharId = -2
+		self._charAbbr = ''
+
+
+class CharCostumeFile( CharFileBase, DatFile ):
 
 	""" Character model & texture files (costumes); i.e. Ply[charAbbr]5KBu_Share_joint """
-
-	# Character file abbreviations; the key comes from the root node of the character file
-	# charAbbrs = { 	'Boy': 'Bo', 'Crazyhand': 'Ch', 'Gkoopa': 'Gk', 'Girl': 'Gl', 'Masterhand': 'Mh', 'Sandbag': 'Sb',
-	# 				'KirbyDk': 'KbDk', 'KirbyFc': 'KbFc', 'KirbyGw': 'KbGw', 'KirbyMt': 'KbMt', 'KirbyPr': 'KbPr', 
-
-	# 				'Captain': 'Ca', 'Clink': 'Cl', 'Donkey': 'Dk', 'Drmario': 'Dr', 'Falco': 'Fc', 'Emblem': 'Fe', 
-	# 				'Fox': 'Fx', 'Ganon': 'Gn', 'Gamewatch': 'Gw', 'Kirby': 'Kb', 'Koopa': 'Kp', 'Luigi': 'Lg', 
-	# 				'Link': 'Lk', 'Mario': 'Mr', 'Mars': 'Ms', 'Mewtwo': 'Mt', 'Nana': 'Nn', 'Ness': 'Ns', 
-	# 				'Pichu': 'Pc', 'Peach': 'Pe', 'Pikachu': 'Pk', 'Popo': 'Pp', 'Purin': 'Pr', 
-	# 				'Seak': 'Sk', 'Samus': 'Ss', 'Yoshi': 'Ys', 'Zelda': 'Zd' }
-
-	# # Character Abbreviation (key) to Internal Character ID (value)
-	# intCharIds = { 	'Mr': 0x00, 'Fx': 0x01, 'Ca': 0x02, 'Dk': 0x03, 'Kb': 0x04, 'Kp': 0x05, 'Lk': 0x06,
-	# 				'Sk': 0x07, 'Ns': 0x08, 'Pe': 0x09, 'Pp': 0x0A, 'Nn': 0x0B, 'Pk': 0x0C, 'Ss': 0x0D,
-	# 				'Ys': 0x0E, 'Pr': 0x0F, 'Mt': 0x10, 'Lg': 0x11, 'Ms': 0x12, 'Zd': 0x13, 'Cl': 0x14,
-	# 				'Dr': 0x15, 'Fc': 0x16, 'Pc': 0x17, 'Gw': 0x18, 'Gn': 0x19, 'Fe': 0x1A, 'Mh': 0x1B,
-	# 				'Ch': 0x1C, 'Bo': 0x1D, 'Gl': 0x1E, 'Gk': 0x1F, 'Sb': 0x20 }
-
-	# # Character Abbreviation (key) to External Character ID (value)
-	# extCharIds = { 	'Ca': 0x00, 'Dk': 0x01, 'Fx': 0x02, 'Gw': 0x03, 'Kb': 0x04, 'Kp': 0x05, 'Lk': 0x06,
-	# 				'Lg': 0x07, 'Mr': 0x08, 'Ms': 0x09, 'Mt': 0x0A, 'Ns': 0x0B, 'Pe': 0x0C, 'Pk': 0x0D,
-	# 				'Pp': 0x0E, 'Pr': 0x0F, 'Ss': 0x10, 'Ys': 0x11, 'Zd': 0x12, 'Sk': 0x13, 'Fc': 0x14,
-	# 				'Cl': 0x15, 'Dr': 0x16, 'Fe': 0x17, 'Pc': 0x18, 'Gn': 0x19, 'Mh': 0x1A, 'Bo': 0x1B,
-	# 				'Gl': 0x1C, 'Gk': 0x1D, 'Ch': 0x1E, 'Sb': 0x1F, 'Nn': 0x0E } # Excluding 0x20 (Solo Popo)
 	
-	# def __init__( self, *args, **kwargs ):
-	# 	DatFile.__init__( self, *args, **kwargs )
+	def __init__( self, *args, **kwargs ):
+		super( CharCostumeFile, self ).__init__( *args, **kwargs )
 
-	# 	self._intCharId = -2
-	# 	self._extCharId = -2
-	# 	self._charAbbr = ''
-	# 	self._colorAbbr = ''
+		self._intCharId = -2
+		self._extCharId = -2
+		self._charAbbr = ''
+		self._colorAbbr = ''
 
-	# @property
-	# def intCharId( self ):
-	# 	if self._intCharId == -2:
-	# 		self._intCharId = self.intCharIds.get( self.charAbbr, -1 )
-	# 	return self._intCharId
-	# @property
-	# def extCharId( self ):
-	# 	if self._extCharId == -2:
-	# 		self._extCharId = self.extCharIds.get( self.charAbbr, -1 )
-	# 	return self._extCharId
-		
-	# @property
-	# def charAbbr( self ):
-	# 	if not self._charAbbr:
-	# 		self._charAbbr = self.getCharAbbr()
-	# 	return self._charAbbr
 	@property
 	def colorAbbr( self ):
 		if not self._colorAbbr:
@@ -333,30 +414,15 @@ class CharCostumeFile( CharFileBase ):
 		else:
 			self._longDescription = charName + "'s "
 
+		# Check the costume color
 		colorKey = self.colorAbbr
 		color = globalData.charColorLookup.get( colorKey, '' )
 		assert color, 'Unable to get a color look-up from ' + colorKey
 
-		# if inConvenienceFolder: # No need to show the name, since it's already displayed
-		# 	description = ''
-		# elif charName.endswith('s'):
-		# 	description = charName + "' "
-		# else:
-		# 	description = charName + "'s "
-
-		#if color: # It's a character costume (model & textures) file
+		# Assemble the costume color string
 		self._shortDescription = color + ' costume'
 		if self.ext == '.lat' or colorKey == 'Rl': self._shortDescription += " ('L' alt)" # For 20XX
 		elif self.ext == '.rat' or colorKey == 'Rr': self._shortDescription += " ('R' alt)"
-		# elif colorKey == '.d': description += 'NTSC data & shared textures' # e.g. "PlCa.dat"
-		# elif colorKey == '.p': description += 'PAL data & shared textures'
-		# elif colorKey == '.s': description += 'SDR data & shared textures'
-		# elif colorKey == 'AJ': description += 'animation data'
-		# elif colorKey == 'Cp': # Kirb's copy abilities
-		# 	copyChar = globalData.charNameLookup.get( self.filename[6:8], '' )
-		# 	if ']' in copyChar: copyChar = copyChar.split( ']' )[1]
-		# 	description += "copy power textures (" + copyChar + ")"
-		# elif colorKey == 'DV': description += 'idle animation data'
 
 		self._longDescription += self._shortDescription
 

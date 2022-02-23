@@ -13,3 +13,6 @@ bin/Micro Melee.iso
 
 # Visual Studio Code project folder
 #.vscode
+
+# Ignore input test files
+/*.json

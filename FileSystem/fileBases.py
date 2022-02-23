@@ -27,7 +27,7 @@ from tplCodec import TplDecoder, TplEncoder
 from basicFunctions import uHex, msg, printStatus, createFolders
 #from . import fileStructures
 
-showLogs = True
+showLogs = False
 
 
 					# = ---------------------------- = #
@@ -51,10 +51,8 @@ class FileBase( object ):
 		self.isoPath = isoPath			# e.g. 'GALE01/audio/1padv.ssm' if this is for a file in a disc
 		self.extPath = extPath			# External path. I.e. a full (absolute) system file path if this is a standalone file
 		self.origSize = size			# Should always be the original size of the file (even if its data changes size)
-		#self.description = description
 		self._shortDescription = description
 		self._longDescription = description
-		#self.updateSummary = set()		# Summary of changes done to this file
 		self.unsavedChanges = []		# Detailed list of all specific changes to this file
 
 		if isoPath:
@@ -326,6 +324,11 @@ class FileBase( object ):
 			msg( 'Unable to save the new name to the yaml config file:\n\n{}'.format(err) )
 			return 1
 
+	def validate( self ):
+
+		""" Verifies whether this file is of a specific type.
+			Expected to be overridden by subclasses with specific checks. """
+
 
 class BootBin( FileBase ):
 
@@ -396,7 +399,9 @@ class BannerFile( FileBase ):
 
 		magicWord = self.getData( 0, 0x4 )
 
-		return ( magicWord == bytearray(b'BNR1') or magicWord == bytearray(b'BNR2') )
+		#return ( magicWord == bytearray(b'BNR1') or magicWord == bytearray(b'BNR2') )
+		if not magicWord == bytearray( b'BNR1' ) and not magicWord == bytearray( b'BNR2' ):
+			raise Exception( 'Invalid banner file; no magic word of BNR1|BNR2.' )
 
 
 					# = ------------------------- = #
@@ -467,7 +472,10 @@ class DatFile( FileBase ):
 		# Parse the RT and String Table
 		self.parseRelocationTable()
 		stringTableLength = self.parseStringTable()
-		assert stringTableLength != -1, 'Invalid string table length; unable parse string table'
+		#assert stringTableLength != -1, 'Invalid string table length; unable to parse string table'
+		if showLogs and stringTableLength == -1:
+			print 'Invalid string table length; unable to parse string table'
+			return
 		
 		# Separate out other file sections using the info gathered above
 		self.stringTableData = self.data[ stringTableStart : stringTableStart + stringTableLength ]
@@ -539,7 +547,8 @@ class DatFile( FileBase ):
 
 	def parseStringTable( self ):
 
-		""" Creates a dictionary for the string table, where keys=dataSectionOffsets, and values=stringLabels. """
+		""" Creates a dictionary for the string table, where keys=dataSectionOffsets, and values=stringLabels. 
+			Returns the length of the string table (in bytes), or -1 if there was a parsing error. """
 
 		try:
 			stringTable = self.data[self.headerInfo['stringTableStart']:] # Can't separate this out beforehand, without knowing its length
@@ -728,6 +737,16 @@ class DatFile( FileBase ):
 		# 	specificStructClassFound = hsdStructures.SpecificStructureClasses.get( string )
 		# 	if specificStructClassFound:
 		# 		self.structs[structOffset] = specificStructClassFound.__name__
+
+	def validate( self ):
+
+		""" Verifies whether this is actually a DAT file by affirming existance of basic file analysis.
+			Expected to be overridden by subclasses with more specific checks. """
+
+		self.initialize()
+
+		if not self.headerInfo or not self.pointers:
+			raise Exception( 'Invalid DAT file; header info and file structures could not be parsed.' )
 
 	def getStructLength( self, targetStructOffset ):
 
@@ -1892,9 +1911,6 @@ class DatFile( FileBase ):
 		# Update the texture image data in the file
 		#self.updateData( imageDataOffset, newImageData, 'Image data updated' )
 		self.updateData( imageDataOffset, newImageData, trackChange=False )
-		# updateSummaryMsg = 
-		# if updateSummaryMsg not in self.updateSummary:
-		#self.updateSummary.add( 'Texture updated at ' + uHex(0x20+imageDataOffset) )
 		self.recordChange( '{} updated at 0x{:X}'.format(textureName, 0x20+imageDataOffset) )
 
 		return 0, '', ''

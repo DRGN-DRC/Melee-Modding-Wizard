@@ -3,8 +3,8 @@
 :: You may uncomment one of the following lines to 
 :: control whether Dolphin is run in Debug Mode.
 
-python "%~dp0main.py" test --path %*
-::python "%~dp0main.py" test --debug --path %*
+python "%~dp0main.py" test --boot %*
+::python "%~dp0main.py" test --debug --boot %*
 
 
 :: Exit if no problems, otherwise pause so we can see what happened.

@@ -19,8 +19,7 @@ import struct
 import tempfile
 import tkMessageBox
 
-from string import hexdigits 				# For checking that a string only consists of hexadecimal characters
-from binascii import hexlify, unhexlify 	# Convert from bytearrays to strings (and vice verca via unhexlify)
+from binascii import hexlify
 
 # Internal Dependencies
 import globalData
@@ -237,7 +236,7 @@ class Disc( object ):
 		if systemFilePaths:
 			self.loadRootFolder( systemFilePaths )
 		
-		# Not a directory; check that it's a valid file path
+		# Not a directory (or missing system files); check that it's a valid file path
 		elif not os.path.exists( self.filePath ):
 			msg( "Unable to find the disc or root path. Check the path and make sure the file hasn't been moved or deleted." )
 
@@ -264,7 +263,7 @@ class Disc( object ):
 		#self.revision = struct.unpack( 'B', bootFileData[7] )[0] # Reading just byte 7
 		self.revision = bootFileData[7]
 
-		# Double check that this is a gamecube disc image
+		# Double check that this is a gamecube disc image (checking for the disc's magic word)
 		if not bootFileData[0x1C:0x20] == b'\xC2\x33\x9F\x3D':
 			msg( "The disc boot file doesn't appear to be for a GameCube disc!" )
 			return
@@ -477,6 +476,11 @@ class Disc( object ):
 			# 		print 'found address mismatch on line {}: {}'.format( i, line )
 
 		return self._symbols
+
+	# def validate( self ):
+		
+	# 	# Check if this is a root folder (folder of files rather than a disc), and get the system file paths
+	# 	systemFilePaths = isExtractedDirectory( self.filePath, showError=False )
 
 	def getBannerFile( self, filename='' ):
 

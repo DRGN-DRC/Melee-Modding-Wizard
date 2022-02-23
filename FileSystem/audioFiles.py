@@ -73,6 +73,14 @@ class MusicFile( FileBase ):
 	@musicId.setter
 	def musicId( self, newValue ):
 		self._musicId = newValue
+
+	def validate( self ):
+
+		""" Verifies whether this is actually an HPS file by checking for the magic word. """
+
+		headerData = self.getData( 0, 0x10 )
+		if not headerData[:8] == ' HALPST\x00':
+			raise Exception( 'Invalid HPS file; magic word "HALPST" not found.' )
 	
 	def readHeader( self ):
 

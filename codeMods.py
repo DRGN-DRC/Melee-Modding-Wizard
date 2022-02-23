@@ -164,25 +164,14 @@ class CodeChange( object ):
 
 		# If no original hexcode, try to get it from the vanilla disc
 		if not self._origCode:
-			# Retrieve the vanilla disc path
-			# vanillaDiscPath = globalData.getVanillaDiscPath()
-			# if not vanillaDiscPath: # User canceled path input
-			# 	printStatus( 'Unable to get DOL data; no vanilla disc available for reference', error=True )
-			# 	return
-			
-			# # Load the vanilla disc
-			# vanillaDisc = Disc( vanillaDiscPath )
-			# vanillaDisc.load()
-
-			# Get the DOL file, normalize the offset string, and get the target file data
-			#dol = vanillaDisc.dol
-			
+			# Get the DOL file
 			try:
 				dol = globalData.getVanillaDol()
 			except Exception as err:
 				printStatus( 'Unable to get DOL data; {}'.format(err.message), warning=True )
 				return ''
 
+			# Normalize the offset string, and get the target file data
 			dolOffset, error = dol.normalizeDolOffset( self.offset )
 			if error:
 				printStatus( error )

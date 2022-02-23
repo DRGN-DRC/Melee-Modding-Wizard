@@ -10,6 +10,7 @@
 #		  -  - Melee Modding Wizard -  -  
 
 # External logic dependencies
+from cProfile import label
 import os
 import time
 from posixpath import basename
@@ -24,7 +25,7 @@ import Tkinter as Tk
 # Internal dependencies
 import globalData
 from audioManager import AudioManager
-from FileSystem import fileFactory, SisFile, MusicFile
+from FileSystem import fileFactory, SisFile, MusicFile, CharDataFile, CharAnimFile
 from FileSystem.disc import Disc
 from basicFunctions import (
 		msg, printStatus, copyToClipboard, 
@@ -32,6 +33,7 @@ from basicFunctions import (
 		saveAndShowTempFileData
 	)
 from guiSubComponents import (
+		cmsg,
 		exportSingleFileWithGui,
 		importSingleFileWithGui,
 		getNewNameFromUser,
@@ -1437,7 +1439,7 @@ class DiscDetailsTab( ttk.Frame ):
 																			# ~ ~   Context Menus   ~ ~ #
 																			#===========================#
 
-class DiscMenu( Tk.Menu, object ): 
+class DiscMenu( Tk.Menu, object ):
 	
 	""" Main menu item, as well as the context menu for the Disc File Tree. """ # just context menu?
 
@@ -1485,10 +1487,15 @@ class DiscMenu( Tk.Menu, object ):
 		# Add file-type-specific options if only a single file is selected
 		if self.fileObj:
 			self.add_command( label='Import File', underline=0, command=self.discTab.importSingleIsoFile )								# I
+
 			if self.fileObj.__class__ == MusicFile:
 				self.add_command( label='Listen', underline=0, command=self.listenToMusic )												# L
 			elif self.fileObj.__class__ == SisFile:
 				self.add_command( label='Browse Strings', underline=7, command=self.openSisTextEditor )									# S
+			elif self.fileObj.__class__ == CharAnimFile:
+				self.add_command( label='List Animations', command=self.listAnimations )												# S
+			elif self.fileObj.__class__ == CharDataFile:
+				self.add_command( label='List Action Table Entries', command=self.listActionTableEntres )
 		# self.add_command( label='Import Multiple Files', underline=7, command=importMultipleIsoFiles )								# M
 		self.add_separator()
 
@@ -1522,7 +1529,7 @@ class DiscMenu( Tk.Menu, object ):
 			self.add_command( label='Remove Selected Item(s)', underline=0, command=self.removeItemsFromIso )							# R
 		# 	self.add_command( label='Move Selected to Directory', underline=1, command=moveSelectedToDirectory )						# O
 
-		# Add file operations
+		# Add general file operations
 		if self.selectionCount == 1 and self.entity == 'file':
 			self.add_separator()
 			self.add_command( label='View Hex', underline=5, command=self.viewFileHex )													# H
@@ -1582,6 +1589,36 @@ class DiscMenu( Tk.Menu, object ):
 
 		# Select the file
 		mainGui.audioManagerTab.selectSong( self.fileObj.isoPath )
+
+	def listAnimations( self ):
+
+		self.fileObj.initialize()
+
+		lines = []
+		# for symbol in self.fileObj.animNames:
+		# 	charName = symbol[3:].split( '_' )[0]
+		# 	animName = symbol.split( '_' )[3]
+		for anim in self.fileObj.animations:
+			charName = anim.name[3:].split( '_' )[0]
+			animName = anim.name.split( '_' )[3]
+			offset = hex( anim.offset + 0x20 )
+			
+			lines.append( '{}  -  {}  -  {}'.format(charName, animName, offset) )
+
+		cmsg( '\n'.join(lines), '{} Animation Names'.format(self.fileObj.filename) )
+
+	def listActionTableEntries( self ):
+		
+		table = self.fileObj.getActionTable()
+		title = self.fileObj.filename + ' Action Table Entries - ' + hex( table.offset + 0x20 )
+
+		lines = []
+		for i, values in table.iterateEntries():
+			actionName = self.fileObj.getString( values[0] )
+			offset = table.entryIndexToOffset( i )
+			lines.append( '\t{} | {} - {}'.format(i, uHex(offset + 0x20), actionName) )
+			
+		cmsg( '\n'.join(lines), title )
 
 	def openSisTextEditor( self ):
 		SisTextEditor( self.fileObj )

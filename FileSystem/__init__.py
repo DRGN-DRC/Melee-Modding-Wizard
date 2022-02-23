@@ -66,15 +66,19 @@ def fileFactory( *args, **kwargs ):
 			# Assume it's a DAT file by this point
 			fileObj = DatFile( *args, **kwargs )
 			fileObj.initialize()
+			symbol = fileObj.stringDict.values()[0]
 
 			if 'map_head' in fileObj.stringDict.values():
 				return StageFile( *args, **kwargs )
 
-			elif len( fileObj.rootNodes ) == 1 and fileObj.rootNodes[0][1].startswith( 'SIS_' ): # Indexing a list of tuples
+			elif len( fileObj.stringDict ) == 1 and symbol.startswith( 'SIS_' ):
 				return SisFile( *args, **kwargs )
 
 			elif fileObj.rootNodes[0][1].startswith( 'ftData' ):
 				return CharDataFile( *args, **kwargs )
+
+			elif len( fileObj.stringDict ) == 1 and symbol.startswith( 'Ply' ) and '_ACTION_' in symbol:
+				return CharAnimFile( *args, **kwargs )
 
 			elif fileObj.rootNodes[0][1].endswith( '_Share_joint' ): # Indexing a list of tuples
 				return CharCostumeFile( *args, **kwargs )
@@ -107,9 +111,14 @@ def fileFactory( *args, **kwargs ):
 
 				return charFile
 		
-			elif len( filename ) == 6 and filename[-2:] != 'AJ':
-
-				if filename[2:6] == 'KbCp': pass # Oh, Kirby.... (these are copy powers; ftData)
+			elif len( filename ) == 6:
+				if filename[-2:] == 'AJ':
+					charFile = CharAnimFile( *args, **kwargs )
+					charFile._charAbbr = filename[2:4] # Save some work later
+					
+					return charFile
+				elif filename[2:6] == 'KbCp':
+					pass # Oh, Kirby.... (these are copy powers; ftData)
 				else:
 					charFile = CharCostumeFile( *args, **kwargs )
 					charFile._charAbbr = filename[2:4] # Save some work later

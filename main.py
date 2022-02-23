@@ -17,6 +17,7 @@ from __future__ import print_function # Use print with (); preparation for movin
 # External dependencies
 import math
 import time
+import json
 import struct
 import random
 import tkFont
@@ -26,6 +27,7 @@ import Tkinter as Tk
 import ttk, tkMessageBox, tkFileDialog
 
 from threading import Thread
+from collections import OrderedDict
 from subprocess import Popen, PIPE, CalledProcessError
 from sys import argv as programArgs 	# Access command line arguments, and files given (drag-and-dropped) to the program icon
 from PIL import Image, ImageTk, ImageDraw, ImageFilter, ImageChops
@@ -37,11 +39,12 @@ FR_NOT_ENUM = 0x20
 import globalData
 
 from tools import TriCspCreator, AsmToHexConverter, CodeLookup
-from FileSystem import StageFile, CharCostumeFile
+from FileSystem import DatFile, CharDataFile, CharAnimFile, CharCostumeFile
+from FileSystem import CssFile, SssFile, StageFile, MusicFile
 from FileSystem.disc import Disc, isExtractedDirectory
-from basicFunctions import msg, openFolder, printStatus
+from basicFunctions import msg, openFolder
 from guiSubComponents import (
-		cmsg, importGameFiles, VerticalScrolledFrame,
+		cmsg, importGameFiles, 
 		HexEditEntry, CharacterChooser
 	)
 from guiDisc import DiscTab, DiscDetailsTab
@@ -2079,11 +2082,11 @@ def parseArguments(): # Parses command line arguments
 															 'This is required for most disc operations.' )
 		discOpsParser.add_argument( '-e', '--export', help='Export one or more files from a given disc. Use an ISO path to target a specific file within a disc. '
 														   'e.g. "--export PlSsNr.dat" or "--export .\\audio\\us\\mario.ssm" '
-														   'If operating on multiple files, this should be a colon-separated list of ISO paths. '
-														   'If the --output argument is not also used, files are output to the current working directory.', nargs='+' )
+														   'If operating on multiple files, this should be a list of ISO paths. '
+														   'If the --output command is not also used, files are output to the current working directory.', nargs='+' )
 		discOpsParser.add_argument( '-i', '--import', dest='_import', help='Provide a filepath for an external/standalone file to be imported into a given disc. '
-														   'Supplement this with the --isoPath (-p) argument to define what file to target. '
-														   'The given filepath may be a single path, or a colon-separated list of paths for multiple files.', nargs='+' )
+														   'Supplement this with the --isoPath (-p) command to define what file to target. '
+														   'The given filepath may be a single path, or a list of paths for multiple files.', nargs='+' )
 		discOpsParser.add_argument( '-l', '--listFiles', action="store_true", help='List the files within the given disc. Can be used with --info' )
 		discOpsParser.add_argument( '-n', '--info', action="store_true", help='Show various information on the given disc. Can be used with --listFiles' )
 		discOpsParser.add_argument( '-nbu', '--no-backup-on-rebuild', dest='noBackupOnRebuild', action="store_true", help='Do not back up (create a copy of) '
@@ -2091,16 +2094,26 @@ def parseArguments(): # Parses command line arguments
 		discOpsParser.add_argument( '-o', '--output', dest='outputFilePath', help='Provides an output path for various operations. May be just a folder path, '
 																				  'or it may include the file name in order to name the finished file.' )
 		discOpsParser.add_argument( '-p', '--isoPath', help='Used to target a specific file within a disc. e.g. "PlSsNr.dat" or ".\\audio\\us\\mario.ssm" '
-															'If operating on multiple files, this should be a colon-separated list of ISO paths.', nargs='+' )
+															'If operating on multiple files, this should be a list of ISO paths.', nargs='+' )
 		
 		# Define "test" options
-		testOpsParser = subparsers.add_parser( 'test', help='Asset test tool. Used to validate or boot test assets such as characters or stage files.' )
+		testOpsParser = subparsers.add_parser( 'test', help='Asset test tool. Used to validate or boot-test assets such as characters or stage files.' )
 		testOpsParser.add_argument( '-d', '--debug', action="store_true", help='If included, Dolphin will run in Debug Mode.' )
-		testOpsParser.add_argument( '-p', '--path', help='Provide a filepath for a character/stage/etc., to have boot-tested in Dolphin.' )
-		testOpsParser.add_argument( '-v', '--validate', help='Provide one or more filepaths for files to validate. You may pair this with '
-															 'the --validationType arg to provide the expected file type. (Default is "dat".)', nargs='+' )
-		testOpsParser.add_argument( '-t', '--validationType', help='Provide the expected file type for the --validate argument. Default is "dat". Other allowable '
-																   'validation types are disc, ssm, hps, dol, stage, and character.', default='dat', nargs='+' )
+		testOpsParser.add_argument( '-b', '--boot', help='Provide a filepath for a character/stage/etc., to have boot-tested in Dolphin.' )
+		testOpsParser.add_argument( '-v', '--validate', help='Validate given files to determine if they are of an expected type. '
+															 'You may pass one or more file paths to this command. By default, this will attempt to validate them as '
+															 '"dat" files, however you may change this by using the --validationType command to provide the expected '
+															 'file type(s). Alternatively, you may omit both the --validate and --validationType arguments and '
+															 'instead provide this input in a JSON file or string, using the --validateJson command.', nargs='+' )
+		testOpsParser.add_argument( '-vt', '--validationType', help='Provide the expected file type(s) for the --validate command. If only one type is given, all of the '
+																   'given paths will be expected to be that type. Or you may provide a list of types; one for each file '
+																   'path given. The default (if this command is not used) is "dat". Other allowable validation types '
+																   'are music, menu, stage, and character. This option is not meant to be used with JSON input.', default=['dat'], nargs='+' )
+		testOpsParser.add_argument( '-vj', '--validateJson', help='Validate given files to determine if they are of an expected type (like --validate), except '
+																  'that input (file paths and expected types) may be a JSON file, or JSON-formatted string.' )
+		testOpsParser.add_argument( '-ojf', '--outputJsonFile', help='Provide a filepath to output a JSON results file for the --validate or --validateJson options.' )
+		testOpsParser.add_argument( '-ojs', '--outputJsonString', action="store_true", help='Output JSON results on stdout as a string for the --validate or --validateJson '
+																							'options. Usage of this option will disable the normal file status printout.' )
 		
 		# Define "code" options
 		codeOpsParser = subparsers.add_parser( 'code', help='Add custom code to a DOL or ISO, or examine one for installed codes.' )
@@ -2109,8 +2122,7 @@ def parseArguments(): # Parses command line arguments
 
 	except Exception as err:
 		# Exit the program on error (with exit code 1)
-		print( err )
-		parser.exit( status=1, message='There was an error in parsing the command line arguments.' )
+		parser.exit( status=1, message='There was an error in parsing the command line arguments:\n' + str(err) )
 		
 	parser.set_default_subparser( 'none' )
 
@@ -2264,34 +2276,178 @@ def buildDiscFromRoot():
 		sys.exit( returnCode + 100 )
 
 
-
 def validateAssets():
 
 	""" Function for command-line usage. Validates that a list of given files is of an expected type. """
 
-	# Validate arguments; if validation type is more than one, it should match 1-to-1 with the filepaths list
-	if len( args.validationType ) > 1 and len( args.validationType ) != len( args.validate ):
-		print( 'Invalid command line aguments. There must be only one validation' )
-		print( 'type parameter, or it must match the number of filepaths given.' )
-		sys.exit( 2 )
+	# Check for a JSON file or string to parse
+	if args.validateJson:
+		if args.validateJson.lower().endswith( '.json' ):
+			try:
+				with open( args.validateJson, 'r' ) as jsonFile:
+					dictionary = json.load( jsonFile, object_pairs_hook=OrderedDict )
+			except Exception as err:
+				print( 'Unable to read the given JSON file; {}'.format(err) )
+				sys.exit( 1 )
 
-	# More argument validation; check for valid validation types
-	for vType in args.validationType:
-		if vType not in 
-		print( 'Invalid command line agument; unrecognized validationType parameter: {}'.format(vType) )
-		sys.exit( 2 )
+		else: # Must be a json string to parse
+			try:
+				dictionary = json.loads( args.validateJson, object_pairs_hook=OrderedDict )
+			except Exception as err:
+				print( 'Unable to parse the given JSON string; {}'.format(err) )
+				sys.exit( 1 )
 
-	# Expand the validation type list if only one type is present
-	if len( args.validationType ) == 1 and len( args.validate ) > 1:
-		validationTypes = [  ]
-	else:
-		validationTypes = args.validationType
+		# Normalize the input (may be a list of dicts)
+		if type( dictionary ) == list:
+			newDict = {}
+			for entry in dictionary:
+				filePath = entry.get( 'Path' )
+				expectedType = entry.get( 'Expected Type' )
+				if not filePath or not expectedType:
+					print( 'Invalid JSON formatting. Each entry should have a "Path" and "Expected Type" key.' )
+					sys.exit( 2 )
+				newDict[filePath] = expectedType
+			dictionary = newDict
 
-	for i, path in enumerate( args.validate ):
-		expectedType = validationTypes[i]
+		filePaths, validationTypes = zip( *dictionary.items() )
+
+	else: # Input is purely in the form of CMD args (--validate and/or --validationType)
+		# Validate arguments; if validation type is more than one, it should match 1-to-1 with the filepaths list
+		if len( args.validationType ) > 1 and len( args.validationType ) != len( args.validate ):
+			print( 'Invalid command line aguments. There must be only one validation' )
+			print( 'type parameter, or it must match the number of filepaths given.' )
+			sys.exit( 2 )
+
+		# Parse a JSON file if one was given
+		# if len( args.validate ) == 1 and args.validate[0].lower().endswith( '.json' ):
+		# 	with open( args.validate[0], 'r' ) as jsonFile:
+				
+		# Expand the validation type list if only one type is present
+		if len( args.validate ) > 1 and len( args.validationType ) == 1:
+			filePaths = args.validate
+			validationTypes = [ args.validationType[0] ] * len( args.validate )
+
+		# File paths and types should already be available as 1-1 lists
+		else:
+			filePaths = args.validate
+			validationTypes = args.validationType
+
+	# More input validation; check for valid validation types
+	for vType in validationTypes:
+		if vType not in ( 'dat', 'music', 'menu', 'stage', 'character' ):
+			print( 'Invalid command line agument; unrecognized validationType parameter: {}'.format(vType) )
+			sys.exit( 2 )
+
+	jsonOutput = []
+	statusList = []
+	nameColumnWidth = 25
+	expectedColumnWidth = 9
+
+	# Test the files and build JSON results
+	for filePath, expectedType in zip( filePaths, validationTypes ):
 
 		if expectedType == 'dat':
+			fileObj = DatFile( None, -1, -1, '', extPath=filePath, source='file' )
 
+		#elif expectedType == 'dol':
+			#fileObj = Dol( None, -1, -1, '', extPath=filePath, source='file' )
+
+		elif expectedType == 'music':
+			fileObj = MusicFile( None, -1, -1, '', extPath=filePath, source='file' )
+
+		elif expectedType == 'menu':
+			for MenuClass in ( CssFile, SssFile ):
+				try:
+					fileObj = MenuClass( None, -1, -1, '', extPath=filePath, source='file' )
+					fileObj.validate()
+					break
+				except:
+					continue # Last fileObj will fail again in the main check below and status will be FAIL
+
+		elif expectedType == 'stage':
+			fileObj = StageFile( None, -1, -1, '', extPath=filePath, source='file' )
+
+		# elif expectedType == 'charData':
+		# 	fileObj = CharDataFile( None, -1, -1, '', extPath=filePath, source='file' )
+
+		# elif expectedType == 'charAnim':
+		# 	fileObj = CharAnimFile( None, -1, -1, '', extPath=filePath, source='file' )
+
+		# elif expectedType == 'costume':
+		# 	fileObj = CharCostumeFile( None, -1, -1, '', extPath=filePath, source='file' )
+
+		elif expectedType == 'character':
+			for CharClass in ( CharDataFile, CharAnimFile, CharCostumeFile ):
+				try:
+					fileObj = CharClass( None, -1, -1, '', extPath=filePath, source='file' )
+					fileObj.validate()
+					break
+				except:
+					continue # Last fileObj will fail again in the main check below and status will be FAIL
+			
+		else:
+			if not args.outputJsonString:
+				filename = os.path.basename( filePath )
+				print( '{} | Status: N/A | Validation type not supported'.format(filename) )
+			else:
+				print( 'Validation type "{}" not yet supported'.format(expectedType) )
+			continue
+
+		# File init complete; test for type
+		try:
+			fileObj.validate()
+			status = 'PASS'
+			statusList.append( '0' )
+			details = ''
+		except Exception as err:
+			status = 'FAIL'
+			statusList.append( '1' )
+			err = str( err )
+
+			# Assemble a user message for details output
+			if ';' in err:
+				details = err.split( ';' )[1].lstrip()
+			else:
+				details = err
+			details = details[0].upper() + details[1:] # Capitalize first letter
+
+		# Construct an entry for a .json file if that flag is set
+		if args.outputJsonFile or args.outputJsonString:
+			newDict = OrderedDict([])
+
+			newDict['Path'] = filePath
+			newDict['Expected Type'] = expectedType
+			newDict['Status'] = status
+			newDict['Details'] = details
+
+			jsonOutput.append( newDict )
+
+		# Do standard prints if JSON string output is not enabled
+		if not args.outputJsonString:
+			filename = os.path.basename( filePath )
+			if len( filename ) < nameColumnWidth:
+				filename += ' ' * ( nameColumnWidth - len(filename) )
+			elif len( filename ) > nameColumnWidth:
+				filename = filename[:nameColumnWidth-3] + '...'
+			if len( expectedType ) < expectedColumnWidth:
+				expectedType += ' ' * ( expectedColumnWidth - len(expectedType) )
+			print( '{} | Expected: {} | Status: {} - {}'.format(filename, expectedType, status, details) )
+
+	# Write the JSON output file
+	if args.outputJsonFile:
+		with open( args.outputJsonFile, 'w' ) as newJsonFile:
+			json.dump( jsonOutput, newJsonFile, indent=4 )
+		print( '\nJSON results output to "{}".'.format(args.outputJsonFile) )
+
+	# Write the JSON output string
+	if args.outputJsonString:
+		print( json.dumps(jsonOutput) )
+
+	# Create a return code based on pass/fail status of each file
+	binaryString = ''.join( statusList )
+	sys.exit( int(binaryString, 2) )
+
+# main.py test -vj assetValidationTestWithFail.json -ojs
 
 def loadAssetTest():
 
@@ -2299,7 +2455,7 @@ def loadAssetTest():
 		Currently supported are stage and character files. """
 
 	# Perform some quick and basic validation based on the file extension
-	ext = os.path.splitext( args.path )[1]
+	ext = os.path.splitext( args.boot )[1]
 	validExtension = False
 	if ext in ( '.png', '.jpg', '.jpeg', '.gif' ):
 		print( 'This appears to be an image file! This feature expects a stage or character file.' )
@@ -2319,7 +2475,7 @@ def loadAssetTest():
 
 	# See if this is a stage file
 	try:
-		newFileObj = StageFile( None, -1, -1, '', extPath=args.path, source='file' )
+		newFileObj = StageFile( None, -1, -1, '', extPath=args.boot, source='file' )
 		newFileObj.validate()
 	except:
 		newFileObj = None
@@ -2327,7 +2483,7 @@ def loadAssetTest():
 	if not newFileObj:
 		# See if this is a character file
 		try:
-			newFileObj = CharCostumeFile( None, -1, -1, '', extPath=args.path, source='file' )
+			newFileObj = CharCostumeFile( None, -1, -1, '', extPath=args.boot, source='file' )
 			newFileObj.validate()
 		except:
 			newFileObj = None
@@ -2477,9 +2633,9 @@ if __name__ == '__main__':
 
 	# Check for "test" operation group
 	elif args.opsParser == 'test':
-		if args.validate:
+		if args.validate or args.validateJson:
 			validateAssets()
-		elif args.path:
+		elif args.boot:
 			loadAssetTest()
 		else:
 			print( 'Insufficient command line aguments given; no validation or boot path(s).' )

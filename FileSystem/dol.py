@@ -162,7 +162,6 @@ class Dol( FileBase ):
 
 		# Skip this method if the file has already been loaded
 		if self.sectionInfo:
-			#print 'already initialized'
 			return
 
 		# Load the file's binary from disc or standalone file
@@ -188,6 +187,9 @@ class Dol( FileBase ):
 			globalData.loadRegionOverwriteOptions( True )
 		else: # Load without booleanVars
 			globalData.loadRegionOverwriteOptions( False )
+
+	# def validate( self ):
+
 
 	def parseHeader( self ):
 
@@ -670,8 +672,7 @@ class Dol( FileBase ):
 	def getCustomCodeRegions( self, searchDisabledRegions=False, specificRegion='', useRamAddresses=False ):
 
 		""" This gets the regions defined for custom code use (regions permitted for overwrites) in codeRegionSettings.py. 
-			Returned as a list of tuples of the form (regionStart, regionEnd). The start position shifts (space reservations 
-			for the Gecko codelist/codehandler) should be counted in bytes. Note that the region names in the dictionary 
+			Returned as a list of tuples of the form (regionStart, regionEnd). Note that the region names in the dictionary 
 			are not the "full" region names; i.e. they don't include revision. """
 
 		codeRegions = []

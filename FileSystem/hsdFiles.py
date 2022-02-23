@@ -68,6 +68,19 @@ class CssFile( DatFile ):
 	_hasRandomNeutralTables = False
 	_checkedForRandomNeutralTables = False
 
+	def validate( self ):
+
+		""" Verifies whether this is actually a CSS file by checking the string table. """
+
+		self.initialize()
+
+		# Check for the expected symbol
+		for symbolString in self.stringDict.values():
+			if symbolString == 'MnSelectChrDataTable':
+				break
+		else: # The loop above didn't break; symbol not found
+			raise Exception( 'Invalid character select file; MnSelectChrDataTable symbol not found.' )
+
 	def hintRootClasses( self ):
 
 		# Add class hints for structures with known root/reference node labels
@@ -330,6 +343,24 @@ class CssFile( DatFile ):
 		return returnInfo
 
 
+class SssFile( DatFile ):
+
+	""" Special subclass for the Stage Select Screen. """
+
+	def validate( self ):
+
+		""" Verifies whether this is actually a SSS file by checking the string table. """
+
+		self.initialize()
+
+		# Check for the expected symbol
+		for symbolString in self.stringDict.values():
+			if symbolString == 'MnSelectStageDataTable':
+				break
+		else: # The loop above didn't break; symbol not found
+			raise Exception( 'Invalid stage select file; MnSelectStageDataTable symbol not found.' )
+
+
 #class EffectsFile( DatFile ):
 
 	# Shared Effects files:
@@ -398,7 +429,7 @@ class SisFile( DatFile ):
 
 		# Check for a SIS data table symbol
 		for symbolString in self.stringDict.values():
-			if symbolString.startswith( 'SIS_'):
+			if symbolString.startswith( 'SIS_' ):
 				break
 		else: # The loop above didn't break; no SIS string found
 			raise Exception( 'Invalid menu text file; no SIS_ symbol node found.' )

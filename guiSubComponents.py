@@ -181,12 +181,12 @@ def importSingleFileWithGui( origFileObj, validate=True ):
 	# The above will return an empty string if the user canceled
 	if not newFilePath: return False
 
-	# Initialize the new file
+	# Load the new file
 	try:
 		newFileObj = FileSystem.fileFactory( None, -1, -1, origFileObj.isoPath, extPath=newFilePath, source='file' )
 		newFileObj.getData()
 	except Exception as err:
-		print 'Exception during file replacement;', err
+		print 'Exception during file import;', err
 		globalData.gui.updateProgramStatus( 'Unable to replace the file; ' + str(err), error=True )
 		return False
 
