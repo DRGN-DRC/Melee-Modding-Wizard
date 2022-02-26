@@ -2098,22 +2098,23 @@ def parseArguments(): # Parses command line arguments
 		
 		# Define "test" options
 		testOpsParser = subparsers.add_parser( 'test', help='Asset test tool. Used to validate or boot-test assets such as characters or stage files.' )
-		testOpsParser.add_argument( '-d', '--debug', action="store_true", help='If included, Dolphin will run in Debug Mode.' )
 		testOpsParser.add_argument( '-b', '--boot', help='Provide a filepath for a character/stage/etc., to have boot-tested in Dolphin.' )
-		testOpsParser.add_argument( '-v', '--validate', help='Validate given files to determine if they are of an expected type. '
-															 'You may pass one or more file paths to this command. By default, this will attempt to validate them as '
-															 '"dat" files, however you may change this by using the --validationType command to provide the expected '
-															 'file type(s). Alternatively, you may omit both the --validate and --validationType arguments and '
-															 'instead provide this input in a JSON file or string, using the --validateJson command.', nargs='+' )
-		testOpsParser.add_argument( '-vt', '--validationType', help='Provide the expected file type(s) for the --validate command. If only one type is given, all of the '
-																   'given paths will be expected to be that type. Or you may provide a list of types; one for each file '
-																   'path given. The default (if this command is not used) is "dat". Other allowable validation types '
-																   'are music, menu, stage, and character. This option is not meant to be used with JSON input.', default=['dat'], nargs='+' )
-		testOpsParser.add_argument( '-vj', '--validateJson', help='Validate given files to determine if they are of an expected type (like --validate), except '
-																  'that input (file paths and expected types) may be a JSON file, or JSON-formatted string.' )
-		testOpsParser.add_argument( '-ojf', '--outputJsonFile', help='Provide a filepath to output a JSON results file for the --validate or --validateJson options.' )
-		testOpsParser.add_argument( '-ojs', '--outputJsonString', action="store_true", help='Output JSON results on stdout as a string for the --validate or --validateJson '
-																							'options. Usage of this option will disable the normal file status printout.' )
+		testOpsParser.add_argument( '-d', '--debug', action="store_true", help='Use this flag to run Dolphin in Debug Mode when using the --boot command.' )
+		testOpsParser.add_argument( '-v', '--validate', help='Validate files to determine if they are of an expected type. By default, this will '
+															 'attempt to validate them as "dat" files, however you may change this using the '
+															 '--validationType command to be more specific. You may pass one or more file paths to '
+															 'this command. Or you may instead provide a JSON file or JSON-formatted string for input '
+															 '(see the Command-Line Usage doc for details and examples).', nargs='+' )
+		testOpsParser.add_argument( '-vt', '--validationType', help='Provide the expected file type(s) for the --validate command. If only one type is given, '
+																	'all of the given paths will be expected to be that type. Or you may provide a list of '
+																	'types; one for each file path given. The default if this command is not used is "dat". '
+																	'Other allowable validation types are "music", "menu", "stage", and "character". This '
+																	'option is ignored when using JSON input.', default=['dat'], nargs='+' )
+		# testOpsParser.add_argument( '-vj', '--validateJson', help='Validate given files to determine if they are of an expected type (like --validate), except '
+		# 														  'that input (file paths and expected types) may be a JSON file, or JSON-formatted string.' )
+		testOpsParser.add_argument( '-ojf', '--outputJsonFile', help='Provide a filepath to output a JSON results file for the --validate command.' )
+		testOpsParser.add_argument( '-ojs', '--outputJsonString', action="store_true", help='Output JSON results on stdout as a string when using the --validate command. '
+																							'Usage of this option will disable the normal file status printout.' )
 		
 		# Define "code" options
 		codeOpsParser = subparsers.add_parser( 'code', help='Add custom code to a DOL or ISO, or examine one for installed codes.' )
@@ -2280,11 +2281,17 @@ def validateAssets():
 
 	""" Function for command-line usage. Validates that a list of given files is of an expected type. """
 
+	# Check if input is a JSON file
+	if args.validate[0].lower().endswith( '.json' ):
+		isJsonFile = True
+	else:
+		isJsonFile = False
+
 	# Check for a JSON file or string to parse
-	if args.validateJson:
-		if args.validateJson.lower().endswith( '.json' ):
+	if isJsonFile or '{' in args.validate[0]:
+		if isJsonFile:
 			try:
-				with open( args.validateJson, 'r' ) as jsonFile:
+				with open( args.validate[0], 'r' ) as jsonFile:
 					dictionary = json.load( jsonFile, object_pairs_hook=OrderedDict )
 			except Exception as err:
 				print( 'Unable to read the given JSON file; {}'.format(err) )
@@ -2292,36 +2299,35 @@ def validateAssets():
 
 		else: # Must be a json string to parse
 			try:
-				dictionary = json.loads( args.validateJson, object_pairs_hook=OrderedDict )
+				dictionary = json.loads( args.validate[0], object_pairs_hook=OrderedDict )
 			except Exception as err:
 				print( 'Unable to parse the given JSON string; {}'.format(err) )
 				sys.exit( 1 )
 
 		# Normalize the input (may be a list of dicts)
 		if type( dictionary ) == list:
-			newDict = {}
+			filePaths = []
+			validationTypes = []
 			for entry in dictionary:
 				filePath = entry.get( 'Path' )
 				expectedType = entry.get( 'Expected Type' )
 				if not filePath or not expectedType:
 					print( 'Invalid JSON formatting. Each entry should have a "Path" and "Expected Type" key.' )
 					sys.exit( 2 )
-				newDict[filePath] = expectedType
-			dictionary = newDict
+				filePaths.append( filePath )
+				validationTypes.append( expectedType )
+		
+		else:
+			# Separate the keys/values into two lists
+			filePaths, validationTypes = zip( *dictionary.items() )
 
-		filePaths, validationTypes = zip( *dictionary.items() )
-
-	else: # Input is purely in the form of CMD args (--validate and/or --validationType)
+	else: # Input is purely in the form of CMD args (file paths to --validate, with or without --validationType)
 		# Validate arguments; if validation type is more than one, it should match 1-to-1 with the filepaths list
 		if len( args.validationType ) > 1 and len( args.validationType ) != len( args.validate ):
 			print( 'Invalid command line aguments. There must be only one validation' )
 			print( 'type parameter, or it must match the number of filepaths given.' )
 			sys.exit( 2 )
 
-		# Parse a JSON file if one was given
-		# if len( args.validate ) == 1 and args.validate[0].lower().endswith( '.json' ):
-		# 	with open( args.validate[0], 'r' ) as jsonFile:
-				
 		# Expand the validation type list if only one type is present
 		if len( args.validate ) > 1 and len( args.validationType ) == 1:
 			filePaths = args.validate
@@ -2377,11 +2383,11 @@ def validateAssets():
 		# 	fileObj = CharCostumeFile( None, -1, -1, '', extPath=filePath, source='file' )
 
 		elif expectedType == 'character':
-			for CharClass in ( CharDataFile, CharAnimFile, CharCostumeFile ):
+			for CharClass in ( CharCostumeFile, CharDataFile, CharAnimFile ):
 				try:
 					fileObj = CharClass( None, -1, -1, '', extPath=filePath, source='file' )
 					fileObj.validate()
-					break
+					break # Found a valid character file
 				except:
 					continue # Last fileObj will fail again in the main check below and status will be FAIL
 			
@@ -2447,7 +2453,6 @@ def validateAssets():
 	binaryString = ''.join( statusList )
 	sys.exit( int(binaryString, 2) )
 
-# main.py test -vj assetValidationTestWithFail.json -ojs
 
 def loadAssetTest():
 
@@ -2633,7 +2638,7 @@ if __name__ == '__main__':
 
 	# Check for "test" operation group
 	elif args.opsParser == 'test':
-		if args.validate or args.validateJson:
+		if args.validate:
 			validateAssets()
 		elif args.boot:
 			loadAssetTest()
@@ -2675,6 +2680,8 @@ if __name__ == '__main__':
 #	4: Unable to initialize the given input file or root folder
 #	5: Unable to initialize Micro Melee disc image
 #	6: One or more operations failed to complete
+#
+#	[Exception to this is the --validate command; exit code is based on pass/fail of individual files.]
 #
 # 100 series codes (disc save failure; from disc.save, disc.saveFilesToDisc, or disc.buildNewDisc):
 #	101: No changes to be saved

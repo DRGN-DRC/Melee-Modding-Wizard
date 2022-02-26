@@ -132,6 +132,8 @@ class CharDataFile( CharFileBase, DatFile ):
 
 class FighterDataTable( StructBase ):
 
+	""" Primary/root table for character data files (Pl__.dat). """
+
 	def __init__( self, *args, **kwargs ):
 		StructBase.__init__( self, *args, **kwargs )
 
@@ -145,7 +147,7 @@ class FighterDataTable( StructBase ):
 						'Demo_Fighter_Action_Table_Pointer',
 						'Demo_Dynamic_Action_Behaviors_Pointer',
 						'Model_Part_Animations_Pointer',
-						'Shield_Pose_Container_Pointer',			# 0x20
+						'Shield_Pose_Container_Pointer',		# 0x20
 						'Idle_Action_Chances_Pointer',
 						'Wait_Idle_Action_Chances_Pointer',
 						'Physics_Pointer',
@@ -153,7 +155,7 @@ class FighterDataTable( StructBase ):
 						'Center_Bubble_Pointer',
 						'Coin_Collision_Spheres_Pointer',
 						'Camera_Box_Pointer',
-						'Item_Pickup_Params_Pointer',				# 0x40
+						'Item_Pickup_Params_Pointer',			# 0x40
 						'Environment_Collision_Pointer',
 						'Articles_Pointer',
 						'Common_Sound_Effect_Table_Pointer',
@@ -218,10 +220,8 @@ class CharAnimFile( CharFileBase, FileBase ):
 		# Make sure file data has been loaded
 		self.getData()
 
-		readOffset = 0
-
 		# Get the size of this animation
-		headerData = self.getData( readOffset, 0x14 )
+		headerData = self.getData( 0, 0x14 )
 		animSize, rtStart, rtEntryCount, rootNodeCount, referenceNodeCount = struct.unpack( '>5I', headerData )
 
 		if rootNodeCount != 1:
@@ -230,12 +230,12 @@ class CharAnimFile( CharFileBase, FileBase ):
 			raise Exception( 'Invalid character animation file; reference node count is not 0.' )
 
 		# Get the name of this animation (the symbol). Simpler method than initializing the file
-		nameOffset = readOffset + rtStart + ( rtEntryCount * 4 ) + 8
-		stringLength = readOffset + animSize - nameOffset
+		nameOffset = 0x20 + rtStart + ( rtEntryCount * 4 ) + 8
+		stringLength = 0x20 + animSize - nameOffset
 		symbol = self.getString( nameOffset, stringLength )
 
 		if not symbol.startswith( 'Ply' ) or '_ACTION_' not in symbol:
-			raise Exception( 'Invalid character animation file; invalid symbol name: {}.'.format(symbol) )
+			raise Exception( 'Invalid character animation file; invalid symbol name: {}'.format(symbol) )
 
 	def initialize( self ):
 

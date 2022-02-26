@@ -1,7 +1,7 @@
 
-	===----------------------------===
-	   Features / Table of Contents
-	===----------------------------===
+	==-----------------------------------==
+	   Main Features / Table of Contents
+	==-----------------------------------==
 
 	    = Intro (Operation Groups)
 
@@ -13,6 +13,8 @@
 		--info (-n)		Show information on a given disc
 
 	    = Test Operations
+		--boot			Boot test a given stage/character in Dolphin
+		--validate		Test whether files are of an expected type
 
 	    = Code Operations
 
@@ -30,5 +32,72 @@
 
 
 
+    >==--------------------
+    >=- Test Operations
+    >==-----------------
 
-	= Test Operations
+	--boot (-b)		Input: Single file path
+		If you use this command with a stage or character file, that file will be loaded 
+		into a mostly-vanilla mini disc, and loaded in the Dolphin instance you've provided. 
+		The game will be booted directly into a match with the given stage or character 
+		for immediate testing.
+	--debug (-d)		Flag
+		Use this flag to run Dolphin in Debug Mode when using the --boot command above.
+
+	--validate (-v)		Input: One or more file paths (space-separated)
+		Validate files to determine if they are of an expected type. By default, this will 
+		attempt to validate them as "dat" files, however you may change this using the 
+		--validationType command to be more specific. You may pass one or more file paths to 
+		this command. Or you may instead provide a JSON file or JSON-formatted string for input.
+
+		For example:
+			MMW.exe test --validate "C:\\TestFiles\\PlCaNr.dat"
+				or
+			MMW.exe test --validate "C:\\TestFiles\\PlCaNr.dat" "C:\\TestFiles\\PlCa.dat" etc.
+				or
+			MMW.exe test --validate "C:\\TestFiles\\PlCaNr.dat" --validationType character
+
+		(See the --validationType command below for other possible types.)
+
+		There are two formats you may use for JSON files or the JSON-formatted string:
+
+		1)
+
+		   {
+		      "D:\\Tex\\Misc. Textures\\Characters\\Peasent Soldier\\PlFeGr v2.0.dat": "character",
+		      "D:\\Tex\\SSBM ISO\\vanilla test iso\\PlCaAJ.dat": "character"
+		   }
+
+		or 2)
+
+		   [
+		      {
+		         "Path": "D:\\Tex\\Misc. Textures\\Characters\\Peasent Soldier\\PlFeGr v2.0.dat",
+		         "Expected Type": "stage"
+		      },
+		      {
+		         "Path": "D:\\Tex\\Misc. Textures\\Characters\\Peasent Soldier\\PlFeGr v2.0.dat",
+		         "Expected Type": "character"
+		      },
+		      {
+		         "Path": "D:\\Tex\\SSBM ISO\\vanilla test iso\\PlCaAJ.dat",
+		         "Expected Type": "character"
+		      }
+		   ]
+
+		The first form is simpler, but the second form guarantees order is preserved in output 
+		and allows for duplicate filepaths (to test the same file for multiple types).
+
+	--validationType (-vt)		Input: One or more file types
+		Provide the expected file type(s) for the --validate command. If only one type is given,
+		all of the given paths will be expected to be that type. Or you may provide a list of 
+		types; one for each file path given. The default if this command is not used is "dat". 
+		Other allowable validation types are "music", "menu", "stage", and "character". This 
+		option is ignored when using JSON input.
+
+	--outputJsonFile (-ojf)		Input: Single file path
+		Provide a filepath to output a JSON results file for the --validate command.
+
+	--outputJsonString (-ojs)	Flag
+		Output JSON results on stdout as a string when using the --validate command. 
+		Usage of this option will disable the normal file status printout.
