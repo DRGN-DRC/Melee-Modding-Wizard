@@ -76,12 +76,20 @@ class FileBase( object ):
 		
 		return self._shortDescription
 
+	@shortDescription.setter
+	def shortDescription( self, newDesc ):
+		self._shortDescription = newDesc
+
 	@property
 	def longDescription( self ):
 		if not self._longDescription:
 			self.getDescription()
 		
 		return self._longDescription
+
+	@longDescription.setter
+	def longDescription( self, newDesc ):
+		self._longDescription = newDesc
 
 	@classmethod
 	def setupDescriptions( cls, gameId ):

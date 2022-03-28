@@ -9,6 +9,8 @@
 #		╚═╝     ╚═╝ ╚═╝     ╚═╝  ╚══╝╚══╝ 			 ------                                                   ------
 #		  -  - Melee Modding Wizard -  -  
 
+from __future__ import print_function # Use print with (); preparation for moving to Python 3
+
 # External Dependencies
 import os
 import ttk
@@ -25,7 +27,7 @@ from urlparse import urlparse 	# For validating and security checking URLs
 import globalData
 from FileSystem.dol import RevisionPromptWindow
 from basicFunctions import msg, printStatus, openFolder, validHex
-from codeMods import ConfigurationTypes, regionsOverlap, CodeLibraryParser
+from codeMods import CodeMod, ConfigurationTypes, regionsOverlap, CodeLibraryParser
 from guiSubComponents import (
 	cmsg, exportSingleFileWithGui, VerticalScrolledFrame, LabelButton, ToolTip, CodeLibrarySelector, 
 	CodeSpaceOptionsWindow, ColoredLabelButton, BasicWindow, DisguisedEntry
@@ -132,13 +134,13 @@ class CodeManagerTab( ttk.Frame ):
 		currentTab = self.getCurrentTab()
 
 		if not forceUpdate and self.lastTabSelected == currentTab:
-			print 'already selected;', self.controlPanel.winfo_manager(), self.controlPanel.winfo_ismapped()
+			print( 'already selected;', self.controlPanel.winfo_manager(), self.controlPanel.winfo_ismapped() )
 			return
 
 		# Prevent focus on the tabs themselves (prevents appearance of selection box)
 		# currentTab = globalData.gui.root.nametowidget( self.codeLibraryNotebook.select() )
 		# currentTab.focus()
-		print 'tab changed; called with event:', event
+		print( 'tab changed; called with event:', event )
 		#time.sleep(2)
 
 		# Remove existing ModModules, and only add those for the currently selected tab
@@ -176,16 +178,23 @@ class CodeManagerTab( ttk.Frame ):
 		""" Creates GUI elements (ModModules) and populates them in the Code Library tab currently in view. """
 
 		#currentTab = self.getCurrentTab()
-		if not currentTab: return
+		# if not currentTab: 
+		# 	print( 'no current tab; skipping module creation' )
+		# 	return
 
 		modsPanel = currentTab.winfo_children()[0]
 		foundMcmFormatting = False
+		#print( 'creating modules' )
 
 		for mod in modsPanel.mods:
-			ModModule( modsPanel.interior, mod ).pack( fill='x', expand=1 )
+			module = ModModule( modsPanel.interior, mod )
+			module.pack( fill='x', expand=1 )
+			#module.event_generate( '<Configure>' )
 
 			if not mod.isAmfs:
 				foundMcmFormatting = True
+
+		#modsPanel.event_generate( '<Configure>' )
 
 		# Enable or disable the 'Open this file' button
 		if foundMcmFormatting:
@@ -202,10 +211,10 @@ class CodeManagerTab( ttk.Frame ):
 		# Check if the Code Manager tab is selected (and thus if the control panel should be visible)
 		if globalData.gui.root.nametowidget( globalData.gui.mainTabFrame.select() ) != self:
 			self.controlPanel.place_forget() # Removes the control panel from GUI, without deleting it
-			print 'removing control panel'
+			#print( 'removing control panel' )
 			return
 
-		#print 'aligning control panel; called with event:', (event)
+		#print( 'aligning control panel; called with event:', (event) )
 
 		if not currentTab:
 			currentTab = self.getCurrentTab()
@@ -218,11 +227,11 @@ class CodeManagerTab( ttk.Frame ):
 			globalData.gui.root.update_idletasks() # Force the GUI to update in order to get correct new widget positions & sizes.
 			currentTabWidth = currentTab.winfo_width()
 
-			print 'placing control panel with current tab'
+			#print( 'placing control panel with current tab' )
 			self.controlPanel.place( in_=currentTab, x=currentTabWidth * .60, width=currentTabWidth * .40, height=modsPanel.winfo_height() )
 		else:
 			# Align and place according to the main library notebook instead
-			print 'placing control panel with topLevel notebook'
+			#print( 'placing control panel with topLevel notebook' )
 			notebookWidth = self.codeLibraryNotebook.winfo_width()
 			self.controlPanel.place( in_=self.codeLibraryNotebook, x=notebookWidth * .60, width=notebookWidth * .40, height=self.codeLibraryNotebook.winfo_height() )
 			
@@ -233,7 +242,7 @@ class CodeManagerTab( ttk.Frame ):
 		if not currentTab:
 			currentTab = self.getCurrentTab()
 			if not currentTab:
-				print '.updateInstalledModsTabLabel() unable to get a current tab.'
+				print( '.updateInstalledModsTabLabel() unable to get a current tab.' )
 				return
 
 		# Get the widget providing scrolling functionality (a VerticalScrolledFrame widget), and its children mod widgets
@@ -436,7 +445,7 @@ class CodeManagerTab( ttk.Frame ):
 			self.restartScan( playAudio )
 		else:
 			toc = time.clock()
-			print 'library parsing time:', toc - tic
+			print( 'library parsing time:', toc - tic )
 
 			#totalModsInLibraryLabel.set( 'Total Mods in Library: ' + str(len( self.codeModModules )) ) # todo: refactor code to count mods in the modsPanels instead
 			#totalSFsInLibraryLabel.set( 'Total Standalone Functions in Library: ' + str(len( collectAllStandaloneFunctions(self.codeModModules, forAllRevisions=True) )) )
@@ -453,7 +462,7 @@ class CodeManagerTab( ttk.Frame ):
 
 			if playAudio:
 				#playSound( 'menuChange' )
-				print 'beep!'
+				print( 'beep!' )
 
 	# def TEST( self, string ):
 	# 	print string
@@ -471,7 +480,7 @@ class CodeManagerTab( ttk.Frame ):
 		if globalData.disc:
 			globalData.disc.dol.checkForEnabledCodes( globalData.codeMods )
 
-		#print '\tThese mods detected as installed:'
+		#print( '\tThese mods detected as installed:' )
 
 		for mod in globalData.codeMods:
 			# if mod.isAmfs: # Its source path is already a directory
@@ -479,11 +488,14 @@ class CodeManagerTab( ttk.Frame ):
 			# else:
 			parentFolderPath = os.path.dirname( mod.path )
 			parentFolderName = os.path.split( parentFolderPath )[1]
+			#srcFileExt = os.path.splitext( mod.path )[1].lower()
 			
 			# Get a path for this mod, relative to the library root (display core codes as relative to root as well)
 			#if mod.isAmfs and os.path.dirname( parentFolderPath ) == globalData.paths['coreCodes']:
 			if mod.isAmfs and parentFolderPath == globalData.paths['coreCodes']:
 				relPath = ''
+			# elif mod.isAmfs and srcFileExt in ( '.asm', '.s' ):
+			# 	relPath = os.path.relpath( parentFolderPath, self.libraryFolder )
 			elif parentFolderPath == globalData.paths['coreCodes']: # For the "Core Codes.txt" file
 				relPath = ''
 			elif parentFolderName == mod.category:
@@ -492,9 +504,6 @@ class CodeManagerTab( ttk.Frame ):
 				relPath = os.path.relpath( parentFolderPath, self.libraryFolder )
 				if relPath == '.': relPath = ''
 
-			# 
-			# 	modsPanel = modsPanels.get( '\\' + mod.category )
-			# else:
 			modsPanel = modsPanels.get( relPath + '\\' + mod.category )
 
 			# Add parent notebooks, if needed, and/or get the parent for this mod
@@ -514,7 +523,7 @@ class CodeManagerTab( ttk.Frame ):
 						notebook = ttk.Notebook( parent, takefocus=False )
 						notebook.bind( '<<NotebookTabChanged>>', self.onTabChange )
 						parent.add( notebook, text=pathItem, image=globalData.gui.imageBank('folderIcon'), compound='left' )
-						# print 'adding notebook', notebook._name, 'to', parent._name, 'for', thisTabPath
+						# print( 'adding notebook', notebook._name, 'to', parent._name, 'for', thisTabPath )
 						notebookWidgets[thisTabPath] = notebook
 
 					parent = notebook
@@ -527,7 +536,7 @@ class CodeManagerTab( ttk.Frame ):
 						# Create and add the mods panel (placement frame above needed so we can .place() the mods panel)
 						modsPanel = VerticalScrolledFrame( placementFrame )
 						modsPanel.mods = []
-						#print 'adding VSF', modsPanel._name, 'to', placementFrame._name, 'for', thisTabPath + '\\' + mod.category
+						#print( 'adding VSF', modsPanel._name, 'to', placementFrame._name, 'for', thisTabPath + '\\' + mod.category )
 						modsPanel.place( x=0, y=0, relwidth=.60, relheight=1.0 )
 						modsPanels[relPath + '\\' + mod.category] = modsPanel
 
@@ -547,7 +556,7 @@ class CodeManagerTab( ttk.Frame ):
 				mod.setState( 'unavailable' )
 
 			# if mod.state == 'enabled':
-			# 	print mod.name
+			# 	print( mod.name )
 
 		# If a previous tab and scroll position are desired, set them here
 		if modPanelToScroll:
@@ -570,7 +579,7 @@ class CodeManagerTab( ttk.Frame ):
 				ttk.Label( notebook, image=globalData.gui.imageBank('randall'), background='white' ).place( relx=0.3, rely=0.5, anchor='n', y=10 ) # y not :P
 
 	def _updateScrollPosition( self, modPanel, sliderYPos ):
-		print 'updating scroll position'
+		print( 'updating scroll position' )
 		self.update_idletasks()
 		modPanel.canvas.yview_moveto( sliderYPos )
 
@@ -890,7 +899,7 @@ class CodeManagerTab( ttk.Frame ):
 				return 3
 
 		else:
-			print 'no code changes to be made'
+			print( 'no code changes to be made' )
 
 		# if geckoCodesToInstall:
 		# 	globalData.updateProgramStatus( 'Installing {} Gecko codes'.format(len(geckoCodesToInstall)) )
@@ -988,7 +997,7 @@ class ModModule( Tk.Frame, object ):
 			bgImage = Tk.Label( self, image=typeIndicatorImage )
 			bgImage.place( relx=1, x=-10, rely=0.5, anchor='e' )
 		else:
-			print 'No image found for "' + mod.type + 'Indicator' + '"!'
+			print( 'No image found for "' + mod.type + 'Indicator' + '"!' )
 
 		# Set up a left-click event to all current parts of this module (to toggle the code on/off), before adding any of the other clickable elements
 		self.bind( '<1>', self.clicked )
@@ -1044,7 +1053,7 @@ class ModModule( Tk.Frame, object ):
 		try:
 			potentialLink = urlparse( origUrlString )
 		except Exception as err:
-			print 'Invalid link detected for "{}": {}'.format( self.mod.name, err )
+			print( 'Invalid link detected for "{}": {}'.format(self.mod.name, err) )
 			return
 
 		# Check the domain against the whitelist. netloc will be something like "youtube.com" or "www.youtube.com"
@@ -1052,9 +1061,9 @@ class ModModule( Tk.Frame, object ):
 			return potentialLink
 
 		elif not potentialLink.scheme:
-			print 'Invalid link detected for "{}" (no scheme): {}'.format( self.mod.name, potentialLink )
+			print( 'Invalid link detected for "{}" (no scheme): {}'.format(self.mod.name, potentialLink) )
 		else:
-			print 'Invalid link detected for "{}" (domain not allowed): {}'.format( self.mod.name, potentialLink )
+			print( 'Invalid link detected for "{}" (domain not allowed): {}'.format(self.mod.name, potentialLink) )
 
 	def setState( self, state, statusText='' ):
 
@@ -1089,7 +1098,7 @@ class ModModule( Tk.Frame, object ):
 
 		if statusText:
 			if state == 'unavailable':
-				print self.mod.name, 'made unavailable;', statusText
+				print( self.mod.name, 'made unavailable;', statusText )
 			self.statusText.set( statusText )
 		else:
 			self.statusText.set( '' )
@@ -1153,7 +1162,7 @@ class ModModule( Tk.Frame, object ):
 
 		""" Load a mod from the Mods Library tab into the Mod Construction tab. """
 
-		print 'not yet implemented'
+		print( 'not yet implemented' )
 
 		# if not mod: # Was called by the button. Get the mod from the event object
 		# 	mod = event.widget.master.master
@@ -1219,6 +1228,1256 @@ class ModModule( Tk.Frame, object ):
 			return
 
 		CodeConfigWindow( self.mod, configurations )
+
+
+class ModConstructor( Tk.Frame ):
+
+	def __init__( self, parent, mod=None, *args, **kw ): # Prepare the GUI.
+		Tk.Frame.__init__( self, parent, *args, **kw )
+		
+		self.saveStatus = Tk.StringVar()
+		self.saveStatus.set( '' )
+		self.dolVariations = []
+		self.undoableChanges = False 		# Flipped for changes that 'undo' doesn't work on. Only reverted by save operation.
+		self.gameVersionsNotebook = None
+
+		if mod: # This mod is being added (edited) from the Mods Library tab.
+			name = mod.name
+			auth = mod.auth
+			self.type = mod.type
+			modDescription = mod.desc
+			self.sourceFile = mod.sourceFile
+			self.fileIndex = mod.fileIndex
+			self.webLinks = mod.webLinks
+			self.includePaths = mod.includePaths
+
+		else: # This is a new mod.
+			name = ''
+			auth = ''
+			self.type = ''
+			modDescription = ''
+			self.sourceFile = ''
+			self.fileIndex = -1
+			self.webLinks = []
+			self.includePaths = [ os.path.join(getModsFolderPath(), '.include'), os.path.join(scriptHomeFolder, '.include') ]
+
+		if mod:
+			self.mod = mod
+		else:
+			self.mod = CodeMod( 'New Mod' )
+
+		# Top buttons row
+		self.buttonsFrame = Tk.Frame( self )
+		self.saveStatusLabel = ttk.Label( self.buttonsFrame, textvariable=self.saveStatus )
+		self.saveStatusLabel.pack( side='left', padx=12 )
+		ttk.Button( self.buttonsFrame, text='Close', command=self.closeMod, width=6 ).pack( side='right', padx=6 )
+		ttk.Button( self.buttonsFrame, text='Info', command=self.analyzeMod, width=6 ).pack( side='right', padx=6 )
+		ttk.Button( self.buttonsFrame, text='Import Gecko Code', command=self.importGeckoCode ).pack( side='right', padx=6, ipadx=6 )
+		self.buttonsFrame.pack( fill='x', expand=0, padx=20, pady=12, ipadx=6, anchor='ne' )
+
+		# Title and Author
+		row1 = Tk.Frame( self )
+		ttk.Label( row1, text='Title:' ).pack( side='left', padx=3 )
+		self.titleEntry = ttk.Entry( row1, width=56 )
+		self.titleEntry.insert( 0, name )
+		self.titleEntry.pack( side='left' )
+		self.initUndoHistory( self.titleEntry, name )
+		ttk.Label( row1, text='Author(s):' ).pack( side='left', padx=(22, 3) )
+		self.authorsEntry = ttk.Entry( row1, width=36 )
+		self.authorsEntry.insert( 0, auth )
+		self.authorsEntry.pack( side='left' )
+		self.initUndoHistory( self.authorsEntry, auth )
+		row1.pack( padx=20, pady=0, anchor='n' )
+
+		# Starting row 2, with Description
+		row2 = Tk.Frame( self )
+		descColumn = Tk.Frame( row2 ) # Extra frame so we can stack two items vertically in this grid cell in a unique way
+		ttk.Label( descColumn, text='\t\tDescription:' ).pack( anchor='w' )
+		self.descScrolledText = ScrolledText( descColumn, width=75, height=6, wrap='word', font='TkTextFont' )
+		self.descScrolledText.insert( 'end', modDescription )
+		self.descScrolledText.pack( fill='x', expand=True ) # todo: still not actually expanding. even removing width above doesn't help
+		self.initUndoHistory( self.descScrolledText, modDescription )
+		descColumn.grid( column=0, row=0 )
+
+		# Add the mod-change adder
+		lineAdders = ttk.Labelframe(row2, text='  Add a type of code change:  ', padding=5)
+		ttk.Button( lineAdders, width=3, text='+', command=lambda: self.addCodeChangeModule( 'static' ) ).grid( row=0, column=0 )
+		ttk.Label( lineAdders, width=21, text='Static Overwrite' ).grid( row=0, column=1 )
+		ttk.Button( lineAdders, width=3, text='+', command=lambda: self.addCodeChangeModule( 'injection' ) ).grid( row=1, column=0 )
+		ttk.Label( lineAdders, width=21, text='Injection Mod' ).grid( row=1, column=1 )
+		ttk.Button(lineAdders, width=3, text='+', command=lambda: self.addCodeChangeModule( 'gecko' )).grid(row=2, column=0)
+		ttk.Label(lineAdders, width=21, text='Gecko/WiiRD Code').grid(row=2, column=1)
+		ttk.Button( lineAdders, width=3, text='+', command=lambda: self.addCodeChangeModule( 'standalone' ) ).grid( row=3, column=0 )
+		ttk.Label( lineAdders, width=21, text='Standalone Function' ).grid( row=3, column=1 )
+		lineAdders.grid( column=1, row=0 )
+
+		# Add the web links
+		if self.webLinks:
+			self.webLinksFrame = ttk.Labelframe( row2, text='  Web Links:  ', padding=(0, 0, 0, 8) ) # padding = left, top, right, bottom
+			for urlObj, comments in self.webLinks:
+				self.addWebLink( urlObj, comments )
+
+			# Add the "Edit" button
+			# addBtn = ttk.Label( row2, text='Edit', foreground='#03f', cursor='hand2' )
+			# addBtn.bind( '<1>', lambda e, frame=self.webLinksFrame: WebLinksEditor(frame) )
+			# addBtn.place( anchor='s', relx=.937, rely=1.0, y=4 )
+
+			self.webLinksFrame.grid( column=2, row=0 )
+
+		row2.pack( fill='x', expand=True, padx=20, pady=(7, 0), anchor='n' )
+		
+		# Configure the description/code-changes row, so it centers itself and expands properly on window-resize
+		row2.columnconfigure( 0, weight=3 )
+		row2.columnconfigure( (1, 2), weight=1 )
+
+		# Add the game version tabs and code changes to this module.
+		if mod:
+			for dolRevision in mod.data: # dolRevision should be a string like 'NTSC 1.00'
+				for codeChange in mod.data[dolRevision]:
+					changeType, customCodeLength, offset, originalCode, customCode, _ = codeChange
+
+					self.addCodeChangeModule( changeType, customCodeLength, offset, originalCode, customCode, dolRevision )
+
+	def initUndoHistory( self, widget, initialValue ):
+
+		""" Adds several attributes and event handlers to the given widget, for undo/redo history tracking. """
+
+		widget.undoStateTimer = None
+		
+		# Create the first undo state for this widget
+		widget.undoStates = [initialValue]
+		widget.savedContents = initialValue
+		widget.undoStatesPosition = 0 # Index into the above list, for traversal of multiple undos/redos
+
+		# Provide this widget with event handlers for CTRL-Z, CTRL-Y
+		widget.bind( "<Control-z>", self.undo )
+		widget.bind( "<Control-y>", self.redo )
+		widget.bind( "<Control-Shift-y>", self.redo )
+
+		widget.bind( '<KeyRelease>', self.queueUndoStatesUpdate )
+
+	def initializeVersionNotebook( self ):
+		
+		""" Creates the notebook used to house code changes, with tabs for each game revision the mod may apply to. """
+
+		def gotoWorkshop(): webbrowser.open( 'http://smashboards.com/forums/melee-workshop.271/' )
+		def shareButtonClicked():
+			modString = self.buildModString()
+			thisModName = constructionNotebook.tab( self.master, option='text' )
+			if modString != '': cmsg( '\n\n\t-==-\n\n' + modString, thisModName, 'left', (('Go to Melee Workshop', gotoWorkshop),) )
+
+		# Show the Share / Submit buttons
+		ttk.Button( self.buttonsFrame, text='Share', command=shareButtonClicked, width=7 ).pack( side='right', padx=6 )
+		ttk.Button( self.buttonsFrame, text='Save As', command=self.saveModToLibraryAs, width=8 ).pack( side='right', padx=6 )
+		ttk.Button( self.buttonsFrame, text='Save', command=self.saveModToLibrary, width=7 ).pack( side='right', padx=6 )
+		offsetView = settings.get( 'General Settings', 'offsetView' ).lstrip()[0].lower()
+		if offsetView.startswith( 'd' ): buttonText = 'Display RAM Addresses'
+		else: buttonText = 'Display DOL Offsets'
+		self.offsetViewBtn = ttk.Button( self.buttonsFrame, text=buttonText, command=self.switchOffsetDisplayType )
+		self.offsetViewBtn.pack( side='right', padx=6, ipadx=6 )
+
+		self.gameVersionsNotebook = ttk.Notebook( self )
+		self.gameVersionsNotebook.pack( fill='both', expand=1, anchor='n', padx=12, pady=6 )
+
+		# New hex field label
+		self.gameVersionsNotebook.newHexLabel = Tk.StringVar()
+		self.gameVersionsNotebook.newHexLabel.set( '' )
+		ttk.Label( self.gameVersionsNotebook, textvariable=self.gameVersionsNotebook.newHexLabel ).place( anchor='e', y=9, relx=.84 )
+
+		# Add the version adder tab.
+		versionChangerTab = Tk.Frame( self.gameVersionsNotebook )
+		self.gameVersionsNotebook.add( versionChangerTab, text=' + ' )
+
+		# Check what original DOLs are available (in the "Original DOLs" folder)
+		self.dolVariations = listValidOriginalDols()
+		self.dolVariations.append( 'ALL' )
+
+		if len( self.dolVariations ) == 1: # Only 'ALL' is present
+			ttk.Label( versionChangerTab, text='No DOLs were found in the "Original DOLs" folder.\nRead the "ReadMe.txt" file found there for more information.' ).pack( pady=15, anchor='center' )
+
+		else: # i.e. Some [appropriately named] dols were found in the dols folder
+			ttk.Label( versionChangerTab, text='Choose the game revision you would like to add changes for:\n(These are based on what you have in the "Original DOLs" folder.)' ).pack( pady=15, anchor='center' )
+			verChooser = Tk.StringVar()
+			verChooser.set( self.dolVariations[0] )
+
+			ttk.OptionMenu( versionChangerTab, verChooser, self.dolVariations[0], *self.dolVariations ).pack()
+
+			def addAnotherVersion():
+				tabName = 'For ' + verChooser.get()
+
+				if getTabByName( self.gameVersionsNotebook, tabName ) == -1: # Tab not found.
+					self.addGameVersionTab( verChooser.get(), True )
+
+					# Select the newly created tab.
+					self.gameVersionsNotebook.select( root.nametowidget(getTabByName( self.gameVersionsNotebook, tabName )) )
+				else: msg( 'A tab for that game revision already exists.' )
+
+			ttk.Button( versionChangerTab, text=' Add ', command=addAnotherVersion ).pack( pady=15 )
+
+	def addGameVersionTab( self, dolRevision, codeChangesListWillBeEmpty ):
+		# If this is the first code change, add the game version notebook.
+		if not self.gameVersionsNotebook: self.initializeVersionNotebook()
+
+		# Decide on a default revision if one is not set, and determine the game version tab name
+		if not dolRevision:
+			# This is an empty/new code change being added by the user. Determine a default tab (revision) to add it to.
+			if len( self.gameVersionsNotebook.tabs() ) == 1: # i.e. only the version adder tab (' + ') exists; no code changes have been added to this notebook yet
+				# Attempt to use the revision of the currently loaded DOL
+				if dol.revision in self.dolVariations:
+					gameVersionTabName = 'For ' + dol.revision
+
+				else:
+					# Attempt to use a default set in the settingsFile, or 'NTSC 1.02' if one is not set there.
+					defaultRev = getattr( settingsFile, 'defaultRevision', 'NTSC 1.02' ) # Last arg = default in case defaultRevision doesn't exist (old settings file)
+
+					if defaultRev in self.dolVariations:
+						gameVersionTabName = 'For ' + defaultRev
+
+					else: gameVersionTabName = 'For ' + self.dolVariations[0]
+
+			else: # A tab for code changes already exists. Check the name of the currently selected tab and add to that.
+				gameVersionTabName = self.gameVersionsNotebook.tab( self.gameVersionsNotebook.select(), "text" )
+
+			dolRevision = gameVersionTabName[4:] # Removes 'For '
+
+		else: # This code change is being populated automatically (opened from the Library tab for editing)
+			gameVersionTabName = 'For ' + dolRevision
+
+		# Add a new tab for this game version if not already present, and define its GUI parts to attach code change modules to.
+		versionTab = getTabByName( self.gameVersionsNotebook, gameVersionTabName )
+
+		if versionTab != -1: # Found an existing tab by that name. Add this code change to that tab
+			codeChangesListFrame = versionTab.winfo_children()[0]
+
+		else: # Create a new version tab, and add this code change to that
+			versionTab = Tk.Frame( self.gameVersionsNotebook )
+			indexJustBeforeLast = len( self.gameVersionsNotebook.tabs() ) - 1
+			self.gameVersionsNotebook.insert( indexJustBeforeLast, versionTab, text=gameVersionTabName )
+			
+			# Attempt to move focus to the tab for the currently loaded DOL revision, or to this tab if that doesn't exist.
+			tabForCurrentlyLoadedDolRevision = 'For ' + dol.revision
+			if dol.revision and tabForCurrentlyLoadedDolRevision in getTabNames( self.gameVersionsNotebook ):
+				self.gameVersionsNotebook.select( getTabByName(self.gameVersionsNotebook, tabForCurrentlyLoadedDolRevision) )
+			else: self.gameVersionsNotebook.select( versionTab )
+
+			# Add the left-hand column for the code changes
+			codeChangesListFrame = VerticalScrolledFrame2( versionTab )
+			codeChangesListFrame.pack( side='left', fill='both', expand=0, padx=3, pady=4 )
+
+			# Add the right-hand column, the new hex field (shared for all code changes)
+			newHexFieldContainer = Tk.Frame( versionTab )
+			newHexFieldContainer['bg'] = 'orange'
+			self.attachEmptyNewHexField( versionTab, codeChangesListWillBeEmpty )
+			newHexFieldContainer.pack( side='left', fill='both', expand=1, padx=0 )
+
+			# Load a dol for this game version, for the offset conversion function to reference max offsets/addresses, and for dol section info
+			loadVanillaDol( dolRevision ) # Won't be repeatedly loaded; stored in memory once loaded for the first time
+
+		return dolRevision, versionTab
+
+	def attachEmptyNewHexField( self, versionTab, codeChangesListWillBeEmpty ):
+		codeChangesListFrame, newHexFieldContainer = versionTab.winfo_children()
+
+		self.clearNewHexFieldContainer( newHexFieldContainer )
+
+		newHexField = ScrolledText( newHexFieldContainer, relief='ridge' )
+		if codeChangesListWillBeEmpty:
+			newHexField.insert( 'end', '\n\tStart by selecting a\n\t     change to add above ^.' )
+		else:
+			newHexField.insert( 'end', '\n\t<- You may select a code change\n\t     on the left, or add another\n\t       change from the list above ^.' )
+		newHexField.pack( fill='both', expand=1, padx=2, pady=1 )
+
+		# Add an event handler for the newHexField. When the user clicks on it, this will autoselect the first code change module if there is only one and it's unselected
+		def removeHelpText( event, codeChangesListFrame ):
+			#event.widget.unbind( '<1>' ) # Remove this event handler
+			codeChangeModules = codeChangesListFrame.interior.winfo_children()
+
+			# Check if there's only one code change module and it hasn't been selected
+			if len( codeChangeModules ) == 1 and codeChangeModules[0]['bg'] == 'SystemButtonFace':
+				innerFrame = codeChangeModules[0].winfo_children()[0]
+				innerFrame.event_generate( '<1>' ) # simulates a click event on the module in order to select it
+		newHexField.bind( '<1>', lambda e: removeHelpText( e, codeChangesListFrame ) )
+
+	def addCodeChangeModule( self, changeType, customCodeLength=0, offset='', originalHex='', newHex='', dolRevision='' ):
+		if not dolRevision: # This is a brand new (blank) code change being added.
+			self.undoableChanges = True
+			self.updateSaveStatus( True )
+
+		# Create a new notebook for game versions, and/or a tab for this specific revision, if needed.
+		dolRevision, versionTab = self.addGameVersionTab( dolRevision, False )
+		codeChangesListFrame, newHexFieldContainer = versionTab.winfo_children()
+
+		# Create the GUI's frame which will hold/show this code change
+		codeChangeModule = Tk.Frame( codeChangesListFrame.interior, relief='ridge', borderwidth=3 )
+		codeChangeModule.pack( fill='both', expand=1, padx=0, pady=0 )
+		codeChangeModule['bg'] = 'SystemButtonFace'
+
+		# Process the offset value, based on the type of code change and current File/RAM offset display mode
+		processedOffset = offset.replace('<', '').replace('>', '') # Angle bracket removal for function names.
+		if ( changeType == 'static' or changeType == 'injection' ) and processedOffset:
+			vanillaDol = loadVanillaDol( dolRevision, False ) # This will report any errors it has
+
+			if not validHex( processedOffset.replace( '0x', '' ) ):
+				msg( 'Warning! Invalid hex was detected in the offset value, "' + offset + '".' )
+
+			elif vanillaDol: # Applicable offset for further processing, and Original DOL reference successfully loaded
+				# Convert the offset value based on the current offset view mode (to display offsets as DOL Offsets or RAM Addresses)
+				offsetView = settings.get( 'General Settings', 'offsetView' ).lstrip()[0].lower()
+				if offsetView.startswith( 'd' ): # d for 'dolOffset'; indicates that the value should be shown as a DOL Offset
+					computedOffset = normalizeDolOffset( processedOffset, dolObj=vanillaDol, returnType='string' ) # Converts to a DOL Offset
+				else: # The value should be shown as a RAM address
+					computedOffset = normalizeRamAddress( processedOffset, dolObj=vanillaDol, returnType='string' )
+
+				# If there was an error processing the offset, preserve the original value
+				if computedOffset != -1: # Error output of normalization functions above should be an int regardless of returnType
+					processedOffset = computedOffset
+
+		# Add the passed arguments as properties for this code change [frame] object.
+		codeChangeModule.changeType = changeType
+		codeChangeModule.newHexLabelText = ''
+		codeChangeModule.customCodeLength = Tk.StringVar()
+		codeChangeModule.customCodeLength.set( '(' + uHex(customCodeLength) + ' bytes)' )
+
+		# Begin creating the inner part of the module.
+		innerFrame = Tk.Frame( codeChangeModule ) # Used to create a thicker, orange border.
+		innerFrame.pack( fill='both', expand=0, padx=2, pady=1 )
+
+		# Top row; Change type, custom code length, and remove button
+		topRow = Tk.Frame( innerFrame )
+		topRow.pack( fill='x', padx=6, pady=4 )
+		ttk.Label( topRow, text='Type:' ).pack( side='left' )
+		ttk.Label( topRow, text=presentableModType( changeType, changeType=True ), foreground='#03f' ).pack( side='left' )
+		ttk.Button( topRow, text='Remove', command=lambda: self.removeCodeChange(codeChangeModule) ).pack( side='right' )
+		updateBtn = ttk.Button( topRow, image=imageBank['updateArrow'], command=lambda: self.updateModule( codeChangesListFrame.master, codeChangeModule, userActivated=True ) )
+		updateBtn.pack( side='right', padx=12 )
+		ToolTip( updateBtn, 'Use this button to update the byte count of custom code, or, once an offset is given, use it to look up and set the original '
+							'hex value. For static overwrites, both an offset and custom code must be provided to get the original hex value '
+							'(so that it can be determined how many bytes to look up, since static overwrites can be any length).', delay=1000, wraplength=400, follow_mouse=1 )
+		ttk.Label( topRow, textvariable=codeChangeModule.customCodeLength ).pack( side='left', padx=5 )
+
+		# Bottom row; offset and orig hex / injection site / function name
+		bottomRow = Tk.Frame( innerFrame )
+
+		# The offset
+		if changeType == 'static' or changeType == 'injection':
+			ttk.Label( bottomRow, text='Offset:' ).pack( side='left', padx=7 )
+			codeChangeModule.offset = ttk.Entry( bottomRow, width=11 )
+			codeChangeModule.offset.insert( 0, processedOffset )
+			codeChangeModule.offset.pack( side='left', padx=7 )
+			self.initUndoHistory( codeChangeModule.offset, processedOffset )
+			codeChangeModule.offset.offsetEntry = True # Flag used in undo history feature
+
+		# The original hex, injection site, and function name fields (also labels for the shared new hex field)
+		if changeType == 'static':
+			ttk.Label( bottomRow, text='Original Hex:' ).pack( side='left', padx=7 )
+			codeChangeModule.originalHex = ttk.Entry( bottomRow, width=11 )
+			codeChangeModule.originalHex.insert( 0, originalHex )
+			codeChangeModule.originalHex.pack( side='left', padx=7, fill='x', expand=1 )
+			self.initUndoHistory( codeChangeModule.originalHex, originalHex )
+
+			codeChangeModule.newHexLabelText = 'New Hex:'
+
+		elif changeType == 'injection':
+			ttk.Label( bottomRow, text='Original Hex at\nInjection Site:' ).pack( side='left', padx=7 )
+			codeChangeModule.originalHex = ttk.Entry( bottomRow, width=11 )
+			codeChangeModule.originalHex.insert( 0, originalHex )
+			codeChangeModule.originalHex.pack( side='left', padx=7 )
+			self.initUndoHistory( codeChangeModule.originalHex, originalHex )
+
+			codeChangeModule.newHexLabelText = 'Injection Code:'
+
+		elif changeType == 'standalone':
+			ttk.Label( bottomRow, text='Function Name:' ).pack( side='left', padx=7 )
+			codeChangeModule.offset = ttk.Entry( bottomRow )
+			codeChangeModule.offset.insert( 0, processedOffset )
+			codeChangeModule.offset.pack( side='left', fill='x', expand=1, padx=7 )
+			self.initUndoHistory( codeChangeModule.offset, processedOffset )
+
+			codeChangeModule.newHexLabelText = 'Function Code:'
+
+		elif changeType == 'gecko':
+			codeChangeModule.newHexLabelText = 'Gecko Code:'
+
+		bottomRow.pack( fill='x', expand=1, pady=4 )
+
+		# Attach a newHex entry field (this will be attached to the GUI on the fly when a module is selected)
+		newHexValue = newHex.replace( '|S|', '' )
+		codeChangeModule.newHexField = ScrolledText( newHexFieldContainer, relief='ridge' )
+		codeChangeModule.newHexField.insert( 'end', newHexValue )
+		self.initUndoHistory( codeChangeModule.newHexField, newHexValue )
+
+		# Bind a left-click event to this module (for selecting it radio-button style).
+		innerFrame.bind( '<1>', self.codeChangeSelected )
+		for frame in innerFrame.winfo_children():
+			frame.bind( '<1>', self.codeChangeSelected )
+			for widget in frame.winfo_children():
+				if widget.winfo_class() != 'TButton' and widget.winfo_class() != 'TEntry': # Exclude binding from the remove button and input fields.
+					widget.bind( '<1>', self.codeChangeSelected )
+		
+	def removeCodeChange( self, codeChangeModule ):
+		versionTab = root.nametowidget( self.gameVersionsNotebook.select() )
+
+		# Reset the newHex field if it is set for use by the currently selected module.
+		if codeChangeModule['bg'] == 'orange':
+			# Detach the previously selected module's newHex field
+			newHexFieldContainer = versionTab.winfo_children()[1]
+			self.clearNewHexFieldContainer( newHexFieldContainer )
+
+			self.attachEmptyNewHexField( versionTab, False )
+
+		# Delete the code change module, and update the save status
+		codeChangeModule.destroy()
+		self.undoableChanges = True
+		self.updateSaveStatus( True )
+
+		# If this is the last code change, remove this version tab from the notebook
+		codeChangesListFrame = codeChangeModule.master
+		if codeChangesListFrame.winfo_children() == []:
+			versionTab.destroy()
+
+			# If this is the last version tab, remove the Share and Save buttons, and the code changes container (notebook)
+			if len( self.gameVersionsNotebook.tabs() ) == 1:
+				self.gameVersionsNotebook.destroy()
+				self.gameVersionsNotebook = None
+				for widget in self.buttonsFrame.winfo_children()[-4:]: # Selects only the last (left-most) 4 buttons added
+					widget.destroy()
+			else:
+				self.gameVersionsNotebook.select( self.gameVersionsNotebook.tabs()[0] ) # Select the first tab.
+
+	def importGeckoCode( self ):
+		# Prompt the user to enter the Gecko code
+		userMessage = "Copy and paste your Gecko code here.\nCurrently, only opCodes 04, 06, and C2 are supported."
+		entryWindow = PopupScrolledTextWindow( root, title='Gecko Codes Import', message=userMessage, width=55, height=22, button1Text='Import' )
+		if not entryWindow.entryText: return
+
+		# Get the revision for this code
+		if dol.revision:
+			dolRevision = dol.revision
+		else: # Prompt the user for it
+			revisionWindow = RevisionPromptWindow( labelMessage='Choose the region and game version that this code is for.', regionSuggestion='NTSC', versionSuggestion='02' )
+
+			# Check the values gained from the user prompt (empty strings mean they closed or canceled the window)
+			if not revisionWindow.region or not revisionWindow.version: return
+			else: 
+				dolRevision = revisionWindow.region + ' ' + revisionWindow.version
+
+		# Parse the gecko code input and create code change modules for the changes
+		title, newAuthors, description, codeChanges = parseGeckoCode( dolRevision, entryWindow.entryText )
+
+		# Set the mod's title and description, if they have not already been set
+		if not self.getInput( self.titleEntry ): 
+			self.titleEntry.insert( 0, title )
+			self.updateTabName()
+		if description:
+			if self.getInput( self.descScrolledText ): # If there is already some content, add a line break before the new description text
+				self.descScrolledText.insert( 'end', '\n' )
+			self.descScrolledText.insert( 'end', description )
+
+		# Add any authors not already added
+		currentAuthors = [ name.strip() for name in self.getInput( self.authorsEntry ).split(',') if name != '' ]
+		for name in newAuthors.split( ',' ):
+			if name.strip() not in currentAuthors: 
+				currentAuthors.append( name.strip() )
+		self.authorsEntry.delete( 0, 'end' )
+		self.authorsEntry.insert( 'end', ', '.join(currentAuthors) )
+
+		# Add the new code change modules
+		for changeType, customCodeLength, offset, originalCode, customCode, _ in codeChanges:
+			self.addCodeChangeModule( changeType, customCodeLength, offset, originalCode, customCode, dolRevision )
+
+		# Mark that these changes have not been saved yet, and update the status display
+		self.undoableChanges = True
+		self.updateSaveStatus( True )
+
+		playSound( 'menuChange' )
+
+	def getCurrentlySelectedModule( self, versionTab ):
+		# Get the modules' parent frame widget for the currently selected version tab.
+		codeChangesListFrame = versionTab.winfo_children()[0].interior
+
+		# Loop over the child widgets to search for the currently selected code change module
+		for codeChangeModule in codeChangesListFrame.winfo_children():
+			if codeChangeModule['bg'] != 'SystemButtonFace': return codeChangeModule
+		else: return None
+
+	def clearNewHexFieldContainer( self, newHexFieldContainer ): # Ensures all newHex fields are detached from the GUI.
+		for widget in newHexFieldContainer.winfo_children():
+			if widget.winfo_manager(): widget.pack_forget()
+
+	def codeChangeSelected( self, event ):
+		# Get the modules (parent frames) for the current/previously selected code change modules.
+		versionTab = root.nametowidget( self.gameVersionsNotebook.select() )
+
+		# Deselect any previously selected module
+		previouslySelectedModule = self.getCurrentlySelectedModule( versionTab )
+		if previouslySelectedModule: previouslySelectedModule['bg'] = 'SystemButtonFace'
+
+		# Get the frame widget of the code change module that was selected and change its border color.
+		codeChangeModule = event.widget
+		while not hasattr( codeChangeModule, 'changeType' ): codeChangeModule = codeChangeModule.master
+		codeChangeModule['bg'] = 'orange'
+
+		# Detach the previously selected module's newHex field
+		newHexFieldContainer = versionTab.winfo_children()[1]
+		self.clearNewHexFieldContainer( newHexFieldContainer )
+
+		# Attach the newHex field of the newly selected code change module (all newHex widgets share the same parent)
+		codeChangeModule.newHexField.pack( fill='both', expand=1, padx=2, pady=1 )
+		codeChangeModule.newHexField.focus_set() # Ensures that keypresses will go to the newly attached text field, not the old one
+
+	def updateTabName( self ):
+		# The timeout above is done, update the tab for this mod.
+		newTitle = self.titleEntry.get()
+
+		# Get the tab containing this mod; move up the GUI heirarchy until the notebook's tab (a TFrame in this case) is found.
+		tabFrame = self.titleEntry.master
+		while tabFrame.winfo_class() != 'TFrame': tabFrame = tabFrame.master
+
+		# Modify the tab's title
+		if newTitle.strip() == '': newTitle = 'New Mod'
+		if len( newTitle ) > 40: newTitle = newTitle[:40].rstrip() + '...'
+		constructionNotebook.tab( tabFrame, text=newTitle )
+
+	def updateModule( self, versionTab, codeChangeModule, userActivated=False ):
+
+		""" Updates the module's code length and original hex values. """
+
+		changeType = codeChangeModule.changeType
+
+		# Update the module's code length display
+		newHex = codeChangeModule.newHexField.get( '1.0', 'end' ).strip()
+		customCodeLength = getCustomCodeLength( newHex, preProcess=True, includePaths=self.includePaths )
+		codeChangeModule.customCodeLength.set( '(' + uHex(customCodeLength) + ' bytes)' )
+
+		# Make sure there is something to update; Gecko modules and SFs don't have an 'originalHex' or 'offset' field to update.
+		if changeType == 'gecko' or changeType == 'standalone':
+			return
+
+		offsetString = codeChangeModule.offset.get().replace( '0x', '' ).strip()
+
+		# Update the original hex value
+		codeChangeModule.originalHex.delete( 0, 'end' )
+		if ( changeType == 'static' or changeType == 'injection' ) and offsetString != '':
+			if not validHex( offsetString.replace( '0x', '' ) ): msg( 'Invalid offset hex.' )
+			else:
+				# Determine the length of data to get from the vanilla DOL.
+				byteCountToRead = 0
+				if changeType == 'injection': byteCountToRead = 4
+				elif changeType == 'static' and newHex != '': byteCountToRead = customCodeLength
+
+				if byteCountToRead > 0:
+					# Load a dol for reference if one is not already loaded (there may be no dol currently loaded)
+					revision = self.gameVersionsNotebook.tab( versionTab, "text" )[4:]
+					vanillaDol = loadVanillaDol( revision )
+
+					# If the given offset is a RAM address, convert it to a DOL offset
+					dolOffset = -1
+					if len( offsetString ) == 8 and offsetString.startswith('8'): # 0x has already been removed (always assumed to be a hex value)
+						offset = int( offsetString[1:], 16 )
+						if offset >= 0x3100:
+							if offset < vanillaDol.maxRamAddress: dolOffset = offsetInDOL( offset, vanillaDol.sectionInfo )
+							else: codeChangeModule.originalHex.insert( 0, 'Address is too big' )
+						else: codeChangeModule.originalHex.insert( 0, 'Address is too small' )
+					else: 
+						offset = int( offsetString, 16 )
+						if offset >= 0x100:
+							if offset < vanillaDol.maxDolOffset: dolOffset = offset
+							else: codeChangeModule.originalHex.insert( 0, 'Offset is too big' )
+						else: codeChangeModule.originalHex.insert( 0, 'Offset is too small' )
+
+					# Get the original hex data, and update the GUI with the value.
+					if dolOffset != -1:
+						codeChangeModule.originalHex.insert( 0, vanillaDol.data[dolOffset*2:(dolOffset+byteCountToRead)*2].upper() )
+
+	def queueUndoStatesUpdate( self, event ):
+		widget = event.widget
+
+		# Ignore certain keys which won't result in content changes. todo: Could probably add some more keys to this
+		if event.keysym in ( 'Shift_L', 'Shift_R', 'Control_L', 'Control_R', 'Alt_L', 'Alt_R', 'Caps_Lock', 'Left', 'Up', 'Right', 'Down', 'Home', 'End', 'Num_Lock' ):
+			return
+
+		# Cancel any pending undo state; instead, wait until there is a sizable state/chunk of data to save
+		if widget.undoStateTimer: widget.after_cancel( widget.undoStateTimer )
+
+		# Start a new timer, to grab all changes within a certain time for one undo state
+		widget.undoStateTimer = widget.after( 800, lambda w=widget: self.addUndoState(w) )
+
+	def addUndoState( self, widget ):
+
+		""" This is responsible for adding new undo/redo states to the undoStates list.
+			If this is called and the widget's contents are the same as the current history state,
+			then non-editing keys were probably pressed, such as an arrow key or CTRL/SHIFT/etc, in
+			which case this method will just exit without creating a new state. """
+
+		if widget.undoStateTimer: # This method may have been called before this fired. Make sure it doesn't fire twice!
+			widget.after_cancel( widget.undoStateTimer )
+		widget.undoStateTimer = None
+
+		# Get what's currently in the input field
+		if widget.winfo_class() == 'Text': # Includes ScrolledText widgets
+			currentContents = widget.get( '1.0', 'end' ).strip().encode( 'utf-8' )
+		else: # Pulling from an Entry widget
+			currentContents = widget.get().strip().encode( 'utf-8' )
+
+		# Check if the widget's contents have changed since the last recorded undo state. If they haven't, there's nothing more to do here.
+		if currentContents == widget.undoStates[widget.undoStatesPosition]: # Comparing against the current history state
+			return
+
+		# Discard any [potential redo] history beyond the current position
+		widget.undoStates = widget.undoStates[:widget.undoStatesPosition + 1]
+
+		# Add the new current state to the undo history, and set the current history position to it
+		widget.undoStates.append( currentContents )
+		widget.undoStatesPosition = len( widget.undoStates ) - 1
+
+		# Limit the size of the undo list (commented out due to currently irreconcilable issues (index out of range) with savedContents/undoPosition) todo: fix?
+		# if len( widget.undoStates ) > 10:
+		# 	widget.undoStates = widget.undoStates[-10:] # Forgets the earliest states
+
+		# Check if this is a code modification offset (DOL Offset or RAM Address); Adds some special processing
+		if getattr( widget, 'offsetEntry', False ):
+			versionTab = root.nametowidget( self.gameVersionsNotebook.select() )
+			codeChangeModule = widget.master
+			while not hasattr( codeChangeModule, 'changeType' ): codeChangeModule = codeChangeModule.master
+			self.updateModule( versionTab, codeChangeModule )
+
+		# If this is the mod title, also update the name of this tab
+		elif widget == self.titleEntry: self.updateTabName()
+
+		# Update the save status
+		if currentContents != widget.savedContents:
+			self.updateSaveStatus( True )
+		else: # Can't be sure of changes, so perform a more thorough check
+			self.updateSaveStatus( self.changesArePending() )
+
+	def undo( self, event ):
+		widget = event.widget
+
+		# If changes are pending addition to the widget's undo history, process them immediately before proceeding
+		if widget.undoStateTimer: self.addUndoState( widget )
+
+		# Decrement the current position within the undo history
+		if widget.undoStatesPosition > 0:
+			widget.undoStatesPosition -= 1
+			self.restoreUndoState( widget )
+
+		return 'break' # Meant to prevent the keypresses that triggered this from propagating to other events
+
+	def redo( self, event ):
+		widget = event.widget
+
+		# If changes are pending addition to the widget's undo history, process them immediately before proceeding
+		if widget.undoStateTimer: self.addUndoState( widget )
+
+		# Increment the current position within the undo history
+		if widget.undoStatesPosition < len( widget.undoStates ) - 1:
+			widget.undoStatesPosition += 1
+			self.restoreUndoState( widget )
+
+		return 'break' # Meant to prevent the keypresses that triggered this from propagating to other events
+
+	def restoreUndoState( self, widget ):
+		newContents = widget.undoStates[widget.undoStatesPosition]
+
+		# Update the contents of the widget
+		if widget.winfo_class() == 'Text':
+			entryPoint = '1.0'
+		else: entryPoint = 0
+		widget.delete( entryPoint, 'end' )
+		widget.insert( 'end', newContents )
+
+		# If there's a difference between the current input and the saved state, there are certainly pending changes.
+		if newContents != widget.savedContents:
+			self.updateSaveStatus( True )
+		else: # Can't be sure of changes, so perform a more thorough check
+			self.updateSaveStatus( self.changesArePending() )
+
+	def getInput( self, widget ): # Gets a text or entry widget's current input while forcing undo history updates.
+		# If changes are pending addition to the widget's undo history, process them immediately before proceeding
+		if widget.undoStateTimer: self.addUndoState( widget )
+
+		if widget.winfo_class() == 'Text': # Includes ScrolledText widgets
+			return widget.get( '1.0', 'end' ).strip().encode( 'utf-8' )
+		else: # Pulling from an Entry widget
+			return widget.get().strip().encode( 'utf-8' )
+
+	def widgetHasUnsavedChanges( self, widget ):
+		currentContents = self.getInput( widget )
+
+		# Compare the current contents to what was last saved
+		if currentContents != widget.savedContents:
+			return True
+		else:
+			return False
+
+	def changesArePending( self ):
+		if self.undoableChanges: # This is a flag for changes that have been made which "undo" can't be used for
+			return True
+
+		# Check all current code change modules for changes
+		if self.gameVersionsNotebook:
+			for windowName in self.gameVersionsNotebook.tabs()[:-1]: # Ignores versionChangerTab.
+				versionTab = root.nametowidget( windowName )
+				codeChangesListFrame = versionTab.winfo_children()[0].interior
+				for codeChangeModule in codeChangesListFrame.winfo_children():
+					# Check the 'New Hex' (i.e. new asm/hex code) field
+					if self.widgetHasUnsavedChanges( codeChangeModule.newHexField ):
+						return True
+
+					# Get module label and Entry input field widgets
+					innerFrame = codeChangeModule.winfo_children()[0]
+					bottomFrameChildren = innerFrame.winfo_children()[1].winfo_children()
+
+					# Check widgets which have undo states for changes
+					for widget in bottomFrameChildren:
+						if getattr( widget, 'undoStates', False ) and self.widgetHasUnsavedChanges( widget ):
+							return True
+
+		# Check the title/author/description for changes
+		for widget in ( self.titleEntry, self.authorsEntry, self.descScrolledText ):
+			if self.widgetHasUnsavedChanges( widget ): return True
+
+		return False
+
+	def updateSaveStatus( self, changesPending, message='' ):
+		if changesPending:
+			if not message: message = 'Unsaved'
+			self.saveStatusLabel['foreground'] = '#a34343' # Shade of red
+		else:
+			self.saveStatusLabel['foreground'] = '#292' # Shade of green
+
+		self.saveStatus.set( message )
+
+	def buildModString( self ):
+
+		""" Builds a string to store/share this mod in MCM's usual code format. """
+
+		# Get the text input for the title and author(s)
+		title = self.getInput( self.titleEntry )
+		if title == '': title = 'This Mod Needs a Title!'
+		authors = self.getInput( self.authorsEntry )
+		if authors == '': authors = '??'
+
+		# Validate the text input to make sure it's only basic ASCII
+		for subject in ('title', 'authors'):
+			stringVariable = eval( subject ) # Basically turns the string into one of the variables created above
+			if not isinstance( stringVariable, str ):
+				typeDetected = str(type(stringVariable)).replace("<type '", '').replace("'>", '')
+				msg('The input needs to be ASCII, however ' + typeDetected + \
+					' was detected in the ' + subject + ' string.', 'Input Error')
+				return ''
+
+		# Add the description and any web links (basically parsed with descriptions, so they're included together)
+		description = '\n' + self.getInput( self.descScrolledText ).encode( 'ascii', 'ignore' ) # The encode filters out any non-ascii characters. todo: warn user?
+		webLinksLines = []
+		for urlObj, comments in self.webLinks: # Comments should still have the '#' character prepended
+			webLinksLines.append( '<{}>{}'.format(urlObj.geturl(), comments) )
+		if webLinksLines: description += '\n' + '\n'.join( webLinksLines )
+		if description == '\n': description = '' # Remove the line break if a description is not present.
+		modString = ['\n' + title + description + '\n[' + authors + ']']
+
+		codeChangesHeader = 'Revision ---- DOL Offset ---- Hex to Replace ---------- ASM Code -'
+		addChangesHeader = False
+
+		if self.gameVersionsNotebook:
+			# Gather information from each game version tab
+			for windowName in self.gameVersionsNotebook.tabs()[:-1]: # Ignores versionChangerTab.
+				versionTab = root.nametowidget( windowName )
+				codeChangesListFrame = versionTab.winfo_children()[0].interior
+				revision = self.gameVersionsNotebook.tab( versionTab, option='text' )[4:]
+				addVersionHeader = True
+
+				# Iterate the codeChanges for this game version
+				for codeChangeModule in codeChangesListFrame.winfo_children():
+					changeType = codeChangeModule.changeType
+
+					# Saves the new hex field (if this module is selected), and updates the module's code length and original hex values
+					self.updateModule( versionTab, codeChangeModule )
+
+					# Get the newHex input.
+					newHex = self.getInput( codeChangeModule.newHexField )
+					if newHex.startswith('0x'): newHex = newHex[2:] # Don't want to replace all instances
+
+					if changeType == 'static' or changeType == 'injection':
+						addChangesHeader = True
+
+						# Get the offset and original (vanilla game code) hex inputs. Remove whitespace & hex identifiers.
+						offset = ''.join( self.getInput(codeChangeModule.offset).split() ).replace('0x', '')
+						originalHex = ''.join( self.getInput(codeChangeModule.originalHex).split() ).replace('0x', '')
+
+						# Check that inputs have been given, and then convert the ASM to hex if necessary.
+						if offset == '' or newHex == '':
+							msg( 'There are offset or new code values missing\nfor some ' + revision + ' changes.' )
+							self.gameVersionsNotebook.select( windowName )
+							return ''
+						elif originalHex == '' or not validHex( originalHex ):
+							msg( 'There are Original Hex values missing or invalid among the ' + revision + ' changes, and new values could not be determined. An offset may be incorrect.' )
+							return ''
+
+						# Create the beginning of the line (revision header, if needed, with dashes).
+						headerLength = 13
+						if addVersionHeader:
+							lineHeader = revision + ' ' + ('-' * ( headerLength - 1 - len(revision) )) # extra '- 1' for the space after revision
+							addVersionHeader = False
+						else: lineHeader = '-' * headerLength
+
+						# Build a string for the offset portion
+						numOfDashes = 8 - len( offset )
+						dashes = '-' * ( numOfDashes / 2 ) # if numOfDashes is 1 or less (including negatives), this will be an empty string
+						if numOfDashes % 2 == 0: # If the number of dashes left over is even (0 is even)
+							offsetString = dashes + ' ' + '0x' + offset + ' ' + dashes
+						else: # Add an extra dash at the end (the int division above rounds down)
+							offsetString = dashes + ' ' + '0x' + offset + ' ' + dashes + '-'
+
+						# Build a string for a standard (short) static overwrite
+						if changeType == 'static' and len(originalHex) <= 16 and newHex.splitlines()[0].split('#')[0] != '': # Last check ensures there's actually code, and not just comments/whitespace
+							modString.append( lineHeader + offsetString + '---- ' + originalHex + ' -> ' + newHex )
+
+						# Long static overwrite
+						elif changeType == 'static':
+							modString.append( lineHeader + offsetString + '----\n\n' + customCodeProcessor.beautifyHex(originalHex) + '\n\n -> \n\n' + newHex + '\n' )
+
+						# Injection mod
+						else:
+							modString.append( lineHeader + offsetString + '---- ' + originalHex + ' -> Branch\n\n' + newHex + '\n' )
+
+					elif changeType == 'gecko':
+						if addVersionHeader: modString.append( revision + '\n' + newHex + '\n' )
+						else: modString.append( newHex + '\n' )
+
+					elif changeType == 'standalone':
+						functionName = self.getInput( codeChangeModule.offset )
+
+						# Check that a function name was given, and then convert the ASM to hex if necessary.
+						if functionName == '':
+							msg( 'A standalone function among the ' + revision + ' changes is missing a name.' )
+							self.gameVersionsNotebook.select( windowName )
+							return ''
+						elif ' ' in functionName:
+							msg( 'Function names may not contain spaces. Please rename those for ' + revision + ' and try again.' )
+							self.gameVersionsNotebook.select( windowName )
+							return ''
+
+						# Add the name wrapper and version identifier
+						functionName = '<' + functionName + '> ' + revision
+
+						# Assemble the line string with the original and new hex codes.
+						modString.append( functionName + '\n' + newHex + '\n' )
+
+		if addChangesHeader:
+			modString.insert( 1, codeChangesHeader ) # Inserts right after the initial title/author/description string
+
+		return '\n'.join( modString )
+
+	def _getRequiredStandaloneFunctionNames( self ):
+		
+		""" Gets the names of all standalone functions this mod requires. """
+
+		if not self.gameVersionsNotebook or not self.gameVersionsNotebook.tabs(): # Latter check is a failsafe; not expected
+			return [], []
+
+		functionNames = set()
+		missingFunctions = set()
+
+		# Iterate over each game revision
+		for windowName in self.gameVersionsNotebook.tabs()[:-1]: # Ignores versionChangerTab.
+			versionTab = root.nametowidget( windowName )
+			codeChangesListFrame = versionTab.winfo_children()[0].interior
+
+			# Iterate the codeChanges for this game version
+			for codeChangeModule in codeChangesListFrame.winfo_children():
+				# Get the code for this code change, and pre-process it
+				newHex = self.getInput( codeChangeModule.newHexField )
+				preProcessedCustomCode = customCodeProcessor.preAssembleRawCode( newHex, self.includePaths )[1]
+
+				functionNames, missingFunctions = parseCodeForStandalones( preProcessedCustomCode, functionNames, missingFunctions )
+
+				# If the current code change module is a standalone function, make sure it's not in the set of "missing" SFs
+				if codeChangeModule.changeType == 'standalone' and missingFunctions:
+					thisFunctionName = self.getInput( codeChangeModule.offset )
+					missingFunctions.remove( thisFunctionName )
+
+		return list( functionNames ), list( missingFunctions ) # functionNames will also include those that are missing
+
+	def saveModToLibraryAs( self ):
+
+		""" Saves a mod to a new location. Wrapper for the saveModToLibrary method. """
+
+		# Remember the original values for save location (in case they need to be restored), and then clear them
+		originalSourceFile = self.sourceFile
+		originalFileIndex = self.fileIndex
+		originalMajorChanges = self.undoableChanges
+
+		# Clear the save location properties for this mod. This forces the save function to default to creating a new file
+		self.sourceFile = ''
+		self.fileIndex = -1
+		self.undoableChanges = True
+
+		# Attempt to save the mod
+		saveSuccedded = self.saveModToLibrary()
+
+		# If the save failed, restore the previous save location & status
+		if not saveSuccedded:
+			self.sourceFile = originalSourceFile
+			self.fileIndex = originalFileIndex
+			self.undoableChanges = originalMajorChanges
+
+	def saveModToLibrary( self ):
+		# Make sure there are changes to be saved
+		if not self.changesArePending():
+			self.updateSaveStatus( False, 'No Changes to be Saved' )
+			self.saveStatusLabel['foreground'] = '#333' # Shade of gray
+			return
+
+		# Confirm that this mod (if this is something from the Mod Library tab) is not currently installed
+		modInstalled = False
+		if self.sourceFile and self.fileIndex != -1:
+
+			for mod in genGlobals['allMods']:
+				# Compare by file and file position
+				if mod.fileIndex == self.fileIndex and mod.sourceFile == self.sourceFile:
+					# Double-check that this is the correct mod by name
+					if mod.name != self.getInput( self.titleEntry ):
+						userConfirmedEquivalency = tkMessageBox.askyesno( 'Confirm Mod Equivalency', 'Is this the same mod as "' + mod.name + '" in the Mods Library? ', parent=root )
+
+						if not userConfirmedEquivalency:
+							# Mod save location lost; inform the user and prepare to save this as a new mod.
+							msg( "The Mods Library reference to the mod being edited has been lost (likely due to a duplicate mod, or manual modification/reordering of "
+								'the Mods Library after opening this mod in the Mod Construction tab). Without verification of this reference, the original '
+								'save location of this mod cannot be certain. To prevent the overwrite of a different mod, this must be saved as a new mod.' )
+							self.saveModToLibraryAs()
+							return
+
+					# Equivalent mod found. Check whether it's installed in a game disc/DOL
+					if mod.state == 'enabled' or mod.state == 'pendingDisable':
+						modInstalled = True
+					
+					break
+
+		if modInstalled:
+			msg( 'Mods must be uninstalled from your game before modifying them.' )
+			self.updateSaveStatus( True, 'Unable to Save' )
+			return False
+
+		modString = self.buildModString() # This will also immediately update any pending undo history changes
+
+		if not modString: # Failsafe, assuming the method above will report any possible errors
+			self.updateSaveStatus( True, 'Unable to Save' )
+			return False
+
+		saveSuccessful = False
+		userCanceled = False
+
+		# Prompt for a file to save to if no source file is defined. (Means this was newly created in the GUI, or this is a 'SaveAs' operation)
+		if self.sourceFile == '':
+			targetFile = tkFileDialog.askopenfilename(
+				title="Choose the file you'd like to save the mod to (it will be appended to the end).",
+				initialdir=getModsFolderPath(),
+				filetypes=[ ('Text files', '*.txt'), ('all files', '*.*') ]
+				)
+
+			if not targetFile:
+				userCanceled = True
+			else:
+				# Append this mod to the end of the target Mod Library text file (could be a new file, or an existing one).
+				try:
+					if os.path.exists( targetFile ):
+						# Set this mod's save location so that subsequent saves will automatically go to this same place, and check if a separator is needed.
+						self.sourceFile = targetFile
+						with open( targetFile, 'r') as modFile:
+							fileContents = modFile.read()
+						if fileContents:
+							self.fileIndex = len( fileContents.split( '-==-' ) )
+							modString = '\n\n\n\t-==-\n\n' + modString # Prepends a separator to this mod.
+						else: self.fileIndex = 0
+
+						# Save the mod to the file.
+						with open( targetFile, 'a' ) as libraryFile:
+							libraryFile.write( modString )
+						saveSuccessful = True
+				except Exception as err:
+					print( 'Unable to save the mod to the library file:' )
+					print( err )
+
+				# Rebuild the include paths list, using this new file for one of the paths
+				modsFolderIncludePath = os.path.join( getModsFolderPath(), '.include' )
+				self.includePaths = [ os.path.dirname(targetFile), modsFolderIncludePath, os.path.join(scriptHomeFolder, '.include') ]
+
+		else: # A source file is already defined.
+			if self.fileIndex == -1: msg( "The index (file position) for this mod could not be determined. Try using 'Save As' to save this mod to the end of a file." )
+			else:
+				targetFile = self.sourceFile
+
+				# Make sure the target file can be found, then replace the mod within it with the new version.
+				if not os.path.exists( targetFile ):
+					msg( 'Unable to locate the Library file:\n\n' + targetFile )
+
+				else: 
+					try:
+						# Pull the mods from their library file, and separate them.
+						with open( targetFile, 'r') as modFile:
+							mods = modFile.read().split( '-==-' )
+
+						# Replace the old mod, reformat the space in-between mods, and recombine the file's text.
+						mods[self.fileIndex] = modString
+						mods = [code.strip() for code in mods] # Removes the extra whitespace around mod strings.
+						completedFileText = '\n\n\n\t-==-\n\n\n'.join( mods )
+
+						with open( targetFile, 'w' ) as libraryFile:
+							libraryFile.write( completedFileText )
+
+						saveSuccessful = True
+					except: pass
+
+		if saveSuccessful:
+			# Iterate over all code change modules to update their save state history (saved contents updated to match current undo history index)
+			for windowName in self.gameVersionsNotebook.tabs()[:-1]: # Ignores versionChangerTab.
+				versionTab = root.nametowidget( windowName )
+				codeChangesListFrame = versionTab.winfo_children()[0].interior
+
+				# Iterate the codeChanges for this game version
+				for codeChangeModule in codeChangesListFrame.winfo_children():
+					if getattr( codeChangeModule.newHexField, 'undoStates', None ): # May return an empty list, in which case the contents haven't been modified
+						# Update the 'New Hex' (i.e. new asm/hex code) field
+						codeChangeModule.newHexField.savedContents = codeChangeModule.newHexField.get( '1.0', 'end' ).strip().encode( 'utf-8' )
+
+					# Get module label and Entry input field widgets
+					innerFrame = codeChangeModule.winfo_children()[0]
+					bottomFrameChildren = innerFrame.winfo_children()[1].winfo_children()
+
+					# Update those widgets (which have undo states) with changes
+					for widget in bottomFrameChildren:
+						if getattr( widget, 'undoStates', False ):
+							widget.savedContents = widget.get().strip().encode( 'utf-8' )
+
+			# Update the saved contents for the standard input fields
+			for widget in ( self.titleEntry, self.authorsEntry, self.descScrolledText ):
+				if getattr( widget, 'undoStates', None ): # May return an empty list, in which case the contents haven't been modified
+					if widget.winfo_class() == 'Text': # Includes ScrolledText widgets
+						widget.savedContents = widget.get( '1.0', 'end' ).strip().encode( 'utf-8' )
+					else: # Pulling from an Entry widget
+						widget.savedContents = widget.get().strip().encode( 'utf-8' )
+
+			# Update the flag used for tracking other undoable changes
+			self.undoableChanges = False
+
+			# Give an audio cue and update the GUI
+			playSound( 'menuSelect' )
+			self.updateSaveStatus( False, 'Saved To Library' )
+
+			# Reload the library to get the new or updated codes.
+			scanModsLibrary( playAudio=False )
+
+		else:
+			if userCanceled:
+				self.updateSaveStatus( True, 'Operation Canceled' )
+			else:
+				self.updateSaveStatus( True, 'Unable to Save' )
+		
+		return saveSuccessful
+
+	def analyzeMod( self ):
+
+		""" Collects information on this mod, and shows it to the user in a pop-up text window. """ # todo: switch to joining list of strings for efficiency
+
+		# Assemble the header text
+		analysisText = 'Info for "' + self.getInput( self.titleEntry ) + '"'
+		analysisText += '\nProgram Classification: ' + self.type
+		if os.path.isdir( self.sourceFile ):
+			analysisText += '\nSource Folder: ' + self.sourceFile
+		elif os.path.exists( self.sourceFile ):
+			analysisText += '\nSource File: ' + self.sourceFile
+			analysisText += '\nPosition in file: ' + str( self.fileIndex )
+		else:
+			analysisText += '\nSource: Unknown! (The source path could not be found)'
+
+		availability = []
+		totalCodeChanges = 0
+		changeTypeTotals = {}
+
+		# Check for all code changes (absolute total, and totals per type).
+		if self.gameVersionsNotebook:
+			for windowName in self.gameVersionsNotebook.tabs()[:-1]: # Skips tab used for adding revisions
+				versionTab = root.nametowidget( windowName ) # Gets the actual widget for this tab
+
+				availability.append( self.gameVersionsNotebook.tab( versionTab, option='text' )[4:] )
+				codeChangesListFrame = versionTab.winfo_children()[0].interior
+				codeChangeModules = codeChangesListFrame.winfo_children()
+				totalCodeChanges += len( codeChangeModules )
+
+				# Count the number of changes for each change type, and get the standalone functions required
+				for codeChange in codeChangeModules:
+					if codeChange.changeType not in changeTypeTotals: changeTypeTotals[codeChange.changeType] = 1
+					else: changeTypeTotals[codeChange.changeType] += 1
+		
+		# Construct strings for what code change types are present, and their counts
+		analysisText += '\nCode changes available for ' + grammarfyList( availability ) + '\n\nCode Changes (across all game versions):'
+		for changeType in changeTypeTotals:
+			analysisText += '\n - ' + presentableModType( changeType ) + 's: ' + str( changeTypeTotals[changeType] )
+
+		# Check for required SFs
+		requiredStandaloneFunctions, missingFunctions = self._getRequiredStandaloneFunctionNames()
+		if not requiredStandaloneFunctions: analysisText += '\n\nNo Standalone Functions required.'
+		else:
+			analysisText += '\n\nRequired Standalone Functions:\n' + '\n'.join( requiredStandaloneFunctions )
+
+			if missingFunctions: 
+				analysisText += '\n\nThese functions are required, but are not packaged with this mod:\n' + '\n'.join( missingFunctions )
+
+		analysisText += '\n\n\tInclude Paths:\n' + '\n'.join( self.includePaths )
+
+		# Present the analysis to the user in a new window
+		cmsg( analysisText, 'Info for "' + self.getInput( self.titleEntry ) + '"', 'left' )
+
+	def switchOffsetDisplayType( self ):
+
+		""" Goes through each of the code changes, and swaps between displaying offsets as DOL offsets or RAM addresses. 
+			These are still tracked as strings, so they will be saved in the chosen form in the library files as well. """
+
+		# Toggle the saved variable and the button text (and normalize the string since this is exposed to users in the options.ini file)
+		offsetView = settings.get( 'General Settings', 'offsetView' ).lstrip().lower()
+		if offsetView.startswith( 'd' ):
+			offsetView = 'ramAddress'
+			buttonText = 'Display DOL Offsets'
+		else:
+			offsetView = 'dolOffset'
+			buttonText = 'Display RAM Addresses'
+		self.offsetViewBtn['text'] = buttonText
+
+		# Iterate over the tabs for each game version
+		for tabWindowName in self.gameVersionsNotebook.tabs()[:-1]: # Skips tab for adding revisions
+			versionTab = root.nametowidget( tabWindowName )
+			revision = self.gameVersionsNotebook.tab( versionTab, option='text' )[4:]
+			codeChangesListFrame = versionTab.winfo_children()[0].interior
+			codeChangeModules = codeChangesListFrame.winfo_children()
+
+			# Iterate over the code change modules for this game version
+			for i, module in enumerate( codeChangeModules, start=1 ):
+				if module.changeType == 'static' or module.changeType == 'injection':
+					# Get the current value
+					origOffset = module.offset.get().strip().replace( '0x', '' )
+
+					# Validate the input
+					if not validHex( origOffset ):
+						if len( self.gameVersionsNotebook.tabs() ) > 2: # Be specific with the revision
+							msg( 'Invalid hex detected for the offset of code change {} of {}: "{}".'.format(i, revision, module.offset.get().strip()), 'Invalid Offset Characters' )
+						else: # Only one revision to speak of
+							msg( 'Invalid hex detected for the offset of code change {}: "{}".'.format(i, module.offset.get().strip()), 'Invalid Offset Characters' )
+						continue
+
+					# Convert the value
+					if offsetView == 'dolOffset':
+						newOffset = normalizeDolOffset( origOffset, dolObj=originalDols[revision], returnType='string' )
+					else: newOffset = normalizeRamAddress( origOffset, dolObj=originalDols[revision], returnType='string' )
+
+					# Validate the converted ouput value
+					if newOffset == -1: continue # A warning would have been given to the user from the above normalization function
+
+					# Display the value
+					module.offset.delete( 0, 'end' )
+					module.offset.insert( 0, newOffset )
+
+		# Remember the current display option
+		settings.set( 'General Settings', 'offsetView', offsetView )
+		saveOptions()
+
+	def closeMod( self ):
+		# If there are unsaved changes, propt whether the user really wants to close.
+		if self.saveStatusLabel['foreground'] == '#a34343':
+			sureToClose = tkMessageBox.askyesno( 'Unsaved Changes', "It looks like this mod may have some changes that haven't been saved to your library. Are you sure you want to close it?" )
+			if not sureToClose: return
+
+		self.master.destroy()
+
+	def addWebLink( self, urlObj, comments, modChanged=True ):
+		
+		url = urlObj.geturl()
+		domain = urlObj.netloc.split( '.' )[-2] # i.e. 'smashboards' or 'github'
+		destinationImage = imageBank[ domain + 'Link' ]
+		
+		# Add an image for this link
+		imageLabel = ttk.Label( self.webLinksFrame, image=destinationImage )
+		imageLabel.urlObj = urlObj
+		imageLabel.comments = comments
+		imageLabel.pack()
+
+		# Add hover tooltips
+		hovertext = 'The {}{} page...\n{}'.format( domain[0].upper(), domain[1:], url )
+		if comments: hovertext += '\n\n' + comments
+		ToolTip( imageLabel, hovertext, delay=700, wraplength=800, justify='center' )
+
+		# if modChanged: # If false, this is being called during initialization
+		# 	self.undoableChanges = True
+
+
+class WebLinksEditor( BasicWindow ):
+
+	""" Tool window to add/remove web links in the Mod Construction tab. """
+
+	def __init__( self, webLinksFrame ):
+		BasicWindow.__init__( self, globalData.gui.root, 'Web Links Editor', offsets=(160, 100), resizable=True, topMost=False )
+
+		ttk.Label( self.window, text=('Web links are useful sources of information, or links to places of discussion.'
+			'\nCurrent valid destinations are SmashBoards, GitHub, and YouTube.'), wraplength=480 ).grid( columnspan=3, column=0, row=0, padx=40, pady=10 )
+
+		# Iterate over the widgets in the 'Web Links' frame in the other window, to create new widgets here based on them
+		row = 1
+		for label in webLinksFrame.winfo_children():
+			# Get info from this label widget
+			url = label.urlObj.geturl()
+			domain = label.urlObj.netloc.split( '.' )[-2] # i.e. 'smashboards' or 'github'
+			destinationImage = imageBank[ domain + 'Link' ]
+
+			# Can't clone the label, so make a new one
+			imageLabel = ttk.Label( self.window, image=destinationImage )
+			imageLabel.grid( column=0, row=row )
+
+			# Add a text field entry for the URL
+			urlEntry = ttk.Entry( self.window, width=70 )
+			urlEntry.insert( 0, url )
+			urlEntry.grid( column=1, row=row, sticky='ew' )
+
+			# Add the comment below this, if there is one, and the button to add/edit them
+			if label.comments:
+				# Add the add/edit comment button
+				commentsBtn = Tk.Button( self.window, text='Edit Comment', anchor='center' )
+				commentsBtn.grid( column=2, row=row, padx=14, pady=5 )
+
+				# Add the comment
+				commentLabel = ttk.Label( self.window, text=label.comments.lstrip(' #') )
+				commentLabel.grid( column=1, row=row+1, sticky='new' )
+
+				# Add the remove button
+				removeBtn = Tk.Button( self.window, text='-', width=2 )
+				ToolTip( removeBtn, 'Remove', delay=700 )
+				removeBtn.grid( column=3, row=row, padx=(0, 14) )
+				row += 2
+			else:
+				# Add the add/edit comment button
+				commentsBtn = Tk.Button( self.window, text='Add Comment', anchor='center' )
+				commentsBtn.grid( column=2, row=row, padx=14, pady=5 )
+
+				# Add the remove button
+				removeBtn = Tk.Button( self.window, text='-', width=2 )
+				ToolTip( removeBtn, 'Remove', delay=700 )
+				removeBtn.grid( column=3, row=row, padx=(0, 14) )
+				row += 1
+		
+		# Add the 'Add' and 'OK / Cancel' buttons
+		buttonsFrame = ttk.Frame( self.window )
+		ttk.Button( buttonsFrame, text='OK' ).pack( side='left', padx=(0, 15) )
+		ttk.Button( buttonsFrame, text='Cancel', command=self.close ).pack( side='right' )
+		buttonsFrame.grid( columnspan=4, column=0, row=row, pady=14 )
+		addBtn = Tk.Button( self.window, text='Add Link', width=12 )
+		addBtn.grid( columnspan=2, column=2, row=row )
+
+		# Allow the grid to resize
+		self.window.columnconfigure( 0, weight=1, minsize=46 )
+		self.window.columnconfigure( 1, weight=3 )
+		#self.window.columnconfigure( (2, 3), weight=1 )
+		self.window.columnconfigure( 2, weight=1, minsize=120 )
+		self.window.columnconfigure( 3, weight=1, minsize=35 )
+		self.window.rowconfigure( 'all', weight=1 )
 
 
 class CodeConfigWindow( BasicWindow ):
@@ -1303,7 +2562,7 @@ class CodeConfigWindow( BasicWindow ):
 					#start, end = optRange
 					start, end = mod.parseConfigValue( optType, optRange[0] ), mod.parseConfigValue( optType, optRange[1] )
 					currentValue = mod.parseConfigValue( optType, currentValue )
-					#print optionName, start, '-', end
+					#print( optionName, start, '-', end )
 					slider = ttk.Scale( self.optionsFrame.interior, from_=start, to=end, length=180, value=currentValue )
 					slider.configure( command=lambda v, w=inputWidget: self.sliderUpdated(v, w) )
 					slider.grid( column=1, row=row, padx=(14, 7), sticky='ew' )

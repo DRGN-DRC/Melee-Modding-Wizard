@@ -250,6 +250,9 @@ class CodeChange( object ):
 		# 	print 'origSyntaxInfo:', self.syntaxInfo
 		# 	print 'newSyntaxInfo :', syntaxInfo
 
+		if self.isAssembly:
+			print self.mod.name, 'has ASM'
+
 		if self.processStatus == 0:
 			self.preProcessedCode = codeOrErrorNote
 
@@ -727,7 +730,8 @@ class CodeLibraryParser():
 
 		""" Starting point for processing a Code Library. Recursively processes sub-folders. """
 
-		parentFolderName = os.path.split( os.path.split(folderPath)[0] )[1]
+		parentFolderPath, thisFolderName = os.path.split( folderPath )
+		parentFolderName = os.path.split( parentFolderPath )[1]
 		itemsInDir = os.listdir( folderPath ) # May be files or folders
 		includePaths = [ folderPath ] + self.includePaths
 
@@ -739,7 +743,7 @@ class CodeLibraryParser():
 		# Check if there are any items in this folder to be processed exclusively (item starting with '+')
 		for item in itemsInDir:
 			if item.startswith( '+' ):
-				itemsInDir = [item]
+				itemsInDir = [ item ]
 				break
 
 		for item in itemsInDir:
@@ -762,9 +766,9 @@ class CodeLibraryParser():
 
 			# Process standalone .asm/.s files as their own mod
 			elif ext == '.asm':
-				self.parseStandaloneInjection( item, itemPath, includePaths )
+				self.parseStandaloneInjection( item, itemPath, includePaths, thisFolderName )
 			elif ext == '.s':
-				self.parseStandaloneOverwrite( item, itemPath, includePaths )
+				self.parseStandaloneOverwrite( item, itemPath, includePaths, thisFolderName )
 
 	def getModByName( self, name ):
 
@@ -1247,7 +1251,7 @@ class CodeLibraryParser():
 
 			self.storeMod( mod )
 
-	def parseStandaloneInjection( self, item, sourceFile, includePaths ):
+	def parseStandaloneInjection( self, item, sourceFile, includePaths, category ):
 
 		""" Creates a mod from a single, standalone .asm file. """
 
@@ -1257,6 +1261,7 @@ class CodeLibraryParser():
 		mod.setCurrentRevision( 'NTSC 1.02' ) # Assumption time #todo (optionally add param to header)
 		mod.desc = 'Injection from standalone file "{}"'.format( sourceFile )
 		mod.includePaths = includePaths
+		#mod.category = category
 		
 		# Read the file for info and the custom code
 		returnCode, address, author, customCode = self.getCustomCodeFromFile( sourceFile, mod, True, modName )
@@ -1284,7 +1289,7 @@ class CodeLibraryParser():
 		mod.data[mod.currentRevision].append( codeChange )
 		self.storeMod( mod )
 
-	def parseStandaloneOverwrite( self, item, sourceFile, includePaths ):
+	def parseStandaloneOverwrite( self, item, sourceFile, includePaths, category ):
 
 		""" Creates a mod from a single, standalone .s file. """
 
@@ -1294,6 +1299,7 @@ class CodeLibraryParser():
 		mod.setCurrentRevision( 'NTSC 1.02' ) # Assumption time #todo (optionally add param to header)
 		mod.desc = 'Injection from standalone file "{}"'.format( sourceFile )
 		mod.includePaths = includePaths
+		mod.category = category
 		
 		# Read the file for info and the custom code
 		returnCode, address, author, customCode = self.getCustomCodeFromFile( sourceFile, mod, True, modName )
@@ -1511,10 +1517,10 @@ class CodeLibraryParser():
 							self.parseAmfsInjectFolder( codeChangeDict, mod )
 
 						elif codeType == 'replaceBinary':
-							mod.errors.append( 'The replaceBinary AMFS code type is not yet supported' )
+							mod.errors.append( 'The "replaceBinary" AMFS code type is not yet supported' )
 
 						elif codeType == 'binary':
-							mod.errors.append( 'The binary AMFS code type is not yet supported' )
+							mod.errors.append( 'The "binary" AMFS code type is not yet supported' )
 
 						else:
 							mod.errors.append( 'Unrecognized AMFS code type: ' + codeType )

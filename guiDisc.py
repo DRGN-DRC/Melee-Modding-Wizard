@@ -13,7 +13,6 @@
 from cProfile import label
 import os
 import time
-from posixpath import basename
 from binascii import hexlify
 from tkMessageBox import askyesno
 
@@ -380,6 +379,12 @@ class DiscTab( ttk.Frame ):
 					charFolderIid = 'pl' + character.replace(' ', '').replace('[','(').replace(']',')') # Spaces or brackets can't be used in the iid.
 					if not self.isoFileTree.exists( charFolderIid ):
 						self.isoFileTree.insert( 'pl', 'end', iid=charFolderIid, text=' ' + character, values=('', 'cFolder'), image=globalData.gui.imageBank('folderIcon') )
+					if entryName.endswith( 'DViWaitAJ.dat' ):
+						discFile.shortDescription = '1P mode wait animation'
+						if character.endswith( 's' ):
+							discFile.longDescription = character + "' " + discFile.shortDescription
+						else:
+							discFile.longDescription = character + "'s " + discFile.shortDescription
 					parent = charFolderIid
 			elif entryName.startswith( 'Sd' ): # Menu text files
 				if not self.isoFileTree.exists( 'sd' ):
@@ -406,14 +411,19 @@ class DiscTab( ttk.Frame ):
 
 			# if discFile.__class__.__name__ == 'CharDataFile':
 
-			# if discFile.filename == 'PlCa.dat' or discFile.filename == 'PlCa.sat':
-			# 	table = discFile.getFighterActionTable()
+			# if discFile.filename == 'PlCa.dat':# or discFile.filename == 'PlCa.sat':
+			# 	table = discFile.getActionTable()
+			# 	print 'Fighter Action Tables:'
 			# 	print discFile.filename, hex( table.offset + 0x20 )
 
 			# 	for i, values in table.iterateEntries():
 			# 		actionName = discFile.getString( values[0] )
-			# 		offset = table.entryIndexToOffset( i )
-			# 		print '\t', i, ' | ', uHex( offset + 0x20 ), actionName
+			# 		# offsetInTable = table.entryIndexToOffset( i )
+			# 		# print '\t', i, ' | ', uHex( offsetInTable + 0x20 ), actionName	# show subAction struct offsets
+			# 		print '\t', i, ' | ', uHex( values[3] + 0x20 ), actionName		# show subAction table entry offsets
+
+			# if discFile.filename.endswith( 'AJ.dat') and 'Wait' not in discFile.filename:
+			# 	print discFile.filename, hex(discFile.size)
 			
 			self.isoFileTree.insert( parent, 'end', iid=discFile.isoPath, text=' ' + entryName, values=(description, 'file') )
 		except Exception as err:
@@ -1495,7 +1505,7 @@ class DiscMenu( Tk.Menu, object ):
 			elif self.fileObj.__class__ == CharAnimFile:
 				self.add_command( label='List Animations', command=self.listAnimations )												# S
 			elif self.fileObj.__class__ == CharDataFile:
-				self.add_command( label='List Action Table Entries', command=self.listActionTableEntres )
+				self.add_command( label='List Action Table Entries', command=self.listActionTableEntries )
 		# self.add_command( label='Import Multiple Files', underline=7, command=importMultipleIsoFiles )								# M
 		self.add_separator()
 
@@ -1510,11 +1520,11 @@ class DiscMenu( Tk.Menu, object ):
 					self.add_command( label='Rename Disc Filesystem Name', underline=2, command=self.renameFilesystemEntry )			# N
 
 					if self.fileObj.__class__.__name__ == 'StageFile' and self.fileObj.isRandomNeutral():
-						self.add_command( label='Rename Stage Description (in CSS)', underline=2, command=self.renameDescription )		# N
+						self.add_command( label='Rename Stage Name (in CSS)', underline=2, command=self.renameDescription )				# N
 					elif self.fileObj.__class__.__name__ == 'MusicFile' and self.fileObj.isHexTrack:
-						self.add_command( label='Rename Music Description (in CSS)', underline=2, command=self.renameDescription )		# N
+						self.add_command( label='Rename Music Title (in CSS)', underline=2, command=self.renameDescription )			# N
 					else:
-						self.add_command( label='Rename File Description (in yaml)', underline=2, command=self.renameDescription )		# N
+						self.add_command( label='Edit Description (in yaml)', underline=5, command=self.renameDescription )				# D
 
 					#if self.fileObj.filename.endswith( 'AJ.dat' ):
 				else:

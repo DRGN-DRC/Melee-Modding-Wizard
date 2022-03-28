@@ -178,7 +178,9 @@ class DebugMenuEditor( ttk.Frame ):
 
 		""" Loads the menu display widget with lines defined at the given table offset. """
 
-		assert tableAddress != 0, 'Submenu item is missing a submenu pointer!'
+		#assert tableAddress != 0, 'Submenu item is missing a submenu pointer!'
+		if tableAddress == 0: # Occurs in a few submenu selections that instead only execute a custom function
+			return
 
 		self.clearDisplay()
 

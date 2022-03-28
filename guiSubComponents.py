@@ -1269,10 +1269,9 @@ class VerticalScrolledFrame( Tk.Frame ):
 		self.canvas.bind( '<Configure>', self.configureInterior )
 
 	def configureCanvas( self, event=None ):
-		#self.update_idletasks()
+		self.update_idletasks()
 		self.configureScrollbar()
 
-		#print 'configuring canvas'
 		# update the scroll area to match the size of the inner frame
 		self.canvas.config( scrollregion=self.canvas.bbox(self.interior_id) )
 		
@@ -1285,10 +1284,9 @@ class VerticalScrolledFrame( Tk.Frame ):
 			self.canvas.config( height=self.interior.winfo_reqheight() )
 
 	def configureInterior( self, event=None ):
-		#self.update_idletasks()
+		self.update_idletasks()
 		self.configureScrollbar()
 
-		#print 'configuring interior'
 		canvasWidth = self.canvas.winfo_width()
 		if self.interior.winfo_reqwidth() != canvasWidth:
 			# update the inner frame's width to fill the canvas

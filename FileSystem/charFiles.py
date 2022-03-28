@@ -179,7 +179,7 @@ class ActionTableEntry( TableStruct ):
 		self.fields = ( 'Action_Name_Pointer',
 						'Animation_Offset',			# Offset into the AJ files
 						'Animation_Size',
-						'SubAction_Pointer',
+						'SubAction_Events_Pointer',
 						'SubAction_ID',				# 0x10 (byte)
 						'Flags',					# 0x11 (halfword)
 						'Internal_Character_ID',	# 0x13 (byte)
