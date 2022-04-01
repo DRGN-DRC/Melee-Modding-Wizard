@@ -23,6 +23,7 @@ import random
 import tkFont
 import os, sys
 import argparse
+import pyaudio, wave
 import Tkinter as Tk
 import ttk, tkMessageBox, tkFileDialog
 
@@ -48,7 +49,7 @@ from guiSubComponents import (
 		HexEditEntry, CharacterChooser
 	)
 from guiDisc import DiscTab, DiscDetailsTab
-from codesManager import CodeManagerTab
+from codesManager import CodeManagerTab, ModConstructor
 from debugMenuEditor import DebugMenuEditor
 from stageManager import StageManager
 from audioManager import AudioManager, AudioEngine
@@ -249,6 +250,7 @@ class ToolsMenu( Tk.Menu, object ):
 		self.add_cascade( label="ASM <-> HEX Converter", command=lambda: AsmToHexConverter(), underline=0 )			# A
 		#self.add_cascade( label="Number and Address Conversion", command=lambda: AsmToHexConverter(), underline=0 )	# N
 		self.add_cascade( label='Code Lookup', command=lambda: CodeLookup(), underline=5 )							# L
+		self.add_cascade( label='Create Code Mod', command=self.createCodeMod, underline=12 )						# M
 		self.add_separator()
 		self.add_cascade( label="Test External Stage File", command=self.testStage, underline=14 )					# S
 		self.add_cascade( label="Test External Character File", command=self.testCharacter, underline=14 )			# C
@@ -261,6 +263,22 @@ class ToolsMenu( Tk.Menu, object ):
 			self.add_cascade( label="Create Tri-CSP", command=self.createTriCsp, underline=1 )						# T
 			self.add_cascade( label="Find Unused Stage Files", command=self.findUnusedStages, underline=0 )			# F
 			#self.add_cascade( label="Parse FSM List", command=self.parseFsmList, underline=0 )						# F
+
+	def createCodeMod( self ):
+
+		""" Adds the Code Construction tab to the main GUI, and creates a tab within it for a new code mod to work on. """
+		
+		# Add the Code Construction tab if it's not present, and select it
+		mainGui = globalData.gui
+		mainGui.addCodeConstructionTab()
+		mainGui.mainTabFrame.select( mainGui.codeConstructionTab )
+
+		# Create a new tab for the Mod Construction tab, and create a new construction module within it
+		newTab = ModConstructor( mainGui.codeConstructionTab )
+		mainGui.codeConstructionTab.add( newTab, text='New Mod' )
+
+		# Bring the new tab into view for the user.
+		mainGui.codeConstructionTab.select( newTab )
 
 	def testStage( self ):
 
@@ -609,6 +627,9 @@ class ToolsMenu( Tk.Menu, object ):
 
 class MainMenuOption( object ):
 
+	""" A primary menu option button on the Main Menu tab.
+		e.g. for the 'Disc Management' or 'Disc Management' buttons. """
+
 	def __init__( self, canvas, coords, text, hoverColor, clickCallback, currentMenuOptionCount, hoverText='' ):
 
 		# Store parameters
@@ -653,23 +674,37 @@ class MainMenuOption( object ):
 		# Add click and hover event handlers
 		canvas.tag_bind( selfTag, '<1>', self.clicked )
 		canvas.tag_bind( selfTag, '<Enter>', self.hovered )
-		canvas.tag_bind( selfTag, '<Leave>', self.unhovered )
+		#canvas.tag_bind( selfTag, '<Leave>', self.unhovered )
 
 	def clicked( self, event ):
 
 		""" Initial method called when an option is clicked on. """
 
 		if self.color == '#7b5467': return # temporarily disabled
-		
-		#globalData.gui.updateProgramStatus( '' )
-		#print('clicked')
 
 		self.callback( event )
 
-	def hovered( self, event ):
+	def unhoverOthers( self ):
 
-		# if self.mouseHovered: return # Ignore redundant calls
-		# self.mouseHovered = True
+		""" Secondary method to "unhover" main menu options from mouse interaction.
+			Because the main menu options are made of multiple canvas items, there
+			are usually multiple hover/unhover events when the user interacts with it. 
+			Thus, instead of binding an unhover event to the option's canvas items, an 
+			unhover method is fired when hovering over the background. And this method is 
+			fired whenever an option is hovered, ensuring all other options are unhovered. """
+
+		for menuOption in self.canvas.options:
+			if menuOption != self and menuOption.mouseHovered:
+				menuOption.unhovered()
+
+	def hovered( self, event=None ):
+		# Ignore redundant calls (there may be quite a few)
+		if self.mouseHovered:
+			return
+
+		# Ensure other options are unhovered
+		self.unhoverOthers()
+		self.mouseHovered = True
 		
 		#if self.hoverText:
 		#globalData.gui.updateProgramStatus( self.hoverText )
@@ -678,7 +713,6 @@ class MainMenuOption( object ):
 		if self.color == '#7b5467': return
 
 		self.canvas['cursor'] = 'hand2'
-		#print('hovered')
 
 		# Swap to the hover image and change the font color
 		self.canvas.itemconfig( self.bdLeft, image=self.canvas.optionBgLeftImageH )
@@ -694,11 +728,12 @@ class MainMenuOption( object ):
 		# Update the border color (if it's different from the current color)
 		if self.color != self.canvas.currentBorderColor:
 			self.canvas.loadBorderImages( self.color )
+
+		globalData.gui.playSound( 'menuChange' )
 	
-	def unhovered( self, event ):
-		#self.mouseHovered = False
+	def unhovered( self, event=None ):
+
 		self.canvas['cursor'] = ''
-		#print('unhovered')
 
 		# Swap to the default image and change the font color
 		self.canvas.itemconfig( self.bdLeft, image=self.canvas.optionBgLeftImage )
@@ -709,6 +744,8 @@ class MainMenuOption( object ):
 		# Update black text position
 		self.canvas.tag_lower( self.blackText1, 'menuOptions' )
 		self.canvas.tag_lower( self.blackText2, 'menuOptions' )
+
+		self.mouseHovered = False
 
 
 class MainMenuCanvas( Tk.Canvas ):
@@ -734,7 +771,8 @@ class MainMenuCanvas( Tk.Canvas ):
 		self.currentBorderColor = ''
 		self.borderImgs = {}	# key=color, value=imagesDict (key=imageName, value=image)
 		self.borderParts = {}	# key=partName, value=canvasID
-		self.optionInfo = {}	# key=canvasId, value=( borderColor, clickCallback, optOrigX, optOrigY, textWidth )
+		#self.optionInfo = {}	# key=canvasId, value=( borderColor, clickCallback, optOrigX, optOrigY, textWidth )
+		self.options = []
 
 		self.mainBorderWidth = 800 # Keep this an even number
 		self.mainBorderHeight = 530
@@ -823,6 +861,7 @@ class MainMenuCanvas( Tk.Canvas ):
 		# Create the canvas image element, or reconfigure an existing one
 		if self.topLayerId == -1:
 			self.topLayerId = self.create_image( 635, bottomBorderY, image=self.topLayer, anchor='s', tags=('charImage',) )
+			self.tag_bind( self.topLayerId, '<Enter>', self.menuOptionsUnhovered )
 		else:
 			# The canvas item already exists; reconfigure it
 			self.itemconfig( self.topLayerId, image=self.topLayer )
@@ -1003,6 +1042,7 @@ class MainMenuCanvas( Tk.Canvas ):
 		
 		# Middle
 		self.borderParts['borderMiddle'] = self.create_image( originX+26, originY+70, image=imgsDict['borderMiddle'], anchor='nw', tags=('mainBorder',) )
+		self.tag_bind( self.borderParts['borderMiddle'], '<Enter>', self.menuOptionsUnhovered )
 
 		# Calculate position of the bottom text and its background
 		textXCoord = originX + 38 + widthFillBotLeft + (self.bottomTextWidth/2)
@@ -1056,6 +1096,19 @@ class MainMenuCanvas( Tk.Canvas ):
 		self.optionBgLeftImageH = ImageTk.PhotoImage( self.optionBgLeftImageH )
 		self.optionBgRightImageH = ImageTk.PhotoImage( self.optionBgRightImageH )
 
+	def menuOptionsUnhovered( self, event=None ):
+
+		""" Primary method to "unhover" main menu options from mouse interaction.
+			Because the main menu options are made of multiple canvas items, there
+			are usually multiple hover/unhover events when the user interacts with it. 
+			Thus, instead of binding an unhover event to the option's canvas items, this 
+			method is fired when hovering over the background. And another secondary/failsafe 
+			method is fired whenever an option is hovered, ensuring all other options are unhovered. """
+
+		for menuOption in self.options:
+			if menuOption.mouseHovered:
+				menuOption.unhovered()
+
 	def addMenuOption( self, text, borderColor, clickCallback, pause=False, hoverText='' ):
 		
 		# Calculate main menu border position
@@ -1071,12 +1124,13 @@ class MainMenuCanvas( Tk.Canvas ):
 		optOriginY = y -12
 
 		# Add the text object
-		MainMenuOption( self, (optOriginX, optOriginY), text, borderColor, clickCallback, currentMenuOptionCount, hoverText )
+		mO = MainMenuOption( self, (optOriginX, optOriginY), text, borderColor, clickCallback, currentMenuOptionCount, hoverText )
+		self.options.append( mO )
 
 		if pause:
 			# Used to animate option additions (delay between displaying multiple options)
 			self.update_idletasks()
-			time.sleep( .04 )
+			time.sleep( .03 )
 
 	def testFade( self, event ):
 		self.after_cancel( self.afterId )
@@ -1123,7 +1177,7 @@ class MainMenuCanvas( Tk.Canvas ):
 	def remove( self ):
 
 		""" Cancel the next pending animation and any current animations, 
-			and remove the menu from the GUI. """
+			and remove the whole menu from the GUI. """
 		
 		self.after_cancel( self.afterId )
 		self.after_cancel( self.animId )
@@ -1221,43 +1275,11 @@ class MainMenuCanvas( Tk.Canvas ):
 	def showAnimations( self ):
 		return self.mainMenuSelected() and not globalData.checkSetting( 'disableMainMenuAnimations' )
 
-	# def removeOptions( self ):
-
-	# 	showAnimations = self.showAnimations()
-
-	# 	# Remove existing options (slide left); skip the animation if this tab isn't visible
-	# 	if showAnimations:
-	# 		stepDistance = 70
-
-	# 		self.move( 'menuOptions', -stepDistance, 0 )
-	# 		self.move( 'menuOptionsBg', -stepDistance, 0 )
-	# 		self.move( 'blackText', -stepDistance, 0 )
-
-	# 		# Check if the options have been fully hidden
-	# 		print( self.find_withtag( 'menuOptionsBg' ) )
-	# 		for id in self.find_withtag( 'menuOptionsBg' ):
-	# 			test = self.bbox( id )[3]
-	# 			if test > 0:
-	# 				self.after( 16, self.removeOptions )
-	# 				return
-	# 		#else: # Loop above didn't break; options are hidden and can now be removed
-			
-	# 	self.delete( 'menuOptions' )
-	# 	self.delete( 'menuOptionsBg' )
-	# 	self.delete( 'blackText' )
-
-	# 	if showAnimations:
-	# 		time.sleep( .2 )
-
-	def displayDiscOptions( self ):
-
-		""" Remove existing options, and display a new set of options for disc or root folder operations. """
-
-		showAnimations = self.showAnimations()
+	def removeOptions( self, showAnimations ):
 
 		# Slide-left existing options; skip the animation if this tab isn't visible
 		if showAnimations:
-			stepDistance = 80
+			stepDistance = 90
 
 			self.move( 'menuOptions', -stepDistance, 0 )
 			self.move( 'menuOptionsBg', -stepDistance, 0 )
@@ -1273,10 +1295,18 @@ class MainMenuCanvas( Tk.Canvas ):
 		self.delete( 'menuOptions' )
 		self.delete( 'menuOptionsBg' )
 		self.delete( 'blackText' )
+		self.options = []
 
 		if showAnimations:
 			self.update_idletasks()
-			time.sleep( .1 )
+			time.sleep( .05 )
+
+	def displayDiscOptions( self ):
+
+		""" Remove existing options, and display a new set of options for disc or root folder operations. """
+
+		showAnimations = self.showAnimations()
+		self.removeOptions( showAnimations )
 
 		# Add new options
 		if globalData.disc.isMelee and globalData.disc.is20XX:
@@ -1314,6 +1344,7 @@ class MainMenuCanvas( Tk.Canvas ):
 		guiFileMenu = self.mainGui.fileMenu
 		guiFileMenu.repopulate() # Rebuilds the 'recent' submenu
 		guiFileMenu.recentFilesMenu.post( event.x_root+10, event.y_root - 60 )
+		globalData.gui.playSound( 'menuChange' )
 
 	def openDisc( self, event ):
 		self.mainGui.promptToOpenFile( 'iso' )
@@ -1325,7 +1356,7 @@ class MainMenuCanvas( Tk.Canvas ):
 		self.mainGui.fileMenu.browseCodeLibrary()
 
 		self.mainGui.root.update()
-		globalData.gui.updateProgramStatus( 'Ready' )
+		self.mainGui.updateProgramStatus( 'Ready' )
 
 	def loadDiscManagement( self, event ):
 		
@@ -1344,6 +1375,7 @@ class MainMenuCanvas( Tk.Canvas ):
 
 		# self.mainGui.root.update() # Flush pending hover events that will try to change the program status
 		# globalData.gui.updateProgramStatus( 'Ready' )
+		self.mainGui.playSound( 'menuSelect' )
 
 	def loadStageEditor( self, event ):
 
@@ -1364,6 +1396,7 @@ class MainMenuCanvas( Tk.Canvas ):
 		
 		# self.mainGui.root.update() # Flush pending hover events that will try to change the program status
 		# globalData.gui.updateProgramStatus( 'Ready' )
+		self.mainGui.playSound( 'menuSelect' )
 
 	def loadMusicManager( self, event ):
 
@@ -1379,28 +1412,23 @@ class MainMenuCanvas( Tk.Canvas ):
 
 		# self.mainGui.root.update()
 		# globalData.gui.updateProgramStatus( 'Ready' )
+		self.mainGui.playSound( 'menuSelect' )
 
 	def loadDebugMenuEditor( self, event ):
 
 		""" Add the Debug Menu Editor tab to the GUI and select it. """
 		
-		# If this is 20XX, add/initialize the Debug Menu Editor tab
-		#if globalData.disc.is20XX:
+		# Add/initialize the Debug Menu Editor tab
 		if not self.mainGui.menuEditorTab:
 			self.mainGui.menuEditorTab = DebugMenuEditor( self.mainGui.mainTabFrame, self.mainGui )
-			#self.mainTabFrame.update_idletasks()
 		self.mainGui.menuEditorTab.loadTopLevel()
-
-		# Remove the Debug Menu Editor if this isn't 20XX and it's present
-		# elif self.menuEditorTab:
-		# 	self.menuEditorTab.destroy()
-		# 	self.menuEditorTab = None
 
 		# Switch to the tab
 		self.mainGui.mainTabFrame.select( self.mainGui.menuEditorTab )
 		
 		# self.mainGui.root.update()
 		# globalData.gui.updateProgramStatus( 'Ready' )
+		self.mainGui.playSound( 'menuSelect' )
 
 	def isVisible( self ):
 
@@ -1412,9 +1440,6 @@ class MainMenuCanvas( Tk.Canvas ):
 			is_toplevel = False
 		else:
 			is_toplevel = self.winfo_containing( x + (width // 2), y + (height // 2) ) is not None
-
-		# print('is_toplevel: {}'.format(is_toplevel), 'isMapped: ', self.winfo_ismapped() )
-		# self.after(2000, self.isVisible)
 
 		return is_toplevel
 
@@ -1433,7 +1458,8 @@ class MainGui( Tk.Frame, object ):
 		globalData.loadProgramSettings( True ) # Load using BooleanVars. Must be done after creating Tk.root
 
 		self._imageBank = {} # Repository for GUI related images
-		self.audioEngine = None
+		self._soundBank = {}
+		#self.audioEngine = None
 
 		self.defaultWindowWidth = 1000
 		self.defaultWindowHeight = 750
@@ -1466,9 +1492,10 @@ class MainGui( Tk.Frame, object ):
 		self.mainTabFrame = ttk.Notebook( self.root ) # , style='MainMenuBg.TNotebook'
 		self.dnd.bindtarget( self.mainTabFrame, self.dndHandler, 'text/uri-list' )
 
-		self.discTab = None
-		self.discDetailsTab = None
+		self.discTab = None				# Frame
+		self.discDetailsTab = None		# Frame
 		self.codeManagerTab = None
+		self.codeConstructionTab = None # Notebook
 		self.menuEditorTab = None
 		self.stageManagerTab = None
 		self.audioManagerTab = None
@@ -1526,8 +1553,8 @@ class MainGui( Tk.Frame, object ):
 		mainMenuHeight = canvasFrame.winfo_height()
 
 		# Initialize and add the Main Menu
-		self.mainMenu = MainMenuCanvas( self, canvasFrame, mainMenuWidth, mainMenuHeight )
-		self.mainMenu.place( relx=0.5, rely=0.5, anchor='center' )
+		# self.mainMenu = MainMenuCanvas( self, canvasFrame, mainMenuWidth, mainMenuHeight )
+		# self.mainMenu.place( relx=0.5, rely=0.5, anchor='center' )
 
 	# def updateProgressDisplay( self, event ):
 
@@ -1536,9 +1563,10 @@ class MainGui( Tk.Frame, object ):
 
 	# 	self.updateProgramStatus( event.message )
 
-	def updateProgramStatus( self, newStatus, warning=False, error=False, success=False, forceUpdate=False ):
+	def updateProgramStatus( self, newStatus='', warning=False, error=False, success=False, forceUpdate=False ):
 
-		""" Updates the status bar at the very bottom of the interface. """
+		""" Updates the status bar at the very bottom of the interface. 
+			'newStatus' can be left empty if only the color needs to be updated. """
 
 		if warning:
 			statusColor = '#992' # yellow
@@ -1551,7 +1579,8 @@ class MainGui( Tk.Frame, object ):
 
 		# Update the label widget's color and message
 		self.statusLabel['foreground'] = statusColor
-		self.statusLabel['text'] = newStatus
+		if newStatus:
+			self.statusLabel['text'] = newStatus
 
 		# Force the GUI to update now rather than waiting for idle tasks
 		if forceUpdate:
@@ -1567,7 +1596,7 @@ class MainGui( Tk.Frame, object ):
 			
 			One or more subFolders may be provided as 'subFolder' or 'subFolder/deeperSubs'. """
 
-		image = self._imageBank.get( imageName, None )
+		image = self._imageBank.get( imageName )
 
 		if not image: # Hasn't yet been loaded
 			# Build the file path
@@ -1586,6 +1615,113 @@ class MainGui( Tk.Frame, object ):
 					print( 'Unable to load the image, "' + imagePath + '"' )
 
 		return image
+
+	def playSound( self, soundName ):
+
+		audioFilePath = self._soundBank.get( soundName )
+
+		if not audioFilePath:
+			audioFilePath = os.path.join( globalData.paths['audioFolder'], soundName + ".wav" )
+			if not os.path.exists( audioFilePath ):
+				print( 'Invalid or missing sound file for', soundName )
+				return
+			self._soundBank[soundName] = audioFilePath
+
+		# Play the audio clip in a separate thread so that it's non-blocking
+		audioThread = Thread( target=self._playSoundHelper, args=(audioFilePath,) )
+		audioThread.start()
+
+	def _playSoundHelper( self, soundFilePath ):
+
+		# p = None
+		# wf = None
+		# stream = None
+
+		# try:
+		# 	# Instantiate PyAudio and open the target audio file
+		# 	p = pyaudio.PyAudio()
+		# 	wf = wave.open( soundFilePath, 'rb' )
+
+		# 	# Get track info and open an audio data stream
+		# 	sampleWidth = wf.getsampwidth()
+		# 	channels = wf.getnchannels()
+		# 	# assert sampleWidth == 2, 'Unsupported sample width: ' + str( sampleWidth )
+		# 	# assert channels == 2, 'Unsupported channel count: ' + str( channels )
+		# 	stream = p.open( format=p.get_format_from_width(sampleWidth),
+		# 						channels=channels,
+		# 						rate=wf.getframerate(),
+		# 						output=True )
+
+		# 	# Prepare for the data stream loop
+		# 	framesPerIter = 1024
+		# 	data = wf.readframes( framesPerIter )
+
+		# 	# Continuously read/write data from the file to the stream until there is no data left
+		# 	while len( data ) > 0:
+		# 		if self.readPos != -1: # Move to a new place in the file data
+		# 			wf.setpos( self.readPos )
+		# 			self.readPos = -1
+		# 		else:
+		# 			data = self._adjustVolume( data )
+		# 			stream.write( data )
+					
+		# 		data = wf.readframes( framesPerIter )
+
+		# 		# Check if playing should start over (repeat is turned on)
+		# 		if self.playRepeat.isSet() and not len( data ) > 0:
+		# 			wf.setpos( 0 ) # Setting read position to the start of the file
+		# 			data = wf.readframes( framesPerIter )
+
+		# except Exception as err:
+		# 	soundFileName = os.path.basename( soundFilePath )
+		# 	print 'Unable to play "{}" song.'.format( soundFileName )
+		# 	print err
+
+		# # Stop the stream
+		# if stream:
+		# 	stream.stop_stream()
+		# 	stream.close()
+
+		# # Close PyAudio
+		# if p:
+		# 	p.terminate()
+		
+		# # Close the wav file and delete it
+		# if wf:
+		# 	wf.close()
+
+		""" Helper (thread-target) function for playSound(). Runs in a separate 
+			thread to prevent audio playback from blocking anything else. """
+
+		try:
+			# Instantiate PyAudio (1)
+			p = pyaudio.PyAudio()
+
+			wf = wave.open( soundFilePath, 'rb' )
+
+			# Open an audio data stream (2)
+			stream = p.open( format=p.get_format_from_width(wf.getsampwidth()),
+							channels=wf.getnchannels(),
+							rate=wf.getframerate(),
+							output=True )
+
+			# Continuously read/write data from the file to the stream until there is no data left (3)
+			data = wf.readframes( 1024 )
+			while len( data ) > 0:
+				stream.write( data )
+				data = wf.readframes( 1024 )
+
+			# Stop the stream (4)
+			stream.stop_stream()
+			stream.close()
+
+			# Close PyAudio (5)
+			p.terminate()
+
+		except Exception as err:
+			soundFileName = os.path.basename( soundFilePath )
+			print( 'Unable to play "{}" sound.'.format(soundFileName) )
+			print( err )
 
 	def updateMenuBarMenus( self, event ):
 
@@ -1790,8 +1926,77 @@ class MainGui( Tk.Frame, object ):
 		if rootPath and isExtractedDirectory( rootPath ):
 			self.fileHandler( [rootPath] ) # Will handle validation of the filepath and opening of the file.
 
-	def onProgramClose( self ):
-		self.root.destroy() # Stops the GUI's mainloop and destroys all widgets. https://stackoverflow.com/a/42928131/8481154
+	def loadRootOrDisc( self, targetPath, updateDefaultDirectory, updateStatus=True, preserveTreeState=False, switchTab=False, updatedFiles=None ):
+		
+		# Remember this file for future recall
+		globalData.rememberFile( targetPath, updateDefaultDirectory )
+
+		#self.mainMenu.remove()
+
+		# Load the disc, and load the disc's info into the GUI
+		#tic = time.clock()
+		globalData.disc = Disc( targetPath )
+		globalData.disc.load()
+		# toc = time.clock()
+		# print( 'disc load time:', toc-tic )
+		
+		# Add/initialize the Disc File Tree tab
+		# if not self.discTab:
+		# 	self.discTab = DiscTab( self.mainTabFrame, self )
+			#self.mainTabFrame.update_idletasks()
+			#self.mainTabFrame.update()
+		if self.discTab:
+			self.discTab.loadDisc( updateStatus=updateStatus, preserveTreeState=preserveTreeState, switchTab=switchTab, updatedFiles=updatedFiles )
+			self.mainTabFrame.update_idletasks()
+
+		# Add/initialize the Disc Details tab, and load the disc's info into it
+		# if not self.discDetailsTab:
+		# 	self.discDetailsTab = DiscDetailsTab( self.mainTabFrame, self )
+		# 	self.mainTabFrame.update_idletasks()
+		if self.discDetailsTab:
+			self.discDetailsTab.loadDiscDetails()
+
+		# if not self.codeManagerTab:
+		# 	self.codeManagerTab = CodeManagerTab( self.mainTabFrame, self )
+		# 	self.mainTabFrame.update_idletasks()
+		if self.codeManagerTab:
+			self.codeManagerTab.autoSelectCodeRegions()
+			self.codeManagerTab.scanCodeLibrary()
+			self.codeManagerTab.updateControls()
+
+		if globalData.disc.isMelee:
+			# If this is 20XX, add/initialize the Debug Menu Editor tab
+			if globalData.disc.is20XX:
+				# if not self.menuEditorTab:
+				# 	self.menuEditorTab = DebugMenuEditor( self.mainTabFrame, self )
+				# 	self.mainTabFrame.update_idletasks()
+				if self.menuEditorTab:
+					self.menuEditorTab.loadTopLevel()
+
+			# Remove the Debug Menu Editor if this isn't 20XX and it's present
+			elif self.menuEditorTab:
+				self.menuEditorTab.destroy()
+				self.menuEditorTab = None
+
+			# Load the stage info/editor
+			# if not self.stageManagerTab:
+			# 	self.stageManagerTab = StageManager( self.mainTabFrame, self )
+			# 	self.mainTabFrame.update_idletasks()
+			if self.stageManagerTab:
+				if globalData.disc.is20XX:
+					self.stageManagerTab.load20XXStageLists()
+				else:
+					self.stageManagerTab.loadVanillaStageLists()
+
+			# Load the audio tab
+			# if not self.audioManagerTab:
+			# 	self.audioManagerTab = AudioManager( self.mainTabFrame, self )
+			if self.audioManagerTab:
+				self.audioManagerTab.loadFileList()
+
+		self.playSound( 'menuSelect' )
+
+		self.mainMenu.displayDiscOptions()
 
 	def saveDiscAs( self ):
 
@@ -1899,75 +2104,16 @@ class MainGui( Tk.Frame, object ):
 		
 		return returnCode
 
-	def loadRootOrDisc( self, targetPath, updateDefaultDirectory, updateStatus=True, preserveTreeState=False, switchTab=False, updatedFiles=None ):
+	def onProgramClose( self ):
+		self.root.destroy() # Stops the GUI's mainloop and destroys all widgets. https://stackoverflow.com/a/42928131/8481154
+
+	def addCodeConstructionTab( self ):
 		
-		# Remember this file for future recall
-		globalData.rememberFile( targetPath, updateDefaultDirectory )
-
-		#self.mainMenu.remove()
-
-		# Load the disc, and load the disc's info into the GUI
-		#tic = time.clock()
-		globalData.disc = Disc( targetPath )
-		globalData.disc.load()
-		# toc = time.clock()
-		# print( 'disc load time:', toc-tic )
-		
-		# Add/initialize the Disc File Tree tab
-		# if not self.discTab:
-		# 	self.discTab = DiscTab( self.mainTabFrame, self )
-			#self.mainTabFrame.update_idletasks()
-			#self.mainTabFrame.update()
-		if self.discTab:
-			self.discTab.loadDisc( updateStatus=updateStatus, preserveTreeState=preserveTreeState, switchTab=switchTab, updatedFiles=updatedFiles )
-			self.mainTabFrame.update_idletasks()
-
-		# Add/initialize the Disc Details tab, and load the disc's info into it
-		# if not self.discDetailsTab:
-		# 	self.discDetailsTab = DiscDetailsTab( self.mainTabFrame, self )
-		# 	self.mainTabFrame.update_idletasks()
-		if self.discDetailsTab:
-			self.discDetailsTab.loadDiscDetails()
-
-		# if not self.codeManagerTab:
-		# 	self.codeManagerTab = CodeManagerTab( self.mainTabFrame, self )
-		# 	self.mainTabFrame.update_idletasks()
-		if self.codeManagerTab:
-			self.codeManagerTab.autoSelectCodeRegions()
-			self.codeManagerTab.scanCodeLibrary()
-			self.codeManagerTab.updateControls()
-
-		if globalData.disc.isMelee:
-			# If this is 20XX, add/initialize the Debug Menu Editor tab
-			if globalData.disc.is20XX:
-				# if not self.menuEditorTab:
-				# 	self.menuEditorTab = DebugMenuEditor( self.mainTabFrame, self )
-				# 	self.mainTabFrame.update_idletasks()
-				if self.menuEditorTab:
-					self.menuEditorTab.loadTopLevel()
-
-			# Remove the Debug Menu Editor if this isn't 20XX and it's present
-			elif self.menuEditorTab:
-				self.menuEditorTab.destroy()
-				self.menuEditorTab = None
-
-			# Load the stage info/editor
-			# if not self.stageManagerTab:
-			# 	self.stageManagerTab = StageManager( self.mainTabFrame, self )
-			# 	self.mainTabFrame.update_idletasks()
-			if self.stageManagerTab:
-				if globalData.disc.is20XX:
-					self.stageManagerTab.load20XXStageLists()
-				else:
-					self.stageManagerTab.loadVanillaStageLists()
-
-			# Load the audio tab
-			# if not self.audioManagerTab:
-			# 	self.audioManagerTab = AudioManager( self.mainTabFrame, self )
-			if self.audioManagerTab:
-				self.audioManagerTab.loadFileList()
-
-		self.mainMenu.displayDiscOptions()
+		if not self.codeConstructionTab:
+			self.codeConstructionTab = ttk.Notebook( self.mainTabFrame )
+			
+			self.mainTabFrame.add( self.codeConstructionTab, text=' Code Construction ' )
+			#self.codeConstructionTab.pack( fill='both', expand=1, pady=7 )
 
 	def runInEmulator( self, event=None ):
 
@@ -2654,7 +2800,8 @@ if __name__ == '__main__':
 	else:
 		# Load the program settings and initialize the GUI
 		globalData.gui = gui = MainGui()
-		gui.audioEngine = AudioEngine()
+		#gui.audioEngine = AudioEngine()
+		gui.fileMenu.browseCodeLibrary()
 
 		# Process any file provided on start-up (drag-and-dropped onto the program's .exe file, or provided via command line)
 		if args.filePath:

@@ -124,12 +124,13 @@ class CodeChange( object ):
 	def __init__( self, mod, changeType, offset, origCode, rawCustomCode ):
 
 		self.mod = mod
-		self.type = changeType
+		self.type = changeType		# String; one of 'static', 'injection', 'standalone', or 'gecko'
 		self.length = -1
 		self.offset = offset		# String; may be a DOL offset or RAM address. Should be interpreted by one of the DOL normalization methods
 		self.isAssembly = False
 		self.syntaxInfo = []		# A list of lists. Each sub-list is of the form [ offset, length, syntaxType, codeLine, names ]
 		self._origCode = origCode
+		self._origCodePreprocessed = False
 		self.rawCode = rawCustomCode
 		self.preProcessedCode = ''
 		self.processStatus = -1
@@ -141,8 +142,38 @@ class CodeChange( object ):
 			however it's not expected to be available from the AMFS format. This method will retrieve it from 
 			a vanilla DOL if that is available. """
 
+		# If no original hexcode, try to get it from the vanilla disc
+		if not self._origCode:
+			if not self.offset:
+				return ''
+
+			# Get the DOL file
+			try:
+				dol = globalData.getVanillaDol()
+			except Exception as err:
+				printStatus( 'Unable to get DOL data; {}'.format(err.message), warning=True )
+				return ''
+
+			# Normalize the offset string, and get the target file data
+			dolOffset, error = dol.normalizeDolOffset( self.offset )
+			if error:
+				self.mod.parsingError = True
+				self.mod.errors.append( error )
+				return ''
+
+			# Evaluate code length
+			length = self.getLength()
+			if length == -1 or self.processStatus != 0:
+				return '' # Specific errors should have already been recorded
+
+			# Get the DOL data as a hex string
+			origData = dol.getData( dolOffset, length )
+			self._origCode = hexlify( origData )
+
+			self._origCodePreprocessed = False
+
 		# Pre-process the original code to remove comments and whitespace
-		if self._origCode:
+		if self._origCode and not self._origCodePreprocessed:
 			filteredLines = []
 			for line in self._origCode.splitlines():
 				line = line.split( '#' )[0].strip()
@@ -162,24 +193,14 @@ class CodeChange( object ):
 			else:
 				self._origCode = filteredOriginal
 
-		# If no original hexcode, try to get it from the vanilla disc
-		if not self._origCode:
-			# Get the DOL file
-			try:
-				dol = globalData.getVanillaDol()
-			except Exception as err:
-				printStatus( 'Unable to get DOL data; {}'.format(err.message), warning=True )
-				return ''
-
-			# Normalize the offset string, and get the target file data
-			dolOffset, error = dol.normalizeDolOffset( self.offset )
-			if error:
-				printStatus( error )
-				return ''
-			origData = dol.getData( dolOffset, self.getLength() )
-			self._origCode = hexlify( origData )
+			self._origCodePreprocessed = True
 
 		return self._origCode
+
+	@origCode.setter
+	def origCode( self, code ):
+		self._origCode = code
+		self._origCodePreprocessed = False
 
 	def getLength( self, includePaths=None ):
 
@@ -227,12 +248,12 @@ class CodeChange( object ):
 
 	# 	return ''
 	
-	def evaluate( self ):
+	def evaluate( self, reevaluate=False ):
 
 		""" Assembles source code if it's not already in hex form, checks for assembly errors, and
 			ensures configuration options are present and configured correctly. """
 
-		if self.processStatus != -1:
+		if not reevaluate and self.processStatus != -1:
 			return self.processStatus
 
 		#rawCustomCode = '\n'.join( customCode ).strip() # Collapses the list of collected code lines into one string, removing leading & trailing whitespace
@@ -250,8 +271,8 @@ class CodeChange( object ):
 		# 	print 'origSyntaxInfo:', self.syntaxInfo
 		# 	print 'newSyntaxInfo :', syntaxInfo
 
-		if self.isAssembly:
-			print self.mod.name, 'has ASM'
+		# if self.isAssembly:
+		# 	print self.mod.name, 'has ASM'
 
 		if self.processStatus == 0:
 			self.preProcessedCode = codeOrErrorNote
@@ -259,8 +280,16 @@ class CodeChange( object ):
 		# Store a message for the user on the cause
 		elif self.processStatus == 1:
 			self.mod.assemblyError = True
-			self.mod.stateDesc = 'Assembly error with custom code change at {}'.format( self.offset )
-			self.mod.errors.append( 'Assembly error with custom code change at {}:\n{}'.format(self.offset, codeOrErrorNote) )
+			if self.type == 'standalone':
+				self.mod.stateDesc = 'Assembly error with SF "{}"'.format( self.offset )
+				self.mod.errors.append( 'Assembly error with SF "{}":\n{}'.format(self.offset, codeOrErrorNote) )
+			elif self.type == 'gecko':
+				address = self.rawCustomCode.lstrip()[:8]
+				self.mod.stateDesc = 'Assembly error with gecko code change at {}'.format( address )
+				self.mod.errors.append( 'Assembly error with gecko code change at {}:\n{}'.format(address, codeOrErrorNote) )
+			else:
+				self.mod.stateDesc = 'Assembly error with custom code change at {}'.format( self.offset )
+				self.mod.errors.append( 'Assembly error with custom code change at {}:\n{}'.format(self.offset, codeOrErrorNote) )
 		elif self.processStatus == 2:
 			self.mod.parsingError = True
 			self.mod.stateDesc = 'Missing include file: {}'.format(codeOrErrorNote)
@@ -706,6 +735,27 @@ class CodeMod( object ):
 			return ''.join( codeChanges )
 		else:
 			return '${} [{}]\n{}'.format( self.name, self.auth, '\n'.join(codeChanges) )
+
+	def assembleErrorMessage( self, includeStateDesc=False ):
+		
+		errorMsg = []
+
+		if includeStateDesc:
+			errorMsg.append( self.stateDesc + '\n' )
+
+		if self.parsingError:
+			errorMsg.append( 'Parsing Errors Detected: Yes' )
+		else:
+			errorMsg.append( 'Parsing Errors Detected: No' )
+
+		if self.assemblyError:
+			errorMsg.append( 'Assembly Errors Detected: Yes\n' )
+		else:
+			errorMsg.append( 'Assembly Errors Detected: No\n' )
+		
+		errorMsg.extend( self.errors )
+
+		return '\n'.join( errorMsg )
 
 
 class CodeLibraryParser():
@@ -3123,7 +3173,6 @@ class CommandProcessor( object ):
 			onlySpecialSyntaxes = False
 
 			# Strip whitespace and check for non-hex characters
-			#if not validHex( ''.join(line.split()) ):
 			if not all( char in hexdigits for char in ''.join(line.split()) ):
 				return True
 

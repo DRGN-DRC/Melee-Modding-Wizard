@@ -99,6 +99,7 @@ def exportSingleFileWithGui( fileObj ):
 
 	if successful:
 		globalData.gui.updateProgramStatus( 'File exported successfully.', success=True )
+		globalData.gui.playSound( 'menuChange' )
 		return savePath
 	else:
 		globalData.gui.updateProgramStatus( 'Unable to export. Check the error log file for details.', error=True )
@@ -598,6 +599,42 @@ class PopupEntryWindow( BasicWindow ):
 		self.close()
 
 
+class PopupScrolledTextWindow( BasicWindow ):
+
+	""" Creates a modal dialog window with only a multi-line text input box (with scrollbar), and a few buttons.
+		Useful for displaying text that the user should be able to select/copy, or for input. """
+
+	def __init__( self, master, message='', defaultText='', title='', width=100, height=8, button1Text='Ok' ):
+		BasicWindow.__init__( self, master, windowTitle=title )
+		self.entryText = ''
+
+		# Add the explanation text and text input field
+		self.label = ttk.Label( self.window, text=message )
+		self.label.pack( pady=5 )
+		self.entry = ScrolledText( self.window, width=width, height=height )
+		self.entry.insert( 'end', defaultText )
+		self.entry.pack( padx=5 )
+
+		# Add the confirm/cancel buttons
+		buttonsFrame = ttk.Frame( self.window )
+		self.okButton = ttk.Button( buttonsFrame, text=button1Text, command=self.cleanup )
+		self.okButton.pack( side='left', padx=10 )
+		ttk.Button( buttonsFrame, text='Cancel', command=self.cancel ).pack( side='left', padx=10 )
+		buttonsFrame.pack( pady=5 )
+
+		# Move focus to this window (for keyboard control), and pause execution of the calling function until this window is closed.
+		self.entry.focus_set()
+		master.wait_window( self.window ) # Pauses execution of the calling function until this window is closed.
+
+	def cleanup( self, event='' ):
+		self.entryText = self.entry.get( '1.0', 'end' ).strip()
+		self.window.destroy()
+
+	def cancel( self, event='' ):
+		self.entryText = ''
+		self.window.destroy()
+
+
 class VanillaDiscEntry( PopupEntryWindow ):
 
 	""" Provides a basic window specifically for entering a path to a vanilla game disc. 
@@ -892,8 +929,6 @@ class CodeSpaceOptionsWindow( BasicWindow ):
 			dol = None
 			dolRegions = []
 
-		#for option in ( 'alwaysEnableCrashReports' ):
-
 		#self.window = ttk.Frame( self.window, padding='15 0 15 0' ) # padding order: left, top, right, bottom
 		ttk.Label( self.window, text='These are the regions that will be reserved (i.e. may be partially or fully overwritten) for injecting custom code. '
 			'It is safest to uninstall all mods that may be installed to a region before disabling it. '
@@ -905,8 +940,6 @@ class CodeSpaceOptionsWindow( BasicWindow ):
 		pady = 3
 		self.checkboxes = []
 		for overwriteOptionName, boolVar in globalData.overwriteOptions.items():
-			# if overwriteOptionName == 'EnableGeckoCodes': continue
-			# elif overwriteOptionName not in dol.customCodeRegions: continue # An option is loaded for a region not available for the loaded DOL (todo: guess these loops should be reversed in their nesting)
 			if dol and overwriteOptionName not in dolRegions:
 				print 'Skipping', overwriteOptionName, 'region. Not found in dol regions dict.'
 				continue
@@ -1167,30 +1200,42 @@ class DisguisedEntry( Tk.Entry ):
 class LabelButton( Tk.Label ):
 
 	""" Basically a label that acts as a button, using an image and mouse click/hover events. 
-		Expects an RGBA image. Used for a mod's edit/config buttons and web links. """
+		Expects a RGBA images named '[name].png' and '[name]Gray.png'. The latter is used for 
+		the default visible state, and the former is used on mouse hover.
+		Example uses of this class are for a mod's edit/config buttons and web links. """
 
 	def __init__( self, parent, imageName, callback, hovertext='' ):
 		# Get the images needed
-		self.nonHoverImage = globalData.gui.imageBank( imageName + 'Gray', showWarnings=False )
+		self.defaultImage = globalData.gui.imageBank( imageName + 'Gray', showWarnings=False )
 		self.hoverImage = globalData.gui.imageBank( imageName )
-		if not self.nonHoverImage:
-			self.nonHoverImage = self.hoverImage
-		# assert self.nonHoverImage, 'Unable to get the {} web link image.'.format( imageName )
+		if not self.defaultImage:
+			self.defaultImage = self.hoverImage
+		# assert self.defaultImage, 'Unable to get the {} web link image.'.format( imageName )
 		# assert self.hoverImage, 'Unable to get the {}Gray web link image.'.format( imageName )
+		self.callback = callback
+		self.toolTip = None
 
 		# Initialize the label with one of the above images
-		Tk.Label.__init__( self, parent, image=self.nonHoverImage, borderwidth=0, highlightthickness=0, cursor='hand2' )
+		Tk.Label.__init__( self, parent, image=self.defaultImage, borderwidth=0, highlightthickness=0, cursor='hand2' )
 
 		# Bind click and mouse hover events
-		self.bind( '<1>', callback )
-		self.bind( '<Enter>', self.darken )
-		self.bind( '<Leave>', self.lighten )
+		self.bind( '<1>', self.callback )
+		self.funcidEnter = self.bind( '<Enter>', self.hovered, '+' )
+		self.bind( '<Leave>', self.unhovered )
 
 		if hovertext:
-			ToolTip( self, hovertext, delay=700, wraplength=800, justify='center' )
+			self.updateHovertext( hovertext )
 		
-	def darken( self, event ): self['image'] = self.hoverImage
-	def lighten( self, event ): self['image'] = self.nonHoverImage
+	def hovered( self, event ): self['image'] = self.hoverImage
+	def unhovered( self, event ): self['image'] = self.defaultImage
+	def updateHovertext( self, newText ):
+		if self.toolTip:
+			print( 'editing tooltip with', newText )
+			self.toolTipVar.set( newText )
+		else:
+			print( 'creating tooltip with', newText )
+			self.toolTipVar = Tk.StringVar( value=newText )
+			self.toolTip = ToolTip( self, textvariable=self.toolTipVar, delay=700, wraplength=800, justify='center' )
 
 
 class ColoredLabelButton( LabelButton ):
@@ -1201,9 +1246,39 @@ class ColoredLabelButton( LabelButton ):
 
 		LabelButton.__init__( self, parent, imageName, callback, hovertext )
 
-		self.nonHoverImage = getColoredShape( imageName, 'black' )
+		self.imageName = imageName
+		self.origColor = color
+		self.origHovertext = hovertext
+		self.defaultImage = getColoredShape( imageName, 'black' )
 		self.hoverImage = getColoredShape( imageName, color )
-		self['image'] = self.nonHoverImage
+		self['image'] = self.defaultImage
+
+	def updateColor( self, newColor, forHoverState=False ):
+		if forHoverState:
+			self.hoverImage = getColoredShape( self.imageName, newColor )
+		else:
+			self.defaultImage = getColoredShape( self.imageName, newColor )
+
+	def disable( self, newHoverText='' ):
+		self.unbind( '<1>' )
+		#self.unbind( '<Enter>', self.funcidEnter ) # Unbinding only the hover callback, not the toolTip Enter method
+		self.configure( cursor='' )
+
+		self.updateColor( 'gray' )
+		self['image'] = self.defaultImage
+
+		if newHoverText:
+			self.updateHovertext( newHoverText )
+
+	def enable( self ):
+		self.bind( '<1>', self.callback )
+		self.funcidEnter = self.bind( '<Enter>', self.hovered, '+' )
+		self.configure( cursor='hand2' )
+
+		self.updateColor( self.origColor )
+		self['image'] = self.defaultImage
+
+		self.updateHovertext( self.origHovertext )
 
 
 class Dropdown( ttk.OptionMenu ):
@@ -1691,7 +1766,7 @@ class ToolTip( object ):
 
 class PopupInterface( ToolTip ):
 
-	""" Subclass of the ToolTip class in order to provide a pop-up controls, similar to a tooltip,
+	""" Subclass of the ToolTip class in order to provide pop-up controls, similar to a tooltip,
 		except that the controls can be hovered over and interacted with, rather than disappearing immediately. """
 
 	def _hasText( self ):

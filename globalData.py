@@ -41,18 +41,20 @@ def init( programArgs ):
 
 	""" If any check on settings will be required, call 'globalData.loadProgramSettings()' first to fully initialize them. """
 
-	global scriptHomeFolder, paths, defaultSettings, defaultBoolSettings, settings, boolSettings
-	global overwriteOptions, codeProcessor, dolphinController, gui, disc, codeMods, standaloneFunctions, fileStructureClasses, programEnding
+	global scriptHomeFolder, paths, defaultSettings, defaultBoolSettings, settings, boolSettings, overwriteOptions
+	global codeProcessor, dolphinController, gui, disc, dol, codeMods, standaloneFunctions, fileStructureClasses, programEnding
 
 	scriptHomeFolder = os.path.abspath( os.path.dirname(programArgs[0]) ) # Can't use __file__; incompatible with cx_freeze process
 
-	paths = { # Special internal paths (other custom/user paths that should be remembered in the settings file should be in the other two settings dicts)
+	# Internal paths (these typically don't change)
+	paths = { # Other custom/user paths that should be remembered in the settings file should be in the other two settings dicts
 		# Root paths
 		'fontsFolder': os.path.join( scriptHomeFolder, 'fonts' ),
 		'imagesFolder': os.path.join( scriptHomeFolder, 'imgs' ),
+		'audioFolder': os.path.join( scriptHomeFolder, 'sfx' ),
 		'settingsFile': os.path.join( scriptHomeFolder, 'settings.ini' ),
 		
-		# Bin paths
+		# Bin (binary) paths
 		'tempFolder': os.path.join( scriptHomeFolder, 'bin', 'tempFiles' ),
 		'meleeMedia': os.path.join( scriptHomeFolder, 'bin', 'MeleeMedia', 'MeleeMedia.exe' ),
 		'triCsps': os.path.join( scriptHomeFolder, 'bin', 'Tri-CSP Creation' ),
@@ -73,6 +75,7 @@ def init( programArgs ):
 		'maxFilesToRemember': '7',
 		'paddingBetweenFiles': '0x40',
 		'dolSource': 'vanilla',
+		'offsetView': 'ramAddress' # Alternate acceptable value=dolOffset (not case sensitive or affected by spaces)
 	}
 	defaultBoolSettings = { # Same as above, but for bools, which are initialized slightly differently (must be strings of 0 or 1!)
 		'useDiscConvenienceFolders': '1',
@@ -101,6 +104,7 @@ def init( programArgs ):
 
 	gui = None
 	disc = None
+	dol = None # A vanilla DOL not associated with a disc
 
 	codeMods = []
 	standaloneFunctions = {} # Key='functionName', value=( functionRamAddress, codeChangeObj )
@@ -544,10 +548,15 @@ def getVanillaDiscPath():
 	return vanillaDiscPath
 
 
-def getVanillaDol():
+def getVanillaDol( skipCache=False ):
 
 	""" Retrieves and returns the Start.dol file from a vanilla disc. 
 		Or, if a path is given for the 'dolSource' setting, that DOL is used. """
+
+	# Check for a cached copy to use
+	global dol
+	if not skipCache and dol:
+		return dol
 	
 	dolPath = settings.get( 'General Settings', 'dolSource' )
 
@@ -560,6 +569,8 @@ def getVanillaDol():
 		vanillaDisc = Disc( vanillaDiscPath )
 		vanillaDisc.load()
 		dol = vanillaDisc.dol
+		if not dol:
+			raise Exception( 'unable to load DOL from vanilla disc')
 
 	elif not os.path.exists( dolPath ):
 		raise Exception( 'the source DOL could not be found' )

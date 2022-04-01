@@ -410,13 +410,14 @@ class Dol( FileBase ):
 
 	def normalizeDolOffset( self, offsetString, returnType='int' ):
 
-		""" Converts a hex offset string to an int, and converts it to a DOL offset if it's a RAM address. """
+		""" Converts a hex offset string to an int, and converts it to a DOL offset if it's a RAM address. 
+			Set returnType to "string" (or technically anything else) to get the return value as a string. """
 
 		offsetString = offsetString.replace( '0x', '' ).strip()
 		problemDetails = ''
 		dolOffset = -1
 
-		if len( offsetString ) == 8 and offsetString.startswith( '8' ): # Looks like it's a RAM address; convert it to a DOL offset
+		if len( offsetString ) == 8 and offsetString.startswith( '8' ): # Must be a RAM address
 			address = int( offsetString, 16 )
 			if address >= 0x80003100:
 				if address < self.maxRamAddress:
@@ -449,13 +450,14 @@ class Dol( FileBase ):
 
 	def normalizeRamAddress( self, offsetString, returnType='int' ):
 
-		""" Converts a hex offset string to an int, and converts it to a RAM address if it's a DOL offset. """
+		""" Converts a hex offset string to an int, and converts it to a RAM address if it's a DOL offset. 
+			Set returnType to "string" (or technically anything else) to get the return value as a string. """
 
 		offsetString = offsetString.replace( '0x', '' ).strip()
 		problemDetails = ''
 		ramAddress = -1
 
-		if len( offsetString ) == 8 and offsetString.startswith( '8' ):
+		if len( offsetString ) == 8 and offsetString.startswith( '8' ): # Must be a RAM address
 			if returnType != 'int': # Already a string; no need for conversion
 				ramAddress = '0x' + offsetString.upper()
 

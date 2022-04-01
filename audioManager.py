@@ -1179,7 +1179,7 @@ class AudioEngine( object ):
 
 		""" MeleeMedia requires .NET Framework 4.6.1 to be installed. This checks for this dependency. """
 
-	def start( self, fileObj, callback=None, playConcurrently=False ):
+	def start( self, hpsFileObj, callback=None, playConcurrently=False ):
 
 		""" Stops any currently playing audio, and starts new playback in a new thread. 
 			This method should return immediately, however a callback may be provided, 
@@ -1191,8 +1191,8 @@ class AudioEngine( object ):
 		self.stop()
 
 		# Convert the track to WAV format
-		assert fileObj.getAsWav, 'Error; fileObj given to AudioEngine has no getAsWav method.'
-		wavFilePath = fileObj.getAsWav()
+		assert hpsFileObj.getAsWav, 'Error; hpsFileObj given to AudioEngine has no getAsWav method.'
+		wavFilePath = hpsFileObj.getAsWav()
 		if not wavFilePath: return # Indicates an error (should have been conveyed in some way by now)
 
 		# Reset flags to allow playback
@@ -1201,12 +1201,12 @@ class AudioEngine( object ):
 
 		# Highlight this song in the Audio Manager, if it's open. 
 		# This should queue after any 'removal' from a stopping existing thread
-		globalData.gui.root.after_idle( self.showNowPlaying, fileObj.filename )
+		globalData.gui.root.after_idle( self.showNowPlaying, hpsFileObj.filename )
 
 		# Play the audio clip in a separate thread so that it's non-blocking
 		# (Yes, pyaudio has a "non-blocking" way for playback already, but that 
 		# too needs to block anyway due to waiting for the thread to finish.)
-		self.audioThread = Thread( target=self._playAudioHelper, args=(wavFilePath, True), name=fileObj.filename )
+		self.audioThread = Thread( target=self._playAudioHelper, args=(wavFilePath, True), name=hpsFileObj.filename )
 		self.audioThread.daemon = True # Causes the audio thread to be stopped when the main program stops
 		self.audioThread.start()
 
@@ -1366,7 +1366,10 @@ class AudioEngine( object ):
 		return struct.pack( chunkFormat, *unpackedData )
 
 
-class AudioControlModule( object, ttk.Frame ):
+class AudioControlModule( ttk.Frame, object ):
+
+	""" Wrapper for the AudioEngine class, to bridge the gap between it and a 
+		set of GUI controls for a specific song to be controlled. """
 
 	def __init__( self, parent, audioEngine, audioFile=None, *args, **kwargs ):
 		ttk.Frame.__init__( self, parent, *args, **kwargs )
