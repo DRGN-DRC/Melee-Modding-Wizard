@@ -1220,7 +1220,7 @@ class LabelButton( Tk.Label ):
 
 		# Bind click and mouse hover events
 		self.bind( '<1>', self.callback )
-		self.funcidEnter = self.bind( '<Enter>', self.hovered, '+' )
+		self.bind( '<Enter>', self.hovered )
 		self.bind( '<Leave>', self.unhovered )
 
 		if hovertext:
@@ -1230,10 +1230,8 @@ class LabelButton( Tk.Label ):
 	def unhovered( self, event ): self['image'] = self.defaultImage
 	def updateHovertext( self, newText ):
 		if self.toolTip:
-			print( 'editing tooltip with', newText )
 			self.toolTipVar.set( newText )
 		else:
-			print( 'creating tooltip with', newText )
 			self.toolTipVar = Tk.StringVar( value=newText )
 			self.toolTip = ToolTip( self, textvariable=self.toolTipVar, delay=700, wraplength=800, justify='center' )
 
@@ -1261,7 +1259,9 @@ class ColoredLabelButton( LabelButton ):
 
 	def disable( self, newHoverText='' ):
 		self.unbind( '<1>' )
-		#self.unbind( '<Enter>', self.funcidEnter ) # Unbinding only the hover callback, not the toolTip Enter method
+		self.unbind( '<Enter>' ) # Unbinding only the hover callback, not the toolTip Enter method
+		if self.toolTip: # Ensure the toolTip still functions (workaround to second unbind arg being broken)
+			self.toolTip._id1 = self.bind("<Enter>", self.toolTip.enter, '+')
 		self.configure( cursor='' )
 
 		self.updateColor( 'gray' )
@@ -1272,7 +1272,7 @@ class ColoredLabelButton( LabelButton ):
 
 	def enable( self ):
 		self.bind( '<1>', self.callback )
-		self.funcidEnter = self.bind( '<Enter>', self.hovered, '+' )
+		self.bind( '<Enter>', self.hovered, '+' )
 		self.configure( cursor='hand2' )
 
 		self.updateColor( self.origColor )
@@ -1421,10 +1421,10 @@ class NeoTreeview( ttk.Treeview, object ):
 
 	def getItemsInSelection( self, selectionTuple='', recursive=True, selectAll=False ):
 
-		""" Extends a selection in the treeview, which may contain folders, to include all files within those folders. 
+		""" Extends a selection in the treeview, which may contain folders, to include all items within those folders. 
 			"iid"s are unique "Item IDentifiers" given to file/folder items in treeview widgets to identify or select them. 
-			This will exclude duplicates (in case files inside folders were also chosen). Returns a set of folder Iids and 
-			a set of file Iids. If no selectionTuple is given, all files and folders will be returned. """
+			This will exclude duplicates (in case items inside folders were also chosen). Returns a set of folder Iids and 
+			a set of file Iids. If no selectionTuple is given, all items and folders will be returned. """
 
 		fileIids = set()
 		folderIids = set()
@@ -1507,7 +1507,7 @@ class NeoTreeview( ttk.Treeview, object ):
 
 	def addTag( self, iid, tagToAdd ):
 
-		""" Adds the given tag from the given item, while preserving other tags it may have. """
+		""" Adds the given tag to the given item, while preserving other tags it may have. """
 		
 		targetFileTags = self.item( iid, 'tags' ) # Returns a tuple
 		targetFileTags = list( targetFileTags )

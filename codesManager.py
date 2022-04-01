@@ -1026,7 +1026,7 @@ class ModModule( Tk.Frame, object ):
 				widget.bind( '<1>', self.clicked )
 
 		# Add the edit and configure buttons
-		#LabelButton( row3, 'editButton', self.editMod, "Edit this mod's code" ).pack( side='right', padx=5 )
+		LabelButton( row3, 'editButton', self.editMod, "Edit this mod's code" ).pack( side='right', padx=5 )
 		if mod.configurations:
 			LabelButton( row3, 'configButton', self.configureMod, "Configure this mod's settings" ).pack( side='right', padx=5 )
 
@@ -1048,9 +1048,9 @@ class ModModule( Tk.Frame, object ):
 				hovertext += '\n\n' + comments.lstrip( ' #' )
 
 			# Add the button with its url attached
-			# button = LabelButton( row3, domain + 'Link', self.openWebPage, hovertext )
-			# button.url = url
-			# button.pack( side='right', padx=5 )
+			button = LabelButton( row3, domain + 'Link', self.openWebPage, hovertext )
+			button.url = url
+			button.pack( side='right', padx=5 )
 
 		row3.grid( columnspan=2, column=0, row=2, sticky='ew', pady=(0, 5) )
 
