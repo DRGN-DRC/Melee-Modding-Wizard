@@ -578,6 +578,7 @@ def getVanillaDol( skipCache=False ):
 	else:
 		# Initialize and return an external DOL file
 		dol = Dol( None, -1, -1, '', 'Main game executable', dolPath, 'file' )
+		dol.load()
 
 	return dol
 

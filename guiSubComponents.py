@@ -1247,6 +1247,7 @@ class ColoredLabelButton( LabelButton ):
 		self.imageName = imageName
 		self.origColor = color
 		self.origHovertext = hovertext
+		self.disabled = False
 		self.defaultImage = getColoredShape( imageName, 'black' )
 		self.hoverImage = getColoredShape( imageName, color )
 		self['image'] = self.defaultImage
@@ -1269,6 +1270,8 @@ class ColoredLabelButton( LabelButton ):
 
 		if newHoverText:
 			self.updateHovertext( newHoverText )
+			
+		self.disabled = True
 
 	def enable( self ):
 		self.bind( '<1>', self.callback )
@@ -1279,6 +1282,8 @@ class ColoredLabelButton( LabelButton ):
 		self['image'] = self.defaultImage
 
 		self.updateHovertext( self.origHovertext )
+		
+		self.disabled = False
 
 
 class Dropdown( ttk.OptionMenu ):
