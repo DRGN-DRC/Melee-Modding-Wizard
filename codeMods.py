@@ -1518,16 +1518,17 @@ class CodeLibraryParser():
 
 		self.codeMods.append( mod )
 		self.modNames.add( mod.name )
-				
+
 	def parseGeckoCode( self, codeLines, dol ):
 
-		""" Currently only supports Gecko code types 04, 06, and C2. Returns a tuple of title, author(s), 
-			description, and a list of the mod's code changes as tuples (see below for details)."""
+		""" Currently only supports Gecko code types 04, 06, and C2. Returns title, newAuthors, 
+			description, and codeChanges. 'codeChanges' will be a list of tuples, with each 
+			tuple of the form ( changeType, address, customCodeLines ). """
 
 		title = authors = ''
 		description = []
-		codeChanges = []		# A Codechange = a tuple of ( changeType, length, address, origCode, customCode, preProcessedCustomCode )
-		codeBuffer = [ '', -1, '', [], 0 ] # Temp staging area while code lines are collected, before they are submitted to the above codeChanges list.
+		codeChangeTuples = []
+		codeBuffer = [ '', -1, '', [], 0 ] # Temp staging area while code lines are collected, before they are submitted to the above codeChangeTuples list.
 
 		# Load the DOL for this revision (if one is not already loaded), for original/vanilla code look-ups
 		#vanillaDol = loadVanillaDol( gameRevision )
@@ -1560,36 +1561,37 @@ class CodeLibraryParser():
 					title = line
 
 			elif codeBuffer[0]: # Multi-line code collection is in-progress
-				changeType, customCodeLength, ramAddress, _, collectedCodeLength = codeBuffer
+				changeType, totalBytes, ramAddress, _, collectedCodeLength = codeBuffer
 
-				newHex = ''.join( line.split( '#' )[0].split() ) # Should remove all comments and whitespace
-				newHexLength = len( newHex ) / 2 # Divide by 2 to count by bytes rather than nibbles
+				processedHex = ''.join( line.split( '#' )[0].split() ) # Should remove all comments and whitespace
+				newHexLength = len( processedHex ) / 2 # Divide by 2 to count by bytes rather than nibbles
 
-				if collectedCodeLength + newHexLength < customCodeLength:
-					codeBuffer[3].append( newHex )
+				if collectedCodeLength + newHexLength < totalBytes:
+					#codeBuffer[3].append( processedHex )
+					codeBuffer[3].append( line )
 					codeBuffer[4] += newHexLength
 
 				else: # Last line to collect from for this code change
 					# Collect the remaining new hex and consolidate it
-					bytesRemaining = customCodeLength - collectedCodeLength
-					codeBuffer[3].append( newHex[:bytesRemaining*2] ) # x2 to count by nibbles
-					rawCustomCode = ''.join( codeBuffer[3] ) # no whitespace
-					#rawCustomCode = ''.join( codeLines[1:] )
-					customCode = globalData.codeProcessor.beautifyHex( rawCustomCode ) # Formats to 8 byte per line
+					#bytesRemaining = totalBytes - collectedCodeLength
+					codeBuffer[3].append( line )
+					#codeBuffer[3].append( processedHex[:bytesRemaining*2] ) # x2 to count by nibbles
+					#rawCustomCode = ''.join( codeBuffer[3] ) # Joins without whitespace
+					#customCode = globalData.codeProcessor.beautifyHex( rawCustomCode ) # Formats to 8 byte per line
 
 					# Get the original/vanilla code
-					intRamAddress = int( ramAddress[2:], 16 ) # Trims off leading 0x before conversion
-					dolOffset = dol.offsetInDOL( intRamAddress )
-					if dolOffset == -1: #originalCode = ''
-						raise Exception( 'Unable to convert Gecko code; no equivalent DOL offset for {}.'.format(ramAddress) )
-					elif changeType == 'static': # Long static overwrite (06 opcode)
-						originalCode = hexlify( dol.getData(dolOffset, customCodeLength) )
-					else: # Injection
-						originalCode = hexlify( dol.getData(dolOffset, 4) ) # At the injection point
+					# intRamAddress = int( ramAddress[2:], 16 ) # Trims off leading 0x before conversion
+					# dolOffset = dol.offsetInDOL( intRamAddress )
+					# if dolOffset == -1: #originalCode = ''
+					# 	raise Exception( 'Unable to convert Gecko code; no equivalent DOL offset for {}.'.format(ramAddress) )
+					# elif changeType == 'static': # Long static overwrite (06 opcode)
+					# 	originalCode = hexlify( dol.getData(dolOffset, totalBytes) )
+					# else: # Injection
+					# 	originalCode = hexlify( dol.getData(dolOffset, 4) ) # At the injection point
 
 					# Add the finished code change to the list, and reset the buffer
-					codeChanges.append( (changeType, customCodeLength, ramAddress, originalCode, customCode, rawCustomCode, 0) )
-					#codeChanges.append( (changeType, customCodeLength, ramAddress, '', customCode, rawCustomCode, 0) )
+					#codeChangeTuples.append( (changeType, totalBytes, ramAddress, originalCode, customCode, rawCustomCode, 0) )
+					codeChangeTuples.append( (changeType, ramAddress, codeBuffer[3]) )
 					codeBuffer = [ '', -1, -1, [], 0 ]
 
 			elif line.startswith( '04' ): # A Static Overwrite
@@ -1602,8 +1604,8 @@ class CodeLibraryParser():
 					raise Exception( 'Unable to convert Gecko code; no equivalent DOL offset for {}.'.format(ramAddress) )
 				else: originalCode = hexlify( dol.getData(dolOffset, 4) )
 
-				codeChanges.append( ('static', 4, ramAddress, originalCode, customCode, customCode, 0) )
-				#codeChanges.append( ('static', 4, ramAddress, '', customCode, customCode, 0) )
+				#codeChangeTuples.append( ('static', 4, ramAddress, originalCode, customCode, customCode, 0) )
+				codeChangeTuples.append( ('static', ramAddress, customCode) )
 
 			elif line.startswith( '06' ): # A Long Static Overwrite
 				ramAddress = '0x80' + line[2:8]
@@ -1622,7 +1624,7 @@ class CodeLibraryParser():
 			else:
 				raise Exception( 'Found an unrecognized Gecko opcode: ' + line.lstrip()[:2].upper() )
 
-		return title, authors, '\n'.join( description ), codeChanges
+		return title, authors, '\n'.join( description ), codeChangeTuples
 
 	def parseAmfs( self, folderPath, includePaths, categoryDefault ):
 

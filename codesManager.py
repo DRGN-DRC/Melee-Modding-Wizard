@@ -852,30 +852,38 @@ class CodeManagerTab( ttk.Frame ):
 			
 			elif mod.state == 'pendingEnable':
 				if mod.type == 'gecko':
-					# Create a copy of the mod
-					#newMod = CodeMod( mod.name + ' (Converted)', mod.auth, mod.desc, )
+					# Create a copy of the mod (should include basic properties, includePaths, webLinks, etc.)
 					newMod = copy.deepcopy( mod )
 					newMod.name = mod.name + ' (Converted)'
 
-					# Attempt to convert it to standard static overwrites and injections
-					#newCodeChanges = []
+					# Attempt to convert the Gecko code changes to standard static overwrites and injections
 					newMod.data[newMod.currentRevision] = []
 					try:
 						for codeChange in mod.getCodeChanges():
 							if codeChange.type == 'gecko':
-								# Prepend artificial title/author, for the parser
+								# Prepend an artificial title for the parser and parse it
 								customCode = codeChange.rawCode.splitlines()
 								customCode.insert( 0, '$TitlePlaceholder' )
 								codeChanges = self.parser.parseGeckoCode( customCode, globalData.disc.dol )[-1]
-								#newCodeChanges.extend( codeChanges )
-								for change in codeChanges:
-									newMod.addGecko()
+
+								if not codeChanges:
+									raise Exception( 'Unable to parse code changes for Gecko code' )
+
+								# Add new code change modules
+								for changeType, address, customCodeLines in codeChanges:
+									# Create a new CodeChange object and attach it to the internal mod module
+									if changeType == 'static':
+										codeChange = self.mod.addStaticOverwrite( address, customCodeLines, '' )
+									elif changeType == 'injection':
+										codeChange = self.mod.addInjection( address, customCodeLines, '' )
+									else:
+										raise Exception( 'Invalid code change type from Gecko code parser:', changeType )
+
+									newMod.data[newMod.currentRevision].append( codeChange )
 							else:
-								#newCodeChanges.append( codeChange )
 								newMod.data[newMod.currentRevision].append( codeChange )
 
-						# If no errors above, replace the mod's changes with those gathered above
-						#mod.data[mod.currentRevision] = newCodeChanges
+						# If no errors above, use this new mod instead of the original
 						mod = newMod
 					except:
 						# Unable to convert it; install it as a Gecko code
@@ -1592,7 +1600,7 @@ class ModConstructor( Tk.Frame ):
 				innerFrame.event_generate( '<1>' ) # simulates a click event on the module in order to select it
 		newHexField.bind( '<1>', lambda e: removeHelpText( e, codeChangesListFrame ) )
 
-	def addCodeChangeModule( self, changeType, codeChange=None, dolRevision='', geckoCode=None ):
+	def addCodeChangeModule( self, changeType, codeChange=None, dolRevision='' ):
 
 		""" Adds a code change GUI module to the version notebook. This may 
 			be for an existing code change, or a new one for this mod. """
@@ -1616,10 +1624,7 @@ class ModConstructor( Tk.Frame ):
 			elif changeType == 'injection':
 				codeChange = self.mod.addInjection( '', [], '' )
 			elif changeType == 'gecko':
-				if geckoCode:
-					codeChange = self.mod.addInjection( geckoCode )
-				else:
-					codeChange = self.mod.addInjection( [] )
+				codeChange = self.mod.addInjection( [] )
 			elif changeType == 'standalone':
 				codeChange = self.mod.addStandalone( '', [dolRevision], [] )
 			else: # Failsafe; shouldn't ever happen!
@@ -1807,6 +1812,9 @@ class ModConstructor( Tk.Frame ):
 		parser = CodeLibraryParser()
 		title, newAuthors, description, codeChanges = parser.parseGeckoCode( entryWindow.entryText.splitlines(), dol )
 
+		if not codeChanges:
+			return
+
 		# Set the mod's title and description, if they haven't already been set
 		if not self.getInput( self.titleEntry ):
 			self.titleEntry.insert( 0, title )
@@ -1825,8 +1833,17 @@ class ModConstructor( Tk.Frame ):
 		self.authorsEntry.insert( 'end', ', '.join(currentAuthors) )
 
 		# Add new code change modules
-		for _, _, _, _, customCode, _ in codeChanges:
-			self.addCodeChangeModule( 'gecko', None, dolRevision, customCode.splitlines() )
+		for changeType, address, customCodeLines in codeChanges:
+			# Create a new CodeChange object and attach it to the internal mod module
+			if changeType == 'static':
+				codeChange = self.mod.addStaticOverwrite( address, customCodeLines, '' )
+			elif changeType == 'injection':
+				codeChange = self.mod.addInjection( address, customCodeLines, '' )
+			else: # Failsafe; shouldn't ever happen!
+				print( 'Invalid code change type from Gecko code parser:', changeType )
+
+			# Create the code change's GUI element
+			self.addCodeChangeModule( changeType, codeChange, dolRevision )
 
 		# Mark that these changes have not been saved yet, and update the status display
 		self.undoableChanges = True
