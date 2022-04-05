@@ -49,7 +49,7 @@ from guiSubComponents import (
 		HexEditEntry, CharacterChooser
 	)
 from guiDisc import DiscTab, DiscDetailsTab
-from codesManager import CodeManagerTab, ModConstructor
+from codesManager import CodeManagerTab, CodeConstructor
 from debugMenuEditor import DebugMenuEditor
 from stageManager import StageManager
 from audioManager import AudioManager, AudioEngine
@@ -274,7 +274,7 @@ class ToolsMenu( Tk.Menu, object ):
 		mainGui.mainTabFrame.select( mainGui.codeConstructionTab )
 
 		# Create a new tab for the Mod Construction tab, and create a new construction module within it
-		newTab = ModConstructor( mainGui.codeConstructionTab )
+		newTab = CodeConstructor( mainGui.codeConstructionTab )
 		mainGui.codeConstructionTab.add( newTab, text='New Mod' )
 
 		# Bring the new tab into view for the user.

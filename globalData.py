@@ -149,6 +149,7 @@ def setSetting( settingName, value ):
 
 	elif settingName in defaultSettings: # Not a bool or region overwrite setting
 		settings.set( 'General Settings', settingName, value )
+		return
 
 	# Must be a bool or BooleanVar; check for it in the bools dict
 	boolSetting = boolSettings.get( settingName, 'notFound' )
@@ -173,7 +174,7 @@ def checkRegionOverwrite( regionName ):
 	# Must be a bool or BooleanVar; check for it in the bools dict
 	boolSetting = overwriteOptions.get( regionName, 'notFound' )
 	if boolSetting == 'notFound':
-		print 'Unable to find region in region overwrite options:', regionName
+		print( 'Unable to find region in region overwrite options:', regionName )
 		return False
 
 	elif isinstance( boolSetting, Tk.BooleanVar ):

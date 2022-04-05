@@ -11,7 +11,7 @@
 
 	-==-
 
-
+!
 Bowser - Flame Cancel [TEST]
 Test for static overwrite functionality.
 Restores his Flame Cancel ability to as it was in v1.00.

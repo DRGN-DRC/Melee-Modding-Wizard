@@ -24,7 +24,7 @@ from collections import OrderedDict
 
 # Internal Dependencies
 import globalData
-from basicFunctions import roundTo32, toHex, validHex, msg, printStatus
+from basicFunctions import createFolders, roundTo32, toHex, validHex, msg, printStatus
 from guiSubComponents import cmsg
 
 
@@ -369,10 +369,10 @@ class CodeMod( object ):
 																						# optional keys: default, members, 
 		self.isAmfs = isAmfs
 		self.webLinks = []				# A list of tuples, with each of the form ( URL, comment )
-		self.fileIndex = -1				# Used only with MCM formatted mods (non-AMFS)
+		self.fileIndex = -1				# Position within a .txt file; used only with MCM formatted mods (non-AMFS)
 		self.includePaths = []
 		self.currentRevision = ''		# Switch this to set the default revision used to add or get code changes
-		self.guiModule = None
+		#self.guiModule = None
 
 		self.assemblyError = False
 		self.parsingError = False
@@ -380,16 +380,16 @@ class CodeMod( object ):
 		#self.missingIncludes = []		# Include filesnames detected to be required by the assembler
 		self.errors = []
 
-	def setState( self, newState, statusText='' ):
+	# def setState( self, newState, statusText='', updateControlPanelCounts=True ):
 
-		if self.state == newState:
-			return
+	# 	if self.state == newState:
+	# 		return
 
-		self.state = newState
-		try:
-			self.guiModule.setState( newState, statusText )
-		except:
-			pass # May not be currently displayed in the GUI
+	# 	self.state = newState
+	# 	try:
+	# 		self.guiModule.setState( newState, statusText, updateControlPanelCounts=updateControlPanelCounts )
+	# 	except:
+	# 		pass # May not be currently displayed in the GUI
 
 	def setCurrentRevision( self, revision ):
 
@@ -417,22 +417,24 @@ class CodeMod( object ):
 
 		return codeChanges
 
-	def addStaticOverwrite( self, offsetString, customCodeLines, origCode='' ):
+	def addStaticOverwrite( self, offsetString, customCode, origCode='' ):
 		# Collapse the list of collected code lines into one string, removing leading & trailing whitespace
-		rawCustomCode = '\n'.join( customCodeLines ).strip()
+		if isinstance( customCode, list ):
+			customCode = '\n'.join( customCode ).strip()
 
 		# Add the code change
-		codeChange = CodeChange( self, 'static', offsetString, origCode, rawCustomCode )
+		codeChange = CodeChange( self, 'static', offsetString, origCode, customCode )
 		self.data[self.currentRevision].append( codeChange )
 
 		return codeChange
 
-	def addInjection( self, offsetString, customCodeLines, origCode='' ):
+	def addInjection( self, offsetString, customCode, origCode='' ):
 		# Collapse the list of collected code lines into one string, removing leading & trailing whitespace
-		rawCustomCode = '\n'.join( customCodeLines ).strip()
+		if isinstance( customCode, list ):
+			customCode = '\n'.join( customCode ).strip()
 
 		# Add the code change
-		codeChange = CodeChange( self, 'injection', offsetString, origCode, rawCustomCode )
+		codeChange = CodeChange( self, 'injection', offsetString, origCode, customCode )
 		self.data[self.currentRevision].append( codeChange )
 
 		if self.type == 'static': # 'static' is the only type that 'injection' can override.
@@ -440,33 +442,30 @@ class CodeMod( object ):
 
 		return codeChange
 
-	def addGecko( self, customCodeLines ):
+	def addGecko( self, customCode ):
 
 		""" This is for Gecko codes that could not be converted into strictly static 
 			overwrites and/or injection mods. These will require the Gecko codehandler. """
 			
 		# Collapse the list of collected code lines into one string, removing leading & trailing whitespace
-		#rawCustomCode = globalData.codeProcessor.beautifyHex( ''.join(customCodeLines) ) # Formats to 8 byte per line
-		#returnCode, preProcessedCode = self.preProcessCode( customCodeLines )
-		# for line in customCodeLines:
-		# 	rawLine, comments = line.split( '#' )
-		# 	rawHex = ''.join( rawLine.split() ) # Strips out whitespace
-		rawCustomCode = '\n'.join( customCodeLines ).strip()
+		if isinstance( customCode, list ):
+			customCode = '\n'.join( customCode ).strip()
 
 		# Add the code change
-		codeChange = CodeChange( self, 'gecko', '', '', rawCustomCode )
+		codeChange = CodeChange( self, 'gecko', '', '', customCode )
 		self.data[self.currentRevision].append( codeChange )
 
 		self.type = 'gecko'
 
 		return codeChange
 
-	def addStandalone( self, standaloneName, standaloneRevisions, customCodeLines ):
+	def addStandalone( self, standaloneName, standaloneRevisions, customCode ):
 		# Collapse the list of collected code lines into one string, removing leading & trailing whitespace
-		rawCustomCode = '\n'.join( customCodeLines ).strip()
+		if isinstance( customCode, list ):
+			customCode = '\n'.join( customCode ).strip()
 
 		# Add the code change for each revision that it was defined for
-		codeChange = CodeChange( self, 'standalone', standaloneName, '', rawCustomCode )
+		codeChange = CodeChange( self, 'standalone', standaloneName, '', customCode )
 		for revision in standaloneRevisions:
 			if revision not in self.data:
 				self.data[revision] = []
@@ -606,6 +605,160 @@ class CodeMod( object ):
 	# def backupConfiguration( self ): #todo; may be required during mod installation detection
 	# def restoreConfiguration( self ):
 
+	def assembleErrorMessage( self, includeStateDesc=False ):
+		
+		errorMsg = []
+
+		if includeStateDesc:
+			errorMsg.append( self.stateDesc + '\n' )
+
+		if self.parsingError:
+			errorMsg.append( 'Parsing Errors Detected: Yes' )
+		else:
+			errorMsg.append( 'Parsing Errors Detected: No' )
+
+		if self.assemblyError:
+			errorMsg.append( 'Assembly Errors Detected: Yes\n' )
+		else:
+			errorMsg.append( 'Assembly Errors Detected: No\n' )
+		
+		errorMsg.extend( self.errors )
+
+		return '\n'.join( errorMsg )
+
+	def validateWebLink( self, origUrlString ):
+
+		""" Validates a given URL (string), partly based on a whitelist of allowed domains. 
+			Returns a urlparse object if the url is valid, or None (Python default) if it isn't. """
+
+		try:
+			potentialLink = urlparse.urlparse( origUrlString )
+		except Exception as err:
+			print( 'Invalid link detected for "{}": {}'.format(self.name, err) )
+			return
+
+		# Check the domain against the whitelist. netloc will be something like "youtube.com" or "www.youtube.com"
+		if potentialLink.scheme and potentialLink.netloc.split('.')[-2] in ( 'smashboards', 'github', 'youtube' ):
+			return potentialLink
+
+		elif not potentialLink.scheme:
+			print( 'Invalid link detected for "{}" (no scheme): {}'.format(self.name, potentialLink) )
+		else:
+			print( 'Invalid link detected for "{}" (domain not allowed): {}'.format(self.name, potentialLink) )
+
+	def buildModString( self ):
+
+		""" Builds a string to store/share this mod in MCM's basic code format. """
+
+		if self.name:
+			headerLines = [ self.name ]
+		else:
+			headerLines = [ 'This Mod Needs a Title!' ]
+
+		if self.desc:
+			headerLines.append( self.desc )
+
+		if self.webLinks:
+			for urlString, comments in self.webLinks: # Comments should still have the '#' character prepended
+				if comments.lstrip()[0] == '#':
+					headerLines.append( '<{}>{}'.format(urlString, comments) )
+				else:
+					headerLines.append( '<{}> # {}'.format(urlString, comments) )
+		
+		if self.auth:
+			headerLines.append( '[' + self.auth + ']' )
+		else:
+			headerLines.append( '[??]' )
+
+		codeChangesHeader = 'Revision ---- DOL Offset ---- Hex to Replace ---------- ASM Code -'
+		addChangesHeader = False
+		codeChangeLines = []
+
+		for revision, codeChanges in self.data.items():
+			addVersionHeader = True
+
+			for change in codeChanges:
+				if change.type in ( 'static', 'injection' ):
+					addChangesHeader = True
+				
+					# Get the offset
+					if change.offset:
+						offset = change.offset.replace( '0x', '' )
+					else:
+						offset = '1234' # Placeholder; needed so the mod can still be parsed/re-loaded
+
+					# Get the original hex (vanilla game code)
+					if change.origCode:
+						originalHex = ''.join( change.origCode.split() ).replace( '0x', '' )
+						if not validHex( originalHex ):
+							msg( 'There is missing or invalid Original Hex code\nfor some ' + revision + ' changes.' )
+							return ''
+					else:
+						codeLength = change.getLength()
+						if codeLength == -1:
+							originalHex = '00000000' # Placeholder
+						else:
+							originalHex = '00' * codeLength
+
+					# Create the beginning of the line (revision header, if needed, with dashes).
+					headerLength = 13
+					if addVersionHeader:
+						lineHeader = revision + ' ' + ('-' * ( headerLength - 1 - len(revision) )) # extra '- 1' for the space after revision
+						addVersionHeader = False
+					else: lineHeader = '-' * headerLength
+
+					# Build a string for the offset portion
+					numOfDashes = 8 - len( offset )
+					dashes = '-' * ( numOfDashes / 2 ) # if numOfDashes is 1 or less (including negatives), this will be an empty string
+					if numOfDashes % 2 == 0: # If the number of dashes left over is even (0 is even)
+						offsetString = dashes + ' ' + '0x' + offset + ' ' + dashes
+					else: # Add an extra dash at the end (the int division above rounds down)
+						offsetString = dashes + ' ' + '0x' + offset + ' ' + dashes + '-'
+
+					newHex = change.rawCode
+					if newHex.startswith( '0x' ):
+						newHex = newHex[2:] # Don't want to replace all instances
+					if not newHex: continue
+
+					# Build a string for a standard (short) static overwrite
+					if change.type == 'static' and len( originalHex ) <= 16 and newHex.splitlines()[0].split('#')[0] != '': # Last check ensures there's actually code, and not just comments/whitespace
+						codeChangeLines.append( lineHeader + offsetString + '---- ' + originalHex + ' -> ' + newHex )
+
+					# Long static overwrite
+					elif change.type == 'static':
+						prettyHex = globalData.codeProcessor.beautifyHex( originalHex )
+						codeChangeLines.append( lineHeader + offsetString + '----\n\n' + prettyHex + '\n\n -> \n\n' + newHex + '\n' )
+
+					# Injection mod
+					else:
+						codeChangeLines.append( lineHeader + offsetString + '---- ' + originalHex + ' -> Branch\n\n' + newHex + '\n' )
+
+				elif change.type == 'gecko':
+					if addVersionHeader: codeChangeLines.append( revision + '\n' + newHex + '\n' )
+					else: codeChangeLines.append( newHex + '\n' )
+
+				elif change.type == 'standalone':
+					functionName = change.offset
+
+					# Check that a function name was given, and then convert the ASM to hex if necessary.
+					if functionName == '':
+						msg( 'A standalone function among the ' + revision + ' changes is missing a name.' )
+						return ''
+					elif ' ' in functionName:
+						msg( 'Function names may not contain spaces. Please rename those for ' + revision + ' and try again.' )
+						return ''
+
+					# Add the name wrapper and version identifier
+					functionName = '<' + functionName + '> ' + revision
+
+					# Assemble the line string with the original and new hex codes.
+					codeChangeLines.append( functionName + '\n' + newHex + '\n' )
+					
+		if addChangesHeader:
+			headerLines.append( codeChangesHeader )
+
+		return '\n'.join( headerLines + codeChangeLines )
+
 	def formatAsGecko( self, vanillaDol, createForGCT ):
 
 		""" Formats a mod's code into Gecko code form. If this is for an INI file, human-readable mod-name/author headers and 
@@ -731,158 +884,73 @@ class CodeMod( object ):
 		else:
 			return '${} [{}]\n{}'.format( self.name, self.auth, '\n'.join(codeChanges) )
 
-	def assembleErrorMessage( self, includeStateDesc=False ):
+	def saveInMcmFormat( self, savePath ):
+
+		""" Saves this mod to a text file in MCM's basic mod format. 
+			If the given file path already exists, this mod will be 
+			added to the end of it. """
 		
-		errorMsg = []
+		# Set this mod's save location so that subsequent saves will automatically go to this same place
+		# Do this first in any case, in case this method fails
+		self.path = savePath
+		self.isAmfs = False
 
-		if includeStateDesc:
-			errorMsg.append( self.stateDesc + '\n' )
-
-		if self.parsingError:
-			errorMsg.append( 'Parsing Errors Detected: Yes' )
-		else:
-			errorMsg.append( 'Parsing Errors Detected: No' )
-
-		if self.assemblyError:
-			errorMsg.append( 'Assembly Errors Detected: Yes\n' )
-		else:
-			errorMsg.append( 'Assembly Errors Detected: No\n' )
-		
-		errorMsg.extend( self.errors )
-
-		return '\n'.join( errorMsg )
-
-	def validateWebLink( self, origUrlString ):
-
-		""" Validates a given URL (string), partly based on a whitelist of allowed domains. 
-			Returns a urlparse object if the url is valid, or None (Python default) if it isn't. """
-
+		# Append this mod to the end of the target Mod Library text file (could be a new file, or an existing one).
 		try:
-			potentialLink = urlparse.urlparse( origUrlString )
+			# Create a new file, or get contents of an existing one
+			with open( savePath, 'r' ) as modFile:
+				fileContents = modFile.read()
+
+			if fileContents:
+				# Get the file index for this mod and prepend a separator
+				self.fileIndex = len( fileContents.split( '-==-' ) )
+				modString = '\n\n\n\t-==-\n\n' + modString
+			else:
+				self.fileIndex = 0
+
+			# Save the mod to the file.
+			with open( savePath, 'a' ) as modFile:
+				modFile.write( modString )
+
 		except Exception as err:
-			print( 'Invalid link detected for "{}": {}'.format(self.name, err) )
-			return
+			msg( err, 'Unable to save!', error=True )
 
-		# Check the domain against the whitelist. netloc will be something like "youtube.com" or "www.youtube.com"
-		if potentialLink.scheme and potentialLink.netloc.split('.')[-2] in ( 'smashboards', 'github', 'youtube' ):
-			return potentialLink
+			return False
 
-		elif not potentialLink.scheme:
-			print( 'Invalid link detected for "{}" (no scheme): {}'.format(self.name, potentialLink) )
-		else:
-			print( 'Invalid link detected for "{}" (domain not allowed): {}'.format(self.name, potentialLink) )
+		# Rebuild the include paths list, using this new file for one of the paths
+		modsFolderIncludePath = os.path.join( globalData.getModsFolderPath(), '.include' )
+		rootFolderIncludePath = os.path.join( globalData.scriptHomeFolder, '.include' )
+		self.includePaths = [ os.path.dirname(savePath), modsFolderIncludePath, rootFolderIncludePath ]
 
-	def buildModString( self ):
+		return True
 
-		""" Builds a string to store/share this mod in MCM's basic code format. """
+	def saveInAmfsFormat( self, savePath ):
 
-		if self.name:
-			headerLines = [ self.name ]
-		else:
-			headerLines = [ 'This Mod Needs a Title!' ]
+		""" Saves this mod to a text file in the ASM Mod Folder Structure (AMFS) format. """
 
-		if self.desc:
-			headerLines.append( self.desc )
+		# Set this mod's save location so that subsequent saves will automatically go to this same place
+		# Do this first in any case, in case this method fails
+		self.path = savePath
+		self.isAmfs = True
 
-		if self.webLinks:
-			for urlString, comments in self.webLinks: # Comments should still have the '#' character prepended
-				if comments.lstrip()[0] == '#':
-					headerLines.append( '<{}>{}'.format(urlString, comments) )
-				else:
-					headerLines.append( '<{}> # {}'.format(urlString, comments) )
-		
-		if self.auth:
-			headerLines.append( '[' + self.auth + ']' )
-		else:
-			headerLines.append( '[??]' )
+		# Create the folder(s) if it doesn't exist
+		createFolders( savePath )
 
-		codeChangesHeader = 'Revision ---- DOL Offset ---- Hex to Replace ---------- ASM Code -'
-		addChangesHeader = False
-		codeChangeLines = []
+		# Build the JSON file data
+		# jsonData = {
+		# 	'codes': [
+		# 		{
+		# 			'name': self.name,
+		# 			'authors': [name.strip() for name in self.auth.split(',') ],
+		# 			'description': self.desc.splitlines(),
+		# 			'category': self.category,
+		# 			'configurations': {},
+		# 			'revision': self.
+		# 		}
+		# 	]
+		# }
 
-		for revision, codeChanges in self.data.items():
-			addVersionHeader = True
-
-			for change in codeChanges:
-				if change.type in ( 'static', 'injection' ):
-					addChangesHeader = True
-				
-					# Get the offset
-					if self.offset:
-						offset = self.offset.replace( '0x', '' )
-					else:
-						offset = '1234' # Placeholder; needed so the mod can still be parsed/re-loaded
-
-					newHex = change.rawCode
-					if newHex.startswith( '0x' ):
-						newHex = newHex[2:] # Don't want to replace all instances
-
-					# Get the original hex (vanilla game code)
-					if self.origCode:
-						originalHex = ''.join( self.origCode.split() ).replace( '0x', '' )
-						if not validHex( originalHex ):
-							msg( 'There is missing or invalid Original Hex code\nfor some ' + revision + ' changes.' )
-							return ''
-					else:
-						codeLength = change.getLength()
-						if codeLength == -1:
-							originalHex = '00000000' # Placeholder
-						else:
-							originalHex = '00' * codeLength
-
-					# Create the beginning of the line (revision header, if needed, with dashes).
-					headerLength = 13
-					if addVersionHeader:
-						lineHeader = revision + ' ' + ('-' * ( headerLength - 1 - len(revision) )) # extra '- 1' for the space after revision
-						addVersionHeader = False
-					else: lineHeader = '-' * headerLength
-
-					# Build a string for the offset portion
-					numOfDashes = 8 - len( offset )
-					dashes = '-' * ( numOfDashes / 2 ) # if numOfDashes is 1 or less (including negatives), this will be an empty string
-					if numOfDashes % 2 == 0: # If the number of dashes left over is even (0 is even)
-						offsetString = dashes + ' ' + '0x' + offset + ' ' + dashes
-					else: # Add an extra dash at the end (the int division above rounds down)
-						offsetString = dashes + ' ' + '0x' + offset + ' ' + dashes + '-'
-
-					# Build a string for a standard (short) static overwrite
-					if change.type == 'static' and len( originalHex ) <= 16 and newHex.splitlines()[0].split('#')[0] != '': # Last check ensures there's actually code, and not just comments/whitespace
-						codeChangeLines.append( lineHeader + offsetString + '---- ' + originalHex + ' -> ' + newHex )
-
-					# Long static overwrite
-					elif change.type == 'static':
-						prettyHex = globalData.codeProcessor.beautifyHex( originalHex )
-						codeChangeLines.append( lineHeader + offsetString + '----\n\n' + prettyHex + '\n\n -> \n\n' + newHex + '\n' )
-
-					# Injection mod
-					else:
-						codeChangeLines.append( lineHeader + offsetString + '---- ' + originalHex + ' -> Branch\n\n' + newHex + '\n' )
-
-				elif change.type == 'gecko':
-					if addVersionHeader: codeChangeLines.append( revision + '\n' + newHex + '\n' )
-					else: codeChangeLines.append( newHex + '\n' )
-
-				elif change.type == 'standalone':
-					functionName = change.offset
-
-					# Check that a function name was given, and then convert the ASM to hex if necessary.
-					if functionName == '':
-						msg( 'A standalone function among the ' + revision + ' changes is missing a name.' )
-						return ''
-					elif ' ' in functionName:
-						msg( 'Function names may not contain spaces. Please rename those for ' + revision + ' and try again.' )
-						return ''
-
-					# Add the name wrapper and version identifier
-					functionName = '<' + functionName + '> ' + revision
-
-					# Assemble the line string with the original and new hex codes.
-					codeChangeLines.append( functionName + '\n' + newHex + '\n' )
-					
-		if addChangesHeader:
-			headerLines.append( codeChangesHeader )
-
-		return '\n'.join( headerLines + codeChangeLines )
+		# for revision, change in self.data.items():
 
 
 class CodeLibraryParser():
@@ -1438,32 +1506,33 @@ class CodeLibraryParser():
 		mod.setCurrentRevision( 'NTSC 1.02' ) # Assumption time #todo (optionally add param to header)
 		mod.desc = 'Injection from standalone file "{}"'.format( sourceFile )
 		mod.includePaths = includePaths
-		#mod.category = category
+		mod.category = category
 		
 		# Read the file for info and the custom code
 		returnCode, address, author, customCode = self.getCustomCodeFromFile( sourceFile, mod, True, modName )
 
-		# Check for errors
-		if returnCode != 0:
-			return # Errors have already been recorded and reported
-		elif not address:
-			mod.parsingError = True
-			mod.stateDesc = 'Missing address for "{}"'.format( sourceFile )
-			mod.errors.append( 'Unable to find an address for ' + sourceFile )
-			return
-
 		if author:
 			mod.auth = author
 
-		codeChange = CodeChange( mod, 'static', address, '', customCode )
-		codeChange.evaluate()
+		# Check for errors
+		# if returnCode != 0:
+		# 	return # Errors have already been recorded and reported
+		if not address:
+			mod.parsingError = True
+			mod.stateDesc = 'Missing address for "{}"'.format( sourceFile )
+			mod.errors.append( 'Unable to find an address' )
+			#return
 
-		if codeChange.length > 4:
-			codeChange.type = 'injection'
-			if mod.type == 'static':
-				mod.type = 'injection'
+		# codeChange = CodeChange( mod, 'static', address, '', customCode )
+		# codeChange.evaluate()
 
-		mod.data[mod.currentRevision].append( codeChange )
+		# if codeChange.length > 4:
+		# 	codeChange.type = 'injection'
+		# 	if mod.type == 'static':
+		# 		mod.type = 'injection'
+
+		# mod.data[mod.currentRevision].append( codeChange )
+		mod.addInjection( address, customCode, '' )
 		self.storeMod( mod )
 
 	def parseStandaloneOverwrite( self, item, sourceFile, includePaths, category ):
@@ -1481,22 +1550,24 @@ class CodeLibraryParser():
 		# Read the file for info and the custom code
 		returnCode, address, author, customCode = self.getCustomCodeFromFile( sourceFile, mod, True, modName )
 
-		# Check for errors
-		if returnCode != 0:
-			return # Errors have already been recorded and reported
-		elif not address:
-			mod.parsingError = True
-			mod.stateDesc = 'Missing address for "{}"'.format( sourceFile )
-			mod.errors.append( 'Unable to find an address for ' + sourceFile )
-			return
-
 		if author:
 			mod.auth = author
 
-		codeChange = CodeChange( mod, 'static', address, '', customCode )
-		codeChange.evaluate()
+		# Check for errors
+		# if returnCode != 0:
+		# 	return # Errors have already been recorded and reported
+		if not address:
+			mod.parsingError = True
+			mod.stateDesc = 'Missing address for "{}"'.format( sourceFile )
+			mod.errors.append( 'Unable to find an address' )
+			#return
 
-		mod.data[mod.currentRevision].append( codeChange )
+		# codeChange = CodeChange( mod, 'static', address, '', customCode )
+		# codeChange.evaluate()
+
+		# mod.data[mod.currentRevision].append( codeChange )
+
+		mod.addStaticOverwrite( address, customCode, '' )
 		self.storeMod( mod )
 
 	def storeMod( self, mod ):
@@ -1506,11 +1577,11 @@ class CodeLibraryParser():
 		if not mod.data:
 			mod.state = 'unavailable'
 			mod.stateDesc = 'Missing mod data'
-			mod.errors.append( 'Missing mod data; may be defined incorrectly')
+			mod.errors.append( 'Missing mod data; may be defined incorrectly' )
 		elif mod.name in self.modNames:
 			mod.state = 'unavailable'
 			mod.stateDesc = 'Duplicate mod'
-			mod.errors.append( 'Duplicate mod; more than one by this name in library')
+			mod.errors.append( 'Duplicate mod; more than one by this name in library' )
 
 		# Check for conflicts
 		#for change in mod.getCodeChanges():
@@ -1519,7 +1590,7 @@ class CodeLibraryParser():
 		self.codeMods.append( mod )
 		self.modNames.add( mod.name )
 
-	def parseGeckoCode( self, codeLines, dol ):
+	def parseGeckoCode( self, codeLines ):
 
 		""" Currently only supports Gecko code types 04, 06, and C2. Returns title, newAuthors, 
 			description, and codeChanges. 'codeChanges' will be a list of tuples, with each 
@@ -1599,13 +1670,13 @@ class CodeLibraryParser():
 				customCode = line.replace( ' ', '' )[8:16]
 
 				# Get the vanilla code from the DOL
-				dolOffset = dol.offsetInDOL( int(ramAddress, 16) )
-				if dolOffset == -1: #originalCode = ''
-					raise Exception( 'Unable to convert Gecko code; no equivalent DOL offset for {}.'.format(ramAddress) )
-				else: originalCode = hexlify( dol.getData(dolOffset, 4) )
+				# dolOffset = dol.offsetInDOL( int(ramAddress, 16) )
+				# if dolOffset == -1: #originalCode = ''
+				# 	raise Exception( 'Unable to convert Gecko code; no equivalent DOL offset for {}.'.format(ramAddress) )
+				# else: originalCode = hexlify( dol.getData(dolOffset, 4) )
 
 				#codeChangeTuples.append( ('static', 4, ramAddress, originalCode, customCode, customCode, 0) )
-				codeChangeTuples.append( ('static', ramAddress, customCode) )
+				codeChangeTuples.append( ('static', ramAddress, [customCode]) )
 
 			elif line.startswith( '06' ): # A Long Static Overwrite
 				ramAddress = '0x80' + line[2:8]
@@ -2171,7 +2242,7 @@ class CommandProcessor( object ):
 
 		for line in cmdOutput.splitlines():
 			if not line:
-				print 'Found empty line during disassembly. problem?'
+				print( 'Found empty line during disassembly. problem?' )
 				continue # Ignores empty lines
 
 			lineParts = line.split() # Expected to be [ codeOffset, hexCode, instruction, *[operands] ]

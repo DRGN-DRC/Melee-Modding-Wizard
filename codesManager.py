@@ -138,7 +138,7 @@ class CodeManagerTab( ttk.Frame ):
 		currentTab = self.getCurrentTab()
 
 		if not forceUpdate and self.lastTabSelected == currentTab:
-			print( 'already selected;', self.controlPanel.winfo_manager(), self.controlPanel.winfo_ismapped() )
+			#print( 'already selected;', self.controlPanel.winfo_manager(), self.controlPanel.winfo_ismapped() )
 			return
 		elif self.lastTabSelected and self.lastTabSelected != currentTab:
 			globalData.gui.playSound( 'menuChange' )
@@ -146,7 +146,7 @@ class CodeManagerTab( ttk.Frame ):
 		# Prevent focus on the tabs themselves (prevents appearance of selection box)
 		# currentTab = globalData.gui.root.nametowidget( self.codeLibraryNotebook.select() )
 		# currentTab.focus()
-		print( 'tab changed; called with event:', event )
+		#print( 'tab changed; called with event:', event )
 		#time.sleep(2)
 
 		# Remove existing ModModules, and only add those for the currently selected tab
@@ -245,7 +245,14 @@ class CodeManagerTab( ttk.Frame ):
 			#print( 'placing control panel with topLevel notebook' )
 			notebookWidth = self.codeLibraryNotebook.winfo_width()
 			self.controlPanel.place( in_=self.codeLibraryNotebook, x=notebookWidth * .60, width=notebookWidth * .40, height=self.codeLibraryNotebook.winfo_height() )
-			
+	
+	def getModModules( self, tab ):
+
+		""" Get the GUI elements for mods on the current tab. """
+
+		scrollingFrame = tab.winfo_children()[0] # VerticalScrolledFrame widget
+		return scrollingFrame.interior.winfo_children()
+
 	def updateInstalledModsTabLabel( self, currentTab=None ):
 
 		""" Updates the installed mods count at the bottom of the control panel. """
@@ -255,16 +262,23 @@ class CodeManagerTab( ttk.Frame ):
 			if not currentTab:
 				print( '.updateInstalledModsTabLabel() unable to get a current tab.' )
 				return
-
+		
 		# Get the widget providing scrolling functionality (a VerticalScrolledFrame widget), and its children mod widgets
-		scrollingFrame = currentTab.winfo_children()[0]
-		scrollingFrameChildren = scrollingFrame.interior.winfo_children()
+		# scrollingFrame = currentTab.winfo_children()[0]
+		# scrollingFrameChildren = scrollingFrame.interior.winfo_children()
+		modules = self.getModModules( currentTab )
+
+		print( '--' )
+		print( 'calling on ', currentTab.master.tab( currentTab, option='text' ) )
 
 		# Count the mods enabled or selected for installation
 		thisTabSelected = 0
-		for modModule in scrollingFrameChildren:
+		for modModule in modules:
 			if modModule.mod.state == 'enabled' or modModule.mod.state == 'pendingEnable':
 				thisTabSelected += 1
+
+			if 'Flame Cancel' in modModule.mod.name:
+				print( 'from this tab:', modModule.mod.auth )
 
 		# Check total selected mods
 		librarySelected = 0
@@ -272,7 +286,10 @@ class CodeManagerTab( ttk.Frame ):
 			if mod.state == 'enabled' or mod.state == 'pendingEnable':
 				librarySelected += 1
 
-		self.installTotalLabel.set( 'Enabled on this tab:   {} / {}\nEnabled in library:   {} / {}'.format(thisTabSelected, len(scrollingFrameChildren), librarySelected, len(globalData.codeMods)) )
+			if 'Flame Cancel' in mod.name:
+				print( 'from globals:', mod.auth )
+
+		self.installTotalLabel.set( 'Enabled on this tab:   {} / {}\nEnabled in library:   {} / {}'.format(thisTabSelected, len(modules), librarySelected, len(globalData.codeMods)) )
 
 	def clear( self ):
 
@@ -558,14 +575,11 @@ class CodeManagerTab( ttk.Frame ):
 
 			# If this tab is going to be immediately visible/selected, add its modules now
 			if targetCategory == mod.category:
-				ModModule( modsPanel.interior, mod ).pack( fill='x', expand=1 )
+				module = ModModule( modsPanel.interior, mod )
+				module.pack( fill='x', expand=1 )
 
 			# Store the mod for later; actual modules for the GUI will be created on tab selection
 			modsPanel.mods.append( mod )
-
-			# Disable mods with problems
-			if mod.assemblyError or mod.parsingError:
-				mod.setState( 'unavailable' )
 
 			# if mod.state == 'enabled':
 			# 	print( mod.name )
@@ -743,20 +757,38 @@ class CodeManagerTab( ttk.Frame ):
 		geckoFormattedMods = []
 		missingTargetRevision = []
 		containsSpecialSyntax = []
-		for mod in globalData.codeMods:
-			if mod.state == 'enabled' or mod.state == 'pendingEnable':
-				if dolRevision in mod.data:
-					geckoCodeString = mod.formatAsGecko( vanillaDol, createForGCT )
+		saveString = 'Saved to ' + fileExt[1:].upper()
 
-					if geckoCodeString == '':
-						containsSpecialSyntax.append( mod.name )
-					else:
-						geckoFormattedMods.append( geckoCodeString )
+		#for mod in globalData.codeMods:
+		for tab in self.getAllTabs():
+			#for mod in tab.winfo_children()[0].mods:
+			guiModules = self.getModModules( tab )
 
-						# Update the mod's status (appearance) so the user knows what was saved
-						mod.setState( 'enabled', 'Saved to ' + fileExt[1:].upper() )
-				else:
-					missingTargetRevision.append( mod.name )
+			if guiModules:
+				# Update the GUI modules (this tab must be selected)
+				for guiModule in guiModules:
+					mod = guiModule.mod
+					if mod.state == 'enabled' or mod.state == 'pendingEnable':
+						if dolRevision in mod.data:
+							geckoCodeString = mod.formatAsGecko( vanillaDol, createForGCT )
+
+							if geckoCodeString == '':
+								containsSpecialSyntax.append( mod.name )
+							else:
+								geckoFormattedMods.append( geckoCodeString )
+
+								# Update the mod's status (appearance) so the user knows what was saved
+								guiModule.setState( 'enabled', saveString, updateControlPanelCounts=False )
+						else:
+							missingTargetRevision.append( mod.name )
+			else:
+				# Update the internal mod references
+				for mod in tab.winfo_children()[0].mods:
+					if mod.state == 'enabled' or mod.state == 'pendingEnable':
+						mod.state = 'enabled'
+						self.mod.stateDesc = saveString
+
+		self.updateInstalledModsTabLabel()
 
 		# Save the text string to a GCT/INI file if any mods were able to be formatted
 		if geckoFormattedMods:
@@ -788,9 +820,10 @@ class CodeManagerTab( ttk.Frame ):
 	def selectAllMods( self, event ):
 		currentTab = self.getCurrentTab()
 
-		for mod in currentTab.winfo_children()[0].mods:
-			if mod.state == 'pendingDisable': mod.setState( 'enabled' )
-			elif mod.state == 'disabled': mod.setState( 'pendingEnable' )
+		#for mod in currentTab.winfo_children()[0].mods:
+		for module in self.getModModules( currentTab ):
+			if module.mod.state == 'pendingDisable': module.setState( 'enabled', updateControlPanelCounts=False )
+			elif module.mod.state == 'disabled': module.setState( 'pendingEnable', updateControlPanelCounts=False )
 
 		self.updateInstalledModsTabLabel( currentTab )
 		globalData.gui.playSound( 'menuChange' )
@@ -798,9 +831,10 @@ class CodeManagerTab( ttk.Frame ):
 	def deselectAllMods( self, event ):
 		currentTab = self.getCurrentTab()
 
-		for mod in currentTab.winfo_children()[0].mods:
-			if mod.state == 'pendingEnable': mod.setState( 'disabled' )
-			elif mod.state == 'enabled': mod.setState( 'pendingDisable' )
+		#for mod in currentTab.winfo_children()[0].mods:
+		for module in self.getModModules( currentTab ):
+			if module.mod.state == 'pendingEnable': module.setState( 'disabled', updateControlPanelCounts=False )
+			elif module.mod.state == 'enabled': module.setState( 'pendingDisable', updateControlPanelCounts=False )
 
 		self.updateInstalledModsTabLabel( currentTab )
 		globalData.gui.playSound( 'menuChange' )
@@ -808,9 +842,18 @@ class CodeManagerTab( ttk.Frame ):
 	def selectWholeLibrary( self, event ):
 
 		for tab in self.getAllTabs():
-			for mod in tab.winfo_children()[0].mods:
-				if mod.state == 'pendingDisable': mod.setState( 'enabled' )
-				elif mod.state == 'disabled': mod.setState( 'pendingEnable' )
+			guiModules = self.getModModules( tab )
+
+			if guiModules:
+				for module in guiModules:
+					mod = module.mod
+					if mod.state == 'pendingDisable': module.setState( 'enabled', updateControlPanelCounts=False )
+					elif mod.state == 'disabled': module.setState( 'pendingEnable', updateControlPanelCounts=False )
+			else:
+				# Update the internal mod references
+				for mod in tab.winfo_children()[0].mods:
+					if mod.state == 'pendingDisable': mod.state = 'enabled'
+					elif mod.state == 'disabled': mod.state = 'pendingEnable'
 
 		self.updateInstalledModsTabLabel()
 		globalData.gui.playSound( 'menuChange' )
@@ -818,12 +861,56 @@ class CodeManagerTab( ttk.Frame ):
 	def deselectWholeLibrary( self, event ):
 
 		for tab in self.getAllTabs():
-			for mod in tab.winfo_children()[0].mods:
-				if mod.state == 'pendingEnable': mod.setState( 'disabled' )
-				elif mod.state == 'enabled': mod.setState( 'pendingDisable' )
+			guiModules = self.getModModules( tab )
+
+			if guiModules:
+				for module in guiModules:
+					mod = module.mod
+					if mod.state == 'pendingEnable': module.setState( 'disabled', updateControlPanelCounts=False )
+					elif mod.state == 'enabled': module.setState( 'pendingDisable', updateControlPanelCounts=False )
+			else:
+				# Update the internal mod references
+				for mod in tab.winfo_children()[0].mods:
+					if mod.state == 'pendingEnable': mod.state = 'disabled'
+					elif mod.state == 'enabled': mod.state = 'pendingDisable'
 
 		self.updateInstalledModsTabLabel()
 		globalData.gui.playSound( 'menuChange' )
+
+	def convertGeckoCode( self, mod ):
+		try:
+			# Create a copy of the mod (this copy should include basic properties, includePaths, webLinks, etc.)
+			newMod = copy.deepcopy( mod )
+			newMod.name = mod.name + ' (Converted)'
+			newMod.data[mod.currentRevision] = []
+
+			for codeChange in mod.getCodeChanges():
+				if codeChange.type == 'gecko':
+					# Prepend an artificial title for the parser and parse it
+					customCode = codeChange.rawCode.splitlines()
+					customCode.insert( 0, '$TitlePlaceholder' )
+					codeChanges = self.parser.parseGeckoCode( customCode )[-1]
+
+					if not codeChanges:
+						raise Exception( 'Unable to parse code changes for Gecko code' )
+
+					# Add new code change modules
+					for changeType, address, customCodeLines in codeChanges:
+						# Create a new CodeChange object and attach it to the internal mod module
+						if changeType == 'static':
+							codeChange = mod.addStaticOverwrite( address, customCodeLines, '' )
+						elif changeType == 'injection':
+							codeChange = mod.addInjection( address, customCodeLines, '' )
+						else:
+							raise Exception( 'Invalid code change type from Gecko code parser:', changeType )
+
+						newMod.data[mod.currentRevision].append( codeChange )
+				else:
+					newMod.data[mod.currentRevision].append( codeChange )
+
+			return newMod
+		except:
+			return None
 
 	def saveCodeChanges( self ):
 
@@ -852,41 +939,13 @@ class CodeManagerTab( ttk.Frame ):
 			
 			elif mod.state == 'pendingEnable':
 				if mod.type == 'gecko':
-					# Create a copy of the mod (should include basic properties, includePaths, webLinks, etc.)
-					newMod = copy.deepcopy( mod )
-					newMod.name = mod.name + ' (Converted)'
-
 					# Attempt to convert the Gecko code changes to standard static overwrites and injections
-					newMod.data[newMod.currentRevision] = []
-					try:
-						for codeChange in mod.getCodeChanges():
-							if codeChange.type == 'gecko':
-								# Prepend an artificial title for the parser and parse it
-								customCode = codeChange.rawCode.splitlines()
-								customCode.insert( 0, '$TitlePlaceholder' )
-								codeChanges = self.parser.parseGeckoCode( customCode, globalData.disc.dol )[-1]
+					newMod = self.convertGeckoCode( mod )
 
-								if not codeChanges:
-									raise Exception( 'Unable to parse code changes for Gecko code' )
-
-								# Add new code change modules
-								for changeType, address, customCodeLines in codeChanges:
-									# Create a new CodeChange object and attach it to the internal mod module
-									if changeType == 'static':
-										codeChange = self.mod.addStaticOverwrite( address, customCodeLines, '' )
-									elif changeType == 'injection':
-										codeChange = self.mod.addInjection( address, customCodeLines, '' )
-									else:
-										raise Exception( 'Invalid code change type from Gecko code parser:', changeType )
-
-									newMod.data[newMod.currentRevision].append( codeChange )
-							else:
-								newMod.data[newMod.currentRevision].append( codeChange )
-
-						# If no errors above, use this new mod instead of the original
+					# If the operation was successful, use this new mod instead of the original
+					if newMod:
 						mod = newMod
-					except:
-						# Unable to convert it; install it as a Gecko code
+					else: # Unable to convert it; install it as a Gecko code
 						geckoCodesToInstall.append( mod )
 						continue
 
@@ -1003,22 +1062,22 @@ class ModModule( Tk.Frame, object ):
 		super( ModModule, self ).__init__( parent, relief='groove', borderwidth=3, takefocus=True, *args, **kw )
 
 		self.mod = mod
-		mod.guiModule = self
+		#mod.guiModule = self
 
 		#self.valWebLinks = [] # These differentiate from the core mod's webLinks, in that these will be validated
 		self.statusText = Tk.StringVar()
 		self.highlightFadeAnimationId = None # Used for the border highlight fade animation
 
-		moduleWidth = 520 # Mostly just controls the wraplength of text areas.
+		moduleWidth = 510 # Mostly just controls the wraplength of text areas.
 
 		# Row 1: Title and author(s)
 		title = Tk.Label( self, text=mod.name, font=("Times", 11, "bold"), wraplength=moduleWidth*.6, anchor='n' )
-		title.grid( column=0, row=0, sticky='ew', padx=10 )
+		title.grid( column=0, row=0, sticky='ew', padx=20 )
 		self.authorLabel = Tk.Label( self, text=' - by ' + mod.auth, font=("Verdana", 8), wraplength=moduleWidth*.4, fg='#424242' )
 		self.authorLabel.grid( column=1, row=0, sticky='e', padx=10 )
 
 		# Row 2: Description
-		Tk.Label( self, text=mod.desc, wraplength=moduleWidth-52, justify='left' ).grid( columnspan=2, column=0, row=1, sticky='ew', pady=4 )
+		Tk.Label( self, text=mod.desc, wraplength=moduleWidth-52, justify='left' ).grid( columnspan=2, column=0, row=1, sticky='w', pady=4, padx=12 )
 
 		# Set a background image based on the mod type (indicator on the right-hand side of the mod)
 		typeIndicatorImage = globalData.gui.imageBank( mod.type + 'Indicator' )
@@ -1046,10 +1105,6 @@ class ModModule( Tk.Frame, object ):
 		if mod.configurations:
 			LabelButton( row3, 'configButton', self.configureMod, "Configure this mod's settings" ).pack( side='right', padx=5 )
 
-		# Add a warnings info button if there are problems with this mod
-		if self.mod.parsingError or self.mod.assemblyError or self.mod.errors:
-			LabelButton( row3, 'warningsButton', self.showProblems, "View parsing or assembly errors" ).pack( side='right', padx=5 )
-
 		# Validate web page links and create buttons for them
 		for origUrlString, comments in mod.webLinks: # Items in this list are tuples of (urlString, comments)
 			# urlObj = self.parseUrl( origUrlString )
@@ -1076,8 +1131,15 @@ class ModModule( Tk.Frame, object ):
 		self.columnconfigure( 1, weight=1 )
 		self.columnconfigure( 2, weight=0 )
 
-		# Initialize the GUI module's state with the mod's core state
-		self.setState( self.mod.state, self.mod.stateDesc )
+		# Add a warnings info button if there are problems with this mod
+		if self.mod.parsingError or self.mod.assemblyError or self.mod.errors:
+			LabelButton( row3, 'warningsButton', self.showProblems, "View parsing or assembly errors" ).pack( side='right', padx=5 )
+
+			# Disable mods with problems
+			self.setState( 'unavailable', self.mod.stateDesc, updateControlPanelCounts=False )
+		else:
+			# Initialize the GUI module's state with the mod's core state
+			self.setState( self.mod.state, self.mod.stateDesc, updateControlPanelCounts=False )
 
 	def openWebPage( self, event ):
 
@@ -1106,7 +1168,7 @@ class ModModule( Tk.Frame, object ):
 	# 	else:
 	# 		print( 'Invalid link detected for "{}" (domain not allowed): {}'.format(self.mod.name, potentialLink) )
 
-	def setState( self, state, statusText='' ):
+	def setState( self, state, statusText='', updateControlPanelCounts=True ):
 
 		""" Sets the state of the selected module, by adding a label to the module's Row 3 and 
 			changing the background color of all associated widgets. """
@@ -1159,9 +1221,10 @@ class ModModule( Tk.Frame, object ):
 
 		self.mod.state = state
 
-		# Update the enabled count in the control panel
-		currentTab = self.master.master.master.master # self -> modsPanel.interior -> modsPanel -> VerticalScrolledFrame -> mainTabFrame
-		globalData.gui.codeManagerTab.updateInstalledModsTabLabel( currentTab )
+		# Update the enabled count in the control panel (avoid in loops)
+		if updateControlPanelCounts:
+			currentTab = self.master.master.master.master # self -> modsPanel.interior -> modsPanel -> VerticalScrolledFrame -> mainTabFrame
+			globalData.gui.codeManagerTab.updateInstalledModsTabLabel( currentTab )
 	
 	def clicked( self, event ):
 
@@ -1197,7 +1260,6 @@ class ModModule( Tk.Frame, object ):
 		globalData.gui.playSound( 'menuChange' )
 
 		self.setState( state )
-		#checkForPendingChanges()
 		
 	def editMod( self, event ):
 
@@ -1208,32 +1270,15 @@ class ModModule( Tk.Frame, object ):
 		mainGui.addCodeConstructionTab()
 		mainGui.mainTabFrame.select( mainGui.codeConstructionTab )
 
-		# # Check if the selected mod already exists (and select that if it does)
-		# for tab in constructionNotebook.tabs():
-		# 	tabName = constructionNotebook.tab( tab, 'text' )
-		# 	if tabName != mod.name: continue
-
-		# 	tabWidget = root.nametowidget( tab )
-		# 	existingModConstructor = tabWidget.winfo_children()[0]
-
+		# Check if the selected mod already exists (and select that if it does)
 		for windowName in mainGui.codeConstructionTab.tabs():
 			tab = globalData.gui.root.nametowidget( windowName )
-			if tab.mod == self.mod: # Found it!
-				print( 'switching to existing tab' )
+			if tab.mod is self.mod: # Found it!
 				mainGui.codeConstructionTab.select( tab )
 				break
 
-		# 	if existingModConstructor.sourceFile == mod.sourceFile: # Make sure the library wasn't changed (and it's not just a mod by the same name)
-		# 		constructionNotebook.select( tab )
-		# 		break
-
 		else: # Loop above didn't break; mod not found
-			#print( 'adding new mod' )
-			# Create a new tab for the Mod Construction tab, and create a new construction module within it.
-			# newTab = ttk.Frame( mainGui.codeConstructionTab )
-			# mainGui.codeConstructionTab.add( newTab, text=self.mod.name )
-
-			newTab = ModConstructor( mainGui.codeConstructionTab, self.mod )#.pack( fill='both', expand=1 )
+			newTab = CodeConstructor( mainGui.codeConstructionTab, self )
 			mainGui.codeConstructionTab.add( newTab, text=self.mod.name )
 
 			# Bring the new tab into view for the user.
@@ -1264,12 +1309,12 @@ class ModModule( Tk.Frame, object ):
 		CodeConfigWindow( self.mod, configurations )
 
 
-class ModConstructor( Tk.Frame ):
+class CodeConstructor( Tk.Frame ):
 
 	""" GUI for creating, viewing, and editing code-related mods. 
 		This object is a single tab within the Code Construction notebook. """
 
-	def __init__( self, parent, mod=None, *args, **kw ):
+	def __init__( self, parent, modModule=None, *args, **kw ):
 		Tk.Frame.__init__( self, parent, *args, **kw )
 		
 		self.saveStatus = Tk.StringVar()
@@ -1279,10 +1324,14 @@ class ModConstructor( Tk.Frame ):
 		self.revisionsNotebook = None
 		self.errorsButton = None
 
-		if mod:
-			self.mod = mod
+		if modModule:
+			self.libGuiModule = modModule
+			self.mod = modModule.mod
+			self.backup = copy.deepcopy( modModule.mod )
 		else:
+			self.libGuiModule = None
 			self.mod = CodeMod( 'New Mod' )
+			self.backup = self.mod
 
 		# Top buttons row
 		self.buttonsFrame = Tk.Frame( self )
@@ -1383,9 +1432,9 @@ class ModConstructor( Tk.Frame ):
 
 		def gotoWorkshop(): webbrowser.open( 'http://smashboards.com/forums/melee-workshop.271/' )
 		def shareButtonClicked():
+			self.syncAllGuiChanges()
 			modString = self.mod.buildModString()
-			thisModName = self.getInput( self.titleEntry )
-			if modString != '': cmsg( '\n\n\t-==-\n\n' + modString, thisModName, 'left', (('Go to Melee Workshop', gotoWorkshop),) )
+			if modString != '': cmsg( '\n\n\t-==-\n\n' + modString, self.mod.name, 'left', (('Go to Melee Workshop', gotoWorkshop),) )
 
 		# Show the Save / Share buttons
 		ttk.Button( self.buttonsFrame, text='Share', command=shareButtonClicked, width=7 ).pack( side='right', padx=6 )
@@ -1447,7 +1496,7 @@ class ModConstructor( Tk.Frame ):
 		self.errorsButton = LabelButton( self.buttonsFrame, 'warningsButton', self.showErrors, "View parsing or assembly errors" )
 		self.errorsButton.pack( side='right', padx=5 )
 
-	def updateInternalCodeMod( self ):
+	def syncAllGuiChanges( self ):
 
 		""" Updates the internal CodeMod object (self.mod) with current input from this GUI. 
 			Returns True/False on success. """
@@ -1477,12 +1526,12 @@ class ModConstructor( Tk.Frame ):
 
 			# Clear the code changes list and re-add them from the GUI modules
 			for codeChangeModule in codeChangesListFrame.winfo_children():
-				self.updateModule( versionTab, codeChangeModule )
+				self.syncModuleChanges( versionTab, codeChangeModule )
 
 		return True
 
 	def showErrors( self, event=None ):
-		self.updateInternalCodeMod()
+		self.syncAllGuiChanges()
 		
 		cmsg( self.mod.assembleErrorMessage(True), '{} Issues'.format(self.mod.name), 'left' )
 
@@ -1657,7 +1706,7 @@ class ModConstructor( Tk.Frame ):
 		ttk.Label( topRow, text='Type:' ).pack( side='left' )
 		ttk.Label( topRow, text=self.presentableType( changeType, changeType=True ), foreground='#03f' ).pack( side='left' )
 		ttk.Button( topRow, text='Remove', command=lambda: self.removeCodeChange(codeChangeModule) ).pack( side='right' )
-		updateBtn = ttk.Button( topRow, image=globalData.gui.imageBank('updateArrow'), command=lambda: self.updateModule( codeChangesListFrame.master, codeChangeModule, userActivated=True ) )
+		updateBtn = ttk.Button( topRow, image=globalData.gui.imageBank('updateArrow'), command=lambda: self.syncModuleChanges( codeChangesListFrame.master, codeChangeModule, userActivated=True ) )
 		updateBtn.pack( side='right', padx=12 )
 		ToolTip( updateBtn, 'Use this button to update the byte count of custom code, or, once an offset is given, use it to look up and set the original '
 							'hex value. For static overwrites, both an offset and custom code must be provided to get the original hex value '
@@ -1800,7 +1849,7 @@ class ModConstructor( Tk.Frame ):
 		dol = globalData.getVanillaDol()
 
 		# Get the revision for this code
-		if dol.revision:
+		if dol and dol.revision:
 			dolRevision = dol.revision
 		else: # Prompt the user for it
 			revisionWindow = RevisionPromptWindow( labelMessage='Choose the region and game version that this code is for.', regionSuggestion='NTSC', versionSuggestion='02' )
@@ -1810,7 +1859,7 @@ class ModConstructor( Tk.Frame ):
 
 		# Parse the gecko code input and create code change modules for the changes
 		parser = CodeLibraryParser()
-		title, newAuthors, description, codeChanges = parser.parseGeckoCode( entryWindow.entryText.splitlines(), dol )
+		title, newAuthors, description, codeChanges = parser.parseGeckoCode( entryWindow.entryText.splitlines() )
 
 		if not codeChanges:
 			return
@@ -1825,12 +1874,13 @@ class ModConstructor( Tk.Frame ):
 			self.descScrolledText.insert( 'end', description )
 
 		# Add any authors not already added
-		currentAuthors = [ name.strip() for name in self.getInput( self.authorsEntry ).split(',') if name != '' ]
-		for name in newAuthors.split( ',' ):
-			if name.strip() not in currentAuthors:
-				currentAuthors.append( name.strip() )
-		self.authorsEntry.delete( 0, 'end' )
-		self.authorsEntry.insert( 'end', ', '.join(currentAuthors) )
+		if newAuthors:
+			currentAuthors = [ name.strip() for name in self.getInput( self.authorsEntry ).split(',') if name != '' ]
+			for name in newAuthors.split( ',' ):
+				if name and name.strip() not in currentAuthors:
+					currentAuthors.append( name.strip() )
+			self.authorsEntry.delete( 0, 'end' )
+			self.authorsEntry.insert( 'end', ', '.join(currentAuthors) )
 
 		# Add new code change modules
 		for changeType, address, customCodeLines in codeChanges:
@@ -1860,7 +1910,10 @@ class ModConstructor( Tk.Frame ):
 			if codeChangeModule['bg'] != 'SystemButtonFace': return codeChangeModule
 		else: return None
 
-	def clearNewHexFieldContainer( self, newHexFieldContainer ): # Ensures all newHex fields are detached from the GUI.
+	def clearNewHexFieldContainer( self, newHexFieldContainer ):
+		
+		""" Ensures all newHex fields are detached from the GUI. """
+
 		for widget in newHexFieldContainer.winfo_children():
 			if widget.winfo_manager(): widget.pack_forget()
 
@@ -1897,10 +1950,10 @@ class ModConstructor( Tk.Frame ):
 		if len( newTitle ) > 40: newTitle = newTitle[:40].rstrip() + '...'
 		globalData.gui.codeConstructionTab.tab( self, text=newTitle )
 
-	def updateModule( self, versionTab, codeChangeModule, userActivated=False ):
+	def syncModuleChanges( self, versionTab, codeChangeModule, userActivated=False ):
 
-		""" Uses values from the GUI to update the internal CodeChange module,
-			and updates the 'original hex' code and this module's code length display. """
+		""" Updates the internal CodeMod object (self.mod) with values from the GUI for just this 
+			codeChange module, and updates the 'original hex' code and this module's code length display. """
 
 		changeType = codeChangeModule.codeChange.type
 
@@ -1940,62 +1993,33 @@ class ModConstructor( Tk.Frame ):
 		if newError:
 			self.mod.errors.append( newError )
 
+		# If this mod has errors, show the warnings button if it's not present (or remove it if this mod is OK)
 		if self.mod.parsingError or self.mod.assemblyError or self.mod.errors:
 			if not self.errorsButton:
 				self.addErrorsButton()
 		elif self.errorsButton:
 			self.errorsButton.destroy()
 
-	def _getRequiredStandaloneFunctionNames( self ):
-		
-		""" Gets the names of all standalone functions this mod requires. """
-
-		if not self.revisionsNotebook or not self.revisionsNotebook.tabs(): # Latter check is a failsafe; not expected
-			return [], []
-
-		functionNames = set()
-		missingFunctions = set()
-
-		# Iterate over each game revision
-		for windowName in self.revisionsNotebook.tabs()[:-1]: # Ignores versionChangerTab.
-			versionTab = globalData.gui.root.nametowidget( windowName )
-			codeChangesListFrame = versionTab.winfo_children()[0].interior
-
-			# Iterate the codeChanges for this game version
-			for codeChangeModule in codeChangesListFrame.winfo_children():
-				# Get the code for this code change, and pre-process it
-				newHex = self.getInput( codeChangeModule.newHexField )
-				preProcessedCustomCode = customCodeProcessor.preAssembleRawCode( newHex, self.mod.includePaths )[1]
-
-				functionNames, missingFunctions = parseCodeForStandalones( preProcessedCustomCode, functionNames, missingFunctions )
-
-				# If the current code change module is a standalone function, make sure it's not in the set of "missing" SFs
-				if codeChangeModule.codeChange.type == 'standalone' and missingFunctions:
-					thisFunctionName = self.getInput( codeChangeModule.offset )
-					missingFunctions.remove( thisFunctionName )
-
-		return list( functionNames ), list( missingFunctions ) # functionNames will also include those that are missing
-
 	def saveModToLibraryAs( self ):
 
-		""" Saves a mod to a new location. Wrapper for the saveModToLibrary method. """
+		""" Saves this mod to a new location. Wrapper for the saveModToLibrary method. """
 
 		# Remember the original values for save location (in case they need to be restored), and then clear them
-		originalSourceFile = self.mod.sourceFile
+		originalSourceFile = self.mod.path
 		originalFileIndex = self.mod.fileIndex
 		originalMajorChanges = self.undoableChanges
 
 		# Clear the save location properties for this mod. This forces the save function to default to creating a new file
-		self.mod.sourceFile = ''
+		self.mod.path = ''
 		self.mod.fileIndex = -1
 		self.undoableChanges = True
 
 		# Attempt to save the mod
 		saveSuccedded = self.saveModToLibrary()
 
-		# If the save failed, restore the previous save location & status
+		# If the save was canceled or failed, restore the previous save location & status
 		if not saveSuccedded:
-			self.mod.sourceFile = originalSourceFile
+			self.mod.path = originalSourceFile
 			self.mod.fileIndex = originalFileIndex
 			self.undoableChanges = originalMajorChanges
 
@@ -2006,17 +2030,18 @@ class ModConstructor( Tk.Frame ):
 			self.saveStatusLabel['foreground'] = '#333' # Shade of gray
 			return
 
+		# Update pending undo history changes, sync the internal mod object with values from the GUI, and build the mod string
+		self.syncAllGuiChanges()
+		modString = self.mod.buildModString()
 
-		modString = self.mod.buildModString() # This will also immediately update any pending undo history changes
-
-		if not modString: # Failsafe. Assumes the method above will report any possible errors
+		if not modString: # Failsafe. The method above should report any errors
 			self.updateSaveStatus( True, 'Unable to Save' )
 			return False
 
 		saveSuccessful = False
 
 		# Prompt for a file to save to if no source file is defined. (Means this was newly created in the GUI, or this is a 'SaveAs' operation)
-		if not self.mod.sourceFile:
+		if not self.mod.path:
 			targetFile = tkFileDialog.askopenfilename(
 				title="Choose the file you'd like to save the mod to (it will be appended to the end).",
 				initialdir=globalData.getModsFolderPath(),
@@ -2027,36 +2052,13 @@ class ModConstructor( Tk.Frame ):
 				self.updateSaveStatus( True, 'Operation Canceled' )
 				return False
 
-			# Append this mod to the end of the target Mod Library text file (could be a new file, or an existing one).
-			try:
-				#if os.path.exists( targetFile ):
-				# Set this mod's save location so that subsequent saves will automatically go to this same place, and check if a separator is needed.
-				self.mod.sourceFile = targetFile
-				with open( targetFile, 'r') as modFile:
-					fileContents = modFile.read()
-				if fileContents:
-					self.mod.fileIndex = len( fileContents.split( '-==-' ) )
-					modString = '\n\n\n\t-==-\n\n' + modString # Prepends a separator to this mod.
-				else: self.mod.fileIndex = 0
-
-				# Save the mod to the file.
-				with open( targetFile, 'a' ) as libraryFile:
-					libraryFile.write( modString )
-				saveSuccessful = True
-			except Exception as err:
-				print( 'Unable to save the mod to the library file:' )
-				print( err )
-
-			# Rebuild the include paths list, using this new file for one of the paths
-			modsFolderIncludePath = os.path.join( globalData.getModsFolderPath(), '.include' )
-			rootFolderIncludePath = os.path.join( globalData.scriptHomeFolder, '.include' )
-			self.mod.includePaths = [ os.path.dirname(targetFile), modsFolderIncludePath, rootFolderIncludePath ]
+			saveSuccessful = self.saveInMcmFormat( targetFile )
 
 		else: # A source file is already defined.
 			if self.mod.fileIndex == -1:
 				msg( "The index (file position) for this mod could not be determined. Try using 'Save As' to save this mod to the end of a file." )
 			else:
-				targetFile = self.mod.sourceFile
+				targetFile = self.mod.path
 
 				# Make sure the target file can be found, then replace the mod within it with the new version.
 				if not os.path.exists( targetFile ):
@@ -2128,13 +2130,15 @@ class ModConstructor( Tk.Frame ):
 
 		""" Collects information on this mod, and shows it to the user in a pop-up text window. """ # todo: switch to joining list of strings for efficiency
 
+		self.syncAllGuiChanges()
+
 		# Assemble the header text
-		analysisText = 'Info for "' + self.getInput( self.titleEntry ) + '"'
+		analysisText = 'Info for "' + self.mod.name + '"'
 		analysisText += '\nProgram Classification: ' + self.mod.type
-		if os.path.isdir( self.mod.sourceFile ):
-			analysisText += '\nSource Folder: ' + self.mod.sourceFile
-		elif os.path.exists( self.mod.sourceFile ):
-			analysisText += '\nSource File: ' + self.mod.sourceFile
+		if os.path.isdir( self.mod.path ):
+			analysisText += '\nSource Folder: ' + self.mod.path
+		elif os.path.exists( self.mod.path ):
+			analysisText += '\nSource File: ' + self.mod.path
 			analysisText += '\nPosition in file: ' + str( self.mod.fileIndex )
 		else:
 			analysisText += '\nSource: Unknown! (The source path could not be found)'
@@ -2156,28 +2160,30 @@ class ModConstructor( Tk.Frame ):
 				# Count the number of changes for each change type, and get the standalone functions required
 				for change in codeChangeModules:
 					changeType = change.codeChange.type
-					if changeType not in changeTypeTotals:
+					if change.codeChange.offset.replace( '0x', '' ) == '':
+						continue
+					elif changeType not in changeTypeTotals:
 						changeTypeTotals[changeType] = 1
 					else: changeTypeTotals[changeType] += 1
 		
 		# Construct strings for what code change types are present, and their counts
 		analysisText += '\nCode changes available for ' + grammarfyList( availability ) + '\n\nCode Changes (across all game versions):'
-		for changeType in changeTypeTotals:
-			analysisText += '\n - ' + self.presentableType( changeType ) + 's: ' + str( changeTypeTotals[changeType] )
+		for changeType, count in changeTypeTotals.items():
+			analysisText += '\n - ' + self.presentableType( changeType ) + 's: ' + str( count )
 
 		# Check for required SFs
-		requiredStandaloneFunctions, missingFunctions = self._getRequiredStandaloneFunctionNames()
+		requiredStandaloneFunctions, missingFunctions = self.mod.getRequiredStandaloneFunctionNames()
 		if not requiredStandaloneFunctions: analysisText += '\n\nNo Standalone Functions required.'
 		else:
 			analysisText += '\n\nRequired Standalone Functions:\n' + '\n'.join( requiredStandaloneFunctions )
 
-			if missingFunctions: 
+			if missingFunctions:
 				analysisText += '\n\nThese functions are required, but are not packaged with this mod:\n' + '\n'.join( missingFunctions )
 
-		analysisText += '\n\n\tInclude Paths:\n' + '\n'.join( self.mod.includePaths )
+		analysisText += '\n\n\tInclude Paths for assembly:\n' + '\n'.join( self.mod.includePaths )
 
 		# Present the analysis to the user in a new window
-		cmsg( analysisText, 'Info for "' + self.getInput( self.titleEntry ) + '"', 'left' )
+		cmsg( analysisText, 'Info for "' + self.mod.name + '"', 'left' )
 
 	def switchOffsetDisplayType( self ):
 
@@ -2237,9 +2243,13 @@ class ModConstructor( Tk.Frame ):
 
 	def closeMod( self ):
 		# If there are unsaved changes, propt whether the user really wants to close.
-		if self.saveStatusLabel['foreground'] == '#a34343':
-			sureToClose = tkMessageBox.askyesno( 'Unsaved Changes', "It looks like this mod may have some changes that haven't been saved to your library. Are you sure you want to close it?" )
+		#if self.saveStatusLabel['foreground'] == '#a34343':
+		if self.changesArePending():
+			sureToClose = tkMessageBox.askyesno( 'Unsaved Changes', "It looks like this mod has some changes that haven't been saved. Are you sure you want to discard changes and close it?" )
 			if not sureToClose: return
+
+		# Restore the backup copy
+		self.mod = self.backup
 
 		self.destroy()
 
@@ -2322,7 +2332,7 @@ class ModConstructor( Tk.Frame ):
 		# 	while not hasattr( codeChangeModule, 'codeChange' ):
 		# 		codeChangeModule = codeChangeModule.master
 		# 	versionTab = globalData.gui.root.nametowidget( self.revisionsNotebook.select() )
-		# 	self.updateModule( versionTab, codeChangeModule )
+		# 	self.syncModuleChanges( versionTab, codeChangeModule )
 
 		# # If this is the mod title, also update the name of this tab
 		# elif widget == self.titleEntry:
