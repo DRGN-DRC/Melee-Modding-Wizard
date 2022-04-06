@@ -2032,11 +2032,11 @@ class CodeConstructor( Tk.Frame ):
 
 		# Update pending undo history changes, sync the internal mod object with values from the GUI, and build the mod string
 		self.syncAllGuiChanges()
-		modString = self.mod.buildModString()
+		# modString = self.mod.buildModString()
 
-		if not modString: # Failsafe. The method above should report any errors
-			self.updateSaveStatus( True, 'Unable to Save' )
-			return False
+		# if not modString: # Failsafe. The method above should report any errors
+		# 	self.updateSaveStatus( True, 'Unable to Save' )
+		# 	return False
 
 		saveSuccessful = False
 
@@ -2064,7 +2064,7 @@ class CodeConstructor( Tk.Frame ):
 				if not os.path.exists( targetFile ):
 					msg( 'Unable to locate the Library file:\n\n' + targetFile )
 
-				else: 
+				else:
 					try:
 						# Pull the mods from their library file, and separate them.
 						with open( targetFile, 'r') as modFile:
@@ -2081,50 +2081,50 @@ class CodeConstructor( Tk.Frame ):
 						saveSuccessful = True
 					except: pass
 
-		if saveSuccessful:
-			# Iterate over all code change modules to update their save state history (saved contents updated to match current undo history index)
-			for windowName in self.revisionsNotebook.tabs()[:-1]: # Ignores versionChangerTab.
-				versionTab = globalData.gui.root.nametowidget( windowName )
-				codeChangesListFrame = versionTab.winfo_children()[0].interior
+		if not saveSuccessful:
+			self.updateSaveStatus( True, 'Unable to Save' )
+			return False
 
-				# Iterate the codeChanges for this game version
-				for codeChangeModule in codeChangesListFrame.winfo_children():
-					if getattr( codeChangeModule.newHexField, 'undoStates', None ): # May return an empty list, in which case the contents haven't been modified
-						# Update the 'New Hex' (i.e. new asm/hex code) field
-						codeChangeModule.newHexField.savedContents = codeChangeModule.newHexField.get( '1.0', 'end' ).strip().encode( 'utf-8' )
+		# Iterate over all code change modules to update their save state history (saved contents updated to match current undo history index)
+		for windowName in self.revisionsNotebook.tabs()[:-1]: # Ignores versionChangerTab.
+			versionTab = globalData.gui.root.nametowidget( windowName )
+			codeChangesListFrame = versionTab.winfo_children()[0].interior
 
-					# Get module label and Entry input field widgets
-					innerFrame = codeChangeModule.winfo_children()[0]
-					bottomFrameChildren = innerFrame.winfo_children()[1].winfo_children()
+			# Iterate the codeChanges for this game version
+			for codeChangeModule in codeChangesListFrame.winfo_children():
+				if getattr( codeChangeModule.newHexField, 'undoStates', None ): # May return an empty list, in which case the contents haven't been modified
+					# Update the 'New Hex' (i.e. new asm/hex code) field
+					codeChangeModule.newHexField.savedContents = codeChangeModule.newHexField.get( '1.0', 'end' ).strip().encode( 'utf-8' )
 
-					# Update those widgets (which have undo states) with changes
-					for widget in bottomFrameChildren:
-						if getattr( widget, 'undoStates', False ):
-							widget.savedContents = widget.get().strip().encode( 'utf-8' )
+				# Get module label and Entry input field widgets
+				innerFrame = codeChangeModule.winfo_children()[0]
+				bottomFrameChildren = innerFrame.winfo_children()[1].winfo_children()
 
-			# Update the saved contents for the standard input fields
-			for widget in ( self.titleEntry, self.authorsEntry, self.descScrolledText ):
-				if getattr( widget, 'undoStates', None ): # May return an empty list, in which case the contents haven't been modified
-					if widget.winfo_class() == 'Text': # Text and ScrolledText widgets
-						widget.savedContents = widget.get( '1.0', 'end' ).strip().encode( 'utf-8' )
-					else: # Pulling from an Entry widget
+				# Update those widgets (which have undo states) with changes
+				for widget in bottomFrameChildren:
+					if getattr( widget, 'undoStates', False ):
 						widget.savedContents = widget.get().strip().encode( 'utf-8' )
 
-			# Update the flag used for tracking other undoable changes
-			self.undoableChanges = False
+		# Update the saved contents for title/authors/description
+		for widget in ( self.titleEntry, self.authorsEntry, self.descScrolledText ):
+			if getattr( widget, 'undoStates', None ): # May return an empty list, in which case the contents haven't been modified
+				if widget.winfo_class() == 'Text': # Text and ScrolledText widgets
+					widget.savedContents = widget.get( '1.0', 'end' ).strip().encode( 'utf-8' )
+				else: # Pulling from an Entry widget
+					widget.savedContents = widget.get().strip().encode( 'utf-8' )
 
-			# Give an audio cue and update the GUI
-			globalData.gui.playSound( 'menuSelect' )
-			self.updateSaveStatus( False, 'Saved To Library' )
+		# Update the flag used for tracking other undoable changes
+		self.undoableChanges = False
 
-			# Reload the library to get the new or updated codes.
-			#scanModsLibrary( playAudio=False )
-			globalData.gui.codeManagerTab.scanCodeLibrary( playAudio=False )
+		# Give an audio cue and update the GUI
+		globalData.gui.playSound( 'menuSelect' )
+		self.updateSaveStatus( False, 'Saved To Library' )
 
-		else:
-			self.updateSaveStatus( True, 'Unable to Save' )
+		# Reload the library to get the new or updated codes.
+		#scanModsLibrary( playAudio=False )
+		#globalData.gui.codeManagerTab.scanCodeLibrary( playAudio=False )
 		
-		return saveSuccessful
+		return True
 
 	def analyzeMod( self ):
 
