@@ -1059,12 +1059,12 @@ class Dol( FileBase ):
 
 			# Disable mods with problems
 			elif mod.assemblyError or mod.parsingError:
-				mod.setState( 'unavailable' )
+				mod.state = 'unavailable'
 				continue
 
 			# Disable mods that are not applicable to the currently loaded DOL
 			elif self.revision not in mod.data:
-				mod.setState( 'unavailable' )
+				mod.state = 'unavailable'
 				continue
 
 			# if mod.category == 'TEST':
@@ -1095,7 +1095,6 @@ class Dol( FileBase ):
 						# msg( 'A problem was detected with the mod "' + mod.name + '"; an offset for one of its code changes (' + codeChange.offset + ') could '
 						# 	 "not be parsed or processed. If you're sure it's written correctly, it appears to fall out of range of this game's DOL." )
 						msg( userMessage )
-						#mod.setState( 'unavailable' )
 						mod.parsingError = True
 						mod.stateDesc = 'Parsing error; bad offset: {}'.format( codeChange.offset )
 						included = False
@@ -1238,17 +1237,17 @@ class Dol( FileBase ):
 							break
 
 			if included:
-				mod.setState( 'enabled' )
+				mod.state = 'enabled'
 				standaloneFunctionsInstalled.update( requiredStandaloneFunctions ) # This is a set, so only new names are added.
 				#addToInstallationSummary( mod.name, mod.type, summaryReport )
 
 			elif globalData.checkSetting( 'alwaysEnableCrashReports' ) and mod.name == "Enable OSReport Print on Crash":
 				# Queue this to be installed
 				if mod.state != 'pendingEnable':
-					mod.setState( 'pendingEnable' )
+					mod.state = 'pendingEnable'
 
 			elif mod.state != 'unavailable': # Might have been set to this in the loop above
-				mod.setState( 'disabled' )
+				mod.state = 'disabled'
 
 		# Finished checking for mods (end of allMods loop).
 		toc = time.clock()
@@ -1286,10 +1285,10 @@ class Dol( FileBase ):
 		for mod, functionNames in functionOnlyModules:
 			for name in functionNames:
 				if name in standaloneFunctionsInstalled: # This module contains a used function!
-					mod.setState( 'enabled' ) # Already automatically added to the Standalone Functions table in the Summary Tab
+					mod.state = 'enabled' # Already automatically added to the Standalone Functions table in the Summary Tab
 					break # only takes one to make it count
 			else: # loop didn't break; no functions in this mod used
-				mod.setState( 'disabled' )
+				mod.state = 'disabled'
 
 		# print 'all SFs:', len(globalData.standaloneFunctions.keys()), globalData.standaloneFunctions.keys()
 		# print 'used:', len(standaloneFunctionsInstalled), standaloneFunctionsInstalled

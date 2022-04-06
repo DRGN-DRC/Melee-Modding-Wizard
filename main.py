@@ -757,7 +757,7 @@ class MainMenuCanvas( Tk.Canvas ):
 		def noScroll( arg1, arg2 ): return
 		self.yview_scroll = noScroll
 
-		self.testSet = '' # For testing. Set to 'ABGxx' to test a specific character image, or to '' for no testing
+		self.testSet = 'ABG01' # For testing. Set to 'ABGxx' to test a specific character image, or to '' for no testing
 
 		self.mainMenuFolder = os.path.join( globalData.paths['imagesFolder'], 'Main Menu' )
 		self.mainGui = mainGui
@@ -1275,7 +1275,7 @@ class MainMenuCanvas( Tk.Canvas ):
 	def showAnimations( self ):
 		return self.mainMenuSelected() and not globalData.checkSetting( 'disableMainMenuAnimations' )
 
-	def removeOptions( self, showAnimations ):
+	def removeOptions( self, showAnimations=True ):
 
 		# Slide-left existing options; skip the animation if this tab isn't visible
 		if showAnimations:
@@ -1288,8 +1288,11 @@ class MainMenuCanvas( Tk.Canvas ):
 			# Check if the options have been fully hidden
 			for id in self.find_withtag( 'menuOptionsBg' ):
 				if self.bbox( id )[2] > 0:
-					self.after( 16, self.displayDiscOptions )
+					# One of the options is still visible; need another iteration
+					self.after( 16, self.removeOptions )
 					return
+
+		print( 'deleting' )
 
 		# Remove existing options
 		self.delete( 'menuOptions' )
@@ -1553,8 +1556,8 @@ class MainGui( Tk.Frame, object ):
 		mainMenuHeight = canvasFrame.winfo_height()
 
 		# Initialize and add the Main Menu
-		# self.mainMenu = MainMenuCanvas( self, canvasFrame, mainMenuWidth, mainMenuHeight )
-		# self.mainMenu.place( relx=0.5, rely=0.5, anchor='center' )
+		self.mainMenu = MainMenuCanvas( self, canvasFrame, mainMenuWidth, mainMenuHeight )
+		self.mainMenu.place( relx=0.5, rely=0.5, anchor='center' )
 
 	# def updateProgressDisplay( self, event ):
 
@@ -1690,38 +1693,48 @@ class MainGui( Tk.Frame, object ):
 		# if wf:
 		# 	wf.close()
 
+		p = None
+		wf = None
+		stream = None
+
 		""" Helper (thread-target) function for playSound(). Runs in a separate 
 			thread to prevent audio playback from blocking anything else. """
 
 		try:
-			# Instantiate PyAudio (1)
+			# Instantiate PyAudio
 			p = pyaudio.PyAudio()
 
 			wf = wave.open( soundFilePath, 'rb' )
 
-			# Open an audio data stream (2)
+			# Open an audio data stream
 			stream = p.open( format=p.get_format_from_width(wf.getsampwidth()),
 							channels=wf.getnchannels(),
 							rate=wf.getframerate(),
 							output=True )
 
-			# Continuously read/write data from the file to the stream until there is no data left (3)
+			# Continuously read/write data from the file to the stream until there is no data left
 			data = wf.readframes( 1024 )
 			while len( data ) > 0:
 				stream.write( data )
 				data = wf.readframes( 1024 )
 
-			# Stop the stream (4)
-			stream.stop_stream()
-			stream.close()
-
-			# Close PyAudio (5)
-			p.terminate()
-
 		except Exception as err:
 			soundFileName = os.path.basename( soundFilePath )
 			print( 'Unable to play "{}" sound.'.format(soundFileName) )
 			print( err )
+
+		# Stop the stream
+		if stream:
+			stream.stop_stream()
+			stream.close()
+
+		# Close PyAudio
+		if p:
+			p.terminate()
+		
+		# Close the wav file
+		if wf:
+			wf.close()
 
 	def updateMenuBarMenus( self, event ):
 
@@ -2801,7 +2814,7 @@ if __name__ == '__main__':
 		# Load the program settings and initialize the GUI
 		globalData.gui = gui = MainGui()
 		#gui.audioEngine = AudioEngine()
-		gui.fileMenu.browseCodeLibrary()
+		#gui.fileMenu.browseCodeLibrary()
 
 		# Process any file provided on start-up (drag-and-dropped onto the program's .exe file, or provided via command line)
 		if args.filePath:
