@@ -5,7 +5,7 @@
 			"authors": [ "UnclePunch" ],
 			"description": [ "Configures the game to boot strait into a match or menu, with configurable settings." ],
 			"category": "Asset Test",
-			"webLinks": [ "https://smashboards.com/threads/boot-to-custom-match.474651/", "" ],
+			"webLinks": [ ["https://smashboards.com/threads/boot-to-custom-match.474651/", ""] ],
 
 			"configurations": {
 				"Timer": {

@@ -1,6 +1,6 @@
 #!/usr/bin/env python
-# -*- coding: utf-8 -*- 
 # This file's encoding: UTF-8
+# This module allows access to files given (drag-and-dropped) onto the running program GUI
 # Source: https://stackoverflow.com/questions/14267900/python-drag-and-drop-explorer-files-to-tkinter-entry-widget
 # Modified by DRGN of Smashboards (Daniel R. Cappel)
 # Version 2.1
@@ -22,7 +22,7 @@ def _load_tkdnd(master):
         master.tk.eval('package require tkdnd')
         master._tkdnd_loaded = True
     else:
-        print 'Invalid tkdnd library path!:', tkdndlib
+        print( 'Invalid tkdnd library path!:', tkdndlib )
 
 
 class TkDnD(object):

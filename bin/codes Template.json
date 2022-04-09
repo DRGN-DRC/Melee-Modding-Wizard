@@ -15,6 +15,12 @@
 				],
 				"build": [
 					{
+						"type": "replace",
+						"address": "80001234",
+						"value": "3800000E",
+						"annotation": "An example 4-byte static overwrite"
+					},
+					{
 						"type": "inject",
 						"address": "80001234",
 						"sourceFile": "InjectCode.asm",

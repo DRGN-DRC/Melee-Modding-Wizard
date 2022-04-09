@@ -192,7 +192,7 @@ class CodeManagerTab( ttk.Frame ):
 		foundMcmFormatting = False
 		#print( 'creating modules' )
 
-		tic = time.clock()
+		# tic = time.clock()
 
 		for mod in modsPanel.mods:
 			module = ModModule( modsPanel.interior, mod )
@@ -202,8 +202,8 @@ class CodeManagerTab( ttk.Frame ):
 			if not mod.isAmfs:
 				foundMcmFormatting = True
 				
-		toc = time.clock()
-		print( 'modModule creation time:', toc-tic)
+		# toc = time.clock()
+		# print( 'modModule creation time:', toc-tic)
 
 		#modsPanel.event_generate( '<Configure>' )
 
@@ -268,8 +268,8 @@ class CodeManagerTab( ttk.Frame ):
 		# scrollingFrameChildren = scrollingFrame.interior.winfo_children()
 		modules = self.getModModules( currentTab )
 
-		print( '--' )
-		print( 'calling on ', currentTab.master.tab( currentTab, option='text' ) )
+		# print( '--' )
+		# print( 'calling on ', currentTab.master.tab( currentTab, option='text' ) )
 
 		# Count the mods enabled or selected for installation
 		thisTabSelected = 0
@@ -277,8 +277,8 @@ class CodeManagerTab( ttk.Frame ):
 			if modModule.mod.state == 'enabled' or modModule.mod.state == 'pendingEnable':
 				thisTabSelected += 1
 
-			if 'Flame Cancel' in modModule.mod.name:
-				print( 'from this tab:', modModule.mod.auth )
+			# if 'Flame Cancel' in modModule.mod.name:
+			# 	print( 'from this tab:', modModule.mod.auth )
 
 		# Check total selected mods
 		librarySelected = 0
@@ -286,8 +286,8 @@ class CodeManagerTab( ttk.Frame ):
 			if mod.state == 'enabled' or mod.state == 'pendingEnable':
 				librarySelected += 1
 
-			if 'Flame Cancel' in mod.name:
-				print( 'from globals:', mod.auth )
+			# if 'Flame Cancel' in mod.name:
+			# 	print( 'from globals:', mod.auth )
 
 		self.installTotalLabel.set( 'Enabled on this tab:   {} / {}\nEnabled in library:   {} / {}'.format(thisTabSelected, len(modules), librarySelected, len(globalData.codeMods)) )
 
@@ -1293,20 +1293,25 @@ class ModModule( Tk.Frame, object ):
 	def configureMod( self, event ):
 		
 		# Check for non-hidden configuration options
-		configurations = []
-		for optionName, optionDict in self.mod.configurations.items():
-			if 'hidden' in optionDict:
-				continue
-			else:
-				configurations.append( (optionName, optionDict) )
+		# configs = []
+		# for optionName, optionDict in self.mod.configurations.items():
+		# 	if 'hidden' in optionDict:
+		# 		continue
+		# 	else:
+		# 		configs.append( (optionName, optionDict) )
 
 		# Just give a message to the user and exit if there are no public configurations
-		if not configurations:
+		#if not configs:
+
+		for option in self.mod.configurations.values():
+			if 'hidden' not in option:
+				break
+		else: # The above loop didn't break; all options are hidden
 			msg( "All of this mod's configuration options are hidden."
 				 "\nYou'll need to view the mod's source to edit or unhide them.", 'All Options are Hidden' )
 			return
 
-		CodeConfigWindow( self.mod, configurations )
+		CodeConfigWindow( self.mod )
 
 
 class CodeConstructor( Tk.Frame ):
@@ -1403,6 +1408,10 @@ class CodeConstructor( Tk.Frame ):
 					#changeType, customCodeLength, offset, originalCode, customCode, _ = codeChange
 					self.addCodeChangeModule( change.type, change, revision )
 
+		# Add errors notice button
+		if self.mod.parsingError or self.mod.assemblyError or self.mod.errors:
+			self.addErrorsButton()
+
 	def addWebLink( self, origUrl, comments, modChanged=True ):
 
 		urlObj = self.mod.validateWebLink( origUrl )
@@ -1448,10 +1457,6 @@ class CodeConstructor( Tk.Frame ):
 		else: buttonText = 'Display DOL Offsets'
 		self.offsetViewBtn = ttk.Button( self.buttonsFrame, text=buttonText, command=self.switchOffsetDisplayType )
 		self.offsetViewBtn.pack( side='right', padx=6, ipadx=6 )
-
-		# Add errors notice button
-		if self.mod.parsingError or self.mod.assemblyError or self.mod.errors:
-			self.addErrorsButton()
 
 		self.revisionsNotebook = ttk.Notebook( self )
 		self.revisionsNotebook.pack( fill='both', expand=1, anchor='n', padx=12, pady=6 )
@@ -2004,13 +2009,24 @@ class CodeConstructor( Tk.Frame ):
 
 		""" Saves this mod to a new location. Wrapper for the saveModToLibrary method. """
 
-		# Remember the original values for save location (in case they need to be restored), and then clear them
+		# Update pending undo history changes and sync the internal mod object with values from the GUI
+		self.syncAllGuiChanges()
+
+		# Determine how and where to save the mod
+		userPrompt = PromptHowToSave( self.mod )
+		if not userPrompt.targetPath: return # User canceled
+
+		# Remember the original values for save location (in case they need to be restored)
+		originalFormat = self.mod.isAmfs
+		originalMiniBool = self.mod.isMini
 		originalSourceFile = self.mod.path
 		originalFileIndex = self.mod.fileIndex
 		originalMajorChanges = self.undoableChanges
-
-		# Clear the save location properties for this mod. This forces the save function to default to creating a new file
-		self.mod.path = ''
+		
+		# Clear the save location properties for this mod. This informs the save function where/how to save the mod
+		self.mod.isAmfs = userPrompt.storeAsAmfs
+		self.mod.isMini = userPrompt.storeMini
+		self.mod.path = userPrompt.targetPath
 		self.mod.fileIndex = -1
 		self.undoableChanges = True
 
@@ -2019,6 +2035,8 @@ class CodeConstructor( Tk.Frame ):
 
 		# If the save was canceled or failed, restore the previous save location & status
 		if not saveSuccedded:
+			self.mod.isAmfs = originalFormat
+			self.mod.isMini = originalMiniBool
 			self.mod.path = originalSourceFile
 			self.mod.fileIndex = originalFileIndex
 			self.undoableChanges = originalMajorChanges
@@ -2029,57 +2047,73 @@ class CodeConstructor( Tk.Frame ):
 			self.updateSaveStatus( False, 'No Changes to be Saved' )
 			self.saveStatusLabel['foreground'] = '#333' # Shade of gray
 			return
-
-		# Update pending undo history changes, sync the internal mod object with values from the GUI, and build the mod string
-		self.syncAllGuiChanges()
+		
 		# modString = self.mod.buildModString()
 
 		# if not modString: # Failsafe. The method above should report any errors
 		# 	self.updateSaveStatus( True, 'Unable to Save' )
 		# 	return False
 
-		saveSuccessful = False
+		# saveSuccessful = False
 
-		# Prompt for a file to save to if no source file is defined. (Means this was newly created in the GUI, or this is a 'SaveAs' operation)
-		if not self.mod.path:
-			targetFile = tkFileDialog.askopenfilename(
-				title="Choose the file you'd like to save the mod to (it will be appended to the end).",
-				initialdir=globalData.getModsFolderPath(),
-				filetypes=[ ('Text files', '*.txt'), ('all files', '*.*') ]
-				)
+		# # Prompt for a file to save to if no source file is defined. (Means this was newly created in the GUI, or this is a 'SaveAs' operation)
+		# if not self.mod.path:
+		# 	targetFile = tkFileDialog.askopenfilename(
+		# 		title="Choose the file you'd like to save the mod to (it will be appended to the end).",
+		# 		initialdir=globalData.getModsFolderPath(),
+		# 		filetypes=[ ('Text files', '*.txt'), ('all files', '*.*') ]
+		# 		)
 
-			if not targetFile:
-				self.updateSaveStatus( True, 'Operation Canceled' )
-				return False
+		# 	if not targetFile:
+		# 		self.updateSaveStatus( True, 'Operation Canceled' )
+		# 		return False
 
-			saveSuccessful = self.saveInMcmFormat( targetFile )
+		# 	saveSuccessful = self.saveInMcmFormat( targetFile )
 
-		else: # A source file is already defined.
-			if self.mod.fileIndex == -1:
-				msg( "The index (file position) for this mod could not be determined. Try using 'Save As' to save this mod to the end of a file." )
-			else:
-				targetFile = self.mod.path
+		# else: # A source file is already defined.
+		# 	if self.mod.fileIndex == -1:
+		# 		msg( "The index (file position) for this mod could not be determined. Try using 'Save As' to save this mod to the end of a file." )
+		# 	else:
+		# 		targetFile = self.mod.path
 
-				# Make sure the target file can be found, then replace the mod within it with the new version.
-				if not os.path.exists( targetFile ):
-					msg( 'Unable to locate the Library file:\n\n' + targetFile )
+		# 		# Make sure the target file can be found, then replace the mod within it with the new version.
+		# 		if not os.path.exists( targetFile ):
+		# 			msg( 'Unable to locate the Library file:\n\n' + targetFile )
 
-				else:
-					try:
-						# Pull the mods from their library file, and separate them.
-						with open( targetFile, 'r') as modFile:
-							mods = modFile.read().split( '-==-' )
+		# 		else:
+					# try:
+					# 	# Pull the mods from their library file, and separate them.
+					# 	with open( targetFile, 'r') as modFile:
+					# 		mods = modFile.read().split( '-==-' )
 
-						# Replace the old mod, reformat the space in-between mods, and recombine the file's text.
-						mods[self.mod.fileIndex] = modString
-						mods = [code.strip() for code in mods] # Removes the extra whitespace around mod strings.
-						completedFileText = '\n\n\n\t-==-\n\n\n'.join( mods )
+					# 	# Replace the old mod, reformat the space in-between mods, and recombine the file's text.
+					# 	mods[self.mod.fileIndex] = modString
+					# 	mods = [code.strip() for code in mods] # Removes the extra whitespace around mod strings.
+					# 	completedFileText = '\n\n\n\t-==-\n\n\n'.join( mods )
 
-						with open( targetFile, 'w' ) as libraryFile:
-							libraryFile.write( completedFileText )
+					# 	with open( targetFile, 'w' ) as libraryFile:
+					# 		libraryFile.write( completedFileText )
 
-						saveSuccessful = True
-					except: pass
+					# 	saveSuccessful = True
+					# except: pass
+
+		if not self.mod.path: # Need to ask how to save this mod
+			self.saveModToLibraryAs()
+			return
+
+		# Update pending undo history changes and sync the internal mod object with values from the GUI
+		self.syncAllGuiChanges()
+
+		# Perform the save in the appropriate format
+		if self.mod.isMini:
+			print( 'saving as Mini')
+			saveSuccessful = self.mod.saveAsStandaloneFile()
+		elif self.mod.isAmfs:
+			print( 'saving as AMFS')
+			saveSuccessful = self.mod.saveInAmfsFormat()
+		else:
+			print( 'saving as MCM')
+			saveSuccessful = self.mod.saveInMcmFormat()
 
 		if not saveSuccessful:
 			self.updateSaveStatus( True, 'Unable to Save' )
@@ -2468,7 +2502,7 @@ class WebLinksEditor( BasicWindow ):
 
 			# Can't clone the label, so make a new one
 			imageLabel = ttk.Label( self.window, image=destinationImage )
-			imageLabel.grid( column=0, row=row )
+			imageLabel.grid( column=0, row=row, padx=14 )
 
 			# Add a text field entry for the URL
 			urlEntry = ttk.Entry( self.window, width=70 )
@@ -2518,16 +2552,117 @@ class WebLinksEditor( BasicWindow ):
 		self.window.rowconfigure( 'all', weight=1 )
 
 
+class PromptHowToSave( BasicWindow ):
+
+	""" User interface for the Save As button on mods being worked on in the Code Construction tab. """
+
+	def __init__( self, mod ):
+		super( PromptHowToSave, self ).__init__( globalData.gui.root, 'Select a Format' )
+
+		self.mod = mod
+		self.storeAsAmfs = False
+		self.storeMini = False
+		self.targetPath = ''
+		descBoxWidth = 320
+
+		ttk.Label( self.window, text='How would you like\nto save this mod?', justify='center' ).grid( rowspan=3, column=0, row=0, sticky='nsew', padx=(18, 10) )
+
+		if self.mod.miniFormatSupported()[0]:
+			emptyWidget = Tk.Frame( self.window, relief='flat' ) # This is used as a simple workaround for the labelframe, so we can have no text label with no label gap.
+			minimalistFrame = ttk.Labelframe( self.window, labelwidget=emptyWidget, padding=(20, 4) )
+			ttk.Button( minimalistFrame, text='Minimalist', width=16, command=self.choseMini ).pack()
+			ttk.Label( minimalistFrame, wraplength=descBoxWidth-20, text='Experimental, and the most basic format. Allows for the fastest library load times, but does not support a mod description, multiple changes, revisions, or any configurations. Recommended for very simple changes.' ).pack()
+			minimalistFrame.grid( column=1, row=0, sticky='ew', pady=6, padx=8 )
+		
+		emptyWidget = Tk.Frame( self.window, relief='flat' ) # This is used as a simple workaround for the labelframe, so we can have no text label with no label gap.
+		mcmFrame = ttk.Labelframe( self.window, labelwidget=emptyWidget, padding=(20, 4) )
+		ttk.Button( mcmFrame, text='MCM Format', width=16, command=self.choseMCM ).pack()
+		ttk.Label( mcmFrame, wraplength=descBoxWidth-20, text='Standard formatting that you would see in MCM library text files. Must store custom code as either assembly (ASM) source code OR assembled hex. Custom codes stored as ASM will have slightly slower installation times.' ).pack()
+		mcmFrame.grid( column=1, row=1, sticky='ew', pady=6, padx=8 )
+
+		emptyWidget = Tk.Frame( self.window, relief='flat' ) # This is used as a simple workaround for the labelframe, so we can have no text label with no label gap.
+		amfsFrame = ttk.Labelframe( self.window, labelwidget=emptyWidget, padding=(20, 4) )
+		ttk.Button( amfsFrame, text='AMFS Format', width=16, command=self.choseAMFS ).pack()
+		ttk.Label( amfsFrame, wraplength=descBoxWidth-20, text='Advanced formatting using a folder of .asm files and a codes.json descriptor file. Stores source code as well as assembled hex code for fast installations.' ).pack()
+		amfsFrame.grid( column=1, row=2, sticky='ew', pady=6, padx=8 )
+
+		ttk.Button( self.window, text='Cancel', command=self.close ).grid( columnspan=2, column=0, row=3, ipadx=20, pady=6 )
+
+		# Pause the main GUI until this window is closed
+		self.window.grab_set()
+		globalData.gui.root.wait_window( self.window )
+
+	def choseMini( self ):
+
+		""" Prompt for a folder to save the mod to, creating a source and/or binary file. """
+		
+		# Prompt the user to choose a folder to look for textures in
+		targetFolder = tkFileDialog.askdirectory(
+			parent=self.window,
+			title="Choose where to save this mod.",
+			initialdir=globalData.getModsFolderPath()
+			)
+
+		if targetFolder:
+			newFileName = os.path.join( targetFolder, self.mod.name )
+
+			# Ask to overwrite existing files
+			if os.path.exists( newFileName ):
+				overwrite = tkMessageBox.askyesno( 'Overwrite existing files?', 'A mod by this name already exists here. Would you like to overwrite it?' )
+			else:
+				overwrite = True
+
+			if overwrite:
+				self.storeMini = True
+				self.targetPath = newFileName
+
+		self.close()
+
+	def choseMCM( self ):
+
+		""" Prompt for a text file to save the mod to, appending it to the end. """
+
+		targetFile = tkFileDialog.askopenfilename(
+			parent=self.window,
+			title="Choose the file you'd like to save the mod to (it will be appended to the end).",
+			initialdir=globalData.getModsFolderPath(),
+			filetypes=[ ('Text files', '*.txt'), ('all files', '*.*') ]
+			)
+
+		if targetFile:
+			self.targetPath = targetFile
+
+		self.close()
+
+	def choseAMFS( self ):
+
+		""" Prompt for a folder to save the mod to, creating a new folder within it for this mod. """
+		
+		# Prompt the user to choose a folder to look for textures in
+		targetFolder = tkFileDialog.askdirectory(
+			parent=self.window,
+			title="Choose where to save this mod. A new folder will be created in this destination.",
+			initialdir=globalData.getModsFolderPath()
+			)
+
+		if targetFolder:
+			self.storeAsAmfs = True
+			self.targetPath = os.path.join( targetFolder, self.mod.name )
+
+		self.close()
+
+
 class CodeConfigWindow( BasicWindow ):
 
 	""" Provides a user interface (a new window, created by clicking on a mod config buttton) 
 		for viewing or changing a mod's configuration options. """
 
-	def __init__( self, mod, configurations ):
+	def __init__( self, mod ):
 		# Found some public config options; create the configuration window
 		super( CodeConfigWindow, self ).__init__( globalData.gui.root, mod.name + ' - Configuration', resizable=True, minsize=(450, 100) )
 
 		self.mod = mod
+		self.hiddenOptions = []
 		#self.skipValidation = False
 		self.allowSliderUpdates = True
 		sepPad = 7 # Separator padding
@@ -2540,7 +2675,11 @@ class CodeConfigWindow( BasicWindow ):
 
 		# Add rows for each option to be displayed
 		row = 1
-		for optionName, optionDict in configurations:
+		for optionName, optionDict in mod.configurations.items():
+			# Filter out hidden options
+			if 'hidden' in optionDict:
+				self.hiddenOptions.append( optionName )
+				continue
 			
 			# Check the type and data width
 			optType = optionDict.get( 'type' )
@@ -2617,18 +2756,28 @@ class CodeConfigWindow( BasicWindow ):
 		self.optionsFrame.interior.columnconfigure( 0, weight=1 )
 		self.optionsFrame.interior.columnconfigure( 1, weight=2 )
 		self.optionsFrame.interior.columnconfigure( 2, weight=1 )
+
+		# Add a note about hidden options if any are present
+		if self.hiddenOptions:
+			hiddenMsg = 'Some options for this mod are hidden.\nClick here or look in the codes.json file to see them.'
+			hiddenOptsLabel = ttk.Label( self.window, text=hiddenMsg, foreground='#999' )
+			hiddenOptsLabel.grid( column=0, row=1, sticky='ew' )
+			hiddenOptsLabel.bind( '<1>', self.showHiddenOptions )
 		
 		# Add the bottom row of buttons
 		buttonsFrame = ttk.Frame( self.window )
 		ttk.Button( buttonsFrame, text='OK', command=self.confirmChanges ).grid( column=0, row=0, padx=9 )
 		ttk.Button( buttonsFrame, text='Reset to Defaults', command=self.setToDefaults ).grid( column=1, row=0, padx=9, ipadx=5 )
 		ttk.Button( buttonsFrame, text='Cancel', command=self.close ).grid( column=2, row=0, padx=9 )
-		buttonsFrame.grid( column=0, row=1, pady=10, padx=12, ipadx=12 )
+		buttonsFrame.grid( column=0, row=2, pady=10, padx=12, ipadx=12 )
 
 		# Add resize capability (should allow buttons to always be visible, and instead force resize of the optionFrame)
 		self.window.rowconfigure( 0, weight=1 )
 		self.window.rowconfigure( 1, weight=0 )
 		self.window.columnconfigure( 'all', weight=1 )
+
+	def showHiddenOptions( self, event=None ):
+		msg( 'These options are hidden: ' + grammarfyList( self.hiddenOptions ), 'Hidden Options for ' + self.mod.name )
 
 	# def getOptionWidth( self, optionType ):
 
@@ -2654,17 +2803,17 @@ class CodeConfigWindow( BasicWindow ):
 		for opt in members: # List of [name, value] or [name, value, comment]
 			name = opt[0].strip()
 			value = self.mod.parseConfigValue( optType, opt[1] )
-			options.append( '{}  |   {}'.format(value, name) )
+			options.append( '{}  ({})'.format(name, value) )
 
 			if value == initValue:
-				default = '{}  |   {}'.format(value, name)
+				default = '{}  ({})'.format(name, value)
 
 			if len( opt ) == 3 and opt[-1] != '':
 				comment = opt[2].lstrip( '# ' )
 				comments.append( '{}: {}'.format(name, comment) )
 
 		if not default:
-			default = '{}  |   Unlisted Selection!'.format( initValue )
+			default = 'Unlisted Selection!  ({})'.format( initValue )
 
 		return options, default, comments
 

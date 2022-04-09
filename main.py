@@ -53,7 +53,7 @@ from codesManager import CodeManagerTab, CodeConstructor
 from debugMenuEditor import DebugMenuEditor
 from stageManager import StageManager
 from audioManager import AudioManager, AudioEngine
-from newTkDnD.tkDnD import TkDnD 		# Access files given (drag-and-dropped) onto the running program GUI
+from newTkDnD.tkDnD import TkDnD
 
 
 class FileMenu( Tk.Menu, object ):
@@ -757,7 +757,7 @@ class MainMenuCanvas( Tk.Canvas ):
 		def noScroll( arg1, arg2 ): return
 		self.yview_scroll = noScroll
 
-		self.testSet = 'ABG01' # For testing. Set to 'ABGxx' to test a specific character image, or to '' for no testing
+		self.testSet = '' # For testing. Set to 'ABGxx' to test a specific character image, or to '' for no testing
 
 		self.mainMenuFolder = os.path.join( globalData.paths['imagesFolder'], 'Main Menu' )
 		self.mainGui = mainGui
@@ -1273,9 +1273,17 @@ class MainMenuCanvas( Tk.Canvas ):
 			return False
 
 	def showAnimations( self ):
+
+		""" Should return true if the Main Menu of the GUI is selected and the option to allow 
+			them is enabled. This avoids extra processing if the animation wouldn't be visible. """
+
 		return self.mainMenuSelected() and not globalData.checkSetting( 'disableMainMenuAnimations' )
 
-	def removeOptions( self, showAnimations=True ):
+	def removeOptions( self, showAnimations=True, callBack=None ):
+
+		""" Remove existing menu options (slide left). This is recursive until the options are fully 
+			hidden; uses the GUI mainloop to iterate animation steps rather than a loop in order 
+			to keep the GUI responsive throughout. When this is done, the callback is called. """
 
 		# Slide-left existing options; skip the animation if this tab isn't visible
 		if showAnimations:
@@ -1286,13 +1294,11 @@ class MainMenuCanvas( Tk.Canvas ):
 			self.move( 'blackText', -stepDistance, 0 )
 
 			# Check if the options have been fully hidden
-			for id in self.find_withtag( 'menuOptionsBg' ):
-				if self.bbox( id )[2] > 0:
+			for itemId in self.find_withtag( 'menuOptionsBg' ):
+				if self.bbox( itemId )[2] > 0:
 					# One of the options is still visible; need another iteration
-					self.after( 16, self.removeOptions )
+					self.after( 16, self.removeOptions, showAnimations, callBack )
 					return
-
-		print( 'deleting' )
 
 		# Remove existing options
 		self.delete( 'menuOptions' )
@@ -1304,12 +1310,17 @@ class MainMenuCanvas( Tk.Canvas ):
 			self.update_idletasks()
 			time.sleep( .05 )
 
-	def displayDiscOptions( self ):
+		if callBack:
+			callBack()
+
+	def displayDiscOptions( self, includeRemoval=False ):
 
 		""" Remove existing options, and display a new set of options for disc or root folder operations. """
 
 		showAnimations = self.showAnimations()
-		self.removeOptions( showAnimations )
+		if includeRemoval:
+			self.removeOptions( showAnimations, self.displayDiscOptions )
+			return
 
 		# Add new options
 		if globalData.disc.isMelee and globalData.disc.is20XX:
@@ -1556,8 +1567,8 @@ class MainGui( Tk.Frame, object ):
 		mainMenuHeight = canvasFrame.winfo_height()
 
 		# Initialize and add the Main Menu
-		self.mainMenu = MainMenuCanvas( self, canvasFrame, mainMenuWidth, mainMenuHeight )
-		self.mainMenu.place( relx=0.5, rely=0.5, anchor='center' )
+		# self.mainMenu = MainMenuCanvas( self, canvasFrame, mainMenuWidth, mainMenuHeight )
+		# self.mainMenu.place( relx=0.5, rely=0.5, anchor='center' )
 
 	# def updateProgressDisplay( self, event ):
 
@@ -2009,7 +2020,7 @@ class MainGui( Tk.Frame, object ):
 
 		self.playSound( 'menuSelect' )
 
-		self.mainMenu.displayDiscOptions()
+		self.mainMenu.displayDiscOptions( True )
 
 	def saveDiscAs( self ):
 
@@ -2814,7 +2825,7 @@ if __name__ == '__main__':
 		# Load the program settings and initialize the GUI
 		globalData.gui = gui = MainGui()
 		#gui.audioEngine = AudioEngine()
-		#gui.fileMenu.browseCodeLibrary()
+		gui.fileMenu.browseCodeLibrary()
 
 		# Process any file provided on start-up (drag-and-dropped onto the program's .exe file, or provided via command line)
 		if args.filePath:
