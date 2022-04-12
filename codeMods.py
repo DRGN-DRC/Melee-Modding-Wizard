@@ -24,7 +24,7 @@ from collections import OrderedDict
 
 # Internal Dependencies
 import globalData
-from basicFunctions import createFolders, roundTo32, toHex, validHex, msg, printStatus
+from basicFunctions import createFolders, removeIllegalCharacters, roundTo32, toHex, validHex, msg, printStatus
 from guiSubComponents import cmsg
 
 
@@ -492,31 +492,6 @@ class CodeMod( object ):
 		""" Recursive helper function for getRequiredStandaloneFunctionNames(). Checks 
 			one particular code change (injection/overwrite) for standalone functions. """
 
-		# if '|S|' in preProcessedCode:
-		# 	for section in preProcessedCode.split( '|S|' ): codeChange.preProcessedCode
-
-		# 		if section.startswith( 'sbs__' ) and '<' in section and '>' in section: # Special Branch Syntax; one name expected
-		# 			newFunctionNames = ( section.split( '<' )[1].split( '>' )[0], ) # Second split prevents capturing comments following on the same line.
-
-		# 		elif section.startswith( 'sym__' ): # Assume could have multiple names
-		# 			newFunctionNames = []
-		# 			for fragment in section.split( '<<' ):
-		# 				if '>>' in fragment: # A symbol (function name) is in this string segment.
-		# 					newFunctionNames.append( fragment.split( '>>' )[0] )
-		# 		else: continue
-
-		# 		for functionName in newFunctionNames:
-		# 			if functionName in requiredFunctions: continue # This function has already been analyzed
-
-		# 			requiredFunctions.add( functionName )
-
-		# 			# Recursively check for more functions that this function may reference
-		# 			if functionName in globalData.standaloneFunctions:
-		# 				codeChange = globalData.standaloneFunctions[functionName][1]
-		# 				self._parseCodeForStandalones( codeChange.preProcessedCode, requiredFunctions, missingFunctions )
-		# 			else:
-		# 				missingFunctions.add( functionName )
-
 		for syntaxOffset, length, syntaxType, codeLine, names in codeChange.syntaxInfo:
 
 			if syntaxType == 'sbs' and '<' in codeLine and '>' in codeLine: # Special Branch Syntax; one name expected
@@ -654,7 +629,7 @@ class CodeMod( object ):
 
 	def buildModString( self, reevaluateCodeChanges=False ):
 
-		""" Builds a string to store/share this mod in MCM's basic code format. """
+		""" Builds a string to store/share this mod in MCM's normal code format. """
 
 		# Collect lines for title, description, and web links
 		if self.name:
@@ -1220,9 +1195,7 @@ class CodeMod( object ):
 			elif anno:
 				name = anno
 
-			# Remove illegal filename characters
-			for char in ( '\\', '/', ':', '*', '?', '"', '<', '>', '|' ):
-				name.replace( char, '-' )
+			name = removeIllegalCharacters( name, '' )
 
 		else: # No annotation available
 			if changeType == 'static':

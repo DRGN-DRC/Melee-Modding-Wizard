@@ -12,7 +12,8 @@
 # Find the official thread here: 
 
 
-from __future__ import print_function # Use print with (); preparation for moving to Python 3
+from __future__ import print_function
+from cProfile import label # Use print with (); preparation for moving to Python 3
 
 # External dependencies
 import math
@@ -246,23 +247,24 @@ class ToolsMenu( Tk.Menu, object ):
 		self.delete( 0, 'last' )
 
 		""" This will refresh the 'Open Recent' files menu. """
-																								# Key shortcut (holding alt)
-		self.add_cascade( label="ASM <-> HEX Converter", command=lambda: AsmToHexConverter(), underline=0 )			# A
+																									# Key shortcut (using alt key)
+		self.add_cascade( label="ASM <-> HEX Converter", command=lambda: AsmToHexConverter(), underline=0 )				# A
 		#self.add_cascade( label="Number and Address Conversion", command=lambda: AsmToHexConverter(), underline=0 )	# N
-		self.add_cascade( label='Code Lookup', command=lambda: CodeLookup(), underline=5 )							# L
-		self.add_cascade( label='Create Code Mod', command=self.createCodeMod, underline=12 )						# M
+		self.add_cascade( label='Code Lookup', command=lambda: CodeLookup(), underline=5 )								# L
+		self.add_cascade( label='Create Code Mod', command=self.createCodeMod, underline=12 )							# M
+		self.add_cascade( label='Save Code Library As', command=self.saveCodeLibraryAs, underline=6 )					# O
 		self.add_separator()
-		self.add_cascade( label="Test External Stage File", command=self.testStage, underline=14 )					# S
-		self.add_cascade( label="Test External Character File", command=self.testCharacter, underline=14 )			# C
+		self.add_cascade( label="Test External Stage File", command=self.testStage, underline=14 )						# S
+		self.add_cascade( label="Test External Character File", command=self.testCharacter, underline=14 )				# C
 		self.add_separator()
-		self.add_cascade( label="Build xDelta Patch", command=self.buildPatch, underline=6 )						# X
-		self.add_cascade( label="Build from Patch", command=self.notDone, underline=11 )							# P
+		self.add_cascade( label="Build xDelta Patch", command=self.buildPatch, underline=6 )							# X
+		self.add_cascade( label="Build from Patch", command=self.notDone, underline=11 )								# P
 
 		if globalData.disc and globalData.disc.is20XX:
 			self.add_separator()
-			self.add_cascade( label="Create Tri-CSP", command=self.createTriCsp, underline=1 )						# T
-			self.add_cascade( label="Find Unused Stage Files", command=self.findUnusedStages, underline=0 )			# F
-			#self.add_cascade( label="Parse FSM List", command=self.parseFsmList, underline=0 )						# F
+			self.add_cascade( label="Create Tri-CSP", command=self.createTriCsp, underline=1 )							# T
+			self.add_cascade( label="Find Unused Stage Files", command=self.findUnusedStages, underline=0 )				# F
+			#self.add_cascade( label="Parse FSM List", command=self.parseFsmList, underline=0 )							# F
 
 	def createCodeMod( self ):
 
@@ -279,6 +281,14 @@ class ToolsMenu( Tk.Menu, object ):
 
 		# Bring the new tab into view for the user.
 		mainGui.codeConstructionTab.select( newTab )
+
+	def saveCodeLibraryAs( self ):
+
+		# Load the Code Library (if not already loaded) and switch to that tab
+		if not globalData.gui.codeManagerTab:
+			globalData.gui.fileMenu.browseCodeLibrary()
+
+		globalData.gui.codeManagerTab.saveCodeLibraryAs()
 
 	def testStage( self ):
 
@@ -1681,7 +1691,7 @@ class MainGui( Tk.Frame, object ):
 				unpackedData = struct.unpack( chunkFormat, data )
 
 				# Multiply each value by the current volume (0-1.0 value)
-				unpackedData = [sample * .1 for sample in unpackedData]
+				unpackedData = [sample * .8 for sample in unpackedData]
 
 				# Re-pack the data as raw bytes and return it
 				data = struct.pack( chunkFormat, *unpackedData )

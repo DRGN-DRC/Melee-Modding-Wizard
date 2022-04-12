@@ -26,7 +26,7 @@ from ScrolledText import ScrolledText
 # Internal Dependencies
 import globalData
 from FileSystem.dol import RevisionPromptWindow
-from basicFunctions import grammarfyList, msg, printStatus, openFolder, uHex, validHex
+from basicFunctions import grammarfyList, msg, printStatus, openFolder, removeIllegalCharacters, uHex, validHex
 from codeMods import CodeChange, CodeMod, ConfigurationTypes, regionsOverlap, CodeLibraryParser
 from guiSubComponents import (
 	PopupScrolledTextWindow, cmsg, exportSingleFileWithGui, VerticalScrolledFrame, LabelButton, ToolTip, CodeLibrarySelector, 
@@ -817,6 +817,40 @@ class CodeManagerTab( ttk.Frame ):
 
 		globalData.gui.playSound( 'menuChange' )
 
+	def saveCodeLibraryAs( self ):
+
+		""" Save all mods in the library as the desired format. """
+
+		# Prompt the user to determine what kind of format to use
+		userPrompt = PromptHowToSaveLibrary()
+		formatChoice = userPrompt.typeVar.get()
+		if formatChoice == -1: pass # User canceled
+
+		# Ask for a folder to save the new library to
+		# Prompt the user to choose a folder to save in
+		targetFolder = tkFileDialog.askdirectory(
+			title="Choose where to save this library.",
+			initialdir=globalData.getModsFolderPath()
+			)
+		if not targetFolder: return # User canceled
+
+		print(userPrompt.typeVar.get())
+
+		if formatChoice == 0: # Mini
+			print( 'not yet supported' )
+		elif formatChoice == 1: # MCM
+			print( 'not yet supported' )
+		else: # AMFS
+			for mod in globalData.codeMods:
+				# Remove filename from mini/MCM paths, and add a new folder name component
+				if not mod.isAmfs:
+					dirname = os.path.dirname( mod.path )
+					newFolder = removeIllegalCharacters( mod.name )
+					newPath = os.path.join( dirname, newFolder )
+					mod.path = os.path.normpath( newPath )
+
+				mod.saveInAmfsFormat()
+
 	def selectAllMods( self, event ):
 		currentTab = self.getCurrentTab()
 
@@ -1147,26 +1181,6 @@ class ModModule( Tk.Frame, object ):
 
 		page = event.widget.url
 		webbrowser.open( page )
-		
-	# def parseUrl( self, origUrlString ):
-
-	# 	""" Validates a given URL (string), partly based on a whitelist of allowed domains. 
-	# 		Returns a urlparse object if the url is valid, or None (Python default) if it isn't. """
-
-	# 	try:
-	# 		potentialLink = urlparse( origUrlString )
-	# 	except Exception as err:
-	# 		print( 'Invalid link detected for "{}": {}'.format(self.mod.name, err) )
-	# 		return
-
-	# 	# Check the domain against the whitelist. netloc will be something like "youtube.com" or "www.youtube.com"
-	# 	if potentialLink.scheme and potentialLink.netloc.split('.')[-2] in ( 'smashboards', 'github', 'youtube' ):
-	# 		return potentialLink
-
-	# 	elif not potentialLink.scheme:
-	# 		print( 'Invalid link detected for "{}" (no scheme): {}'.format(self.mod.name, potentialLink) )
-	# 	else:
-	# 		print( 'Invalid link detected for "{}" (domain not allowed): {}'.format(self.mod.name, potentialLink) )
 
 	def setState( self, state, statusText='', updateControlPanelCounts=True ):
 
@@ -1383,14 +1397,7 @@ class CodeConstructor( Tk.Frame ):
 		# Add the web links
 		if self.mod.webLinks:
 			self.webLinksFrame = ttk.Labelframe( row2, text='  Web Links:  ', padding=(0, 0, 0, 5) ) # padding = left, top, right, bottom
-			for origUrlString, comments in self.mod.webLinks:
-				self.addWebLink( origUrlString, comments )
-
-			# Add the "Edit" button
-			editBtn = ttk.Label( self.webLinksFrame, text='Edit', foreground='#03f', cursor='hand2' )
-			editBtn.bind( '<1>', lambda e, frame=self.webLinksFrame: WebLinksEditor(frame) )
-			editBtn.pack()
-
+			self.addWebLinks()
 			self.webLinksFrame.grid( column=2, row=0 )
 
 		row2.pack( fill='x', expand=True, padx=20, pady=(7, 0), anchor='n' )
@@ -1412,28 +1419,34 @@ class CodeConstructor( Tk.Frame ):
 		if self.mod.parsingError or self.mod.assemblyError or self.mod.errors:
 			self.addErrorsButton()
 
-	def addWebLink( self, origUrl, comments, modChanged=True ):
+	def addWebLinks( self ):
 
-		urlObj = self.mod.validateWebLink( origUrl )
-		if not urlObj: return
+		""" Adds current mod web links to the GUI. May be called again to repopulate the list."""
 		
-		url = urlObj.geturl()
-		domain = urlObj.netloc.split( '.' )[-2] # i.e. 'smashboards' or 'github'
-		destinationImage = globalData.gui.imageBank( domain + 'Link' )
-		
-		# Add an image for this link
-		imageLabel = ttk.Label( self.webLinksFrame, image=destinationImage )
-		imageLabel.urlObj = urlObj
-		imageLabel.comments = comments
-		imageLabel.pack()
+		for origUrl, comments in self.mod.webLinks:
+			# Validate and parse the URL
+			urlObj = self.mod.validateWebLink( origUrl )
+			if not urlObj: return
+			
+			url = urlObj.geturl()
+			domain = urlObj.netloc.split( '.' )[-2] # i.e. 'smashboards' or 'github'
+			destinationImage = globalData.gui.imageBank( domain + 'Link' )
+			
+			# Add an image for this link
+			imageLabel = ttk.Label( self.webLinksFrame, image=destinationImage )
+			imageLabel.urlObj = urlObj
+			imageLabel.comments = comments
+			imageLabel.pack()
 
-		# Add hover tooltips
-		hovertext = 'The {}{} page...\n{}'.format( domain[0].upper(), domain[1:], url )
-		if comments: hovertext += '\n\n' + comments
-		ToolTip( imageLabel, hovertext, delay=700, wraplength=800, justify='center' )
+			# Add hover tooltips
+			hovertext = 'The {}{} page...\n{}'.format( domain[0].upper(), domain[1:], url )
+			if comments: hovertext += '\n\n' + comments
+			ToolTip( imageLabel, hovertext, delay=700, wraplength=800, justify='center' )
 
-		# if modChanged: # If false, this is being called during initialization
-		# 	self.undoableChanges = True
+		# Add the "Edit" button
+		editBtn = ttk.Label( self.webLinksFrame, text='Edit', foreground='#03f', cursor='hand2' )
+		editBtn.bind( '<1>', lambda e, s=self: WebLinksEditor(s) )
+		editBtn.pack()
 
 	def initializeVersionNotebook( self ):
 		
@@ -2486,23 +2499,23 @@ class WebLinksEditor( BasicWindow ):
 
 	""" Tool window to add/remove web links in the Mod Construction tab. """
 
-	def __init__( self, webLinksFrame ):
+	def __init__( self, constructionTab ):
 		BasicWindow.__init__( self, globalData.gui.root, 'Web Links Editor', offsets=(160, 100), resizable=True, topMost=False )
 
 		ttk.Label( self.window, text=('Web links are useful sources of information or links to places of discussion.'
-			'\nCurrent valid destinations are SmashBoards, GitHub, and YouTube.'), wraplength=480 ).grid( columnspan=3, column=0, row=0, padx=40, pady=10 )
+			'\nCurrent valid destinations are SmashBoards, GitHub, and YouTube.'), wraplength=500 ).grid( columnspan=3, column=0, row=0, padx=40, pady=12 )
 
 		# Iterate over the widgets in the 'Web Links' frame in the other window, to create new widgets here based on them
 		row = 1
-		for label in webLinksFrame.winfo_children():
+		for label in constructionTab.webLinksFrame.winfo_children()[:-1]:
 			# Get info from this label widget
 			url = label.urlObj.geturl()
 			domain = label.urlObj.netloc.split( '.' )[-2] # i.e. 'smashboards' or 'github'
-			destinationImage = globalData.gui.imageBank( domain + 'Link' )
 
-			# Can't clone the label, so make a new one
+			# Create the image
+			destinationImage = globalData.gui.imageBank( domain + 'Link' )
 			imageLabel = ttk.Label( self.window, image=destinationImage )
-			imageLabel.grid( column=0, row=row, padx=14 )
+			imageLabel.grid( column=0, row=row, padx=10 )
 
 			# Add a text field entry for the URL
 			urlEntry = ttk.Entry( self.window, width=70 )
@@ -2563,6 +2576,7 @@ class PromptHowToSave( BasicWindow ):
 		self.storeAsAmfs = False
 		self.storeMini = False
 		self.targetPath = ''
+
 		descBoxWidth = 320
 
 		ttk.Label( self.window, text='How would you like\nto save this mod?', justify='center' ).grid( rowspan=3, column=0, row=0, sticky='nsew', padx=(18, 10) )
@@ -2570,20 +2584,20 @@ class PromptHowToSave( BasicWindow ):
 		if self.mod.miniFormatSupported()[0]:
 			emptyWidget = Tk.Frame( self.window, relief='flat' ) # This is used as a simple workaround for the labelframe, so we can have no text label with no label gap.
 			minimalistFrame = ttk.Labelframe( self.window, labelwidget=emptyWidget, padding=(20, 4) )
-			ttk.Button( minimalistFrame, text='Minimalist', width=16, command=self.choseMini ).pack()
-			ttk.Label( minimalistFrame, wraplength=descBoxWidth-20, text='Experimental, and the most basic format. Allows for the fastest library load times, but does not support a mod description, multiple changes, revisions, or any configurations. Recommended for very simple changes.' ).pack()
+			ttk.Button( minimalistFrame, text='Minimalist', width=16, command=self.choseMini ).pack( pady=3 )
+			ttk.Label( minimalistFrame, wraplength=descBoxWidth-20, foreground='#555555', text='Experimental, and the most basic format. Allows for the fastest library load times, but does not support multiple changes, revisions, a mod description, or any configurations. Recommended for very simple changes.' ).pack()
 			minimalistFrame.grid( column=1, row=0, sticky='ew', pady=6, padx=8 )
-		
+
 		emptyWidget = Tk.Frame( self.window, relief='flat' ) # This is used as a simple workaround for the labelframe, so we can have no text label with no label gap.
 		mcmFrame = ttk.Labelframe( self.window, labelwidget=emptyWidget, padding=(20, 4) )
-		ttk.Button( mcmFrame, text='MCM Format', width=16, command=self.choseMCM ).pack()
-		ttk.Label( mcmFrame, wraplength=descBoxWidth-20, text='Standard formatting that you would see in MCM library text files. Must store custom code as either assembly (ASM) source code OR assembled hex. Custom codes stored as ASM will have slightly slower installation times.' ).pack()
+		ttk.Button( mcmFrame, text='MCM Format', width=16, command=self.choseMCM ).pack( pady=3 )
+		ttk.Label( mcmFrame, wraplength=descBoxWidth-20, foreground='#555555', text='Standard formatting that you would see in MCM library text files. Must store custom code as either assembly (ASM) source code OR assembled hex. Custom codes stored as ASM will have slightly slower installation times.' ).pack()
 		mcmFrame.grid( column=1, row=1, sticky='ew', pady=6, padx=8 )
 
 		emptyWidget = Tk.Frame( self.window, relief='flat' ) # This is used as a simple workaround for the labelframe, so we can have no text label with no label gap.
 		amfsFrame = ttk.Labelframe( self.window, labelwidget=emptyWidget, padding=(20, 4) )
-		ttk.Button( amfsFrame, text='AMFS Format', width=16, command=self.choseAMFS ).pack()
-		ttk.Label( amfsFrame, wraplength=descBoxWidth-20, text='Advanced formatting using a folder of .asm files and a codes.json descriptor file. Stores source code as well as assembled hex code for fast installations.' ).pack()
+		ttk.Button( amfsFrame, text='AMFS Format', width=16, command=self.choseAMFS ).pack( pady=3 )
+		ttk.Label( amfsFrame, wraplength=descBoxWidth-20, foreground='#555555', text='Advanced formatting using a folder of .asm files and a codes.json descriptor file. Stores source code as well as assembled hex code for fast installations.' ).pack()
 		amfsFrame.grid( column=1, row=2, sticky='ew', pady=6, padx=8 )
 
 		ttk.Button( self.window, text='Cancel', command=self.close ).grid( columnspan=2, column=0, row=3, ipadx=20, pady=6 )
@@ -2638,7 +2652,7 @@ class PromptHowToSave( BasicWindow ):
 
 		""" Prompt for a folder to save the mod to, creating a new folder within it for this mod. """
 		
-		# Prompt the user to choose a folder to look for textures in
+		# Prompt the user to choose a folder to save in
 		targetFolder = tkFileDialog.askdirectory(
 			parent=self.window,
 			title="Choose where to save this mod. A new folder will be created in this destination.",
@@ -2646,10 +2660,62 @@ class PromptHowToSave( BasicWindow ):
 			)
 
 		if targetFolder:
+			# Validate the mod name by removing illegal characters, and create the new mod's folder path
+			modName = removeIllegalCharacters( self.mod.name, '' )
+			targetPath = os.path.join( targetFolder, modName )
+
 			self.storeAsAmfs = True
-			self.targetPath = os.path.join( targetFolder, self.mod.name )
+			self.targetPath = os.path.normpath( targetPath ) # Normalizes slashes
 
 		self.close()
+
+
+class PromptHowToSaveLibrary( BasicWindow ):
+
+	""" User interface for saving the currently loaded Code Library in a new format. """
+
+	def __init__( self ):
+		super( PromptHowToSaveLibrary, self ).__init__( globalData.gui.root, 'Select a Format' )
+
+		self.typeVar = Tk.IntVar( value=-1 )
+		self.smartPick = Tk.BooleanVar( value=False )
+
+		descBoxWidth = 320
+
+		ttk.Label( self.window, text='How would you like\nto save this library?', justify='center' ).grid( rowspan=4, column=0, row=0, sticky='nsew', padx=(18, 10) )
+
+		emptyWidget = Tk.Frame( self.window, relief='flat' ) # This is used as a simple workaround for the labelframe, so we can have no text label with no label gap.
+		minimalistFrame = ttk.Labelframe( self.window, labelwidget=emptyWidget, padding=(20, 4) )
+		ttk.Radiobutton( minimalistFrame, text='Minimalist', variable=self.typeVar, value=0 ).pack( pady=3 )
+		ttk.Label( minimalistFrame, wraplength=descBoxWidth-20, foreground='#555555', text='Experimental, and the most basic format. Allows for the fastest library load times, but does not support multiple changes, revisions, a mod description, or any configurations. Recommended for very simple changes.' ).pack()
+		minimalistFrame.grid( column=1, row=0, sticky='ew', pady=6, padx=8 )
+
+		emptyWidget = Tk.Frame( self.window, relief='flat' ) # This is used as a simple workaround for the labelframe, so we can have no text label with no label gap.
+		mcmFrame = ttk.Labelframe( self.window, labelwidget=emptyWidget, padding=(20, 4) )
+		ttk.Radiobutton( mcmFrame, text='MCM Format', variable=self.typeVar, value=1 ).pack( pady=3 )
+		ttk.Label( mcmFrame, wraplength=descBoxWidth-20, foreground='#555555', text='Standard formatting that you would see in MCM library text files. Must store custom code as either assembly (ASM) source code OR assembled hex. Custom codes stored as ASM will have slightly slower installation times.' ).pack()
+		mcmFrame.grid( column=1, row=1, sticky='ew', pady=6, padx=8 )
+
+		emptyWidget = Tk.Frame( self.window, relief='flat' ) # This is used as a simple workaround for the labelframe, so we can have no text label with no label gap.
+		amfsFrame = ttk.Labelframe( self.window, labelwidget=emptyWidget, padding=(20, 4) )
+		ttk.Radiobutton( amfsFrame, text='AMFS Format', variable=self.typeVar, value=2 ).pack( pady=3 )
+		ttk.Label( amfsFrame, wraplength=descBoxWidth-20, foreground='#555555', text='Advanced formatting using a folder of .asm files and a codes.json descriptor file. Stores source code as well as assembled hex code for fast installations.' ).pack()
+		amfsFrame.grid( column=1, row=2, sticky='ew', pady=6, padx=8 )
+
+		ttk.Checkbutton( self.window, text='Smart-Pick™', variable=self.smartPick ).grid( column=1, row=3, pady=6 )
+
+		bottomButtonRow = Tk.Frame( self.window )
+		ttk.Button( bottomButtonRow, text='Ok', command=self.close ).pack( side='left', padx=10 )
+		ttk.Button( bottomButtonRow, text='Cancel', command=self.close ).pack( side='left', padx=10 )
+		bottomButtonRow.grid( columnspan=2, column=0, row=4, ipadx=20, pady=6 )
+
+		# Pause the main GUI until this window is closed
+		self.window.grab_set()
+		globalData.gui.root.wait_window( self.window )
+
+	def close( self ):
+		self.typeVar.set( -1 )
+		super( PromptHowToSaveLibrary, self ).close()
 
 
 class CodeConfigWindow( BasicWindow ):
@@ -2778,17 +2844,6 @@ class CodeConfigWindow( BasicWindow ):
 
 	def showHiddenOptions( self, event=None ):
 		msg( 'These options are hidden: ' + grammarfyList( self.hiddenOptions ), 'Hidden Options for ' + self.mod.name )
-
-	# def getOptionWidth( self, optionType ):
-
-	# 	if optionType.endswith( '32' ) or optionType == 'float':
-	# 		return 4
-	# 	elif optionType.endswith( '16' ):
-	# 		return 2
-	# 	elif optionType.endswith( '8' ):
-	# 		return 1
-	# 	else:
-	# 		return -1
 
 	def formatDropdownOptions( self, members, optType, initValue ):
 

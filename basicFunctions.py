@@ -220,6 +220,13 @@ def grammarfyList( theList ):
 		return ', '.join( theList[:-1] ) + ', and ' + str( theList[-1] )
 
 
+def removeIllegalCharacters( string, replaceChar='-' ):
+	
+	""" Removes characters illegal in a Windows file path. """
+
+	return ''.join( [replaceChar if c in ( '\\', '/', ':', '*', '?', '"', '<', '>', '|' ) else c for c in string] )
+
+
 def findAll( stringToLookIn, subString, charIncrement=2 ):
 	
 	""" Finds ALL instances of a string or bytearray in another string or bytearray, 

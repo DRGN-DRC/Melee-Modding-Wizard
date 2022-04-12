@@ -27,9 +27,8 @@ from audioManager import AudioManager
 from FileSystem import fileFactory, SisFile, MusicFile, CharDataFile, CharAnimFile
 from FileSystem.disc import Disc
 from basicFunctions import (
-		msg, printStatus, copyToClipboard, 
-		uHex, humansize, createFolders,
-		saveAndShowTempFileData
+		msg, printStatus, copyToClipboard, removeIllegalCharacters, 
+		uHex, humansize, createFolders, saveAndShowTempFileData
 	)
 from guiSubComponents import (
 		cmsg,
@@ -634,8 +633,9 @@ class DiscTab( ttk.Frame ):
 			while parentIid and parentIid != rootIid: # End at the root/GameID folder (first condition is a failsafe)
 				parentFolderText = self.isoFileTree.item( parentIid, 'text' ).strip()
 
-				for character in ( '\\', '/', ':', '*', '?', '"', '<', '>', '|' ): # Remove illegal characters
-					parentFolderText = parentFolderText.replace( character, '-' )
+				# for character in ( '\\', '/', ':', '*', '?', '"', '<', '>', '|' ): # Remove illegal characters
+				# 	parentFolderText = parentFolderText.replace( character, '-' )
+				parentFolderText = removeIllegalCharacters( parentFolderText )
 				pathParts.insert( 0, parentFolderText )
 
 				parentIid = self.isoFileTree.parent( parentIid )

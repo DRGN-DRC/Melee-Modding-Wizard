@@ -250,7 +250,7 @@ def getNewNameFromUser( charLimit, excludeChars=None, message='Enter a new name:
 
 	nameChecksOut = False
 	if not excludeChars:
-		excludeChars = ( '\n', '\t', ':' )
+		excludeChars = ( '\n', '\t', ':', '\\', '/' )
 
 	while not nameChecksOut:
 		popupWindow = PopupEntryWindow( globalData.gui.root, message, defaultText, title, width, charLimit=charLimit, isMenuText=isMenuText )
@@ -1245,7 +1245,6 @@ class ColoredLabelButton( LabelButton ):
 		LabelButton.__init__( self, parent, imageName, callback, hovertext )
 
 		self.imageName = imageName
-		self.origColor = color
 		self.origHovertext = hovertext
 		self.disabled = False
 		self.defaultImage = getColoredShape( imageName, 'black' )
@@ -1278,7 +1277,7 @@ class ColoredLabelButton( LabelButton ):
 		self.bind( '<Enter>', self.hovered, '+' )
 		self.configure( cursor='hand2' )
 
-		self.updateColor( self.origColor )
+		self.updateColor( 'black' )
 		self['image'] = self.defaultImage
 
 		self.updateHovertext( self.origHovertext )
