@@ -27,7 +27,7 @@ import pyaudio, wave
 import Tkinter as Tk
 import ttk, tkMessageBox, tkFileDialog
 
-from threading import Thread
+from threading import Thread, Event
 from collections import OrderedDict
 from subprocess import Popen, PIPE, CalledProcessError
 from sys import argv as programArgs 	# Access command line arguments, and files given (drag-and-dropped) to the program icon
@@ -1474,6 +1474,8 @@ class MainGui( Tk.Frame, object ):
 		self._imageBank = {} # Repository for GUI related images
 		self._soundBank = {}
 		#self.audioEngine = None
+		self.audioGate = Event()
+		self.audioGate.set()
 
 		self.defaultWindowWidth = 1000
 		self.defaultWindowHeight = 750
@@ -1567,8 +1569,8 @@ class MainGui( Tk.Frame, object ):
 		mainMenuHeight = canvasFrame.winfo_height()
 
 		# Initialize and add the Main Menu
-		# self.mainMenu = MainMenuCanvas( self, canvasFrame, mainMenuWidth, mainMenuHeight )
-		# self.mainMenu.place( relx=0.5, rely=0.5, anchor='center' )
+		self.mainMenu = MainMenuCanvas( self, canvasFrame, mainMenuWidth, mainMenuHeight )
+		self.mainMenu.place( relx=0.5, rely=0.5, anchor='center' )
 
 	# def updateProgressDisplay( self, event ):
 
@@ -1647,74 +1649,20 @@ class MainGui( Tk.Frame, object ):
 
 	def _playSoundHelper( self, soundFilePath ):
 
-		# p = None
-		# wf = None
-		# stream = None
-
-		# try:
-		# 	# Instantiate PyAudio and open the target audio file
-		# 	p = pyaudio.PyAudio()
-		# 	wf = wave.open( soundFilePath, 'rb' )
-
-		# 	# Get track info and open an audio data stream
-		# 	sampleWidth = wf.getsampwidth()
-		# 	channels = wf.getnchannels()
-		# 	# assert sampleWidth == 2, 'Unsupported sample width: ' + str( sampleWidth )
-		# 	# assert channels == 2, 'Unsupported channel count: ' + str( channels )
-		# 	stream = p.open( format=p.get_format_from_width(sampleWidth),
-		# 						channels=channels,
-		# 						rate=wf.getframerate(),
-		# 						output=True )
-
-		# 	# Prepare for the data stream loop
-		# 	framesPerIter = 1024
-		# 	data = wf.readframes( framesPerIter )
-
-		# 	# Continuously read/write data from the file to the stream until there is no data left
-		# 	while len( data ) > 0:
-		# 		if self.readPos != -1: # Move to a new place in the file data
-		# 			wf.setpos( self.readPos )
-		# 			self.readPos = -1
-		# 		else:
-		# 			data = self._adjustVolume( data )
-		# 			stream.write( data )
-					
-		# 		data = wf.readframes( framesPerIter )
-
-		# 		# Check if playing should start over (repeat is turned on)
-		# 		if self.playRepeat.isSet() and not len( data ) > 0:
-		# 			wf.setpos( 0 ) # Setting read position to the start of the file
-		# 			data = wf.readframes( framesPerIter )
-
-		# except Exception as err:
-		# 	soundFileName = os.path.basename( soundFilePath )
-		# 	print 'Unable to play "{}" song.'.format( soundFileName )
-		# 	print err
-
-		# # Stop the stream
-		# if stream:
-		# 	stream.stop_stream()
-		# 	stream.close()
-
-		# # Close PyAudio
-		# if p:
-		# 	p.terminate()
-		
-		# # Close the wav file and delete it
-		# if wf:
-		# 	wf.close()
+		""" Helper (thread-target) function for playSound(). Runs in a separate 
+			thread to prevent audio playback from blocking anything else. """
 
 		p = None
 		wf = None
 		stream = None
 
-		""" Helper (thread-target) function for playSound(). Runs in a separate 
-			thread to prevent audio playback from blocking anything else. """
-
 		try:
-			# Instantiate PyAudio
-			p = pyaudio.PyAudio()
+			# Prevent race conditions on multiple sounds playing at once (can cause a crash); only allow one file to begin playing at a time
+			self.audioGate.wait() # Blocks until the following is done (event is re-set)
+			self.audioGate.clear()
 
+			# Instantiate PyAudio and open the target audio file
+			p = pyaudio.PyAudio()
 			wf = wave.open( soundFilePath, 'rb' )
 
 			# Open an audio data stream
@@ -1723,11 +1671,26 @@ class MainGui( Tk.Frame, object ):
 							rate=wf.getframerate(),
 							output=True )
 
+			self.audioGate.set() # Allow a new sound to be opened/initialized
+
 			# Continuously read/write data from the file to the stream until there is no data left
 			data = wf.readframes( 1024 )
 			while len( data ) > 0:
+				# Adjust volume level. Unpack the bytes data (series of halfwords)
+				chunkFormat = '<' + str( len(data)/2 ) + 'h'
+				unpackedData = struct.unpack( chunkFormat, data )
+
+				# Multiply each value by the current volume (0-1.0 value)
+				unpackedData = [sample * .1 for sample in unpackedData]
+
+				# Re-pack the data as raw bytes and return it
+				data = struct.pack( chunkFormat, *unpackedData )
+
 				stream.write( data )
 				data = wf.readframes( 1024 )
+
+		except AttributeError:
+			pass # Program probably closed while playing audio
 
 		except Exception as err:
 			soundFileName = os.path.basename( soundFilePath )
@@ -1955,8 +1918,6 @@ class MainGui( Tk.Frame, object ):
 		# Remember this file for future recall
 		globalData.rememberFile( targetPath, updateDefaultDirectory )
 
-		#self.mainMenu.remove()
-
 		# Load the disc, and load the disc's info into the GUI
 		#tic = time.clock()
 		globalData.disc = Disc( targetPath )
@@ -1985,7 +1946,7 @@ class MainGui( Tk.Frame, object ):
 		# 	self.mainTabFrame.update_idletasks()
 		if self.codeManagerTab:
 			self.codeManagerTab.autoSelectCodeRegions()
-			self.codeManagerTab.scanCodeLibrary()
+			self.codeManagerTab.scanCodeLibrary( playAudio=False )
 			self.codeManagerTab.updateControls()
 
 		if globalData.disc.isMelee:
@@ -2018,9 +1979,9 @@ class MainGui( Tk.Frame, object ):
 			if self.audioManagerTab:
 				self.audioManagerTab.loadFileList()
 
-		self.playSound( 'menuSelect' )
-
 		self.mainMenu.displayDiscOptions( True )
+
+		self.playSound( 'menuSelect' )
 
 	def saveDiscAs( self ):
 
