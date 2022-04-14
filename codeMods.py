@@ -10,6 +10,7 @@
 #		  -  - Melee Modding Wizard -  -  
 
 # External Dependencies
+import code
 import os
 import json
 import struct
@@ -1010,6 +1011,10 @@ class CodeMod( object ):
 				elif change.type == 'standalone': # Standalone Function
 					changeDict['type'] = 'standalone'
 					changeDict['name'] = change.offset
+					addSourceFile = True
+
+				elif change.type == 'gecko': # Gecko Codes
+					changeDict['type'] = 'gecko'
 					addSourceFile = True
 
 				else: # Failsafe; shouldn't happen
@@ -2015,8 +2020,12 @@ class CodeLibraryParser():
 						elif codeType in ( 'branch', 'branchAndLink', 'binary', 'replaceBinary' ):
 							mod.errors.append( 'The "' + codeType + '" AMFS code type is not supported' )
 
-						elif codeType == 'standalone':
-							pass
+						elif codeType == 'standalone': # For Standalone Functions
+							self.parseAmfsStandalone( codeChangeDict, mod )
+
+						elif codeType == 'gecko':
+							self.parseAmfsGecko( codeChangeDict, mod )
+
 						else:
 							mod.errors.append( 'Unrecognized AMFS code type: ' + codeType )
 
@@ -2331,6 +2340,17 @@ class CodeLibraryParser():
 		# 	print 'second try for', sourceFolderPath
 		# 	self.processAmfsInjectSubfolder( '\\\\?\\' + os.path.normpath(sourceFolderPath), mod, codeChangeDict['isRecursive'] )
 
+	def parseAmfsStandalone( self, codeChangeDict, mod ):
+		revisions = codeChangeDict.get( 'revisions', ['NTSC 1.02'] )
+		annotation = codeChangeDict.get( 'annotation', '' ) # Optional; may not be there
+
+		returnCode, address, author, customCode = self.getCustomCodeFromFile( sourceFile, mod, False, annotation )
+
+		mod.addStandalone( codeChangeDict['name'], revisions,  )
+
+	def parseAmfsGecko( self, codeChangeDict, mod ):
+
+		mod.addGecko(  )
 
 class CommandProcessor( object ):
 

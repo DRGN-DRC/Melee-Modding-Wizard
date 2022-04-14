@@ -827,14 +827,12 @@ class CodeManagerTab( ttk.Frame ):
 		if formatChoice == -1: pass # User canceled
 
 		# Ask for a folder to save the new library to
-		# Prompt the user to choose a folder to save in
+		libraryPath = globalData.getModsFolderPath()
 		targetFolder = tkFileDialog.askdirectory(
 			title="Choose where to save this library.",
-			initialdir=globalData.getModsFolderPath()
+			initialdir=libraryPath
 			)
 		if not targetFolder: return # User canceled
-
-		print(userPrompt.typeVar.get())
 
 		if formatChoice == 0: # Mini
 			print( 'not yet supported' )
@@ -842,14 +840,24 @@ class CodeManagerTab( ttk.Frame ):
 			print( 'not yet supported' )
 		else: # AMFS
 			for mod in globalData.codeMods:
-				# Remove filename from mini/MCM paths, and add a new folder name component
+				# Remove the filename component from mini/MCM paths, and add a new folder name component
 				if not mod.isAmfs:
+					# Get the path of this mod, relative to the library root folder
 					dirname = os.path.dirname( mod.path )
+					relPath = os.path.relpath( libraryPath, dirname )
+
+					# Use the relative path to build a new path within the new target library folder
 					newFolder = removeIllegalCharacters( mod.name )
-					newPath = os.path.join( dirname, newFolder )
+					newPath = os.path.join( targetFolder, relPath, newFolder )
+					mod.path = os.path.normpath( newPath )
+				else:
+					relPath = os.path.relpath( libraryPath, mod.path )
+					newPath = os.path.join( targetFolder, relPath )
 					mod.path = os.path.normpath( newPath )
 
 				mod.saveInAmfsFormat()
+
+			globalData.gui.updateProgramStatus( 'Library save complete', success=True )
 
 	def selectAllMods( self, event ):
 		currentTab = self.getCurrentTab()
