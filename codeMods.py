@@ -1108,6 +1108,7 @@ class CodeMod( object ):
 		if change.isAssembly or longHeader or not change.preProcessedCode:
 			try:
 				with open( sourcePath + '.asm', 'w' ) as sourceFile:
+					if not customCode.startswith(  )
 					sourceFile.write( header )
 					sourceFile.write( customCode )
 			except Exception as err:
@@ -1273,9 +1274,9 @@ class CodeLibraryParser():
 
 			# Process standalone .asm/.s files as their own mod
 			elif ext == '.asm':
-				self.parseStandaloneInjection( item, itemPath, includePaths, thisFolderName )
+				self.parseMinimalFormatInjection( item, itemPath, includePaths, thisFolderName )
 			elif ext == '.s':
-				self.parseStandaloneOverwrite( item, itemPath, includePaths, thisFolderName )
+				self.parseMinimalFormatOverwrite( item, itemPath, includePaths, thisFolderName )
 
 	def getModByName( self, name ):
 
@@ -1745,7 +1746,7 @@ class CodeLibraryParser():
 
 			self.storeMod( mod )
 
-	def parseStandaloneOverwrite( self, item, sourceFile, includePaths, category ):
+	def parseMinimalFormatOverwrite( self, item, sourceFile, includePaths, category ):
 
 		""" Creates a mod from a single, standalone .s file. """
 
@@ -1771,17 +1772,11 @@ class CodeLibraryParser():
 			mod.parsingError = True
 			mod.stateDesc = 'Missing address for "{}"'.format( sourceFile )
 			mod.errors.append( 'Unable to find an address' )
-			#return
-
-		# codeChange = CodeChange( mod, 'static', address, '', customCode )
-		# codeChange.evaluate()
-
-		# mod.data[mod.currentRevision].append( codeChange )
 
 		mod.addStaticOverwrite( address, customCode, '' )
 		self.storeMod( mod )
 
-	def parseStandaloneInjection( self, item, sourceFile, includePaths, category ):
+	def parseMinimalFormatInjection( self, item, sourceFile, includePaths, category ):
 
 		""" Creates a mod from a single, standalone .asm file. """
 
@@ -1807,17 +1802,7 @@ class CodeLibraryParser():
 			mod.parsingError = True
 			mod.stateDesc = 'Missing address for "{}"'.format( sourceFile )
 			mod.errors.append( 'Unable to find an address' )
-			#return
-
-		# codeChange = CodeChange( mod, 'static', address, '', customCode )
-		# codeChange.evaluate()
-
-		# if codeChange.length > 4:
-		# 	codeChange.type = 'injection'
-		# 	if mod.type == 'static':
-		# 		mod.type = 'injection'
-
-		# mod.data[mod.currentRevision].append( codeChange )
+			
 		mod.addInjection( address, customCode, '' )
 		self.storeMod( mod )
 
@@ -2225,11 +2210,11 @@ class CodeLibraryParser():
 		""" AMFS Injection; custom code sourced from an assembly file. """
 
 		# There will be no codeChangeDict if a source file was provided (i.e. an inject folder is being processed)
-		if not sourceFile:
+		if codeChangeDict:
 			address, sourceFile = self.getAddressAndSourceFile( codeChangeDict, mod )
 			fullAsmFilePath = os.path.join( mod.path, sourceFile )
 			annotation = codeChangeDict.get( 'annotation', '' )
-		else:
+		else: # Processing from 'injectFolder'; get address from file
 			address = ''
 			fullAsmFilePath = sourceFile # This will be a full path in this case
 			annotation = ''
@@ -2250,16 +2235,6 @@ class CodeLibraryParser():
 				mod.stateDesc = 'Missing address for "{}"'.format( sourceFile )
 				mod.errors.append( 'Unable to find an address for ' + sourceFile )
 				return
-
-		# codeChange = CodeChange( mod, 'static', address, '', customCode )
-		# codeChange.evaluate()
-
-		# if codeChange.length > 4:
-		# 	codeChange.type = 'injection'
-		# 	if mod.type == 'static':
-		# 		mod.type = 'injection'
-
-		# mod.data[mod.currentRevision].append( codeChange )
 
 		mod.addInjection( address, customCode )
 
