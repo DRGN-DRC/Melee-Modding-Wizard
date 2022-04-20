@@ -855,6 +855,16 @@ class CodeManagerTab( ttk.Frame ):
 					newPath = os.path.join( targetFolder, relPath )
 					mod.path = os.path.normpath( newPath )
 
+				# Attempts to convert Gecko codes to standard static overwrites and injections
+				if mod.type == 'gecko':
+					geckoMod = self.convertGeckoCode( mod )
+
+					if geckoMod:
+						mod = geckoMod # Save this in AMFS
+					else:
+						mod.saveInGeckoFormat( mod.path )
+						continue
+
 				mod.saveInAmfsFormat()
 
 			globalData.gui.updateProgramStatus( 'Library save complete', success=True )
@@ -921,23 +931,25 @@ class CodeManagerTab( ttk.Frame ):
 
 	def convertGeckoCode( self, mod ):
 		try:
-			# Create a copy of the mod (this copy should include basic properties, includePaths, webLinks, etc.)
+			# Create a copy of the mod (this deep-copy should include basic properties, includePaths, webLinks, etc.)
 			newMod = copy.deepcopy( mod )
 			newMod.name = mod.name + ' (Converted)'
+
+			origCodeChanges = mod.getCodeChanges()
 			newMod.data[mod.currentRevision] = []
 
-			for codeChange in mod.getCodeChanges():
+			for codeChange in origCodeChanges:
 				if codeChange.type == 'gecko':
 					# Prepend an artificial title for the parser and parse it
 					customCode = codeChange.rawCode.splitlines()
 					customCode.insert( 0, '$TitlePlaceholder' )
-					codeChanges = self.parser.parseGeckoCode( customCode )[-1]
+					codeChangeTuples = self.parser.parseGeckoCode( customCode )[-1]
 
-					if not codeChanges:
+					if not codeChangeTuples:
 						raise Exception( 'Unable to parse code changes for Gecko code' )
 
 					# Add new code change modules
-					for changeType, address, customCodeLines in codeChanges:
+					for changeType, address, customCodeLines in codeChangeTuples:
 						# Create a new CodeChange object and attach it to the internal mod module
 						if changeType == 'static':
 							codeChange = mod.addStaticOverwrite( address, customCodeLines, '' )

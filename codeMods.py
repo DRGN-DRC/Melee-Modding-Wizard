@@ -10,7 +10,6 @@
 #		  -  - Melee Modding Wizard -  -  
 
 # External Dependencies
-import code
 import os
 import json
 import struct
@@ -124,7 +123,7 @@ class CodeChange( object ):
 	""" Represents a single code change to be made to the game, such 
 		as a single code injection or static (in-place) overwrite. """
 
-	def __init__( self, mod, changeType, offset, origCode, rawCustomCode ):
+	def __init__( self, mod, changeType, offset, origCode, rawCustomCode, annotation='' ):
 
 		self.mod = mod
 		self.type = changeType		# String; one of 'static', 'injection', 'standalone', or 'gecko'
@@ -137,6 +136,7 @@ class CodeChange( object ):
 		self.rawCode = rawCustomCode
 		self.preProcessedCode = ''
 		self.processStatus = -1
+		self.anno = annotation
 
 	@property
 	def origCode( self ):
@@ -424,24 +424,48 @@ class CodeMod( object ):
 
 		return codeChanges
 
-	def addStaticOverwrite( self, offsetString, customCode, origCode='' ):
+	def preProcessCustomCode( self, customCode, annotation ):
+
+		if annotation: # Don't need to probe to get one; just make sure we have a string
+			if isinstance( customCode, list ):
+				customCode = '\n'.join( customCode ).strip()
+		else:
+			if not customCode:
+				return '', ''
+
+			# Collapse the list of collected code lines into one string, removing leading & trailing whitespace
+			if isinstance( customCode, list ):
+				firstLine = customCode[0]
+				customCode = '\n'.join( customCode ).strip()
+			else:
+				firstLine = customCode.splitlines()[0]
+				customCode = customCode.strip()
+
+			if firstLine.lstrip().startswith( '#' ):
+				annotation = firstLine.strip( '# ' )
+
+		return customCode, annotation
+
+	def addStaticOverwrite( self, offsetString, customCode, origCode='', annotation='' ):
 		# Collapse the list of collected code lines into one string, removing leading & trailing whitespace
-		if isinstance( customCode, list ):
-			customCode = '\n'.join( customCode ).strip()
+		# if isinstance( customCode, list ):
+		# 	customCode = '\n'.join( customCode ).strip()
+		customCode, annotation = self.preProcessCustomCode( customCode, annotation )
 
 		# Add the code change
-		codeChange = CodeChange( self, 'static', offsetString, origCode, customCode )
+		codeChange = CodeChange( self, 'static', offsetString, origCode, customCode, annotation )
 		self.data[self.currentRevision].append( codeChange )
 
 		return codeChange
 
-	def addInjection( self, offsetString, customCode, origCode='' ):
+	def addInjection( self, offsetString, customCode, origCode='', annotation='' ):
 		# Collapse the list of collected code lines into one string, removing leading & trailing whitespace
-		if isinstance( customCode, list ):
-			customCode = '\n'.join( customCode ).strip()
+		# if isinstance( customCode, list ):
+		# 	customCode = '\n'.join( customCode ).strip()
+		customCode, annotation = self.preProcessCustomCode( customCode, annotation )
 
 		# Add the code change
-		codeChange = CodeChange( self, 'injection', offsetString, origCode, customCode )
+		codeChange = CodeChange( self, 'injection', offsetString, origCode, customCode, annotation )
 		self.data[self.currentRevision].append( codeChange )
 
 		if self.type == 'static': # 'static' is the only type that 'injection' can override.
@@ -449,30 +473,32 @@ class CodeMod( object ):
 
 		return codeChange
 
-	def addGecko( self, customCode ):
+	def addGecko( self, customCode, annotation='' ):
 
 		""" This is for Gecko codes that could not be converted into strictly static 
 			overwrites and/or injection mods. These will require the Gecko codehandler. """
 			
 		# Collapse the list of collected code lines into one string, removing leading & trailing whitespace
-		if isinstance( customCode, list ):
-			customCode = '\n'.join( customCode ).strip()
+		# if isinstance( customCode, list ):
+		# 	customCode = '\n'.join( customCode ).strip()
+		customCode, annotation = self.preProcessCustomCode( customCode, annotation )
 
 		# Add the code change
-		codeChange = CodeChange( self, 'gecko', '', '', customCode )
+		codeChange = CodeChange( self, 'gecko', '', '', customCode, annotation )
 		self.data[self.currentRevision].append( codeChange )
 
 		self.type = 'gecko'
 
 		return codeChange
 
-	def addStandalone( self, standaloneName, standaloneRevisions, customCode ):
+	def addStandalone( self, standaloneName, standaloneRevisions, customCode, annotation='' ):
 		# Collapse the list of collected code lines into one string, removing leading & trailing whitespace
-		if isinstance( customCode, list ):
-			customCode = '\n'.join( customCode ).strip()
+		# if isinstance( customCode, list ):
+		# 	customCode = '\n'.join( customCode ).strip()
+		customCode, annotation = self.preProcessCustomCode( customCode, annotation )
 
 		# Add the code change for each revision that it was defined for
-		codeChange = CodeChange( self, 'standalone', standaloneName, '', customCode )
+		codeChange = CodeChange( self, 'standalone', standaloneName, '', customCode, annotation )
 		for revision in standaloneRevisions:
 			if revision not in self.data:
 				self.data[revision] = []
@@ -880,6 +906,20 @@ class CodeMod( object ):
 		else:
 			return '${} [{}]\n{}'.format( self.name, self.auth, '\n'.join(codeChanges) )
 
+	def saveInGeckoFormat( self, savePath ):
+
+		codeString = self.formatAsGecko( globalData.getVanillaDol(), False )
+		if not codeString:
+			return False
+
+		try:
+			with open( savePath, 'a' ) as geckoFile:
+				geckoFile.write( codeString )
+		except:
+			return False
+
+		return True
+
 	def saveInMcmFormat( self, savePath='' ):
 
 		""" Saves this mod to a text file in MCM's basic mod format. 
@@ -979,18 +1019,20 @@ class CodeMod( object ):
 		# Build the list of code change dictionaries
 		for revision, changes in self.data.items():
 			for change in changes:
-				changeDict = {}
 				change.evaluate( reevaluate=True )
+				changeDict = {}
 				
 				# Check for a simple annotation to add
-				annotation = ''
+				#annotation = ''
 				newHex = change.rawCode.strip()
 				# if newHex.startswith( '0x' ):
 				# 	newHex = newHex[2:] # Don't want to replace all instances
-				if newHex:
-					annotation, newHex = self.splitAnnotation( newHex )
-					if annotation:
-						changeDict['annotation'] = annotation
+				# if newHex:
+				# 	annotation, newHex = self.splitAnnotation( newHex )
+				# 	if annotation:
+				# 		changeDict['annotation'] = annotation
+				if change.anno:
+					changeDict['annotation'] = change.anno
 				
 				if change.type == 'static' and change.length <= 16: # Standard (Short) Static Overwrite
 					changeDict['type'] = 'replace'
@@ -1013,17 +1055,17 @@ class CodeMod( object ):
 					changeDict['name'] = change.offset
 					addSourceFile = True
 
-				elif change.type == 'gecko': # Gecko Codes
-					changeDict['type'] = 'gecko'
-					addSourceFile = True
+				# elif change.type == 'gecko': # Gecko Codes
+				# 	changeDict['type'] = 'gecko'
+				# 	addSourceFile = True
 
 				else: # Failsafe; shouldn't happen
-					print( 'AMFS save method encountered an unexpected change type:', change.type )
+					print( 'AMFS save method encountered an unexpected change type: ' + change.type )
 					continue
 
 				if addSourceFile:
 					# Create a file name for the assembly or bin file
-					fileName = self.fileNameFromAnnotation( annotation, change.type, change.offset )
+					fileName = self.filenameForChange( change )
 					sourcePath = os.path.join( self.path, fileName ) # No extension
 
 					# # Create a source file for this custom code
@@ -1071,9 +1113,6 @@ class CodeMod( object ):
 				#buildList.append( changeDict )
 				jsonData['codes'][0]['build'].append( changeDict )
 
-		# Save configuration info
-		
-
 		# Save the codes.json file
 		try:
 			jsonPath = os.path.join( self.path, 'codes.json' )
@@ -1105,10 +1144,9 @@ class CodeMod( object ):
 			header = '# To be inserted at ' + change.offset + '\n\n'
 
 		# Create a source file for this custom code
-		if change.isAssembly or longHeader or not change.preProcessedCode:
+		if change.isAssembly or not change.preProcessedCode:
 			try:
 				with open( sourcePath + '.asm', 'w' ) as sourceFile:
-					if not customCode.startswith(  )
 					sourceFile.write( header )
 					sourceFile.write( customCode )
 			except Exception as err:
@@ -1161,39 +1199,49 @@ class CodeMod( object ):
 		""" Saves this mod as a single static overwrite or injection. 
 			Does not support multiple revisions/changes or configurations. """
 
-		changes = self.data.values()[0]
+		# Get the lists of code changes for each revision
+		revisions = self.data.values()
+		assert len( revisions ) == 1, 'Invalid number of revisions for saving as a standalone file: ' + str( len(revisions) )
+
+		# Get the code changes
+		changes = revisions[0]
+		assert len( changes ) == 1, 'Invalid number of changes for saving as a standalone file: ' + str( len(changes) )
 
 		# Create the source and/or binary files
 		return self.writeCustomCodeFiles( changes[0], os.path.splitext(self.path)[0], changes[0].rawCode, True )
 
-	def splitAnnotation( self, customCode ):
+	# def splitAnnotation( self, customCode ):
 
-		""" Check for a comment on the first line of the custom code, 
-			and if present, use that for the annotation. """
+	# 	""" Check for a comment on the first line of the custom code, 
+	# 		and if present, use that for the annotation. """
 
-		newHex = customCode.strip().splitlines()
-		firstLine = newHex[0]
+	# 	newHex = customCode.strip().splitlines()
+	# 	firstLine = newHex[0]
 
-		if '#' in firstLine:
-			if firstLine.startswith( '#' ):
-				annotation = firstLine.lstrip( '# ' )
-				newHex = '\n'.join( newHex[1:] )
-			else:
-				newHex[0], annotation = firstLine.split( '#' )
-				annotation = annotation.lstrip()
-				newHex = '\n'.join( newHex )
-		else:
-			annotation = ''
-			newHex = customCode
+	# 	if '#' in firstLine:
+	# 		if firstLine.startswith( '#' ):
+	# 			annotation = firstLine.lstrip( '# ' )
+	# 			newHex = '\n'.join( newHex[1:] )
+	# 		else:
+	# 			newHex[0], annotation = firstLine.split( '#' )
+	# 			annotation = annotation.lstrip()
+	# 			newHex = '\n'.join( newHex )
+	# 	else:
+	# 		annotation = ''
+	# 		newHex = customCode
 
-		return annotation, newHex
+	# 	return annotation, newHex
 
-	def fileNameFromAnnotation( self, anno, changeType, address ):
+	def filenameForChange( self, change ):
 
 		""" Creates a file name from the annotation, removing illegal 
 			characters. Or, if an annotation is not available, creates 
 			one based on the change type and address of the code change. 
 			The file extension is not included. """
+
+		cType = change.type
+		address = change.address
+		anno = change.anno
 
 		if anno:
 			if len( anno ) > 42:
@@ -1204,11 +1252,11 @@ class CodeMod( object ):
 			name = removeIllegalCharacters( name, '' )
 
 		else: # No annotation available
-			if changeType == 'static':
+			if cType == 'static':
 				name = 'Static overwrite at {}'.format( address )
-			elif changeType == 'injection':
+			elif cType == 'injection':
 				name = 'Code injection at {}'.format( address )
-			elif changeType == 'standalone':
+			elif cType == 'standalone':
 				name = "SA, '{}'".format( address )
 			else:
 				name = 'Unknown code change at {}'.format( address )
@@ -1760,20 +1808,18 @@ class CodeLibraryParser():
 		mod.category = category
 		
 		# Read the file for info and the custom code
-		returnCode, address, author, customCode = self.getCustomCodeFromFile( sourceFile, mod, True, modName )
+		returnCode, address, author, customCode, anno = self.getCustomCodeFromFile( sourceFile, mod, True, modName )
 
 		if author:
 			mod.auth = author
 
 		# Check for errors
-		# if returnCode != 0:
-		# 	return # Errors have already been recorded and reported
-		if not address:
+		if returnCode == 0 and not address:
 			mod.parsingError = True
 			mod.stateDesc = 'Missing address for "{}"'.format( sourceFile )
 			mod.errors.append( 'Unable to find an address' )
 
-		mod.addStaticOverwrite( address, customCode, '' )
+		mod.addStaticOverwrite( address, customCode, '', anno )
 		self.storeMod( mod )
 
 	def parseMinimalFormatInjection( self, item, sourceFile, includePaths, category ):
@@ -1790,20 +1836,18 @@ class CodeLibraryParser():
 		mod.category = category
 		
 		# Read the file for info and the custom code
-		returnCode, address, author, customCode = self.getCustomCodeFromFile( sourceFile, mod, True, modName )
+		returnCode, address, author, customCode, anno = self.getCustomCodeFromFile( sourceFile, mod, True, modName )
 
 		if author:
 			mod.auth = author
 
 		# Check for errors
-		# if returnCode != 0:
-		# 	return # Errors have already been recorded and reported
-		if not address:
+		if returnCode == 0 and not address:
 			mod.parsingError = True
 			mod.stateDesc = 'Missing address for "{}"'.format( sourceFile )
 			mod.errors.append( 'Unable to find an address' )
 			
-		mod.addInjection( address, customCode, '' )
+		mod.addInjection( address, customCode, '', anno )
 		self.storeMod( mod )
 
 	def storeMod( self, mod ):
@@ -1978,7 +2022,8 @@ class CodeLibraryParser():
 
 				if buildList:
 					for codeChangeDict in buildList:
-						codeType = codeChangeDict['type']
+						codeType = codeChangeDict['type'] # Expected; not optional
+						annotation = codeChangeDict.get( 'annotation', '' ) # Optional; may not be there
 
 						# Set the revision (region/version) this code is for
 						if not overallRevision:
@@ -1990,28 +2035,30 @@ class CodeLibraryParser():
 							mod.setCurrentRevision( revision )
 						
 						if codeType == 'replace': # Static Overwrite; basically an 02/04 Gecko codetype (hex from json)
-							#mod.addStaticOverwrite( codeChangeDict['address'], codeChangeDict['value'].splitlines() )
-							self.parseAmfsReplace( codeChangeDict, mod )
+							mod.addStaticOverwrite( codeChangeDict['address'], codeChangeDict['value'].splitlines(), annotation=annotation )
+							#self.parseAmfsReplace( codeChangeDict, mod )
 
 						elif codeType == 'inject': # Standard code injection (hex from file)
-							self.parseAmfsInject( codeChangeDict, mod )
+							self.parseAmfsInject( codeChangeDict, mod, annotation )
 
 						elif codeType == 'replaceCodeBlock': # Static overwrite of variable length (hex from file)
-							self.parseAmfsReplaceCodeBlock( codeChangeDict, mod )
+							self.parseAmfsReplaceCodeBlock( codeChangeDict, mod, annotation )
 
 						elif codeType == 'injectFolder': # Process a folder of .asm files; all as code injections
-							self.parseAmfsInjectFolder( codeChangeDict, mod )
+							self.parseAmfsInjectFolder( codeChangeDict, mod, annotation )
 
 						elif codeType in ( 'branch', 'branchAndLink', 'binary', 'replaceBinary' ):
+							mod.parsingError = True
 							mod.errors.append( 'The "' + codeType + '" AMFS code type is not supported' )
 
 						elif codeType == 'standalone': # For Standalone Functions
-							self.parseAmfsStandalone( codeChangeDict, mod )
+							self.parseAmfsStandalone( codeChangeDict, mod, annotation )
 
-						elif codeType == 'gecko':
-							self.parseAmfsGecko( codeChangeDict, mod )
+						# elif codeType == 'gecko':
+						# 	self.parseAmfsGecko( codeChangeDict, mod, annotation )
 
 						else:
+							mod.parsingError = True
 							mod.errors.append( 'Unrecognized AMFS code type: ' + codeType )
 
 					self.storeMod( mod )
@@ -2077,28 +2124,29 @@ class CodeLibraryParser():
 
 		if not annotation: # Use the file name for the annotation (without file extension)
 			annotation = os.path.splitext( os.path.basename(fullAsmFilePath) )[0]
-		
+
 		# Get the custom code, and the address/offset if needed
 		try:
 			# Open the file in byte-reading mode (rb). Strings will then need to be encoded.
 			with codecs.open( fullAsmFilePath, encoding='utf-8' ) as asmFile: # Using a different read method for UTF-8 encoding
 				if parseHeader:
 					offset, author = self.parseSourceFileHeader( asmFile )
-					decodedString = asmFile.read().encode( 'utf-8' )
-					customCode = '# {}\n{}'.format( annotation, decodedString )
+					#customCode = asmFile.read().encode( 'utf-8' )
+					#customCode = '# {}\n{}'.format( annotation, decodedString )
 				else:
 					offset = ''
 					author = ''
 
 					# Collect all of the file contents
-					firstLine = asmFile.readline().encode( 'utf-8' )
-					theRest = asmFile.read().encode( 'utf-8' )
+					#firstLine = asmFile.readline().encode( 'utf-8' )
+					#theRest = asmFile.read().encode( 'utf-8' )
 
 					# Clean up the header line (changing first line's "#To" to "# To")
-					if firstLine.startswith( '#To' ):
-						customCode = '# {}\n# {}\n{}'.format( annotation, firstLine.lstrip( '# '), theRest )
-					else:
-						customCode = '# {}\n{}\n{}'.format( annotation, firstLine, theRest )
+					# if firstLine.startswith( '#To' ):
+					# 	customCode = '# {}\n# {}\n{}'.format( annotation, firstLine.lstrip( '# '), theRest )
+					# else:
+					# 	customCode = '# {}\n{}\n{}'.format( annotation, firstLine, theRest )
+				customCode = asmFile.read().encode( 'utf-8' )
 
 		except IOError as err: # File couldn't be found
 			baseFilePath = os.path.splitext( fullAsmFilePath )[0]
@@ -2107,29 +2155,29 @@ class CodeLibraryParser():
 			if os.path.exists( baseFilePath + '.txt' ):
 				return self.getCustomCodeFromFile( baseFilePath + '.txt', mod, parseHeader, annotation )
 
-			# Check for a raw binary data file
+			# Check for assembled binary data
 			elif os.path.exists( baseFilePath + '.bin' ):
 				with open( baseFilePath + '.bin', 'rb' ) as binaryFile:
 					contents = binaryFile.read()
 
-				return 0, '', '', hexlify( contents ) # Converting from a byte array to a hex string
+				return 0, '', '', hexlify( contents ), annotation # Converting from a byte array to a hex string
 
 			print( err )
 			mod.parsingError = True
 			#mod.state = 'unavailable'
 			mod.stateDesc = 'Missing source files'
 			mod.errors.append( "Unable to find the file " + os.path.basename(fullAsmFilePath) )
-			return 4, '', '', ''
+			return 4, '', '', '', annotation
 			
 		except Exception as err: # Unknown error
 			print( err )
 			mod.parsingError = True
 			#mod.state = 'unavailable'
-			mod.stateDesc = 'File reading error with ' + annotation
+			mod.stateDesc = 'File reading error with ' + os.path.basename( fullAsmFilePath )
 			mod.errors.append( 'Encountered an error while reading {}: {}'.format(os.path.basename(fullAsmFilePath), err) )
-			return 5, '', '', ''
+			return 5, '', '', '', annotation
 
-		return 0, offset, author, customCode
+		return 0, offset, author, customCode, annotation
 			
 		# Pre-process the custom code (make sure there's no whitespace, and/or assemble it)
 		# returnCode, preProcessedCustomCode = globalData.codeProcessor.preAssembleRawCode( customCode, [os.path.dirname(fullAsmFilePath)] + mod.includePaths, suppressWarnings=True )
@@ -2193,39 +2241,38 @@ class CodeLibraryParser():
 
 		return '', ''
 
-	def parseAmfsReplace( self, codeChangeDict, mod ):
+	# def parseAmfsReplace( self, codeChangeDict, mod ):
 		
-		# Place annotations with the custom code, as a comment
-		annotation = codeChangeDict.get( 'annotation' )
-		if annotation:
-			customCode = [ '# ' + annotation ]
-			customCode.extend( codeChangeDict['value'].splitlines() )
-		else:
-			customCode = codeChangeDict['value'].splitlines()
+	# 	# Place annotations with the custom code, as a comment
+	# 	annotation = codeChangeDict.get( 'annotation' )
+	# 	if annotation:
+	# 		customCode = [ '# ' + annotation ]
+	# 		customCode.extend( codeChangeDict['value'].splitlines() )
+	# 	else:
+	# 		customCode = codeChangeDict['value'].splitlines()
 
-		mod.addStaticOverwrite( codeChangeDict['address'], customCode )
+	# 	mod.addStaticOverwrite( codeChangeDict['address'], customCode )
 
-	def parseAmfsInject( self, codeChangeDict, mod, sourceFile='' ):
+	def parseAmfsInject( self, codeChangeDict, mod, annotation, sourceFile='' ):
 
 		""" AMFS Injection; custom code sourced from an assembly file. """
 
 		# There will be no codeChangeDict if a source file was provided (i.e. an inject folder is being processed)
 		if codeChangeDict:
 			address, sourceFile = self.getAddressAndSourceFile( codeChangeDict, mod )
-			fullAsmFilePath = os.path.join( mod.path, sourceFile )
-			annotation = codeChangeDict.get( 'annotation', '' )
+			#fullAsmFilePath = os.path.join( mod.path, sourceFile )
+			fullAsmFilePath = '\\\\?\\' + os.path.normpath( os.path.join(mod.path, sourceFile) )
+			#annotation = codeChangeDict.get( 'annotation', '' )
 		else: # Processing from 'injectFolder'; get address from file
 			address = ''
 			fullAsmFilePath = sourceFile # This will be a full path in this case
-			annotation = ''
+			#annotation = ''
 
 		# Read the file for info and the custom code
-		returnCode, address, _, customCode = self.getCustomCodeFromFile( fullAsmFilePath, mod, True, annotation )
+		returnCode, address, _, customCode, anno = self.getCustomCodeFromFile( fullAsmFilePath, mod, True, annotation )
 
-		# Check for errors
-		if returnCode != 0:
-			return # Errors have already been recorded and reported
-		elif not address:
+		# Check for a missing address
+		if returnCode == 0 and not address:
 			# Fall back to the codes.json file (todo: always use this?)
 			if codeChangeDict:
 				address = codeChangeDict.get( 'address', '' )
@@ -2236,30 +2283,23 @@ class CodeLibraryParser():
 				mod.errors.append( 'Unable to find an address for ' + sourceFile )
 				return
 
-		mod.addInjection( address, customCode )
+		mod.addInjection( address, customCode, '', anno )
 
-	def parseAmfsReplaceCodeBlock( self, codeChangeDict, mod ):
+	def parseAmfsReplaceCodeBlock( self, codeChangeDict, mod, annotation ):
 
 		""" AMFS Long Static Overwrite of variable length. """
 
-		# Pre-process the custom code (make sure there's no whitespace, and/or assemble it)
-		# sourceFile = codeChangeDict.get( 'sourceFile', '' ) # Expected to be there. Relative path
-		# if not sourceFile:
-		# 	mod.parsingError = True
-		# 	mod.stateDesc = 'Parsing error; missing source file'
-		# 	mod.errors.append( 'Injection at {} missing "sourceFile"'.format(address) )
-		# 	return
 		address, sourceFile = self.getAddressAndSourceFile( codeChangeDict, mod )
 		fullAsmFilePath = '\\\\?\\' + os.path.normpath( os.path.join(mod.path, sourceFile) )
-		annotation = codeChangeDict.get( 'annotation', '' ) # Optional; may not be there
+		#annotation = codeChangeDict.get( 'annotation', '' ) # Optional; may not be there
 		
 		# Read the file for info and the custom code
-		returnCode, _, _, customCode = self.getCustomCodeFromFile( fullAsmFilePath, mod, False, annotation )
-		if returnCode != 0:
+		returnCode, _, _, customCode, anno = self.getCustomCodeFromFile( fullAsmFilePath, mod, False, annotation )
+		#if returnCode != 0:
 			# mod.parsingError = True
 			# mod.stateDesc = 'Parsing error; unable to get code from file'
 			# mod.errors.append( "Unable to read the 'sourceFile' {}".format(sourceFile) )
-			return
+		#	return
 
 		# Get the offset of the code change, and the original code at that location
 		#offset = codeChangeDict.get( 'address', '' )
@@ -2275,28 +2315,29 @@ class CodeLibraryParser():
 		# mod.data[mod.revision].append( ('static', customCodeLength, offset, origHex, customCode, preProcessedCustomCode) )
 		
 		#mod.addStaticOverwrite( address, codeChangeDict['value'].splitlines() )
-		codeChange = CodeChange( mod, 'static', address, '', customCode )
-		mod.data[mod.currentRevision].append( codeChange )
+		# codeChange = CodeChange( mod, 'static', address, '', customCode )
+		# mod.data[mod.currentRevision].append( codeChange )
+		mod.addStaticOverwrite( address, customCode, '', anno )
 
-	def processAmfsInjectSubfolder( self, fullFolderPath, mod, isRecursive ):
+	def _processAmfsInjectSubfolder( self, fullFolderPath, mod, annotation, isRecursive ):
 
-		""" Processes all files/folders in a directory """
+		""" Recursive helper method to .parseAmfsInjectFolder(). Processes all files/folders in a directory. """
 
 		try:
 			for item in os.listdir( fullFolderPath ):
 				itemPath = os.path.join( fullFolderPath, item )
 
 				if os.path.isdir( itemPath ) and isRecursive:
-					self.processAmfsInjectSubfolder( itemPath, mod, isRecursive )
+					self._processAmfsInjectSubfolder( itemPath, mod, annotation, isRecursive )
 				elif itemPath.endswith( '.asm' ):
-					self.parseAmfsInject( None, mod, sourceFile=itemPath )
+					self.parseAmfsInject( None, mod, annotation, sourceFile=itemPath )
 			
 		except WindowsError as err:
 			mod.parsingError = True
 			mod.errors.append( 'Unable to find the folder "{}"'.format(fullFolderPath) )
 			print( err )
 
-	def parseAmfsInjectFolder( self, codeChangeDict, mod ):
+	def parseAmfsInjectFolder( self, codeChangeDict, mod, annotation ):
 		# Get/construct the root folder path
 		sourceFolder = codeChangeDict['sourceFolder']
 		sourceFolderPath = os.path.join( mod.path, sourceFolder )
@@ -2309,23 +2350,46 @@ class CodeLibraryParser():
 			return
 
 		# try:
-		self.processAmfsInjectSubfolder( sourceFolderPath, mod, isRecursive )
+		self._processAmfsInjectSubfolder( sourceFolderPath, mod, annotation, isRecursive )
 		# except WindowsError as err:
 		#	# Try again with extended path formatting
 		# 	print 'second try for', sourceFolderPath
-		# 	self.processAmfsInjectSubfolder( '\\\\?\\' + os.path.normpath(sourceFolderPath), mod, codeChangeDict['isRecursive'] )
+		# 	self._processAmfsInjectSubfolder( '\\\\?\\' + os.path.normpath(sourceFolderPath), mod, annotation, codeChangeDict['isRecursive'] )
 
-	def parseAmfsStandalone( self, codeChangeDict, mod ):
+	def parseAmfsStandalone( self, codeChangeDict, mod, annotation ):
+
+		""" Read a Standalone Function from AMFS format. """
+
+		name = codeChangeDict.get( 'name', '' )
 		revisions = codeChangeDict.get( 'revisions', ['NTSC 1.02'] )
-		annotation = codeChangeDict.get( 'annotation', '' ) # Optional; may not be there
+		sourceFile = codeChangeDict.get( 'sourceFile', '' ) # Relative path
 
-		returnCode, address, author, customCode = self.getCustomCodeFromFile( sourceFile, mod, False, annotation )
+		# Perform some basic validation
+		if not name:
+			mod.parsingError = True
+			if sourceFile:
+				sourceFileName = os.path.basename( sourceFile )
+				mod.errors.append( 'SF for {} is missing its name property'.format(sourceFileName) )
+			else:
+				mod.errors.append( 'An SF is missing its name property' )
 
-		mod.addStandalone( codeChangeDict['name'], revisions,  )
+		# If a sourceFile was provided, construct the full path and get the custom code
+		if not sourceFile:
+			mod.parsingError = True
+			mod.errors.append( 'SF {} is missing its "sourceFile" property'.format(name) )
+			customCode = ''
+		else:
+			fullAsmFilePath = '\\\\?\\' + os.path.normpath( os.path.join(mod.path, sourceFile) )
+			_, _, _, customCode, annotation = self.getCustomCodeFromFile( fullAsmFilePath, mod, False, annotation )
 
-	def parseAmfsGecko( self, codeChangeDict, mod ):
+		mod.addStandalone( name, revisions, customCode, annotation )
 
-		mod.addGecko(  )
+	# def parseAmfsGecko( self, codeChangeDict, mod, annotation ):
+
+	# 	""" Read a Gecko Code from AMFS format. (depricate this?) """
+
+	# 	mod.addGecko(  )
+
 
 class CommandProcessor( object ):
 
