@@ -34,55 +34,6 @@ ConfigurationTypes = { 	'int8':   'b',	'uint8':   'B',	'mask8':   'B',
 						'float': '>f' }
 
 
-# def getCustomCodeLength( customCode, preProcess=False, includePaths=None, configurations=None ):
-
-# 	""" Returns a byte count for custom code (though it is first calculated here in terms of nibbles. Custom syntaxes may be included.
-# 		Processing is simplest with hex strings (without whitespace), though input can be ASM if preProcess=True.
-
-# 		Example inputs:
-# 			'3C60801A60634340'
-# 				or
-# 			'3C60801A60634340|S|sbs__b <someFunction>|S|3C60801A48006044' <- includes some special branch syntax. """
-
-# 	if preProcess: # The input is assembly and needs to be assembled into hexadecimal, or it has whitespace that needs removal
-# 		customCode = globalData.codeProcessor.preAssembleRawCode( customCode, includePaths )[1]
-
-# 	if '|S|' in customCode: # Indicates a special syntax is present
-# 		length = 0
-# 		for section in customCode.split( '|S|' ):
-# 			if section.startswith( 'sbs__' ) or section.startswith( 'sym__' ) or section.startswith( 'opt__' ):
-# 				#length += 8 # expected to be 4 bytes once assembled
-
-# 			# elif section.startswith( 'opt__' ): # Contains configuration options (bracketed variable name(s), e.g. '[[Some Var]]')
-# 			# 	# Replace variable placeholders with zeros
-# 			# 	sectionChunks = section.split( '[[' )
-# 			# 	for i, chunk in sectionChunks:
-# 			# 		if ']]' in chunk:
-# 			# 			varName = chunk.split( ']]' )[0]
-# 			# 			sectionChunks[i] = chunk.replace( ']]', '0' )
-# 				length += getCustomSectionLength( section )
-
-# 			else:
-# 				length += len( section )
-# 	else:
-# 		length = len( customCode )
-
-# 	return length / 2
-
-
-# def getCustomSectionLength( section ): # depricating (currently in dol.py)
-
-# 	""" Similar to the function above for getting code length, but specific to lines with custom syntax. """
-
-# 	section = section[5:] # Removing the special syntax identifier (e.g. 'sbs__')
-# 	instruction = section.split()[0]
-
-# 	if instruction == '.set': return 0
-# 	elif instruction == '.byte': return 1
-# 	elif instruction == '.hword': return 2
-# 	else: return 4
-
-
 def regionsOverlap( regionList ):
 
 	""" Checks selected custom code regions to make sure they do not overlap one another. """
@@ -252,9 +203,9 @@ class CodeChange( object ):
 	
 	def evaluate( self, reevaluate=False ):
 
-		""" Assembles source code if it's not already in hex form, checks for assembly errors, and
-			ensures configuration options are present and configured correctly. Reevaluation of 
-			custom code can be important if the code is changed, or the mod is saved to a new location 
+		""" Checks for special syntaxes and configurations, ensures configuration options are present and 
+			configured correctly, and assembles source code if it's not already in hex form. Reevaluation 
+			of custom code can be important if the code is changed, or the mod is saved to a new location 
 			(which could potentially change import directories). """
 
 		if not reevaluate and self.processStatus != -1:
@@ -325,9 +276,9 @@ class CodeChange( object ):
 	def finalizeCode( self, targetAddress ):
 
 		""" Performs final code processing for custom code, just before saving it to the DOL or codes file. 
-			The save location for the given code as well as addresses for any standalone functions it might 
+			The save location for the code as well as addresses for any standalone functions it might 
 			require should already be known by this point, so custom syntaxes can now be resolved. User 
-			configuration options are also now saved to the code. """
+			configuration options are also now saved into the custom code. """
 
 		self.evaluate()
 
@@ -383,7 +334,6 @@ class CodeMod( object ):
 
 		self.assemblyError = False
 		self.parsingError = False
-		#self.missingVanillaHex = False
 		#self.missingIncludes = []		# Include filesnames detected to be required by the assembler
 		self.errors = []
 
@@ -598,7 +548,7 @@ class CodeMod( object ):
 
 		""" Normalizes value input that may be a hex/decimal string or an int/float literal
 			to an int or float. The source value type may not be consistent due to
-			varying sources (i.e. from an MCM format file or AMFS config file). """
+			varying sources (i.e. from an MCM format file or AMFS config/json file). """
 
 		if type( value ) == str: # Need to typecast to int or float
 			if optionType == 'float':
@@ -656,7 +606,10 @@ class CodeMod( object ):
 
 	def buildModString( self, reevaluateCodeChanges=False ):
 
-		""" Builds a string to store/share this mod in MCM's normal code format. """
+		""" Builds a string to store/share this mod in MCM's normal code format. 
+			If this mod is a Gecko code, this method will create a MCM-Gecko format string that is
+			a slight variant of a normal Gecko code (as one would see in a Dolphin INI file). This 
+			variant exists so that a Gecko code may have several variants for different revisions. """
 
 		# Collect lines for title, description, and web links
 		if self.name:
@@ -717,6 +670,13 @@ class CodeMod( object ):
 			addVersionHeader = True
 
 			for change in codeChanges:
+				# newHex = change.rawCode
+				# if newHex.startswith( '0x' ):
+				# 	newHex = newHex[2:] # Don't want to replace all instances
+				newHex = change.rawCode.strip()
+				if not newHex:
+					continue
+
 				if change.type in ( 'static', 'injection' ):
 					change.evaluate( reevaluateCodeChanges )
 					addChangesHeader = True
@@ -754,13 +714,6 @@ class CodeMod( object ):
 						offsetString = dashes + ' ' + '0x' + offset + ' ' + dashes
 					else: # Add an extra dash at the end (the int division above rounds down)
 						offsetString = dashes + ' ' + '0x' + offset + ' ' + dashes + '-'
-
-					# newHex = change.rawCode
-					# if newHex.startswith( '0x' ):
-					# 	newHex = newHex[2:] # Don't want to replace all instances
-					newHex = change.rawCode.strip()
-					if not newHex:
-						continue
 
 					# Build a string for a standard (short) static overwrite
 					if change.type == 'static' and len( originalHex ) <= 16 and newHex.splitlines()[0].split('#')[0] != '': # Last check ensures there's actually code, and not just comments/whitespace
@@ -803,7 +756,8 @@ class CodeMod( object ):
 
 	def formatAsGecko( self, vanillaDol, createForGCT ):
 
-		""" Formats a mod's code into Gecko code form. If this is for an INI file, human-readable mod-name/author headers and 
+		""" Formats a mod's code into Gecko code form. Note that this is the 'true' or original Gecko code format
+			(as Dolphin would use), not the MCM-Gecko variant. If this is for an INI file, human-readable mod-name/author headers and 
 			whitespace are included. If this is for a GCT file, it'll just be pure hex data (though returned as a string). """
 
 		containsSpecialSyntax = False
@@ -920,7 +874,7 @@ class CodeMod( object ):
 
 		return True
 
-	def saveInMcmFormat( self, savePath='' ):
+	def saveInMcmFormat( self, savePath='', showErrors=True ):
 
 		""" Saves this mod to a text file in MCM's basic mod format. 
 			If the given file path already contains mods, the mod of the
@@ -942,32 +896,40 @@ class CodeMod( object ):
 		try:
 			modString = self.buildModString( reevaluateCodeChanges=True )
 
-			# Create a new file, or get contents of an existing one
-			with open( self.path, 'r' ) as modFile:
-				fileContents = modFile.read()
+			try:
+				# Get contents of an existing file
+				with open( self.path, 'r' ) as modFile:
+					fileContents = modFile.read()
+					
+				if fileContents and self.fileIndex == -1: # Add to the end of the file
+					# Get the file index for this mod and prepend a separator
+					self.fileIndex = len( fileContents.split( '-==-' ) )
+					modString = fileContents + '\n\n\n\t-==-\n\n\n' + modString
 
-			if fileContents and self.fileIndex == -1: # Add to the end of the file
-				# Get the file index for this mod and prepend a separator
-				self.fileIndex = len( fileContents.split( '-==-' ) )
-				modString = fileContents + '\n\n\n\t-==-\n\n\n' + modString
+				elif fileContents: # Replace the given index
+					mods = fileContents.split( '-==-' )
+					
+					# Replace the old mod, reformat the space in-between mods, and recombine the file's text.
+					mods[self.fileIndex] = modString
+					mods = [code.strip() for code in mods] # Removes the extra whitespace around mod strings.
+					modString = '\n\n\n\t-==-\n\n\n'.join( mods )
+				else:
+					self.fileIndex = 0
 
-			elif fileContents: # Replace the given index
-				mods = fileContents.split( '-==-' )
-				
-				# Replace the old mod, reformat the space in-between mods, and recombine the file's text.
-				mods[self.fileIndex] = modString
-				mods = [code.strip() for code in mods] # Removes the extra whitespace around mod strings.
-				modString = '\n\n\n\t-==-\n\n\n'.join( mods )
+				# Save the mod to the file.
+				with open( self.path, 'w' ) as modFile:
+					modFile.write( modString )
 
-			else:
+			except IOError: # The file doesn't exist
+				# Open in append mode to create a new one
+				with open( self.path, 'a' ) as modFile:
+					modFile.write( modString )
 				self.fileIndex = 0
 
-			# Save the mod to the file.
-			with open( self.path, 'w' ) as modFile:
-				modFile.write( modString )
-
 		except Exception as err:
-			msg( err, 'Unable to save!', error=True )
+			print( 'Unable to save {} in MCM format; {}'.format(self.name, err) )
+			if showErrors:
+				msg( 'Unable to save {} in MCM format; {}'.format(self.name, err), 'Unable to save!', error=True )
 
 			return False
 
@@ -1000,11 +962,14 @@ class CodeMod( object ):
 					'authors': [name.strip() for name in self.auth.split(',') ],
 					'description': self.desc.splitlines(),
 					'category': self.category,
-					'configurations': self.configurations,
 					'build': []
 				}
 			]
 		}
+		
+		# Add configuration definitions if present
+		if self.configurations:
+			jsonData['codes'][0]['configurations'] = self.configurations
 
 		# Set an overall revision if there are only changes for one available
 		if len( self.data ) == 1:
@@ -1024,7 +989,7 @@ class CodeMod( object ):
 				
 				# Check for a simple annotation to add
 				#annotation = ''
-				newHex = change.rawCode.strip()
+				#newHex = change.rawCode.strip()
 				# if newHex.startswith( '0x' ):
 				# 	newHex = newHex[2:] # Don't want to replace all instances
 				# if newHex:
@@ -1037,11 +1002,11 @@ class CodeMod( object ):
 				if change.type == 'static' and change.length <= 16: # Standard (Short) Static Overwrite
 					changeDict['type'] = 'replace'
 					changeDict['address'] = change.offset
-					changeDict['value'] = newHex
+					changeDict['value'] = change.rawCode.strip()
 					addSourceFile = False
 
 				elif change.type == 'static': # Long Static Overwrite
-					changeDict['type'] = 'replace'
+					changeDict['type'] = 'replaceCodeBlock'
 					changeDict['address'] = change.offset
 					addSourceFile = True
 
@@ -1068,39 +1033,8 @@ class CodeMod( object ):
 					fileName = self.filenameForChange( change )
 					sourcePath = os.path.join( self.path, fileName ) # No extension
 
-					# # Create a source file for this custom code
-					# try:
-					# 	with open( sourcePath + '.asm', 'w' ) as sourceFile:
-					# 		sourceFile.write( '# To be inserted at ' + change.offset + '\n' )
-					# 		sourceFile.write( newHex )
-					# except Exception as err:
-					# 	print( 'Unable to create', sourcePath + '.asm' )
-					# 	print( err )
-					# 	continue
-					
-					# # Save successfully assembled code (if custom syntax isn't required)
-					# if change.preProcessedCode:
-					# 	if change.syntaxInfo: # Contains custom syntax; cannot yet be fully assembled
-					# 		# Save a text file with the pre-processed code
-					# 		try:
-					# 			with open( sourcePath + '.txt', 'w' ) as sourceFile:
-					# 				sourceFile.write( '# To be inserted at ' + change.offset + '\n' )
-					# 				sourceFile.write( change.preProcessedCode )
-					# 		except Exception as err:
-					# 			print( 'Unable to create', sourcePath + '.txt' )
-					# 			print( err )
-					# 			continue
-					# 	else:
-					# 		# Save a binary file with just hex data
-					# 		try:
-					# 			binData = bytearray.fromhex( change.preProcessedCode )
-					# 			with open( sourcePath + '.bin', 'wb' ) as sourceFile:
-					# 				sourceFile.write( binData )
-					# 		except Exception as err:
-					# 			print( 'Unable to create', sourcePath + '.bin' )
-					# 			print( err )
-					# 			continue
-					success = self.writeCustomCodeFiles( change, sourcePath, newHex )
+					# Create the file(s)
+					success = self.writeCustomCodeFiles( change, sourcePath )
 					if not success:
 						continue
 
@@ -1125,7 +1059,7 @@ class CodeMod( object ):
 
 		return True
 
-	def writeCustomCodeFiles( self, change, sourcePath, customCode, longHeader=False ):
+	def writeCustomCodeFiles( self, change, sourcePath, longHeader=False ):
 
 		""" An assembly (.asm) file should be saved if the custom code is assembly, or 
 			the code could not be pre-processed. Successfully pre-processed code may have 
@@ -1143,12 +1077,23 @@ class CodeMod( object ):
 		else:
 			header = '# To be inserted at ' + change.offset + '\n\n'
 
-		# Create a source file for this custom code
+		# Check if the original source code should be saved
+		saveSource = False
 		if change.isAssembly or not change.preProcessedCode:
+			saveSource = True
+		else:
+			# Check if there are any comments that would be lost
+			for line in change.rawCode:
+				if '#' in line:
+					saveSource = True
+					break
+
+		# Create a source file for this custom code
+		if saveSource:
 			try:
 				with open( sourcePath + '.asm', 'w' ) as sourceFile:
 					sourceFile.write( header )
-					sourceFile.write( customCode )
+					sourceFile.write( change.rawCode.strip() )
 			except Exception as err:
 				print( 'Unable to create "' + sourcePath + '.asm"' )
 				print( err )
@@ -1208,7 +1153,7 @@ class CodeMod( object ):
 		assert len( changes ) == 1, 'Invalid number of changes for saving as a standalone file: ' + str( len(changes) )
 
 		# Create the source and/or binary files
-		return self.writeCustomCodeFiles( changes[0], os.path.splitext(self.path)[0], changes[0].rawCode, True )
+		return self.writeCustomCodeFiles( changes[0], os.path.splitext(self.path)[0], True )
 
 	# def splitAnnotation( self, customCode ):
 
@@ -1240,7 +1185,7 @@ class CodeMod( object ):
 			The file extension is not included. """
 
 		cType = change.type
-		address = change.address
+		address = change.offset
 		anno = change.anno
 
 		if anno:
@@ -1447,7 +1392,6 @@ class CodeLibraryParser():
 		""" Parses mods in the standard MCM format, which reads a single text 
 			file and creates mod objects out of the mods found. """
 
-		#geckoCodesAllowed = overwriteOptions[ 'EnableGeckoCodes' ].get()
 		category = os.path.basename( filepath )[:-4]
 
 		# Open the text file and get its contents, creating a list of raw chunks of text for each mod
@@ -1514,7 +1458,7 @@ class CodeLibraryParser():
 					# Capture the first non-blank, non-commented line for the name of the mod.
 					if not mod.name:
 						if line:
-							mod.name = rawLine
+							mod.name = line
 						continue # Also skip further processing of empty strings if the name hasn't been set yet
 						
 					if line.startswith( '<' ) and line.endswith( '>' ):
@@ -1538,13 +1482,11 @@ class CodeLibraryParser():
 							if '=' in line: # name/type header for a new option
 								# Store a previously collected option
 								if configurationDict:
-									#mod.configurations.append( configurationDict )
 									mod.configurations[configurationName] = configurationDict
 
 								# Parse out the option name and type
 								typeName, valueInfo = line.split( '=' )
 								typeNameParts = typeName.split() # Splitting on whitespace
-								#configurationDict['name'] = ' '.join( typeNameParts[1:] )
 								configurationDict = {}
 								configurationName = ' '.join( typeNameParts[1:] )
 								configurationDict['type'] = typeNameParts[0]
@@ -1799,7 +1741,7 @@ class CodeLibraryParser():
 		""" Creates a mod from a single, standalone .s file. """
 
 		# Create the mod object
-		modName = os.path.splitext( item )[0] # i.e. filename without extension
+		modName = os.path.splitext( item )[0].strip() # i.e. filename without extension
 		mod = CodeMod( modName, 'TBD', '', sourceFile, True )
 		mod.isMini = True
 		mod.setCurrentRevision( 'NTSC 1.02' ) # Assumption time #todo (optionally add param to header)
@@ -1827,7 +1769,7 @@ class CodeLibraryParser():
 		""" Creates a mod from a single, standalone .asm file. """
 
 		# Create the mod object
-		modName = os.path.splitext( item )[0] # i.e. filename without extension
+		modName = os.path.splitext( item )[0].strip() # i.e. filename without extension
 		mod = CodeMod( modName, 'TBD', '', sourceFile, True )
 		mod.isMini = True
 		mod.setCurrentRevision( 'NTSC 1.02' ) # Assumption time #todo (optionally add param to header)
@@ -1979,12 +1921,14 @@ class CodeLibraryParser():
 			create a mod container object to store the mod's code changes and other data, and 
 			step through each code change dictionary in the JSON file's build list. """
 
+
 		# Open the json file and get its file contents (need to do this early so we can check for a mod category)
 		try:
-			with open( os.path.join(folderPath, 'codes.json'), 'r' ) as jsonFile:
+			jsonPath = os.path.join( folderPath, 'codes.json' )
+			with open( jsonPath, 'r' ) as jsonFile:
 				jsonContents = json.load( jsonFile, object_pairs_hook=OrderedDict )
 		except Exception as err:
-			errMsg = 'Encountered an error when attempting to open "{}" (likely due to incorrect formatting); {}'.format( os.path.join(folderPath, 'codes.json'), err )
+			errMsg = 'Encountered an error when attempting to open "{}" (likely due to incorrect formatting); {}'.format( jsonPath, err )
 			msg( errMsg )
 			return
 
@@ -1994,77 +1938,92 @@ class CodeLibraryParser():
 
 		if codeSection:
 			for codeset in codeSection:
-				# Typecast the authors and description lists to strings
-				authors = ', '.join( codeset['authors'] )
-				description = '\n'.join( codeset['description'] )
+				name = 'Unknown mod' # In case the JSON doesn't even have this
+				mod = None
 
-				# Create the mod object
-				mod = CodeMod( codeset['name'], authors, description, folderPath, True )
-				mod.category = codeset.get( 'category', primaryCategory ) # Secondary definition, per-code dict basis
-				mod.configurations = codeset.get( 'configurations', OrderedDict([]) )
+				try:
+					# Get the mod name, and typecast the authors and description lists to strings
+					name = codeset['name'].strip()
+					authors = ', '.join( codeset['authors'] )
+					description = '\n'.join( codeset['description'] )
 
-				# Get paths for .include ASM import statements, and web links
-				mod.includePaths = includePaths
-				links = codeset.get( 'webLinks', () )
-				for item in links:
-					if isinstance( item, (tuple, list) ) and len( item ) == 2:
-						mod.webLinks.append( item )
-					elif isinstance( item, (str, unicode) ): # Assume it's just a url, missing a comment
-						mod.webLinks.append( (item, '') )
-				
-				# Set the revision (region/version) this code is for
-				overallRevision = codeset.get( 'revision', '' )
-				if overallRevision:
-					overallRevision = self.normalizeRegionString( overallRevision )
-					mod.setCurrentRevision( overallRevision )
+					# Create the mod object
+					mod = CodeMod( name, authors, description, folderPath, True )
+					mod.category = codeset.get( 'category', primaryCategory ) # Secondary definition, per-code dict basis
+					mod.configurations = codeset.get( 'configurations', OrderedDict([]) )
 
-				buildList = codeset.get( 'build' )
+					# Get paths for .include ASM import statements, and web links
+					mod.includePaths = includePaths
+					links = codeset.get( 'webLinks', () )
+					for item in links:
+						if isinstance( item, (tuple, list) ) and len( item ) == 2:
+							mod.webLinks.append( item )
+						elif isinstance( item, (str, unicode) ): # Assume it's just a url, missing a comment
+							mod.webLinks.append( (item, '') )
+					
+					# Set the revision (region/version) this code is for
+					overallRevision = codeset.get( 'revision', '' )
+					if overallRevision:
+						overallRevision = self.normalizeRegionString( overallRevision )
+						mod.setCurrentRevision( overallRevision )
 
-				if buildList:
-					for codeChangeDict in buildList:
-						codeType = codeChangeDict['type'] # Expected; not optional
-						annotation = codeChangeDict.get( 'annotation', '' ) # Optional; may not be there
+					buildList = codeset.get( 'build' )
 
-						# Set the revision (region/version) this code is for
-						if not overallRevision:
-							revision = codeset.get( 'revision' )
-							if revision:
-								revision = self.normalizeRegionString( revision )
+					if buildList:
+						for codeChangeDict in buildList:
+							codeType = codeChangeDict['type'] # Expected; not optional
+							annotation = codeChangeDict.get( 'annotation', '' ) # Optional; may not be there
+
+							# Set the revision (region/version) this code is for
+							if not overallRevision:
+								revision = codeChangeDict.get( 'revision' )
+								if revision:
+									revision = self.normalizeRegionString( revision )
+								else:
+									revision = 'NTSC 1.02'
+								mod.setCurrentRevision( revision )
+							
+							if codeType == 'replace': # Static Overwrite; basically an 02/04 Gecko codetype (hex from json)
+								mod.addStaticOverwrite( codeChangeDict['address'], codeChangeDict['value'].splitlines(), annotation=annotation )
+								#self.parseAmfsReplace( codeChangeDict, mod )
+
+							elif codeType == 'inject': # Standard code injection (hex from file)
+								self.parseAmfsInject( codeChangeDict, mod, annotation )
+
+							elif codeType == 'replaceCodeBlock': # Static overwrite of variable length (hex from file)
+								self.parseAmfsReplaceCodeBlock( codeChangeDict, mod, annotation )
+
+							elif codeType == 'injectFolder': # Process a folder of .asm files; all as code injections
+								self.parseAmfsInjectFolder( codeChangeDict, mod, annotation )
+
+							elif codeType in ( 'branch', 'branchAndLink', 'binary', 'replaceBinary' ):
+								mod.parsingError = True
+								mod.errors.append( 'The "' + codeType + '" AMFS code type is not supported' )
+
+							elif codeType == 'standalone': # For Standalone Functions
+								self.parseAmfsStandalone( codeChangeDict, mod, annotation )
+
+							# elif codeType == 'gecko':
+							# 	self.parseAmfsGecko( codeChangeDict, mod, annotation )
+
 							else:
-								revision = 'NTSC 1.02'
-							mod.setCurrentRevision( revision )
-						
-						if codeType == 'replace': # Static Overwrite; basically an 02/04 Gecko codetype (hex from json)
-							mod.addStaticOverwrite( codeChangeDict['address'], codeChangeDict['value'].splitlines(), annotation=annotation )
-							#self.parseAmfsReplace( codeChangeDict, mod )
+								mod.parsingError = True
+								mod.errors.append( 'Unrecognized AMFS code type: ' + codeType )
 
-						elif codeType == 'inject': # Standard code injection (hex from file)
-							self.parseAmfsInject( codeChangeDict, mod, annotation )
+						self.storeMod( mod )
 
-						elif codeType == 'replaceCodeBlock': # Static overwrite of variable length (hex from file)
-							self.parseAmfsReplaceCodeBlock( codeChangeDict, mod, annotation )
+					else: # Build all subfolders/files
+						mod.errors.append( "No 'build' section found in codes.json" )
 
-						elif codeType == 'injectFolder': # Process a folder of .asm files; all as code injections
-							self.parseAmfsInjectFolder( codeChangeDict, mod, annotation )
+				except Exception as err:
+					if not mod: # Ill-formatted JSON, or missing basic info
+						mod = CodeMod( name, '??', 'JSON located at "{}"'.format(jsonPath), folderPath, True )
+						mod.category = codeset.get( 'category', primaryCategory ) # Secondary definition, per-code dict basis
 
-						elif codeType in ( 'branch', 'branchAndLink', 'binary', 'replaceBinary' ):
-							mod.parsingError = True
-							mod.errors.append( 'The "' + codeType + '" AMFS code type is not supported' )
-
-						elif codeType == 'standalone': # For Standalone Functions
-							self.parseAmfsStandalone( codeChangeDict, mod, annotation )
-
-						# elif codeType == 'gecko':
-						# 	self.parseAmfsGecko( codeChangeDict, mod, annotation )
-
-						else:
-							mod.parsingError = True
-							mod.errors.append( 'Unrecognized AMFS code type: ' + codeType )
-
+					# Store an errored-out shell of this mod, so the user can notice it and know a broken mod was discovered
+					mod.parsingError = True
+					mod.errors.append( 'Unable to parse codes section; {}'.format(err) )
 					self.storeMod( mod )
-
-				else: # Build all subfolders/files
-					mod.errors.append( "No 'build' section found in codes.json" )
 
 		else: # Grab everything from the current folder (and subfolders). Assume .s are static overwrites, and .asm are injections
 			# Typecast the authors and description lists to strings
@@ -2113,10 +2072,11 @@ class CodeLibraryParser():
 
 	def getCustomCodeFromFile( self, fullAsmFilePath, mod, parseHeader=False, annotation='' ):
 
-		""" Gets address, author (if present), and custom code from a given file. 
+		""" Gets address, author (if present), and custom code from a given file. This will also collect pre-processed 
+			code if it's present, but only if it is newer than the source code file.
 			If parseHeader is False, the offset/author in the file header isn't needed because the calling function 
-			already has it from a codeChange dictionary. (If it does need to be parsed, the calling function 
-			only had a sourceFile for reference (most likely through a injectFolder code type).) 
+			should already have it from a codeChange dictionary. (If it does need to be parsed, the calling function 
+			only had a sourceFile for reference; most likely through a injectFolder code type.) 
 				May return these return codes:
 					0: Success
 					4: Missing source file
@@ -2125,7 +2085,7 @@ class CodeLibraryParser():
 		if not annotation: # Use the file name for the annotation (without file extension)
 			annotation = os.path.splitext( os.path.basename(fullAsmFilePath) )[0]
 
-		# Get the custom code, and the address/offset if needed
+		# Try to get the custom/source code, and the address/offset if needed
 		try:
 			# Open the file in byte-reading mode (rb). Strings will then need to be encoded.
 			with codecs.open( fullAsmFilePath, encoding='utf-8' ) as asmFile: # Using a different read method for UTF-8 encoding
@@ -2148,26 +2108,35 @@ class CodeLibraryParser():
 					# 	customCode = '# {}\n{}\n{}'.format( annotation, firstLine, theRest )
 				customCode = asmFile.read().encode( 'utf-8' )
 
+			sourceModifiedTime = os.path.getmtime( fullAsmFilePath )
+
 		except IOError as err: # File couldn't be found
-			baseFilePath = os.path.splitext( fullAsmFilePath )[0]
+			# baseFilePath = os.path.splitext( fullAsmFilePath )[0]
 
-			# Check for a text file with pre-processed code with custom syntax
-			if os.path.exists( baseFilePath + '.txt' ):
-				return self.getCustomCodeFromFile( baseFilePath + '.txt', mod, parseHeader, annotation )
+			# # Check for a text file with pre-processed code with custom syntax
+			# if os.path.exists( baseFilePath + '.txt' ):
+			# 	return self.getCustomCodeFromFile( baseFilePath + '.txt', mod, parseHeader, annotation )
 
-			# Check for assembled binary data
-			elif os.path.exists( baseFilePath + '.bin' ):
-				with open( baseFilePath + '.bin', 'rb' ) as binaryFile:
-					contents = binaryFile.read()
+			# # Check for assembled binary data
+			# elif os.path.exists( baseFilePath + '.bin' ):
+			# 	with open( baseFilePath + '.bin', 'rb' ) as binaryFile:
+			# 		contents = binaryFile.read()
 
-				return 0, '', '', hexlify( contents ), annotation # Converting from a byte array to a hex string
+			# 	hexString = hexlify( contents )
+			# 	hexString = globalData.codeProcessor.beautifyHex( hexString, 4 )
 
-			print( err )
-			mod.parsingError = True
-			#mod.state = 'unavailable'
-			mod.stateDesc = 'Missing source files'
-			mod.errors.append( "Unable to find the file " + os.path.basename(fullAsmFilePath) )
-			return 4, '', '', '', annotation
+			# 	return 0, '', '', hexString, '', annotation # Converting from a byte array to a hex string
+
+			# print( err )
+			# mod.parsingError = True
+			# #mod.state = 'unavailable'
+			# mod.stateDesc = 'Missing source files'
+			# mod.errors.append( "Unable to find the file " + os.path.basename(fullAsmFilePath) )
+			# return 4, '', '', '', '', annotation
+			sourceModifiedTime = 0
+			offset = ''
+			author = ''
+			customCode = ''
 			
 		except Exception as err: # Unknown error
 			print( err )
@@ -2175,9 +2144,39 @@ class CodeLibraryParser():
 			#mod.state = 'unavailable'
 			mod.stateDesc = 'File reading error with ' + os.path.basename( fullAsmFilePath )
 			mod.errors.append( 'Encountered an error while reading {}: {}'.format(os.path.basename(fullAsmFilePath), err) )
-			return 5, '', '', '', annotation
+			return 5, '', '', '', '', annotation
+	
+		# Check if the source code is newer than the assembled binary
+		baseFilePath = os.path.splitext( fullAsmFilePath )[0]
+		binaryModifiedTime = 0
+		foundBin = False
+		foundTxt = False
+		try:
+			binaryModifiedTime = os.path.getmtime( baseFilePath + '.bin' )
+			foundBin = True
+		except:
+			try:
+				binaryModifiedTime = os.path.getmtime( baseFilePath + '.txt' )
+			except:
+				pass
+		if sourceModifiedTime > binaryModifiedTime:
+			# The source is newer, or the bin/txt files aren't present
+			return 0, offset, author, customCode, '', annotation
 
-		return 0, offset, author, customCode, annotation
+		# Get the preProcessed code. Check for assembled binary data, and/or for a text file (partially assembled code)
+		try:
+			with open( baseFilePath + '.bin', 'rb' ) as binaryFile:
+				contents = binaryFile.read()
+				preProcessedCode = hexlify( contents )
+
+		except IOError as err: # File couldn't be found
+			# Open the file in byte-reading mode (rb). Strings will then need to be encoded.
+			with codecs.open( baseFilePath + '.txt', encoding='utf-8' ) as asmFile: # Using a different read method for UTF-8 encoding
+				preProcessedCode = asmFile.read().encode( 'utf-8' )
+		except Exception as err:
+			preProcessedCode = ''
+
+		return 0, offset, author, customCode, preProcessedCode, annotation
 			
 		# Pre-process the custom code (make sure there's no whitespace, and/or assemble it)
 		# returnCode, preProcessedCustomCode = globalData.codeProcessor.preAssembleRawCode( customCode, [os.path.dirname(fullAsmFilePath)] + mod.includePaths, suppressWarnings=True )
@@ -2300,15 +2299,6 @@ class CodeLibraryParser():
 			# mod.stateDesc = 'Parsing error; unable to get code from file'
 			# mod.errors.append( "Unable to read the 'sourceFile' {}".format(sourceFile) )
 		#	return
-
-		# Get the offset of the code change, and the original code at that location
-		#offset = codeChangeDict.get( 'address', '' )
-		# dolOffset = normalizeDolOffset( offset, dolObj=mod.vanillaDol )
-		# origHex = getVanillaHex( dolOffset, revision=mod.revision, suppressWarnings=False )
-		# if not origHex:
-		# 	mod.missingVanillaHex = True
-		# 	mod.errors.append( 'Unable to find vanilla hex for ' + offset )
-		# 	return
 		
 		# Get the custom code's length, and store the info for this code change
 		# customCodeLength = getCustomCodeLength( preProcessedCustomCode )

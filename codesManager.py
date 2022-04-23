@@ -183,29 +183,25 @@ class CodeManagerTab( ttk.Frame ):
 
 		""" Creates GUI elements (ModModules) and populates them in the Code Library tab currently in view. """
 
-		#currentTab = self.getCurrentTab()
-		# if not currentTab: 
-		# 	print( 'no current tab; skipping module creation' )
-		# 	return
-
-		modsPanel = currentTab.winfo_children()[0]
 		foundMcmFormatting = False
-		#print( 'creating modules' )
 
-		# tic = time.clock()
+		if currentTab:
+			modsPanel = currentTab.winfo_children()[0]
 
-		for mod in modsPanel.mods:
-			module = ModModule( modsPanel.interior, mod )
-			module.pack( fill='x', expand=1 )
-			#module.event_generate( '<Configure>' )
+			# tic = time.clock()
 
-			if not mod.isAmfs:
-				foundMcmFormatting = True
-				
-		# toc = time.clock()
-		# print( 'modModule creation time:', toc-tic)
+			for mod in modsPanel.mods:
+				module = ModModule( modsPanel.interior, mod )
+				module.pack( fill='x', expand=1 )
+				#module.event_generate( '<Configure>' )
 
-		#modsPanel.event_generate( '<Configure>' )
+				if not mod.isAmfs:
+					foundMcmFormatting = True
+					
+			# toc = time.clock()
+			# print( 'modModule creation time:', toc-tic)
+
+			#modsPanel.event_generate( '<Configure>' )
 
 		# Enable or disable the 'Open this file' button
 		if foundMcmFormatting:
@@ -824,7 +820,7 @@ class CodeManagerTab( ttk.Frame ):
 		# Prompt the user to determine what kind of format to use
 		userPrompt = PromptHowToSaveLibrary()
 		formatChoice = userPrompt.typeVar.get()
-		if formatChoice == -1: pass # User canceled
+		if formatChoice == -1: return # User canceled
 
 		# Ask for a folder to save the new library to
 		libraryPath = globalData.getModsFolderPath()
@@ -834,40 +830,59 @@ class CodeManagerTab( ttk.Frame ):
 			)
 		if not targetFolder: return # User canceled
 
+		failedSaves = []
 		if formatChoice == 0: # Mini
-			print( 'not yet supported' )
+			msg( 'Not yet implemented; lmk if you want to use this.' )
 		elif formatChoice == 1: # MCM
-			print( 'not yet supported' )
+			msg( 'Not yet implemented; lmk if you want to use this.' )
 		else: # AMFS
 			for mod in globalData.codeMods:
-				# Remove the filename component from mini/MCM paths, and add a new folder name component
-				if not mod.isAmfs:
-					# Get the path of this mod, relative to the library root folder
-					dirname = os.path.dirname( mod.path )
-					relPath = os.path.relpath( libraryPath, dirname )
+				try:
+					# Remove the filename component from mini/MCM paths, and add a new folder name component
+					if not mod.isAmfs:
+						# Get the path of this mod, relative to the library root folder
+						dirname = os.path.dirname( mod.path )
+						relPath = os.path.relpath( dirname, libraryPath )
 
-					# Use the relative path to build a new path within the new target library folder
-					newFolder = removeIllegalCharacters( mod.name )
-					newPath = os.path.join( targetFolder, relPath, newFolder )
-					mod.path = os.path.normpath( newPath )
-				else:
-					relPath = os.path.relpath( libraryPath, mod.path )
-					newPath = os.path.join( targetFolder, relPath )
-					mod.path = os.path.normpath( newPath )
-
-				# Attempts to convert Gecko codes to standard static overwrites and injections
-				if mod.type == 'gecko':
-					geckoMod = self.convertGeckoCode( mod )
-
-					if geckoMod:
-						mod = geckoMod # Save this in AMFS
+						# Use the relative path to build a new path within the new target library folder
+						newFolder = removeIllegalCharacters( mod.name )
+						newPath = os.path.join( targetFolder, relPath, newFolder )
 					else:
-						mod.saveInGeckoFormat( mod.path )
-						continue
+						relPath = os.path.relpath( mod.path, libraryPath )
+						newPath = os.path.join( targetFolder, relPath )
 
-				mod.saveInAmfsFormat()
+					# Attempt to convert Gecko codes to standard static overwrites and injections
+					if mod.type == 'gecko':
+						convertedGeckoMod = self.convertGeckoCode( mod )
 
-			globalData.gui.updateProgramStatus( 'Library save complete', success=True )
+						if convertedGeckoMod:
+							mod = convertedGeckoMod # Save this in AMFS
+						else:
+							# Construct a new filepath for the mod using the new library folder path, and save it
+							filename = os.path.basename( mod.path )
+							newPath = os.path.join( targetFolder, relPath, filename )
+							mod.path = os.path.normpath( newPath )
+							mod.fileIndex = -1 # Trigger the following method to append the mod to the end of the file
+							success = mod.saveInMcmFormat( showErrors=False ) # i.e. save in the MCM-Gecko format
+							if not success:
+								failedSaves.append( mod.name )
+							continue
+
+					# Save the mod
+					mod.path = os.path.normpath( newPath )
+					success = mod.saveInAmfsFormat()
+					if not success:
+						print( 'Unable to save {} in AMFS format'.format(mod.name) )
+						failedSaves.append( mod.name )
+
+				except Exception as err:
+					print( 'Unable to save {} in AMFS format; {}'.format(mod.name, err) )
+					failedSaves.append( mod.name )
+
+		globalData.gui.updateProgramStatus( 'Library save complete', success=True )
+
+		if failedSaves:
+			cmsg( 'These mods could not be saved (you may want to try saving these individually to identify specific problems):\n\n' + ', '.join(failedSaves), 'Failed Saves' )
 
 	def selectAllMods( self, event ):
 		currentTab = self.getCurrentTab()
@@ -930,6 +945,10 @@ class CodeManagerTab( ttk.Frame ):
 		globalData.gui.playSound( 'menuChange' )
 
 	def convertGeckoCode( self, mod ):
+
+		""" Attempts to convert the given Gecko CodeMod object to one consisting of only static overwrites and injections. 
+			Returns None if unsuccessful. """
+
 		try:
 			# Create a copy of the mod (this deep-copy should include basic properties, includePaths, webLinks, etc.)
 			newMod = copy.deepcopy( mod )
@@ -1094,12 +1113,6 @@ class CodeManagerTab( ttk.Frame ):
 			globalData.gui.updateProgramStatus( 'Restoration canceled' )
 			return
 
-		# See if we can get a reference to vanilla DOL code
-		# vanillaDiscPath = globalData.getVanillaDiscPath()
-		# if not vanillaDiscPath: # User canceled path input
-		# 	printStatus( 'Unable to restore the DOL; no vanilla disc available for reference', warning=True )
-		# 	return
-
 		# Restore the DOL and re-scan for installed codes
 		if globalData.disc.restoreDol():
 			globalData.disc.dol.checkForEnabledCodes( globalData.codeMods )
@@ -1118,15 +1131,14 @@ class ModModule( Tk.Frame, object ):
 		self.mod = mod
 		#mod.guiModule = self
 
-		#self.valWebLinks = [] # These differentiate from the core mod's webLinks, in that these will be validated
 		self.statusText = Tk.StringVar()
 		self.highlightFadeAnimationId = None # Used for the border highlight fade animation
 
-		moduleWidth = 510 # Mostly just controls the wraplength of text areas.
+		moduleWidth = 500 # Mostly just controls the wraplength of text areas.
 
 		# Row 1: Title and author(s)
 		title = Tk.Label( self, text=mod.name, font=("Times", 11, "bold"), wraplength=moduleWidth*.6, anchor='n' )
-		title.grid( column=0, row=0, sticky='ew', padx=20 )
+		title.grid( column=0, row=0, sticky='ew', padx=14 )
 		self.authorLabel = Tk.Label( self, text=' - by ' + mod.auth, font=("Verdana", 8), wraplength=moduleWidth*.4, fg='#424242' )
 		self.authorLabel.grid( column=1, row=0, sticky='e', padx=10 )
 
@@ -1164,8 +1176,6 @@ class ModModule( Tk.Frame, object ):
 			# urlObj = self.parseUrl( origUrlString )
 			urlObj = mod.validateWebLink( origUrlString )
 			if not urlObj: continue
-			
-			#self.valWebLinks.append( (urlObj, comments) )
 
 			# Build the button's hover text
 			domain = urlObj.netloc.split('.')[-2] # The netloc string will be e.g. "youtube.com" or "www.youtube.com"
@@ -1428,11 +1438,8 @@ class CodeConstructor( Tk.Frame ):
 
 		# Add the game version tabs and code changes to this module.
 		if self.mod.data: # This is a dict with keys=revision, values=list of "CodeChange" objects
-			# for dolRevision in mod.data: # dolRevision should be a string like 'NTSC 1.00'
-			# 	for codeChange in mod.data[dolRevision]:
 			for revision, codeChanges in self.mod.data.items():
 				for change in codeChanges:
-					#changeType, customCodeLength, offset, originalCode, customCode, _ = codeChange
 					self.addCodeChangeModule( change.type, change, revision )
 
 		# Add errors notice button
@@ -1484,7 +1491,6 @@ class CodeConstructor( Tk.Frame ):
 		ttk.Button( self.buttonsFrame, text='Save', command=self.saveModToLibrary, width=7 ).pack( side='right', padx=6 )
 
 		# Show DOL Offset / RAM Address switch
-		#offsetView = settings.get( 'General Settings', 'offsetView' ).lstrip()[0].lower()
 		offsetView = globalData.checkSetting( 'offsetView' ).lstrip()[0].lower()
 		if offsetView.startswith( 'd' ): buttonText = 'Display RAM Addresses'
 		else: buttonText = 'Display DOL Offsets'
@@ -1540,8 +1546,8 @@ class CodeConstructor( Tk.Frame ):
 			Returns True/False on success. """
 
 		# Update title, author(s), and description
-		title = self.getInput( self.titleEntry )
-		authors = self.getInput( self.authorsEntry )
+		title = self.getInput( self.titleEntry ).strip()
+		authors = self.getInput( self.authorsEntry ).strip()
 		description = self.getInput( self.descScrolledText )
 
 		# Validate the above to make sure it's ASCII
@@ -1778,7 +1784,6 @@ class CodeConstructor( Tk.Frame ):
 
 			ttk.Label( bottomRow, text='Offset:' ).pack( side='left', padx=7 )
 			codeChangeModule.offset = ttk.Entry( bottomRow, width=11 )
-			#codeChangeModule.offset.insert( 0, processedOffset )
 			codeChangeModule.offset.pack( side='left', padx=7 )
 			self.initUndoHistory( codeChangeModule.offset, processedOffset )
 			codeChangeModule.offset.offsetEntry = True # Flag used in undo history feature
@@ -1787,21 +1792,18 @@ class CodeConstructor( Tk.Frame ):
 		if changeType == 'static':
 			ttk.Label( bottomRow, text='Original Hex:' ).pack( side='left', padx=7 )
 			codeChangeModule.originalHex = ttk.Entry( bottomRow, width=11 )
-			#codeChangeModule.originalHex.insert( 0, codeChange.origCode )
 			codeChangeModule.originalHex.pack( side='left', padx=7, fill='x', expand=1 )
 			self.initUndoHistory( codeChangeModule.originalHex, codeChange.origCode )
 
 		elif changeType == 'injection':
 			ttk.Label( bottomRow, text='Original Hex at\nInjection Site:' ).pack( side='left', padx=7 )
 			codeChangeModule.originalHex = ttk.Entry( bottomRow, width=11 )
-			#codeChangeModule.originalHex.insert( 0, codeChange.origCode )
 			codeChangeModule.originalHex.pack( side='left', padx=7 )
 			self.initUndoHistory( codeChangeModule.originalHex, codeChange.origCode )
 
 		elif changeType == 'standalone':
 			ttk.Label( bottomRow, text='Function Name:' ).pack( side='left', padx=7 )
 			codeChangeModule.offset = ttk.Entry( bottomRow )
-			#codeChangeModule.offset.insert( 0, name )
 			codeChangeModule.offset.pack( side='left', fill='x', expand=1, padx=7 )
 			name = codeChange.offset.replace( '<', '' ).replace( '>', '' )
 			self.initUndoHistory( codeChangeModule.offset, name )
@@ -1811,7 +1813,6 @@ class CodeConstructor( Tk.Frame ):
 		# Attach a newHex entry field (this will be attached to the GUI on the fly when a module is selected)
 		newHexValue = codeChange.rawCode
 		codeChangeModule.newHexField = ScrolledText( newHexFieldContainer, relief='ridge' )
-		#codeChangeModule.newHexField.insert( 'end', newHexValue )
 		self.initUndoHistory( codeChangeModule.newHexField, newHexValue )
 
 		# Bind a left-click event to this module (for selecting it radio-button style).
@@ -1898,7 +1899,6 @@ class CodeConstructor( Tk.Frame ):
 		# Parse the gecko code input and create code change modules for the changes
 		parser = CodeLibraryParser()
 		title, newAuthors, description, codeChanges = parser.parseGeckoCode( entryWindow.entryText.splitlines() )
-
 		if not codeChanges:
 			return
 
@@ -2080,57 +2080,9 @@ class CodeConstructor( Tk.Frame ):
 			self.updateSaveStatus( False, 'No Changes to be Saved' )
 			self.saveStatusLabel['foreground'] = '#333' # Shade of gray
 			return
-		
-		# modString = self.mod.buildModString()
 
-		# if not modString: # Failsafe. The method above should report any errors
-		# 	self.updateSaveStatus( True, 'Unable to Save' )
-		# 	return False
-
-		# saveSuccessful = False
-
-		# # Prompt for a file to save to if no source file is defined. (Means this was newly created in the GUI, or this is a 'SaveAs' operation)
-		# if not self.mod.path:
-		# 	targetFile = tkFileDialog.askopenfilename(
-		# 		title="Choose the file you'd like to save the mod to (it will be appended to the end).",
-		# 		initialdir=globalData.getModsFolderPath(),
-		# 		filetypes=[ ('Text files', '*.txt'), ('all files', '*.*') ]
-		# 		)
-
-		# 	if not targetFile:
-		# 		self.updateSaveStatus( True, 'Operation Canceled' )
-		# 		return False
-
-		# 	saveSuccessful = self.saveInMcmFormat( targetFile )
-
-		# else: # A source file is already defined.
-		# 	if self.mod.fileIndex == -1:
-		# 		msg( "The index (file position) for this mod could not be determined. Try using 'Save As' to save this mod to the end of a file." )
-		# 	else:
-		# 		targetFile = self.mod.path
-
-		# 		# Make sure the target file can be found, then replace the mod within it with the new version.
-		# 		if not os.path.exists( targetFile ):
-		# 			msg( 'Unable to locate the Library file:\n\n' + targetFile )
-
-		# 		else:
-					# try:
-					# 	# Pull the mods from their library file, and separate them.
-					# 	with open( targetFile, 'r') as modFile:
-					# 		mods = modFile.read().split( '-==-' )
-
-					# 	# Replace the old mod, reformat the space in-between mods, and recombine the file's text.
-					# 	mods[self.mod.fileIndex] = modString
-					# 	mods = [code.strip() for code in mods] # Removes the extra whitespace around mod strings.
-					# 	completedFileText = '\n\n\n\t-==-\n\n\n'.join( mods )
-
-					# 	with open( targetFile, 'w' ) as libraryFile:
-					# 		libraryFile.write( completedFileText )
-
-					# 	saveSuccessful = True
-					# except: pass
-
-		if not self.mod.path: # Need to ask how to save this mod
+		# Ask how to save this mod if no save path is defined
+		if not self.mod.path:
 			self.saveModToLibraryAs()
 			return
 
@@ -2143,6 +2095,19 @@ class CodeConstructor( Tk.Frame ):
 			saveSuccessful = self.mod.saveAsStandaloneFile()
 		elif self.mod.isAmfs:
 			print( 'saving as AMFS')
+			if self.mod.type == 'gecko':
+
+				convertedGeckoMod = globalData.gui.codeManagerTab.convertGeckoCode( self.mod )
+
+				if convertedGeckoMod:
+					self.mod = convertedGeckoMod
+				else:
+					self.updateSaveStatus( True, 'Unable to Save' )
+					msg( ("This mod cannot be saved in AMFS format. It's a Gecko code with code changes "
+						"that cannot be converted to standard static overwrites and injections. Currently, "
+						"this conversion only includes Gecko codetypes 04, 06, and C2"), 'Unable to Save', warning=True )
+					return False
+
 			saveSuccessful = self.mod.saveInAmfsFormat()
 		else:
 			print( 'saving as MCM')
@@ -2260,7 +2225,6 @@ class CodeConstructor( Tk.Frame ):
 		dol = globalData.getVanillaDol()
 
 		# Toggle the saved variable and the button text (and normalize the string since this is exposed to users in the options.ini file)
-		#offsetView = settings.get( 'General Settings', 'offsetView' ).lstrip().lower()
 		offsetView = globalData.checkSetting( 'offsetView' ).lstrip()[0].lower()
 		if offsetView.startswith( 'd' ):
 			offsetView = 'ramAddress'
@@ -2268,19 +2232,29 @@ class CodeConstructor( Tk.Frame ):
 		else:
 			offsetView = 'dolOffset'
 			buttonText = 'Display RAM Addresses'
-		self.offsetViewBtn['text'] = buttonText
+		#self.offsetViewBtn['text'] = buttonText
 
-		# Iterate over the tabs for each game version
-		for tabWindowName in self.revisionsNotebook.tabs()[:-1]: # Skips tab for adding revisions
-			versionTab = globalData.gui.root.nametowidget( tabWindowName )
-			codeChangesListFrame = versionTab.winfo_children()[0].interior
-			codeChangeModules = codeChangesListFrame.winfo_children()
+		# Iterate over the tabs for each game revision
+		# for tabWindowName in self.revisionsNotebook.tabs()[:-1]: # Skips tab for adding revisions
+		# 	versionTab = globalData.gui.root.nametowidget( tabWindowName )
+		# 	codeChangesListFrame = versionTab.winfo_children()[0].interior
+		# 	codeChangeModules = codeChangesListFrame.winfo_children()
 
-			# Iterate over the code change modules for this game version
+		# Get the currently selected tab
+		tabWindowName = self.revisionsNotebook.select()
+		versionTab = globalData.gui.root.nametowidget( tabWindowName )
+		codeChangesListFrame = versionTab.winfo_children()[0].interior
+		codeChangeModules = codeChangesListFrame.winfo_children()
+
+		if not versionTab.revision == dol.revision:
+			msg( 'Unable to convert offsets or addresses without a vanilla DOL for this revision.', 'Missing DOL Revision', warning=True )
+		else:
+			# Iterate over the code change modules for this game revision
 			for i, module in enumerate( codeChangeModules, start=1 ):
 				if module.codeChange.type == 'static' or module.codeChange.type == 'injection':
 					# Get the current value
-					origOffset = module.offset.get().strip().replace( '0x', '' )
+					#origOffset = module.offset.get().strip().replace( '0x', '' )
+					origOffset = self.getInput( module.offset )
 
 					# Validate the input
 					if not validHex( origOffset ):
@@ -2304,9 +2278,10 @@ class CodeConstructor( Tk.Frame ):
 					module.offset.delete( 0, 'end' )
 					module.offset.insert( 0, newOffset )
 
-		# Remember the current display option
-		offsetView = globalData.setSetting( 'offsetView', offsetView )
-		globalData.saveProgramSettings()
+			# Remember the current display option
+			self.offsetViewBtn['text'] = buttonText
+			globalData.setSetting( 'offsetView', offsetView )
+			globalData.saveProgramSettings()
 
 	def closeMod( self ):
 		# If there are unsaved changes, propt whether the user really wants to close.
@@ -2700,42 +2675,44 @@ class PromptHowToSaveLibrary( BasicWindow ):
 		self.typeVar = Tk.IntVar( value=-1 )
 		self.smartPick = Tk.BooleanVar( value=False )
 
+		radioTextStyle = ttk.Style()
+		radioTextStyle.configure( 'Highlight.TRadiobutton', foreground='#000' )
 		descBoxWidth = 320
 
 		ttk.Label( self.window, text='How would you like\nto save this library?', justify='center' ).grid( rowspan=4, column=0, row=0, sticky='nsew', padx=(18, 10) )
 
 		emptyWidget = Tk.Frame( self.window, relief='flat' ) # This is used as a simple workaround for the labelframe, so we can have no text label with no label gap.
 		minimalistFrame = ttk.Labelframe( self.window, labelwidget=emptyWidget, padding=(20, 4) )
-		ttk.Radiobutton( minimalistFrame, text='Minimalist', variable=self.typeVar, value=0 ).pack( pady=3 )
-		ttk.Label( minimalistFrame, wraplength=descBoxWidth-20, foreground='#555555', text='Experimental, and the most basic format. Allows for the fastest library load times, but does not support multiple changes, revisions, a mod description, or any configurations. Recommended for very simple changes.' ).pack()
+		ttk.Radiobutton( minimalistFrame, text='Minimalist', style='Highlight.TRadiobutton', variable=self.typeVar, value=0 ).pack( pady=3 )
+		ttk.Label( minimalistFrame, wraplength=descBoxWidth-20, foreground='#444', text='Experimental, and the most basic format. Allows for the fastest library load times, but does not support multiple changes, revisions, a mod description, or any configurations. Recommended for very simple changes.' ).pack()
 		minimalistFrame.grid( column=1, row=0, sticky='ew', pady=6, padx=8 )
 
 		emptyWidget = Tk.Frame( self.window, relief='flat' ) # This is used as a simple workaround for the labelframe, so we can have no text label with no label gap.
 		mcmFrame = ttk.Labelframe( self.window, labelwidget=emptyWidget, padding=(20, 4) )
-		ttk.Radiobutton( mcmFrame, text='MCM Format', variable=self.typeVar, value=1 ).pack( pady=3 )
-		ttk.Label( mcmFrame, wraplength=descBoxWidth-20, foreground='#555555', text='Standard formatting that you would see in MCM library text files. Must store custom code as either assembly (ASM) source code OR assembled hex. Custom codes stored as ASM will have slightly slower installation times.' ).pack()
+		ttk.Radiobutton( mcmFrame, text='MCM Format', style='Highlight.TRadiobutton', variable=self.typeVar, value=1 ).pack( pady=3 )
+		ttk.Label( mcmFrame, wraplength=descBoxWidth-20, foreground='#444', text='Standard formatting that you would see in MCM library text files. Must store custom code as either assembly (ASM) source code OR assembled hex. Custom codes stored as ASM will have slightly slower installation times.' ).pack()
 		mcmFrame.grid( column=1, row=1, sticky='ew', pady=6, padx=8 )
 
 		emptyWidget = Tk.Frame( self.window, relief='flat' ) # This is used as a simple workaround for the labelframe, so we can have no text label with no label gap.
 		amfsFrame = ttk.Labelframe( self.window, labelwidget=emptyWidget, padding=(20, 4) )
-		ttk.Radiobutton( amfsFrame, text='AMFS Format', variable=self.typeVar, value=2 ).pack( pady=3 )
-		ttk.Label( amfsFrame, wraplength=descBoxWidth-20, foreground='#555555', text='Advanced formatting using a folder of .asm files and a codes.json descriptor file. Stores source code as well as assembled hex code for fast installations.' ).pack()
+		ttk.Radiobutton( amfsFrame, text='AMFS Format', style='Highlight.TRadiobutton', variable=self.typeVar, value=2 ).pack( pady=3 )
+		ttk.Label( amfsFrame, wraplength=descBoxWidth-20, foreground='#444', text='Advanced formatting using a folder of .asm files and a codes.json descriptor file. Stores source code as well as assembled hex code for fast installations.' ).pack()
 		amfsFrame.grid( column=1, row=2, sticky='ew', pady=6, padx=8 )
 
 		ttk.Checkbutton( self.window, text='Smart-Pick™', variable=self.smartPick ).grid( column=1, row=3, pady=6 )
 
 		bottomButtonRow = Tk.Frame( self.window )
 		ttk.Button( bottomButtonRow, text='Ok', command=self.close ).pack( side='left', padx=10 )
-		ttk.Button( bottomButtonRow, text='Cancel', command=self.close ).pack( side='left', padx=10 )
+		ttk.Button( bottomButtonRow, text='Cancel', command=self.cancel ).pack( side='left', padx=10 )
 		bottomButtonRow.grid( columnspan=2, column=0, row=4, ipadx=20, pady=6 )
 
 		# Pause the main GUI until this window is closed
 		self.window.grab_set()
 		globalData.gui.root.wait_window( self.window )
 
-	def close( self ):
+	def cancel( self ):
 		self.typeVar.set( -1 )
-		super( PromptHowToSaveLibrary, self ).close()
+		self.close()
 
 
 class CodeConfigWindow( BasicWindow ):
