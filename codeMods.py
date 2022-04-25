@@ -273,6 +273,68 @@ class CodeChange( object ):
 
 		return self.processStatus
 
+	def loadPreProcCode( self, preProcessedCode ):
+
+		""" Loads/imports preProcessed code (previously evaluated and assembled) and 
+			eliminates the need to run .evaluate(). This is done by loading data from .bin files. """
+
+		# if self.mod.configurations:
+		# 	return
+		codeLines = preProcessedCode.splitlines()
+
+		self.processStatus, self.length, codeOrErrorNote, self.syntaxInfo = globalData.codeProcessor._evaluateHexcode( codeLines, self.mod.includePaths, self.mod.configurations )
+
+		# self.processStatus = returnCode
+
+		# if returnCode == 0:
+		# self.length = codeLength
+		# self.preProcessedCode = preProcessedCode
+
+		
+		if self.processStatus == 0:
+			self.preProcessedCode = codeOrErrorNote
+
+		# Store a message for the user on the cause
+		elif self.processStatus == 1:
+			self.mod.assemblyError = True
+			if self.type == 'standalone':
+				self.mod.stateDesc = 'Assembly error with SF "{}"'.format( self.offset )
+				self.mod.errors.append( 'Assembly error with SF "{}":\n{}'.format(self.offset, codeOrErrorNote) )
+			elif self.type == 'gecko':
+				address = self.rawCustomCode.lstrip()[:8]
+				self.mod.stateDesc = 'Assembly error with gecko code change at {}'.format( address )
+				self.mod.errors.append( 'Assembly error with gecko code change at {}:\n{}'.format(address, codeOrErrorNote) )
+			else:
+				self.mod.stateDesc = 'Assembly error with custom code change at {}'.format( self.offset )
+				self.mod.errors.append( 'Assembly error with custom code change at {}:\n{}'.format(self.offset, codeOrErrorNote) )
+		elif self.processStatus == 2:
+			self.mod.parsingError = True
+			self.mod.stateDesc = 'Missing include file: {}'.format(codeOrErrorNote)
+			self.mod.errors.append( 'Missing include file: {}'.format(codeOrErrorNote) )
+			#self.mod.missingIncludes.append( preProcessedCustomCode ) # todo: implement a way to show these to the user (maybe warning icon & interface)
+		elif self.processStatus == 3:
+			self.mod.parsingError = True
+			if not self.mod.configurations:
+				self.mod.stateDesc = 'Unable to find configurations'
+				self.mod.errors.append( 'Unable to find configurations' )
+			else:
+				self.mod.stateDesc = 'Configuration option not found: {}'.format(codeOrErrorNote)
+				self.mod.errors.append( 'Configuration option not found: {}'.format(codeOrErrorNote) )
+		elif self.processStatus == 4:
+			self.mod.parsingError = True
+			self.mod.stateDesc = 'Configuration option "{}" missing type parameter'.format( codeOrErrorNote )
+			self.mod.errors.append( 'Configuration option "{}" missing type parameter'.format(codeOrErrorNote) )
+		elif self.processStatus == 5:
+			self.mod.parsingError = True
+			self.mod.stateDesc = 'Unrecognized configuration option type: {}'.format(codeOrErrorNote)
+			self.mod.errors.append( 'Unrecognized configuration option type: {}'.format(codeOrErrorNote) )
+
+		if self.processStatus != 0:
+			self.preProcessedCode = ''
+			print( 'Error parsing code change at', self.offset, '  Error code: {}; {}'.format( self.processStatus, self.mod.stateDesc ) )
+
+		return self.processStatus
+
 	def finalizeCode( self, targetAddress ):
 
 		""" Performs final code processing for custom code, just before saving it to the DOL or codes file. 
@@ -1111,6 +1173,7 @@ class CodeMod( object ):
 					print( 'Unable to create "' + sourcePath + '.txt"' )
 					print( err )
 					return False
+
 			elif not longHeader:
 				# Save a binary file with just hex data
 				try:
@@ -1750,7 +1813,7 @@ class CodeLibraryParser():
 		mod.category = category
 		
 		# Read the file for info and the custom code
-		returnCode, address, author, customCode, anno = self.getCustomCodeFromFile( sourceFile, mod, True, modName )
+		returnCode, address, author, customCode, preProcCode, anno = self.getCustomCodeFromFile( sourceFile, mod, True, modName )
 
 		if author:
 			mod.auth = author
@@ -1778,7 +1841,7 @@ class CodeLibraryParser():
 		mod.category = category
 		
 		# Read the file for info and the custom code
-		returnCode, address, author, customCode, anno = self.getCustomCodeFromFile( sourceFile, mod, True, modName )
+		returnCode, address, author, customCode, preProcCode, anno = self.getCustomCodeFromFile( sourceFile, mod, True, modName )
 
 		if author:
 			mod.auth = author
@@ -2150,7 +2213,6 @@ class CodeLibraryParser():
 		baseFilePath = os.path.splitext( fullAsmFilePath )[0]
 		binaryModifiedTime = 0
 		foundBin = False
-		foundTxt = False
 		try:
 			binaryModifiedTime = os.path.getmtime( baseFilePath + '.bin' )
 			foundBin = True
@@ -2164,17 +2226,21 @@ class CodeLibraryParser():
 			return 0, offset, author, customCode, '', annotation
 
 		# Get the preProcessed code. Check for assembled binary data, and/or for a text file (partially assembled code)
-		try:
-			with open( baseFilePath + '.bin', 'rb' ) as binaryFile:
-				contents = binaryFile.read()
-				preProcessedCode = hexlify( contents )
-
-		except IOError as err: # File couldn't be found
-			# Open the file in byte-reading mode (rb). Strings will then need to be encoded.
-			with codecs.open( baseFilePath + '.txt', encoding='utf-8' ) as asmFile: # Using a different read method for UTF-8 encoding
-				preProcessedCode = asmFile.read().encode( 'utf-8' )
-		except Exception as err:
-			preProcessedCode = ''
+		if foundBin:
+			try:
+				with open( baseFilePath + '.bin', 'rb' ) as binaryFile:
+					contents = binaryFile.read()
+					hexString = hexlify( contents )
+					preProcessedCode = globalData.codeProcessor.beautifyHex( hexString, 4 )
+			except Exception as err:
+				preProcessedCode = ''
+		else:
+			try:
+				# Open the file in byte-reading mode (rb). Strings will then need to be encoded.
+				with codecs.open( baseFilePath + '.txt', encoding='utf-8' ) as asmFile: # Using a different read method for UTF-8 encoding
+					preProcessedCode = asmFile.read().encode( 'utf-8' )
+			except Exception as err:
+				preProcessedCode = ''
 
 		return 0, offset, author, customCode, preProcessedCode, annotation
 			
@@ -2268,7 +2334,7 @@ class CodeLibraryParser():
 			#annotation = ''
 
 		# Read the file for info and the custom code
-		returnCode, address, _, customCode, anno = self.getCustomCodeFromFile( fullAsmFilePath, mod, True, annotation )
+		returnCode, address, _, customCode, preProcCode, anno = self.getCustomCodeFromFile( fullAsmFilePath, mod, True, annotation )
 
 		# Check for a missing address
 		if returnCode == 0 and not address:
@@ -2293,7 +2359,7 @@ class CodeLibraryParser():
 		#annotation = codeChangeDict.get( 'annotation', '' ) # Optional; may not be there
 		
 		# Read the file for info and the custom code
-		returnCode, _, _, customCode, anno = self.getCustomCodeFromFile( fullAsmFilePath, mod, False, annotation )
+		returnCode, _, _, customCode, preProcCode, anno = self.getCustomCodeFromFile( fullAsmFilePath, mod, False, annotation )
 		#if returnCode != 0:
 			# mod.parsingError = True
 			# mod.stateDesc = 'Parsing error; unable to get code from file'
@@ -2370,7 +2436,7 @@ class CodeLibraryParser():
 			customCode = ''
 		else:
 			fullAsmFilePath = '\\\\?\\' + os.path.normpath( os.path.join(mod.path, sourceFile) )
-			_, _, _, customCode, annotation = self.getCustomCodeFromFile( fullAsmFilePath, mod, False, annotation )
+			_, _, _, customCode, preProcCode, annotation = self.getCustomCodeFromFile( fullAsmFilePath, mod, False, annotation )
 
 		mod.addStandalone( name, revisions, customCode, annotation )
 
