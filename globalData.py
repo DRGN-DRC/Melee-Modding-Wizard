@@ -86,6 +86,7 @@ def init( programArgs ):
 		'runDolphinInDebugMode': '0',
 		'createHiResCSPs': '0',
 		'disableMainMenuAnimations': '0',
+		'skipCodeCache': '0',
 	}
 	# regionOverwriteDefaults = {
 	# 	'Common Code Regions': True,
@@ -411,7 +412,10 @@ def getLastUsedDir( category='default', fileExt='' ):
 	try:
 		directoryPath = settings.get( 'Default Search Directories', category.replace( '.', '' ).lower() )
 	except ConfigParser.NoOptionError:
-		directoryPath = settings.get( 'Default Search Directories', 'default' )
+		if category == 'codeLibrary':
+			directoryPath = getModsFolderPath()
+		else:
+			directoryPath = settings.get( 'Default Search Directories', 'default' )
 
 	return directoryPath
 

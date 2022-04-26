@@ -241,7 +241,8 @@ class AsmToHexConverter( BasicWindow ):
 		# Swap back in custom sytaxes
 		if self.syntaxInfo and not self.assembleSpecialSyntax.get():
 			#returnCode, hexCode = customCodeProcessor.preAssembleRawCode( asmCode, self.includePaths, discardWhitespace=False )
-			hexCode = self.restoreCustomSyntaxInHex( hexCode, codeLength )
+			#hexCode = self.restoreCustomSyntaxInHex( hexCode, codeLength )
+			hexCode = globalData.codeProcessor.restoreCustomSyntaxInHex( hexCode, self.syntaxInfo, codeLength, self.blocksPerLine )
 
 		# Beautify and insert the new hex code
 		elif self.blocksPerLine > 0:
@@ -356,55 +357,55 @@ class AsmToHexConverter( BasicWindow ):
 
 		return '\n'.join( newLines )
 
-	def restoreCustomSyntaxInHex( self, hexCode, totalLength ):
+	# def restoreCustomSyntaxInHex( self, hexCode, totalLength ):
 
-		""" Swap out hex code for the original custom syntax line that it came from. """
+	# 	""" Swap out hex code for the original custom syntax line that it came from. """
 
-		newHexCodeSections = []
-		offset = 0
+	# 	newHexCodeSections = []
+	# 	offset = 0
 
-		# Resolve individual syntaxes to finished assembly and/or hex
-		for syntaxOffset, length, syntaxType, codeLine, names in self.syntaxInfo:
+	# 	# Resolve individual syntaxes to finished assembly and/or hex
+	# 	for syntaxOffset, length, syntaxType, codeLine, names in self.syntaxInfo:
 
-			# Check for and collect pre-assembled hex
-			if syntaxOffset != offset:
-				sectionLength = syntaxOffset - offset
-				sectionCode = hexCode[offset*2:syntaxOffset*2]
+	# 		# Check for and collect pre-assembled hex
+	# 		if syntaxOffset != offset:
+	# 			sectionLength = syntaxOffset - offset
+	# 			sectionCode = hexCode[offset*2:syntaxOffset*2]
 
-				if self.blocksPerLine > 0:
-					sectionCode = globalData.codeProcessor.beautifyHex( sectionCode, blocksPerLine=self.blocksPerLine )
+	# 			if self.blocksPerLine > 0:
+	# 				sectionCode = globalData.codeProcessor.beautifyHex( sectionCode, blocksPerLine=self.blocksPerLine )
 
-				newHexCodeSections.append( sectionCode )
-				offset += sectionLength
+	# 			newHexCodeSections.append( sectionCode )
+	# 			offset += sectionLength
 
-			if syntaxType == 'opt':
-				instruction, variable = codeLine.split( ' ', 1 )
-				if instruction in ( '.float', '.long', '.word', '.byte' ):
-					newHexCodeSections.append( variable )
-				else:
-					newHexCodeSections.append( codeLine )
-			else:
-				newHexCodeSections.append( codeLine )
+	# 		if syntaxType == 'opt':
+	# 			instruction, variable = codeLine.split( ' ', 1 )
+	# 			if instruction in ( '.float', '.long', '.word', '.byte' ):
+	# 				newHexCodeSections.append( variable )
+	# 			else:
+	# 				newHexCodeSections.append( codeLine )
+	# 		else:
+	# 			newHexCodeSections.append( codeLine )
 			
-			offset += length
+	# 		offset += length
 
-		# Grab the last code section if present
-		if offset != totalLength:
-			lastSection = hexCode[offset*2:]
-			sectionLength = len( lastSection ) / 2
+	# 	# Grab the last code section if present
+	# 	if offset != totalLength:
+	# 		lastSection = hexCode[offset*2:]
+	# 		sectionLength = len( lastSection ) / 2
 
-			if self.blocksPerLine > 0:
-				lastSection = globalData.codeProcessor.beautifyHex( lastSection, blocksPerLine=self.blocksPerLine )
+	# 		if self.blocksPerLine > 0:
+	# 			lastSection = globalData.codeProcessor.beautifyHex( lastSection, blocksPerLine=self.blocksPerLine )
 
-			newHexCodeSections.append( lastSection )
-			assert offset + sectionLength == totalLength, 'Custom code length mismatch detected! \nMod: {}\nEvaluated: {}   Calc. in Code Resolution: {}'.format( codeChange.mod.name, codeChange.length, offset + sectionLength )
+	# 		newHexCodeSections.append( lastSection )
+	# 		assert offset + sectionLength == totalLength, 'Custom code length mismatch detected! \nEvaluated: {}   Calc. in Code Resolution: {}'.format( totalLength, offset + sectionLength )
 
-		#if self.blocksPerLine > 0:
-		customCode = '\n'.join( newHexCodeSections )
-		# else:
-		# 	customCode = '|'.join( newHexCodeSections )
+	# 	#if self.blocksPerLine > 0:
+	# 	customCode = '\n'.join( newHexCodeSections )
+	# 	# else:
+	# 	# 	customCode = '|'.join( newHexCodeSections )
 
-		return customCode
+	# 	return customCode
 
 	def detectContext( self ):
 

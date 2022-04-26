@@ -2609,21 +2609,23 @@ class PromptHowToSave( BasicWindow ):
 		targetFolder = tkFileDialog.askdirectory(
 			parent=self.window,
 			title="Choose where to save this mod.",
-			initialdir=globalData.getModsFolderPath()
+			initialdir=globalData.getLastUsedDir( 'codeLibrary' )
 			)
 
 		if targetFolder:
-			newFileName = os.path.join( targetFolder, self.mod.name )
+			# Remember this save location for future operations
+			globalData.setLastUsedDir( targetFolder, 'codeLibrary' )
 
 			# Ask to overwrite existing files
-			if os.path.exists( newFileName ):
+			newFilePath = os.path.join( targetFolder, self.mod.name )
+			if os.path.exists( newFilePath ):
 				overwrite = tkMessageBox.askyesno( 'Overwrite existing files?', 'A mod by this name already exists here. Would you like to overwrite it?' )
 			else:
 				overwrite = True
 
 			if overwrite:
 				self.storeMini = True
-				self.targetPath = newFileName
+				self.targetPath = newFilePath
 
 		self.close()
 
@@ -2634,11 +2636,15 @@ class PromptHowToSave( BasicWindow ):
 		targetFile = tkFileDialog.askopenfilename(
 			parent=self.window,
 			title="Choose the file you'd like to save the mod to (it will be appended to the end).",
-			initialdir=globalData.getModsFolderPath(),
+			initialdir=globalData.getLastUsedDir( 'codeLibrary' ),
 			filetypes=[ ('Text files', '*.txt'), ('all files', '*.*') ]
 			)
 
 		if targetFile:
+			# Remember this save location for future operations
+			targetFolder = os.path.dirname( targetFile )
+			globalData.setLastUsedDir( targetFolder, 'codeLibrary' )
+
 			self.targetPath = targetFile
 
 		self.close()
@@ -2651,10 +2657,13 @@ class PromptHowToSave( BasicWindow ):
 		targetFolder = tkFileDialog.askdirectory(
 			parent=self.window,
 			title="Choose where to save this mod. A new folder will be created in this destination.",
-			initialdir=globalData.getModsFolderPath()
+			initialdir=globalData.getLastUsedDir( 'codeLibrary' )
 			)
 
 		if targetFolder:
+			# Remember this save location for future operations
+			globalData.setLastUsedDir( targetFolder, 'codeLibrary' )
+
 			# Validate the mod name by removing illegal characters, and create the new mod's folder path
 			modName = removeIllegalCharacters( self.mod.name, '' )
 			targetPath = os.path.join( targetFolder, modName )
