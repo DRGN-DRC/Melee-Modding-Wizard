@@ -138,7 +138,7 @@ class CodeManagerTab( ttk.Frame ):
 		currentTab = self.getCurrentTab()
 
 		if not forceUpdate and self.lastTabSelected == currentTab:
-			#print( 'already selected;', self.controlPanel.winfo_manager(), self.controlPanel.winfo_ismapped() )
+			print( 'already selected;', self.controlPanel.winfo_manager(), self.controlPanel.winfo_ismapped() )
 			return
 		elif self.lastTabSelected and self.lastTabSelected != currentTab:
 			globalData.gui.playSound( 'menuChange' )
@@ -766,7 +766,7 @@ class CodeManagerTab( ttk.Frame ):
 					mod = guiModule.mod
 					if mod.state == 'enabled' or mod.state == 'pendingEnable':
 						if dolRevision in mod.data:
-							geckoCodeString = mod.formatAsGecko( vanillaDol, createForGCT )
+							geckoCodeString = mod.buildGeckoString( vanillaDol, createForGCT )
 
 							if geckoCodeString == '':
 								containsSpecialSyntax.append( mod.name )
@@ -951,6 +951,8 @@ class CodeManagerTab( ttk.Frame ):
 
 		try:
 			# Create a copy of the mod (this deep-copy should include basic properties, includePaths, webLinks, etc.)
+			modModule = mod.guiModule
+			mod.guiModule = None # Need to detatch for deepcopy; reattach after successful conversion
 			newMod = copy.deepcopy( mod )
 			newMod.name = mod.name + ' (Converted)'
 
@@ -980,6 +982,8 @@ class CodeManagerTab( ttk.Frame ):
 						newMod.data[mod.currentRevision].append( codeChange )
 				else:
 					newMod.data[mod.currentRevision].append( codeChange )
+
+			newMod.guiModule = modModule
 
 			return newMod
 		except:
@@ -1129,7 +1133,7 @@ class ModModule( Tk.Frame, object ):
 		super( ModModule, self ).__init__( parent, relief='groove', borderwidth=3, takefocus=True, *args, **kw )
 
 		self.mod = mod
-		#mod.guiModule = self
+		mod.guiModule = self
 
 		self.statusText = Tk.StringVar()
 		self.highlightFadeAnimationId = None # Used for the border highlight fade animation
@@ -1376,6 +1380,7 @@ class CodeConstructor( Tk.Frame ):
 		if modModule:
 			self.libGuiModule = modModule
 			self.mod = modModule.mod
+			self.mod.guiModule = None		# Need to detatch for deepcopy; reattach during back-up restore
 			self.backup = copy.deepcopy( modModule.mod )
 		else:
 			self.libGuiModule = None
@@ -1437,14 +1442,27 @@ class CodeConstructor( Tk.Frame ):
 		row2.columnconfigure( (1, 2), weight=1 )
 
 		# Add the game version tabs and code changes to this module.
-		if self.mod.data: # This is a dict with keys=revision, values=list of "CodeChange" objects
-			for revision, codeChanges in self.mod.data.items():
-				for change in codeChanges:
-					self.addCodeChangeModule( change.type, change, revision )
+		# if self.mod.data: # This is a dict with keys=revision, values=list of "CodeChange" objects
+		# 	for revision, codeChanges in self.mod.data.items():
+		# 		for change in codeChanges:
+		# 			self.addCodeChangeModule( change.type, change, revision )
+		self.populateChanges()
 
 		# Add errors notice button
 		if self.mod.parsingError or self.mod.assemblyError or self.mod.errors:
 			self.addErrorsButton()
+
+	def populateChanges( self ):
+
+		""" Will repopulate them if they're alredy present. """
+
+		if self.revisionsNotebook:
+			self.revisionsNotebook.destroy()
+
+		if self.mod.data: # This is a dict with keys=revision, values=list of "CodeChange" objects
+			for revision, codeChanges in self.mod.data.items():
+				for change in codeChanges:
+					self.addCodeChangeModule( change.type, change, revision )
 
 	def addWebLinks( self ):
 
@@ -1496,6 +1514,12 @@ class CodeConstructor( Tk.Frame ):
 		else: buttonText = 'Display DOL Offsets'
 		self.offsetViewBtn = ttk.Button( self.buttonsFrame, text=buttonText, command=self.switchOffsetDisplayType )
 		self.offsetViewBtn.pack( side='right', padx=6, ipadx=6 )
+
+		# Add the Open button
+		if self.mod.isAmfs:
+			LabelButton( self.buttonsFrame, 'folderIcon', self.openMod, 'Open Folder' ).pack( side='right', padx=6 )
+		else:
+			LabelButton( self.buttonsFrame, 'folderIcon', self.openMod, 'Open File' ).pack( side='right', padx=6 )
 
 		self.revisionsNotebook = ttk.Notebook( self )
 		self.revisionsNotebook.pack( fill='both', expand=1, anchor='n', padx=12, pady=6 )
@@ -1551,10 +1575,11 @@ class CodeConstructor( Tk.Frame ):
 		description = self.getInput( self.descScrolledText )
 
 		# Validate the above to make sure it's ASCII
-		for subject in ( 'title', 'authors', 'description' ):
-			stringVariable = eval( subject ) # Basically turns the string into one of the variables created above
-			if not isinstance( stringVariable, str ):
-				typeDetected = str(type(stringVariable)).replace("<type '", '').replace("'>", '')
+		#for subject in ( 'title', 'authors', 'description' ):
+		for subject in ( title, authors, description ):
+			#stringVariable = eval( subject ) # Basically turns the string into one of the variables created above
+			if not isinstance( subject, str ):
+				typeDetected = str(type(subject)).replace("<type '", '').replace("'>", '')
 				msg('The input needs to be ASCII, however ' + typeDetected + \
 					' was detected in the ' + subject + ' string.', 'Input Error')
 				return False
@@ -1568,11 +1593,20 @@ class CodeConstructor( Tk.Frame ):
 			versionTab = globalData.gui.root.nametowidget( windowName )
 			codeChangesListFrame = versionTab.winfo_children()[0].interior
 
-			# Clear the code changes list and re-add them from the GUI modules
+			# Update individual code change modules
 			for codeChangeModule in codeChangesListFrame.winfo_children():
 				self.syncModuleChanges( versionTab, codeChangeModule )
 
 		return True
+
+	def openMod( self, event=None ):
+
+		""" Opens the mod's folder or source file. """
+
+		if self.mod.isAmfs:
+			openFolder( self.mod.path )
+		else:
+			webbrowser.open( self.mod.path )
 
 	def showErrors( self, event=None ):
 		self.syncAllGuiChanges()
@@ -1717,7 +1751,7 @@ class CodeConstructor( Tk.Frame ):
 			elif changeType == 'injection':
 				codeChange = self.mod.addInjection( '', [], '' )
 			elif changeType == 'gecko':
-				codeChange = self.mod.addInjection( [] )
+				codeChange = self.mod.addGecko( [] )
 			elif changeType == 'standalone':
 				codeChange = self.mod.addStandalone( '', [dolRevision], [] )
 			else: # Failsafe; shouldn't ever happen!
@@ -1996,7 +2030,8 @@ class CodeConstructor( Tk.Frame ):
 		changeType = codeChangeModule.codeChange.type
 
 		# Update the module's custom code, calculate code length, and update this module's length display
-		codeChangeModule.codeChange.rawCode = codeChangeModule.newHexField.get( '1.0', 'end' ).strip()
+		#codeChangeModule.codeChange.rawCode = codeChangeModule.newHexField.get( '1.0', 'end' ).strip()
+		codeChangeModule.codeChange.rawCode = self.getInput( codeChangeModule.newHexField )
 		returnCode = codeChangeModule.codeChange.evaluate( True )
 		if returnCode != 0:
 			if changeType in ( 'static', 'injection' ):
@@ -2010,7 +2045,8 @@ class CodeConstructor( Tk.Frame ):
 			codeChangeModule.originalHex.delete( 0, 'end' )
 
 			# Get, validate, and update offset
-			offsetString = codeChangeModule.offset.get().strip()
+			#offsetString = codeChangeModule.offset.get().strip()
+			offsetString = self.getInput( codeChangeModule.offset )
 			if not validHex( offsetString ):
 				self.updateErrorNotice( 'Invalid offset "{}"; non-hex characters detected'.format(offsetString), codeChangeModule )
 				return
@@ -2024,7 +2060,8 @@ class CodeConstructor( Tk.Frame ):
 			self.updateErrorNotice( '', codeChangeModule )
 
 		elif changeType == 'standalone':
-			codeChangeModule.codeChange.offset = codeChangeModule.offset.get().strip()
+			#codeChangeModule.codeChange.offset = codeChangeModule.offset.get().strip()
+			codeChangeModule.codeChange.offset = self.getInput( codeChangeModule.offset )
 
 	def updateErrorNotice( self, newError='', codeChangeModule=None ):
 
@@ -2037,6 +2074,7 @@ class CodeConstructor( Tk.Frame ):
 				self.addErrorsButton()
 		elif self.errorsButton:
 			self.errorsButton.destroy()
+			self.errorsButton = None
 
 	def saveModToLibraryAs( self ):
 
@@ -2101,6 +2139,7 @@ class CodeConstructor( Tk.Frame ):
 
 				if convertedGeckoMod:
 					self.mod = convertedGeckoMod
+					self.populateChanges()
 				else:
 					self.updateSaveStatus( True, 'Unable to Save' )
 					msg( ("This mod cannot be saved in AMFS format. It's a Gecko code with code changes "
@@ -2168,8 +2207,13 @@ class CodeConstructor( Tk.Frame ):
 		analysisText = 'Info for "' + self.mod.name + '"'
 		analysisText += '\nProgram Classification: ' + self.mod.type
 		if os.path.isdir( self.mod.path ):
+			analysisText += '\nSave Format: AMFS (ASM Mod Folder Structure)'
 			analysisText += '\nSource Folder: ' + self.mod.path
 		elif os.path.exists( self.mod.path ):
+			if self.mod.path.endswith( '.txt' ):
+				analysisText += '\nSave Format: MCM'
+			else:
+				analysisText += '\nSave Format: Minimal'
 			analysisText += '\nSource File: ' + self.mod.path
 			analysisText += '\nPosition in file: ' + str( self.mod.fileIndex )
 		else:
@@ -2292,6 +2336,7 @@ class CodeConstructor( Tk.Frame ):
 
 		# Restore the backup copy
 		self.mod = self.backup
+		self.mod.guiModule = self.libGuiModule
 
 		self.destroy()
 

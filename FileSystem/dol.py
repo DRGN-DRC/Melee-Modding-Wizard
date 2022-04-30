@@ -815,7 +815,7 @@ class Dol( FileBase ):
 
 		""" Occurs with Gecko codes and standalone functions, since we may not have a branch to locate them.
 			This is the first normal (non-special-branch) section for this code. Since the offset is unknown,
-			use this section to find all possible locations/matches for this code within the region. """
+			use the given section to find all possible locations/matches for this code within the region. """
 		
 		customCode = codeChange.preProcessedCode
 		if not customCode: # Pre-processing may have failed
@@ -905,7 +905,9 @@ class Dol( FileBase ):
 
 		if excludeLastCommand: # Exclude the branch back on injection mods.
 			customCode = customCode[:-8] # Removing the last 4 bytes
-		codeLength = len( customCode ) / 2
+			codeLength = codeChange.length - 4
+		else:
+			codeLength = codeChange.length
 
 		# With no custum syntax, there is just one chunk of code to compare
 		if not codeChange.syntaxInfo:
@@ -979,8 +981,8 @@ class Dol( FileBase ):
 						mod.configure( name, value )
 						
 						toc = time.clock()
-						print 'method 1 value: ', value
-						print 'in', toc-tic
+						print( 'method 1 value: ', value )
+						print( 'in', toc-tic )
 						
 						tic = time.clock()
 
@@ -995,8 +997,8 @@ class Dol( FileBase ):
 						value = struct.unpack( ConfigurationTypes[optType], codeInDol )[0]
 						
 						toc = time.clock()
-						print 'method 2 value: ', value
-						print 'in', toc-tic
+						print( 'method 2 value: ', value )
+						print( 'in', toc-tic )
 
 				readOffset += length
 

@@ -183,7 +183,8 @@ class FileMenu( Tk.Menu, object ):
 
 class SettingsMenu( Tk.Menu, object ):
 
-	""" Once the checkbuttons have been created, they will stay updated in real time, since they're set using BoolVars. """
+	""" The checkbuttons in these menus are the same objects used internally by the 
+		program (BooleanVars) to track these settings (so there's no extra syncing required). """
 
 	def __init__( self, parent, tearoff=True, *args, **kwargs ): # Create the menu and its contents
 		super( SettingsMenu, self ).__init__( parent, tearoff=tearoff, *args, **kwargs )
@@ -195,28 +196,35 @@ class SettingsMenu( Tk.Menu, object ):
 		#self.add_separator()		
 		# self.add_command(label='Set General Preferences', command=setPreferences)
 		self.add_checkbutton( label='Use Disc Convenience Folders', underline=9, 												# C
-											variable=globalData.boolSettings['useDiscConvenienceFolders'], command=globalData.saveProgramSettings )
-		# self.add_checkbutton( label='Avoid Rebuilding Disc', underline=0, 														# A
-		# 									variable=globalData.boolSettings['avoidRebuildingIso'], command=globalData.saveProgramSettings )
+				variable=globalData.boolSettings['useDiscConvenienceFolders'], command=globalData.saveProgramSettings )
+		# self.add_checkbutton( label='Avoid Rebuilding Disc', underline=0, 													# A
+		# 		variable=globalData.boolSettings['avoidRebuildingIso'], command=globalData.saveProgramSettings )
 		self.add_checkbutton( label='Back-up Disc When Rebuilding', underline=0, 												# B
-											variable=globalData.boolSettings['backupOnRebuild'], command=globalData.saveProgramSettings )
-		# self.add_checkbutton( label='Auto-Generate CSP Trim Colors', underline=5, 												# G
-		# 									variable=globalData.boolSettings['autoGenerateCSPTrimColors'], command=globalData.saveProgramSettings )
-		self.add_checkbutton( label='Always Enable Crash Reports', underline=20, 												# R
-											variable=globalData.boolSettings['alwaysEnableCrashReports'], command=globalData.saveProgramSettings )
-		self.add_checkbutton( label='Always Add Files Alphabetically', underline=11, 												# F
-											variable=globalData.boolSettings['alwaysAddFilesAlphabetically'], command=globalData.saveProgramSettings )
-		self.add_checkbutton( label='Run Dolphin in Debug Mode', underline=15, 												# D
-											variable=globalData.boolSettings['runDolphinInDebugMode'], command=globalData.saveProgramSettings )
-		self.add_checkbutton( label='Create Hi-Res CSPs', underline=7, 												# H
-											variable=globalData.boolSettings['createHiResCSPs'], command=globalData.saveProgramSettings )
+				variable=globalData.boolSettings['backupOnRebuild'], command=globalData.saveProgramSettings )
+		# self.add_checkbutton( label='Auto-Generate CSP Trim Colors', underline=5, 											# G
+		# 		variable=globalData.boolSettings['autoGenerateCSPTrimColors'], command=globalData.saveProgramSettings )
+		self.add_checkbutton( label='Always Add Files Alphabetically', underline=11, 											# F
+				variable=globalData.boolSettings['alwaysAddFilesAlphabetically'], command=globalData.saveProgramSettings )
+
+		self.add_checkbutton( label='Run Dolphin in Debug Mode', underline=15, 													# D
+				variable=globalData.boolSettings['runDolphinInDebugMode'], command=globalData.saveProgramSettings )
+		self.add_checkbutton( label='Create Hi-Res CSPs', underline=7, 															# H
+				variable=globalData.boolSettings['createHiResCSPs'], command=globalData.saveProgramSettings )
 		
-		# Image-editing related options
 		self.add_separator()
+
+		# Code related options
+		self.add_checkbutton( label='Use Code Cache (For both read/write)', underline=9, 										# C
+				variable=globalData.boolSettings['useCodeCache'], command=globalData.saveProgramSettings )
+		self.add_checkbutton( label='Always Enable Crash Reports', underline=20, 												# R
+				variable=globalData.boolSettings['alwaysEnableCrashReports'], command=globalData.saveProgramSettings )
+
+		# Image-editing related options
+		#self.add_separator()
 		# self.add_checkbutton( label='Cascade Mipmap Changes', underline=8, 
-		# 									variable=globalData.boolSettings['cascadeMipmapChanges'], command=globalData.saveProgramSettings )				# M
+		# 		variable=globalData.boolSettings['cascadeMipmapChanges'], command=globalData.saveProgramSettings )				# M
 		# self.add_checkbutton( label="Export Textures using Dolphin's Naming Convention", underline=32, 
-		# 									variable=globalData.boolSettings['useDolphinNaming'], command=globalData.saveProgramSettings )					# N
+		# 		variable=globalData.boolSettings['useDolphinNaming'], command=globalData.saveProgramSettings )					# N
 
 		# Image-editing related options; todo
 		#self.add_separator()

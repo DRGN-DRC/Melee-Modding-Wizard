@@ -24,12 +24,14 @@ import tkMessageBox
 from string import hexdigits
 from collections import OrderedDict as _OrderedDict
 
+
 # Conversion solutions:
 # 		int 			-> 		bytes objects 		struct.pack( )
-# 		byte string 	-> 		int:				struct.unpack( )
-# 		byte string 	-> 		hex string 			''.encode( 'hex' )
-# 		bytearray 		-> 		hex string:			hexlify( input )
-# 		hex string 		-> 		bytearray: 			bytearray.fromhex( input )
+# 		byte string 	-> 		int					struct.unpack( )
+# 		byte string 	-> 		hex string			''.encode( 'hex' )
+#		bytes object	->		text string			obj.decode()
+# 		bytearray 		-> 		hex string			hexlify( input )
+# 		hex string 		-> 		bytearray			bytearray.fromhex( input )
 # 		text string 	-> 		bytearray			init bytearray, then use .extend( string ) method on it
 #
 # 		Note that a file object's .read() method returns a byte-string of unknown encoding, which will be 
@@ -251,9 +253,9 @@ def readableArray( offsetArray ):
 	return [ uHex(0x20+offset) for offset in offsetArray ]
 
 
-def openFolder( folderPath, fileToSelect='', showWarnings=True ): # Slow function, but cannot select files
+def openFolder( folderPath, fileToSelect='', showWarnings=True ):
 
-	""" Opens a folder for the user. Optionally, can also select/highlight a specific file file in the folder, 
+	""" Opens a folder for the user. Optionally, can also select/highlight a specific file in the folder, 
 		using the 'fileToSelect' arg; however, using this feature is much slower. """
 
 	folderPath = os.path.abspath( folderPath ) # Turns relative to absolute paths, and normalizes them (switches / for \, etc.)
@@ -324,9 +326,9 @@ def msg( message, title='', parent=None, warning=False, error=False ):
 		else: tkMessageBox.showinfo( message=message, title=title, parent=parent )
 
 	else: # Write to stdout
-		if error: print 'ERROR! ' + message
-		elif warning: print 'Warning! ' + message
-		else: print message
+		if error: print( 'ERROR! ' + message )
+		elif warning: print( 'Warning! ' + message )
+		else: print( message )
 
 
 def printStatus( message, warning=False, error=False, success=False, forceUpdate=False ):
@@ -337,12 +339,12 @@ def printStatus( message, warning=False, error=False, success=False, forceUpdate
 
 	if globalData.gui: # Display a pop-up message
 		globalData.gui.updateProgramStatus( message, warning, error, success, forceUpdate )
-		print 'printStatus mirror:', message
+		print( 'printStatus mirror: ' + message )
 
 	else: # Write to stdout
-		if error: print 'ERROR! ' + message
-		elif warning: print 'Warning! ' + message
-		else: print message
+		if error: print( 'ERROR! ' + message )
+		elif warning: print( 'Warning! ' + message )
+		else: print( message )
 
 
 # def cmsg( *args, **kwargs ):
@@ -389,8 +391,8 @@ def cmdChannel( command, standardInput=None, shell=False, returnStderrOnSuccess=
 	elif process.returncode == 0:
 		return ( process.returncode, stdoutData )
 	else:
-		print 'IPC error (exit code {}):'.format( process.returncode )
-		print stderrData
+		print( 'IPC error (exit code {}):'.format( process.returncode ) )
+		print( stderrData )
 		return ( process.returncode, stderrData )
 
 
@@ -409,9 +411,8 @@ def saveAndShowTempFileData( fileData, filename ):
 	try:
 		with open( tempFilePath, 'wb' ) as newFile:
 			newFile.write( fileData )
-	except Exception as err: # Pretty unlikely
-		print 'Error creating temporary file for {}!'.format( filename )
-		print err
+	except Exception as err: # Failsafe; pretty unlikely
+		printStatus( 'Error creating temporary file for {}! {}'.format(filename, err), error=True )
 		return
 
 	# Open the temp file in the hex editor
@@ -429,7 +430,7 @@ def getFileMd5( filePath, blocksize=65536 ): # todo: use blake2b instead for per
 	return currentHash.hexdigest()
 
 
-class ListDict(_OrderedDict): # todo: need to start using to 'move_to_end' method when switching to Python 3
+class ListDict(_OrderedDict): # todo: start using 'move_to_end' method when switching to Python 3
 
 	# By jarydks
 	# Source: https://gist.github.com/jaredks/6276032

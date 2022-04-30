@@ -1747,7 +1747,7 @@ class Disc( object ):
 			# Check for CSS file changes
 			if cssFile and cssFile.unsavedChanges:
 				# Check that the hex tracks music name table is valid
-				print 'other CSS files need updating!'
+				print( 'other CSS files need updating!' )
 
 				# Iterate until we don't have other CSS files
 				# cssIndex = 1
@@ -2023,12 +2023,12 @@ class Disc( object ):
 				# elif codeChange.type == 'gecko' and mod.state == 'pendingDisable': 
 				# 	removingSomeGeckoCodes = True # This state means they were previously enabled, which also means gecko.environmentSupported = True
 
-			# Make sure Gecko mod states are correct
+			# Update mod state
 			if mod.state == 'pendingDisable':
 				# if mod.type == 'gecko' and not overwriteOptions[ 'EnableGeckoCodes' ].get(): 
-				# 	mod.setState( 'unavailable' )
+				# 	mod.setState( 'unavailable', updateControlPanelCounts=False )
 				#else:
-				mod.setState( 'disabled' )
+				mod.setState( 'disabled', updateControlPanelCounts=False )
 
 		if problematicMods:
 			modsUninstalled = len( codeMods ) - problematicMods
@@ -2158,7 +2158,7 @@ class Disc( object ):
 
 	def installCodeMods( self, codeMods ):
 
-		""" Installs static overwrites and injection mods to the game. Gecko codes are handled separately. """
+		""" Installs static overwrites, injection mods, and SFs to the game. Gecko codes are handled separately. """
 
 		# Check for conflicts among the code regions selected for use
 		allCodeRegions = self.dol.getCustomCodeRegions( useRamAddresses=True )
@@ -2271,7 +2271,7 @@ class Disc( object ):
 		tocSpace = roundTo32( tocSize ) # Some padding is added between the TOC and end of RAM
 		tocStart = 0x81800000 - tocSpace # Also, the end of the arena space
 		self.allocationMatrix.append( [-1, tocStart - 0x20, 0] ) # Adds some padding between codes.bin and the TOC
-		print 'predicted start of toc:', hex( tocStart )
+		print( 'predicted start of toc: ' + hex( tocStart ) )
 
 		# If this is Melee, nop branches required for using the USB Screenshot regions, if those regions are used.
 		if self.dol.isMelee and globalData.checkRegionOverwrite( 'Screenshot Regions' ):
@@ -2339,14 +2339,14 @@ class Disc( object ):
 
 		# 	return 0x81800000 - tocSize - 0x1E - arenaSpace - customCodeLength
 
-		tic = time.clock()
-
 		# Primary code-saving pass.
 		#standaloneFunctions = genGlobals['allStandaloneFunctions'] # Dictionary. Key='functionName', value=( functionAddress, functionCustomCode, functionPreProcessedCustomCode )
 		customCodeProcessor = globalData.codeProcessor
 		standaloneFunctions = globalData.standaloneFunctions
 		installCount = 0
-		#noSpaceRemaining = False
+		useCodeCache = globalData.checkSetting( 'useCodeCache' )
+
+		tic = time.clock()
 
 		for mod in codeMods:
 			if not mod: continue # May be 'None' if a mod wasn't found
@@ -2357,6 +2357,15 @@ class Disc( object ):
 			installCount += 1
 			self.updateProgressDisplay( 'Installing Mods', -1, installCount, totalModsToInstall )
 
+			# Allocate space for required standalone functions (SFs are not immediately added to the DOL because they too may reference unmapped functions)
+			requiredStandaloneFunctions, missingFunctions = mod.getRequiredStandaloneFunctionNames()
+
+			# Now that the required standalone functions for this mod have been assigned space, add them to the DOL.
+			if missingFunctions:
+				msg( mod.name + ' cannot not be installed because the following standalone functions are missing:\n\n' + grammarfyList(missingFunctions) )
+				continue
+
+			# Prepare for allocating and saving SFs and code changes for this mod to the DOL
 			problemWithMod = False
 			allocationMatrixBackup = copy.deepcopy( self.allocationMatrix ) # This copy is used to revert changes in case there is a problem with saving this mod.
 			newlyMappedStandaloneFunctions = [] # Tracked so that if this mod fails any part of installation, the standalone functions dictionary can be restored (installation offsets restored to -1).
@@ -2364,52 +2373,44 @@ class Disc( object ):
 			priorChangesCount = len( self.modifiedRegions ) # Tracked for reversion of the modifiedRegions list if installation fails
 			priorNewSymbolsCount = len( newSymbols ) # Tracked for reversion of the newSymbols list if installation fails
 
-			# Allocate space for required standalone functions
-			#if not noSpaceRemaining:
-			# SFs are not immediately added to the DOL because they too may reference unmapped functions.
-			requiredStandaloneFunctions, missingFunctions = mod.getRequiredStandaloneFunctionNames()
+			# Map any new required standalone functions to the DOL if they have not already been assigned space.
+			for functionName in requiredStandaloneFunctions:
+				functionAddress, codeChange = standaloneFunctions[functionName]
 
-			# Now that the required standalone functions for this mod have been assigned space, add them to the DOL.
-			if missingFunctions:
-				msg( mod.name + ' cannot not be installed because the following standalone functions are missing:\n\n' + grammarfyList(missingFunctions) )
-				problemWithMod = True
+				if functionName not in standaloneFunctionsUsed:
+					# Has not been added to the dol. Map it
+					codeChange.evaluate()
+					customCodeAddress = self.allocateCodeSpace( codeChange.length )
 
-			else:
-				# Map any new required standalone functions to the DOL if they have not already been assigned space.
-				for functionName in requiredStandaloneFunctions:
+					# Storage location determined; update the SF dictionary with an offset for it
+					standaloneFunctions[functionName] = ( customCodeAddress, codeChange )
+					newlyMappedStandaloneFunctions.append( functionName )
+
+				else: # This mod uses one or more functions that are already allocated to go into the DOL
+					summaryReport.append( ('SF: ' + functionName, 'standalone', functionAddress, codeChange.getLength()) )
+
+			if newlyMappedStandaloneFunctions:
+				# Add this mod's SFs to the DOL
+				for functionName in newlyMappedStandaloneFunctions:
 					functionAddress, codeChange = standaloneFunctions[functionName]
 
-					if functionName not in standaloneFunctionsUsed:
-						# Has not been added to the dol. Map it
-						codeChange.evaluate()
-						customCodeAddress = self.allocateCodeSpace( codeChange.length )
+					# Replace custom syntax, and perform any final processing on the code
+					returnCode, finishedCode = codeChange.finalizeCode( functionAddress, not useCodeCache )
+					if returnCode != 0 and returnCode != 100:
+						problemWithMod = True
+						break
+					else:
+						# Cache assembled code if that feature is enabled
+						if useCodeCache and not codeChange.isCached:
+							mod.saveCache( codeChange )
 
-						# Storage location determined; update the SF dictionary with an offset for it
-						standaloneFunctions[functionName] = ( customCodeAddress, codeChange )
-						newlyMappedStandaloneFunctions.append( functionName )
-
-					else: # This mod uses one or more functions that are already allocated to go into the DOL
-						#functionLength = getCustomCodeLength( functionPreProcessedCustomCode )
-						summaryReport.append( ('SF: ' + functionName, 'standalone', functionAddress, codeChange.getLength()) )
-
-				if newlyMappedStandaloneFunctions:
-					# Add this mod's SFs to the DOL
-					for functionName in newlyMappedStandaloneFunctions:
-						#functionAddress, functionCustomCode, functionPreProcessedCustomCode = standaloneFunctions[functionName]
-						functionAddress, codeChange = standaloneFunctions[functionName]
-
-						# Replace custom syntax, and perform any final processing on the code
-						returnCode, finishedCode = codeChange.finalizeCode( functionAddress )
-						if returnCode != 0 and returnCode != 100:
-							problemWithMod = True
+						# Store the function in the DOL
+						problemWithMod = self.storeCodeChange( functionAddress, finishedCode, mod.name + ' standalone function' )
+						if problemWithMod:
+							break
 						else:
-							problemWithMod = self.storeCodeChange( functionAddress, finishedCode, mod.name + ' standalone function' )
-
-						if problemWithMod: break
-						else:
-							codeLen = len( finishedCode ) / 2
-							summaryReport.append( ('SF: ' + functionName, 'standalone', functionAddress, codeLen) )
-							newSymbols.append( (functionAddress, codeLen, '{} SF: {}'.format(mod.name, functionName)) )
+							summaryReport.append( ('SF: ' + functionName, 'standalone', functionAddress, codeChange.length) )
+							newSymbols.append( (functionAddress, codeChange.length, '{} SF: {}'.format(mod.name, functionName)) )
 			
 			# Add this mod's code changes & custom code (non-SFs) to the dol.
 			if not problemWithMod:
@@ -2425,10 +2426,14 @@ class Disc( object ):
 							break
 
 						# Replace custom syntax, and perform any final processing on the code
-						returnCode, finishedCode = codeChange.finalizeCode( ramAddress )
+						returnCode, finishedCode = codeChange.finalizeCode( ramAddress, not useCodeCache )
 						if returnCode != 0 and returnCode != 100:
 							problemWithMod = True
 						else:
+							# Cache assembled code if that feature is enabled
+							if useCodeCache and not codeChange.isCached:
+								mod.saveCache( codeChange )
+
 							problemWithMod = self.storeCodeChange( ramAddress, finishedCode, mod.name + ' static overwrite' )
 
 						if problemWithMod: break
@@ -2464,11 +2469,15 @@ class Disc( object ):
 							summaryReport.append( ('Branch', 'static', injectionSite, 4) ) # changeName, changeType, dolOffset, customCodeLength
 
 						# Replace custom syntax, and perform any final processing on the code
-						returnCode, finishedCode = codeChange.finalizeCode( customCodeAddress )
+						returnCode, finishedCode = codeChange.finalizeCode( customCodeAddress, not useCodeCache )
 						if returnCode != 0 and returnCode != 100:
 							problemWithMod = True
 							break
 						else:
+							# Cache assembled code if that feature is enabled
+							if useCodeCache and not codeChange.isCached:
+								mod.saveCache( codeChange )
+
 							# If the return code was 100, the last instruction was created by a custom branch syntax, which was deliberate and we don't want it replaced.
 							if returnCode == 0:
 								# Check if the last instruction in the custom code is a branch or zeros. If it is, replace it with a branch back to the injection site.
@@ -2516,14 +2525,14 @@ class Disc( object ):
 					standaloneFunctions[functionName] = ( -1, standaloneFunctions[functionName][1] )
 				
 				# Update the GUI to reflect changes.
-				mod.setState( 'disabled' )
+				mod.setState( 'disabled', updateControlPanelCounts=False )
 				codesNotInstalled.append( mod.name )
 			else:
 				# Remember that the standalone functions used for this mod were added to the dol.
 				standaloneFunctionsUsed.extend( newlyMappedStandaloneFunctions )
 
 				# Update the GUI to reflect changes.
-				mod.setState( 'enabled' )
+				mod.setState( 'enabled', updateControlPanelCounts=False )
 				totalModsInstalled += 1
 				#addToInstallationSummary( mod.name, mod.type, summaryReport )
 
@@ -2554,16 +2563,19 @@ class Disc( object ):
 					# Check if this module is used
 					for funcName in functionNames:
 						if funcName in standaloneFunctionsUsed:
-							print 'SF-only module', mod.name, 'is detected in save routine'
-							mod.setState( 'enabled' ) # Already automatically added to the Standalone Functions table in the Summary Tab
+							print( 'SF-only module', mod.name, 'detected in save routine' )
+							mod.setState( 'enabled', updateControlPanelCounts=False ) # Already added to the SF table in the Summary Tab
 							#totalModsInstalled += 1
 							break # only takes one to make it count
 					else: # loop didn't break; no functions for this mod used
-						print 'SF-only module', mod.name, 'not detected in save routine'
-						mod.setState( 'disabled' )
+						print( 'SF-only module', mod.name, 'NOT detected in save routine' )
+						mod.setState( 'disabled', updateControlPanelCounts=False )
 
 		toc = time.clock()
-		print '\nMod installation time:', toc-tic
+		print( '\nMod installation time:', toc-tic )
+
+		if globalData.gui.codeManagerTab:
+			globalData.gui.codeManagerTab.updateInstalledModsTabLabel()
 
 		# End of the 'not onlyUpdateGameSettings' block
 		#updateSummaryTabTotals()
@@ -2610,9 +2622,9 @@ class Disc( object ):
 		for areaStart, areaEnd, spaceUsed in self.allocationMatrix[:-1]:
 			totalSpace += areaEnd - areaStart
 			totalSpaceUsed += spaceUsed
-		print 'total space available:', uHex(totalSpace)
-		print 'total space used:', uHex(totalSpaceUsed)
-		print 'total space remaining:', uHex(totalSpace-totalSpaceUsed)
+		print( 'total space available:', uHex(totalSpace) )
+		print( 'total space used:', uHex(totalSpaceUsed) )
+		print( 'total space remaining:', uHex(totalSpace-totalSpaceUsed) )
 
 		# If the injection code file was used, add codes to the game required to load it on boot
 		if self.injectionsCodeFile and self.injectionsCodeFile.data:
@@ -2651,8 +2663,9 @@ class Disc( object ):
 				0: Success
 				1: Unable to load/parse the required mods 
 				2: Problem installing the Malloc code
-				3: Problem installing the file load code"""
+				3: Problem installing the file load code """
 
+		useCodeCache = globalData.checkSetting( 'useCodeCache' )
 		summaryReport = []
 
 		# Parse and get the core code mods
@@ -2732,7 +2745,7 @@ class Disc( object ):
 
 		# Install the memory allocation custom code
 		#returnCode, finalizedCode = mallocMod.finalCodeProcessing( mallocCodeAddress, arenaHiMallocInjection )
-		returnCode, finalizedCode = arenaHiMallocInjection.finalizeCode( mallocCodeAddress )
+		returnCode, finalizedCode = arenaHiMallocInjection.finalizeCode( mallocCodeAddress, not useCodeCache )
 		assert returnCode != 0, 'Error in finalizing malloc code'
 		conflict = self.storeCodeChange( mallocCodeAddress, finalizedCode, mallocMod.name + ' injection code', True )
 		if conflict:
@@ -2763,7 +2776,7 @@ class Disc( object ):
 
 		# Install the memory allocation code
 		#returnCode, finalizedCode = mallocMod.finalCodeProcessing( reservationLocation, fileLoadInjection )
-		returnCode, finalizedCode = fileLoadInjection.finalizeCode( reservationLocation )
+		returnCode, finalizedCode = fileLoadInjection.finalizeCode( reservationLocation, not useCodeCache )
 		assert returnCode != 0, 'Error in finalizing file load code'
 		conflict = self.storeCodeChange( reservationLocation, finalizedCode, fileLoadInjection.name + ' injection code', True )
 		if conflict:
@@ -2777,35 +2790,16 @@ class Disc( object ):
 		""" Replaces the Start.dol file with a vanilla copy from a vanilla disc. 
 			Or, if a path is given for the 'dolSource' setting, that DOL is used. 
 			Returns True/False depending on whether the operation succeeded. """
-		
-		# dolPath = globalData.checkSetting( 'dolSource' )
-
-		# if dolPath == 'vanilla':
-		# 	if not vanillaDiscPath:
-		# 		# See if we can get a reference to vanilla DOL code
-		# 		vanillaDiscPath = globalData.getVanillaDiscPath()
-		# 		if not vanillaDiscPath: # User canceled path input
-		# 			printStatus( 'Unable to restore the DOL; no vanilla disc available for reference', error=True )
-		# 			return
-			
-		# 	vanillaDisc = Disc( vanillaDiscPath )
-		# 	vanillaDisc.load()
-
-		# 	self.replaceFile( self.dol, vanillaDisc.dol, countAsNewFile=countAsNewFile )
-
-		# elif not os.path.exists( dolPath ):
-		# 	printStatus( 'Unable to restore the DOL; the source DOL could not be found', error=True )
-
-		# else:
-		# 	print 'not yet supported'
-		# 	print dolPath
 
 		try:
-			newDol = globalData.getVanillaDol()
+			dol = globalData.getVanillaDol()
 		except Exception as err:
 			printStatus( 'Unable to restore the DOL; {}'.format(err.message) )
 			return False
-			
+		
+		# Create a copy of the vanilla reference DOL (don't want that one edited), and import the copy
+		newDol = copy.deepcopy( dol )
+		newDol.readOnly = False
 		self.replaceFile( self.dol, newDol, countAsNewFile=countAsNewFile )
 
 		return True

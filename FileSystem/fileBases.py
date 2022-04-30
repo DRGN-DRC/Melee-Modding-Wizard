@@ -46,6 +46,7 @@ class FileBase( object ):
 		self.disc = disc
 		self.size = size				# Current size of the file in bytes
 		self.data = bytearray()
+		self.readOnly = False
 		self.source = source			# One of 'disc', 'file' (external file), or 'self' (exists only in memory)
 		self.offset = offset			# Disc offset. An offset of -1 indicates a file not yet given a location
 		self.isoPath = isoPath			# e.g. 'GALE01/audio/1padv.ssm' if this is for a file in a disc
@@ -162,6 +163,8 @@ class FileBase( object ):
 		""" Directly updates (replaces) data in this file. The data input should be a single int (if the data 
 			is only one byte) or a bytearray. Unlike with DAT files (which override this), the offset in this 
 			case is relative to the start of the file. Does not record the change to self.unsavedChanges. """
+
+		assert not self.readOnly, 'Warning! Attempting to edit data of a read-only file ({})! You should probably make a copy of this file first.'.format( self.filename )
 
 		if type( newData ) == int: # Just a single byte/integer value (0-255)
 			assert newData >= 0 and newData < 256, 'Invalid input to FileBase.setData(): ' + str(newData)

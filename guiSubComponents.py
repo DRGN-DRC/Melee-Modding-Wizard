@@ -784,7 +784,6 @@ class CodeLibrarySelector( BasicWindow ):
 			return # If the above returned false, it displayed an existing window, so we should exit here
 		
 		pathsList = globalData.getModsFolderPath( getAll=True )
-		#pathIndex = int( settings.get('General Settings', 'modsFolderIndex') )
 		pathIndex = int( globalData.checkSetting('codeLibraryIndex') )
 		if pathIndex >= len( pathsList ): pathIndex = 0 # Failsafe/default
 		self.pathIndexVar = Tk.IntVar( value=pathIndex )
@@ -840,7 +839,7 @@ class CodeLibrarySelector( BasicWindow ):
 			parent=self.window,
 			title=( 'Choose a folder from which to load your Mods Library.\n\n'
 					'All mods you intend to save should be in the same library.' ),
-			initialdir=globalData.getLastUsedDir(),
+			initialdir=globalData.getLastUsedDir( 'codeLibrary' ),
 			mustexist=True )
 
 		if newSelection: # Could be an empty string if the user canceled the operation

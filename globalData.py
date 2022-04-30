@@ -86,7 +86,7 @@ def init( programArgs ):
 		'runDolphinInDebugMode': '0',
 		'createHiResCSPs': '0',
 		'disableMainMenuAnimations': '0',
-		'skipCodeCache': '0',
+		'useCodeCache': '1',
 	}
 	# regionOverwriteDefaults = {
 	# 	'Common Code Regions': True,
@@ -572,7 +572,7 @@ def getVanillaDol( skipCache=False ):
 			raise Exception( 'no vanilla disc available for reference' )
 		
 		vanillaDisc = Disc( vanillaDiscPath )
-		vanillaDisc.load()
+		vanillaDisc.load() # This will also load/initialize the DOL
 		dol = vanillaDisc.dol
 		if not dol:
 			raise Exception( 'unable to load DOL from vanilla disc')
@@ -584,6 +584,8 @@ def getVanillaDol( skipCache=False ):
 		# Initialize and return an external DOL file
 		dol = Dol( None, -1, -1, '', 'Main game executable', dolPath, 'file' )
 		dol.load()
+
+	dol.readOnly = True # Triggers an assertion if an attempt is made to edit this file
 
 	return dol
 
