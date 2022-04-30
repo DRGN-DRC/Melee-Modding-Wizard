@@ -1,0 +1,8 @@
+# To be inserted at 0x2F0
+
+# The first word below will be set to the number of 
+# custom songs available (total hex tracks minus 0x31).
+# The value here is set on boot by the Every Frame Code
+# The rest is the string "CUSTOM SONG NO."
+00000000435553544F4D20534F4E4720
+4E4F2E00

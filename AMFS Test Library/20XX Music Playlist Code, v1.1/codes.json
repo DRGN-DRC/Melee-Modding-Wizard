@@ -1,0 +1,31 @@
+{
+    "codes": [
+        {
+            "name": "20XX Music Playlist Code, v1.1", 
+            "authors": [
+                "Achilles", 
+                "DRGN"
+            ], 
+            "description": [
+                "Checks whether playlists are set up for certain stages or menus, and plays songs from them if present.", 
+                "Runs on each major scene transition. This version of the code allows Hex Tracks to be played on any stage, without a playlist.", 
+                "Hex Tracks will take priority over playlists for specific stages, but not over the global playlist, if it is set.", 
+                "To set the flag/bit to use a hex track instead of the regular song, add 0x10000 to the music ID in the stage's Music Table."
+            ], 
+            "category": "Audio", 
+            "revision": "NTSC 1.02", 
+            "build": [
+                {
+                    "sourceFile": "D:\\Tex\\Tools\\Melee-Modding-Wizard\\AMFS Test Library\\20XX Music Playlist Code, v1.1\\Static overwrite at 0x2F0.asm", 
+                    "type": "replaceCodeBlock", 
+                    "address": "0x2F0"
+                }, 
+                {
+                    "sourceFile": "D:\\Tex\\Tools\\Melee-Modding-Wizard\\AMFS Test Library\\20XX Music Playlist Code, v1.1\\Code injection at 0x20B08.asm", 
+                    "type": "inject", 
+                    "address": "0x20B08"
+                }
+            ]
+        }
+    ]
+}

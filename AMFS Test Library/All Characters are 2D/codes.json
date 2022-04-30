@@ -1,0 +1,33 @@
+{
+    "codes": [
+        {
+            "name": "All Characters are 2D", 
+            "authors": [
+                "DRGN"
+            ], 
+            "description": [
+                "Makes all characters the same thickness as G&W. Toggleable in the Debug Menu."
+            ], 
+            "category": "Aesthetics", 
+            "revision": "NTSC 1.02", 
+            "webLinks": [
+                [
+                    "https://smashboards.com/threads/all-characters-are-2d.452667/", 
+                    ""
+                ]
+            ], 
+            "build": [
+                {
+                    "sourceFile": "D:\\Tex\\Tools\\Melee-Modding-Wizard\\AMFS Test Library\\All Characters are 2D\\Code injection at 0x65BC0.asm", 
+                    "type": "inject", 
+                    "address": "0x65BC0"
+                }, 
+                {
+                    "type": "replace", 
+                    "value": "00000000 # Debug Menu flag", 
+                    "address": "0x2254D4"
+                }
+            ]
+        }
+    ]
+}

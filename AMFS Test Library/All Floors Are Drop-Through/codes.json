@@ -1,0 +1,33 @@
+{
+    "codes": [
+        {
+            "name": "All Floors Are Drop-Through", 
+            "authors": [
+                "DRGN"
+            ], 
+            "description": [
+                "All floors can be dropped through (and ceilings can be passed through) like standard platforms. Modified from the original code to operate off of Debug Menu on/off selection. Stored as a static overwrite so it can be referenced from a debug menu's line item function."
+            ], 
+            "category": "Stages", 
+            "revision": "NTSC 1.02", 
+            "webLinks": [
+                [
+                    "https://smashboards.com/threads/all-floors-are-drop-through.513411/", 
+                    ""
+                ]
+            ], 
+            "build": [
+                {
+                    "sourceFile": "D:\\Tex\\Tools\\Melee-Modding-Wizard\\AMFS Test Library\\All Floors Are Drop-Through\\Static overwrite at 0x39078C.asm", 
+                    "type": "replaceCodeBlock", 
+                    "address": "0x39078C"
+                }, 
+                {
+                    "type": "replace", 
+                    "value": "00000000 # Debug Menu flag", 
+                    "address": "0x2254C8"
+                }
+            ]
+        }
+    ]
+}
