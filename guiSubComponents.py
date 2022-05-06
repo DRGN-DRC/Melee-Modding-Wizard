@@ -42,6 +42,7 @@ def getColoredShape( imageName, color, getAsPilImage=False, subFolder='' ):
 
 	""" Returns an image of a shape/insignia/design, recolored to the given color. 
 		imageName should be an image within the "imgs" folder (without extension). 
+		The image should be an 8-bit grayscale image (single-channel with no alpha). 
 		color may be an RGBA tuple, or a common color name string (e.g. 'blue'). 
 		getAsPilImage can be set to True if the user would like to get the PIL image instead. """
 
@@ -56,7 +57,7 @@ def getColoredShape( imageName, color, getAsPilImage=False, subFolder='' ):
 	# Open the image as a PIL image object
 	shapeMask = Image.open( imagePath )
 	if shapeMask.mode != 'L': # These should be pre-converted for better prformance and less storage space
-		print 'Warning:', imageName, 'is not stored as a single-channel greyscale image.'
+		print 'Warning:', imageName, 'is not stored as a single-channel greyscale image (no alpha).'
 		shapeMask = shapeMask.convert( 'L' )
 
 	# Color the image
@@ -1199,20 +1200,21 @@ class DisguisedEntry( Tk.Entry ):
 class LabelButton( Tk.Label ):
 
 	""" Basically a label that acts as a button, using an image and mouse click/hover events. 
-		Expects a RGBA images named '[name].png' and '[name]Gray.png'. The latter is used for 
-		the default visible state, and the former is used on mouse hover.
+		Expects an RGBA images named '[name].png' and '[name]Gray.png' (if the default image 
+		variation doesn't exist, the Gray variation will be used for both default and hover). 
+		The latter is used for the default visible state, and the former is used on mouse hover.
 		Example uses of this class are for a mod's edit/config buttons and web links. """
 
 	def __init__( self, parent, imageName, callback, hovertext='' ):
 		# Get the images needed
 		self.defaultImage = globalData.gui.imageBank( imageName + 'Gray', showWarnings=False )
 		self.hoverImage = globalData.gui.imageBank( imageName )
+		assert self.hoverImage, 'Unable to get the {}Gray web link image.'.format( imageName )
 		if not self.defaultImage:
 			self.defaultImage = self.hoverImage
-		# assert self.defaultImage, 'Unable to get the {} web link image.'.format( imageName )
-		# assert self.hoverImage, 'Unable to get the {}Gray web link image.'.format( imageName )
 		self.callback = callback
 		self.toolTip = None
+		self.isHovered = False
 
 		# Initialize the label with one of the above images
 		Tk.Label.__init__( self, parent, image=self.defaultImage, borderwidth=0, highlightthickness=0, cursor='hand2' )
@@ -1225,8 +1227,13 @@ class LabelButton( Tk.Label ):
 		if hovertext:
 			self.updateHovertext( hovertext )
 		
-	def hovered( self, event ): self['image'] = self.hoverImage
-	def unhovered( self, event ): self['image'] = self.defaultImage
+	def hovered( self, event ):
+		self['image'] = self.hoverImage
+		self.isHovered = True
+	def unhovered( self, event ):
+		self['image'] = self.defaultImage
+		self.isHovered = False
+
 	def updateHovertext( self, newText ):
 		if self.toolTip:
 			self.toolTipVar.set( newText )
@@ -1237,7 +1244,8 @@ class LabelButton( Tk.Label ):
 
 class ColoredLabelButton( LabelButton ):
 
-	""" Like the LabelButton, but uses a single source image which is then color shifted. """
+	""" Like the LabelButton, but uses a single source image which is then 
+		programmatically colored for the hover state. """
 
 	def __init__( self, parent, imageName, callback, hovertext='', color='#0099f0' ):
 
@@ -1246,15 +1254,43 @@ class ColoredLabelButton( LabelButton ):
 		self.imageName = imageName
 		self.origHovertext = hovertext
 		self.disabled = False
+		self.initColor = color
 		self.defaultImage = getColoredShape( imageName, 'black' )
 		self.hoverImage = getColoredShape( imageName, color )
 		self['image'] = self.defaultImage
 
-	def updateColor( self, newColor, forHoverState=False ):
+	def updateColor( self, newColor='', forHoverState=False ):
+
+		# If no new color is specified, assume the user wants to reset it back to the initial color
+		if not newColor:
+			newColor = self.initColor
+
 		if forHoverState:
 			self.hoverImage = getColoredShape( self.imageName, newColor )
 		else:
 			self.defaultImage = getColoredShape( self.imageName, newColor )
+
+	def updateImage( self, newImage, newColor='', forHoverState=True, forDefaultState=True ):
+
+		""" Updates the image used for the hover and/or default states. """
+		
+		# If no new color is specified, assume the user wants to reset them back to the initial colors
+		if newColor:
+			defaultColor = newColor
+			hoverColor = newColor
+		else:
+			defaultColor = 'black'
+			hoverColor = self.initColor
+
+		if forHoverState:
+			self.hoverImage = getColoredShape( newImage, hoverColor )
+		if forDefaultState:
+			self.defaultImage = getColoredShape( newImage, defaultColor )
+
+		if self.isHovered:
+			self['image'] = self.hoverImage
+		else:
+			self['image'] = self.defaultImage
 
 	def disable( self, newHoverText='' ):
 		self.unbind( '<1>' )
@@ -1277,7 +1313,11 @@ class ColoredLabelButton( LabelButton ):
 		self.configure( cursor='hand2' )
 
 		self.updateColor( 'black' )
-		self['image'] = self.defaultImage
+
+		if self.isHovered:
+			self['image'] = self.hoverImage
+		else:
+			self['image'] = self.defaultImage
 
 		self.updateHovertext( self.origHovertext )
 		

@@ -31,7 +31,7 @@ import FileSystem
 
 from FileSystem import MusicFile
 from basicFunctions import uHex, humansize, msg, cmdChannel
-from guiSubComponents import getNewNameFromUser, BasicWindow, NeoTreeview
+from guiSubComponents import ColoredLabelButton, getNewNameFromUser, BasicWindow, NeoTreeview
 
 
 def getHpsFile( windowParent=None, isoPath='' ):
@@ -91,7 +91,7 @@ def getHpsFile( windowParent=None, isoPath='' ):
 		newFileObj.getData()
 		return newFileObj
 	except Exception as err:
-		print 'Exception during file replacement;', err
+		print 'Exception during file initialization;', err
 		globalData.gui.updateProgramStatus( 'Unable to replace the file; ' + str(err), error=True )
 		return None
 
@@ -150,8 +150,6 @@ class AudioManager( ttk.Frame ):
 		ttk.Button( self.controlsFrame, text='Delete', command=self.delete, state='disabled' ).grid( column=0, row=2, padx=5, pady=5 )
 		ttk.Button( self.controlsFrame, text='Add Track', command=self.addTrack ).grid( column=1, row=2, padx=5, pady=5 )
 		ttk.Button( self.controlsFrame, text='Look for References', command=self.findReferences, state='disabled' ).grid( column=0, row=3, columnspan=2, ipadx=10, padx=5, pady=5 )
-		# self.controlModule = AudioControlModule( self.controlsFrame, self.audioEngine )
-		# self.controlModule.grid( column=0, columnspan=2, row=4, padx=5, pady=5 )
 		self.controlsFrame.pack( pady=6 )
 
 		# Add buttons outside of the 'controlsFrame' above; these will always be enabled (won't be disabled depending on file selection)
@@ -1123,7 +1121,7 @@ class TrackAdder( BasicWindow ):
 			self.hpsFile = MusicFile( globalData.disc, -1, -1, isoPath, extPath=filePath, source='file' )
 			self.hpsFile.getData()
 		except Exception as err:
-			print 'Exception during file initialization;', err
+			print( 'Exception during HPS file initialization: ' + str(err) )
 			msg( 'A problem occurred during HPS file initialization; {}'.format(err), 'Initialization Error', self.window )
 			self.hpsFile = None
 			return
@@ -1162,7 +1160,8 @@ class TrackAdder( BasicWindow ):
 
 class AudioEngine( object ):
 
-	""" Orchestrates audio start/stop/pause functionality within a separate audio-dedicated thread. """
+	""" Orchestrates audio start/stop/pause functionality for HPS files. 
+		Plays the audio within a separate dedicated thread. """
 	
 	def __init__( self ):
 		self.audioThread = None
@@ -1233,7 +1232,7 @@ class AudioEngine( object ):
 		while self.audioThread.isAlive():
 			time.sleep( .1 )
 			if timeout > 3:
-				print 'Thread did not exit in time!'
+				print( 'Audio thread did not exit in time!' )
 				return
 			timeout += .1
 
@@ -1329,8 +1328,7 @@ class AudioEngine( object ):
 
 		except Exception as err:
 			soundFileName = os.path.basename( soundFilePath )
-			print 'Unable to play "{}" song.'.format( soundFileName )
-			print err
+			print( 'Unable to play "{}" song; {}'.format(soundFileName, err) )
 
 		# Stop the stream
 		if stream:
@@ -1349,6 +1347,7 @@ class AudioEngine( object ):
 					os.remove( soundFilePath )
 				except: pass
 
+		# Queue the self.done method to run by the GUI mainloop
 		globalData.gui.root.event_generate( '<<audioDone>>', when='tail' )
 
 		#self.audioThread = None
@@ -1366,6 +1365,7 @@ class AudioEngine( object ):
 		return struct.pack( chunkFormat, *unpackedData )
 
 
+
 class AudioControlModule( ttk.Frame, object ):
 
 	""" Wrapper for the AudioEngine class, to bridge the gap between it and a 
@@ -1374,18 +1374,24 @@ class AudioControlModule( ttk.Frame, object ):
 	def __init__( self, parent, audioEngine, audioFile=None, *args, **kwargs ):
 		ttk.Frame.__init__( self, parent, *args, **kwargs )
 
-		# Add the primary buttons
-		self.playBtn = ttk.Button( self, text='Pla', width=4, command=self.playAudio )
-		self.playBtn.grid( column=0, row=0 )
-		self.stopBtn = ttk.Button( self, text='Stp', width=3, command=audioEngine.stop )
-		self.stopBtn.grid( column=1, row=0 )
-		self.resetBtn = ttk.Button( self, text='Rst', width=3, command=audioEngine.reset )
-		self.resetBtn.grid( column=2, row=0 )
-		self.repeatModeVar = Tk.IntVar()
-		ttk.Checkbutton( self, text='Repeat', variable=self.repeatModeVar, command=self.toggleRepeatMode ).grid( column=3, row=0 )
-
 		self.audioEngine = audioEngine
 		self.audioFile = audioFile
+
+		spacing = 3
+
+		# Add the primary buttons
+		self.playBtn = ColoredLabelButton( self, 'Media Controls/play', self.playAudio, 'Play / Pause' )
+		self.playBtn.grid( column=0, row=0, padx=spacing )
+		self.stopBtn = ColoredLabelButton( self, 'Media Controls/stop', self.stop, 'Stop' )
+		self.stopBtn.grid( column=1, row=0, padx=spacing )
+		self.resetBtn = ColoredLabelButton( self, 'Media Controls/reset', self.reset, 'Restart' )
+		self.resetBtn.grid( column=2, row=0, padx=spacing )
+		self.repeatBtn = ColoredLabelButton( self, 'Media Controls/repeat', self.toggleRepeatMode, 'Repeat' )
+		self.repeatBtn.grid( column=3, row=0, padx=spacing )
+
+		# Adjust the tooltip text offset so the mouse doesn't obscure it
+		for btn in ( self.playBtn, self.stopBtn, self.resetBtn, self.repeatBtn ):
+			btn.toolTip.configure( offset=10 )
 
 	@property
 	def audioFile( self ):
@@ -1411,10 +1417,10 @@ class AudioControlModule( ttk.Frame, object ):
 			except: pass # The button may not exist yet
 
 	def showPlayBtn( self ):
-		self.playBtn['text'] = 'Pla'
+		self.playBtn.updateImage( 'Media Controls/play' )
 
 	def showPauseBtn( self ):
-		self.playBtn['text'] = 'Pau'
+		self.playBtn.updateImage( 'Media Controls/pause' )
 
 	def playAudio( self, event=None ):
 
@@ -1423,7 +1429,7 @@ class AudioControlModule( ttk.Frame, object ):
 			Has an unused 'event' arg for use in calling this method from a bound click event. """
 
 		if not self.audioFile:
-			print 'No file currently selected'
+			print( 'No file currently selected' )
 			return
 
 		# Start a new audio thread if one is not already running
@@ -1445,13 +1451,21 @@ class AudioControlModule( ttk.Frame, object ):
 		self.audioEngine.start( self.audioFile, self.showPlayBtn )
 		self.showPauseBtn() # The above will return immediately; show the pause button while playback happens
 
-	def toggleRepeatMode( self ):
+	def stop( self, event ):
+		self.audioEngine.stop()
+
+	def reset( self, event ):
+		self.audioEngine.reset()
+
+	def toggleRepeatMode( self, event ):
 
 		""" Wrapper for the "Repeat" checkbox in the GUI. Using a variable such as an IntVar (which is tied to 
 			the GUI) in another thread can cause severe problems, so this method instead uses the IntVar variable 
 			to control an event object, which is then used to control looping in the thread playing audio. """
 
-		if self.repeatModeVar.get():
-			self.audioEngine.playRepeat.set()
-		else:
+		if self.audioEngine.playRepeat.isSet():
 			self.audioEngine.playRepeat.clear()
+			self.repeatBtn.updateColor( 'black' )
+		else:
+			self.audioEngine.playRepeat.set()
+			self.repeatBtn.updateColor() # Set default image to the original highlight color the button was initialized with

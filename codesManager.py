@@ -2030,12 +2030,12 @@ class CodeConstructor( Tk.Frame ):
 		changeType = codeChangeModule.codeChange.type
 
 		# Update the module's custom code, calculate code length, and update this module's length display
-		#codeChangeModule.codeChange.rawCode = codeChangeModule.newHexField.get( '1.0', 'end' ).strip()
 		codeChangeModule.codeChange.rawCode = self.getInput( codeChangeModule.newHexField )
 		returnCode = codeChangeModule.codeChange.evaluate( True )
 		if returnCode != 0:
 			if changeType in ( 'static', 'injection' ):
 				codeChangeModule.originalHex.delete( 0, 'end' )
+			codeChangeModule.lengthDisplayVar.set( '0 bytes' )
 			self.updateErrorNotice( '', codeChangeModule )
 			return
 		codeChangeModule.lengthDisplayVar.set( uHex(codeChangeModule.codeChange.length) + ' bytes' )
@@ -2045,7 +2045,6 @@ class CodeConstructor( Tk.Frame ):
 			codeChangeModule.originalHex.delete( 0, 'end' )
 
 			# Get, validate, and update offset
-			#offsetString = codeChangeModule.offset.get().strip()
 			offsetString = self.getInput( codeChangeModule.offset )
 			if not validHex( offsetString ):
 				self.updateErrorNotice( 'Invalid offset "{}"; non-hex characters detected'.format(offsetString), codeChangeModule )
@@ -2060,7 +2059,6 @@ class CodeConstructor( Tk.Frame ):
 			self.updateErrorNotice( '', codeChangeModule )
 
 		elif changeType == 'standalone':
-			#codeChangeModule.codeChange.offset = codeChangeModule.offset.get().strip()
 			codeChangeModule.codeChange.offset = self.getInput( codeChangeModule.offset )
 
 	def updateErrorNotice( self, newError='', codeChangeModule=None ):
@@ -2771,8 +2769,8 @@ class PromptHowToSaveLibrary( BasicWindow ):
 
 class CodeConfigWindow( BasicWindow ):
 
-	""" Provides a user interface (a new window, created by clicking on a mod config buttton) 
-		for viewing or changing a mod's configuration options. """
+	""" Provides a user interface (a new window) for viewing or changing a mod's 
+		configuration options. Created by clicking on a ModModule config buttton. """
 
 	def __init__( self, mod ):
 		# Found some public config options; create the configuration window
@@ -2991,7 +2989,7 @@ class CodeConfigWindow( BasicWindow ):
 
 	def confirmChanges( self ):
 
-		""" Validates input in all input widgets"""
+		""" Validates and saves input from all input widgets. """
 
 		changesToSave = {} # Store them until all input has been validated (user may still cancel after notification of invalid input)
 
@@ -3003,8 +3001,7 @@ class CodeConfigWindow( BasicWindow ):
 
 			# Update values from dropdown (OptionMenu) widgets
 			if widgetClass == 'TMenubutton':
-				sValue = widget._variable.get().split( '|' )[0]
-				currentValue = int( sValue )
+				currentValue = widget._variable.get().rsplit( '(', 1 )[1][:-1] # Parse from e.g. "Stitch Face (7)"
 			elif widgetClass == 'Entry':
 				currentValue = widget.get()
 
@@ -3022,6 +3019,8 @@ class CodeConfigWindow( BasicWindow ):
 				self.mod.configurations[optionName]['value'] = value
 
 			self.close()
+
+			globalData.gui.playSound( 'menuSelect' )
 
 	def setToDefaults( self ):
 
@@ -3061,4 +3060,6 @@ class CodeConfigWindow( BasicWindow ):
 				if widget.slider:
 					defaultValue = self.mod.parseConfigValue( widget.optType, defaultValue )
 					widget.slider.set( defaultValue )
+					
+			globalData.gui.playSound( 'menuChange' )
 	

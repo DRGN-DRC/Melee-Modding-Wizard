@@ -1,0 +1,106 @@
+{
+    "codes": [
+        {
+            "name": "Peach - Always Pull Specific Turnip", 
+            "authors": [
+                "??"
+            ], 
+            "description": [
+                "The default for this code is Stitch Face, but it can be changed to any of the turnips."
+            ], 
+            "category": "Characters", 
+            "configurations": {
+                "Turnip Type": {
+                    "default": "0x7", 
+                    "value": "0x7", 
+                    "range": [
+                        " 0", 
+                        "0x7"
+                    ], 
+                    "members": [
+                        [
+                            "Smile", 
+                            "0", 
+                            " # The smile Turnip. (This is an optional comment/description)"
+                        ], 
+                        [
+                            "T Eyes", 
+                            "1", 
+                            " # A comment on T Eyes"
+                        ], 
+                        [
+                            "Line Eyes", 
+                            "2", 
+                            ""
+                        ], 
+                        [
+                            "Circle Eyes", 
+                            "3", 
+                            ""
+                        ], 
+                        [
+                            "Upward Curve Eyes", 
+                            "4", 
+                            ""
+                        ], 
+                        [
+                            "Wink", 
+                            "5", 
+                            " # Knows something you don't"
+                        ], 
+                        [
+                            "Dot Eyes", 
+                            "6", 
+                            ""
+                        ], 
+                        [
+                            "Stitch Face", 
+                            "7", 
+                            " # The deadliest of vegetables"
+                        ]
+                    ], 
+                    "type": "uint8", 
+                    "annotation": " # Select your preferred vegetable features"
+                }
+            }, 
+            "build": [
+                {
+                    "revision": "NTSC 1.02", 
+                    "type": "replace", 
+                    "value": "390000[[Turnip Type]]", 
+                    "address": "0x802BD410"
+                }, 
+                {
+                    "revision": "NTSC 1.02", 
+                    "type": "replace", 
+                    "value": "48000010", 
+                    "address": "0x8011D090"
+                }, 
+                {
+                    "revision": "NTSC 1.01", 
+                    "type": "replace", 
+                    "value": "390000[[Turnip Type]]", 
+                    "address": "0x802BC988"
+                }, 
+                {
+                    "revision": "NTSC 1.01", 
+                    "type": "replace", 
+                    "value": "48000010", 
+                    "address": "0x8011CE04"
+                }, 
+                {
+                    "revision": "NTSC 1.00", 
+                    "type": "replace", 
+                    "value": "390000[[Turnip Type]]", 
+                    "address": "0x802BBDA0"
+                }, 
+                {
+                    "revision": "NTSC 1.00", 
+                    "type": "replace", 
+                    "value": "48000010", 
+                    "address": "0x8011FE74"
+                }
+            ]
+        }
+    ]
+}

@@ -214,7 +214,7 @@ class SettingsMenu( Tk.Menu, object ):
 		self.add_separator()
 
 		# Code related options
-		self.add_checkbutton( label='Use Code Cache (For both read/write)', underline=9, 										# C
+		self.add_checkbutton( label='Use Code Cache', underline=9, 																# C
 				variable=globalData.boolSettings['useCodeCache'], command=globalData.saveProgramSettings )
 		self.add_checkbutton( label='Always Enable Crash Reports', underline=20, 												# R
 				variable=globalData.boolSettings['alwaysEnableCrashReports'], command=globalData.saveProgramSettings )
@@ -701,6 +701,7 @@ class MainMenuOption( object ):
 		if self.color == '#7b5467': return # temporarily disabled
 
 		self.callback( event )
+		self.unhovered() # todo: fix; not working in this case?
 
 	def unhoverOthers( self ):
 
@@ -2149,7 +2150,7 @@ class MainGui( Tk.Frame, object ):
 
 def set_default_subparser(self, name, args=None, positional_args=0):
 
-	""" default subparser selection. Call after setup, just before parse_args()
+	""" Default subparser selection. Call after setup, just before parse_args()
 		name: is the name of the subparser to call by default
 		args: if set is the argument list handed to parse_args()
 
@@ -2203,12 +2204,6 @@ def parseArguments(): # Parses command line arguments
 	try:
 		parser = argparse.ArgumentParser( description='Program for modding SSBM. The GUI will be opened by default if no command line arguments are given.' )
 
-		# Build a disc/root folder (ISO created in same directory as target folder, unless -o option is specified)
-		# parser.add_argument( '-b', '--buildDisc', dest='rootFolderPath', help='Builds a disc file (ISO or GCM) from a given root folder path. '
-		# 			'The folder should contain a "files" folder and a "sys" folder. The disc will be built in the path given, unless the -o option is also given.' )
-		# parser.add_argument( '-o', '--output', dest='outputFilePath', help='Provides an output path for various operations. May be just a folder path, or it may '
-		# 			'include the file name in order to name the finished file.' )
-
 		# Allow for filepaths to be provided without a flag (this will also catch files drag-and-dropped onto the program icon)
 		parser.add_argument( 'filePath', nargs='?', help='If no operation or option flags are given, but a filepath is provided, '
 														 'the GUI will be loaded and that file will automatically be loaded into it.' )
@@ -2225,8 +2220,8 @@ def parseArguments(): # Parses command line arguments
 		# Define "disc" options
 		discOpsParser = subparsers.add_parser( 'disc', help='Perform operations on ISO/GCM files, such as adding or getting files.' )
 		discOpsParser.add_argument( '-b', '--build', dest='rootFolderPath', help='Builds a disc file (ISO or GCM) from a given root folder path. '
-					'The folder should contain a "sys" folder, and optionally a "files" folder (or files will be taken from the same root folder). '
-					'The disc will be built in the root path given, unless the -o option is also provided.' )
+											'The folder should contain a "sys" folder, and optionally a "files" folder (or files will be taken from the same root folder). '
+											'The disc will be built in the root path given, unless the -o option is also provided.' )
 		discOpsParser.add_argument( '-d', '--discPath', help='Provide a filepath for a target disc for the program to operate on. '
 															 'This is required for most disc operations.' )
 		discOpsParser.add_argument( '-e', '--export', help='Export one or more files from a given disc. Use an ISO path to target a specific file within a disc. '
@@ -2803,7 +2798,7 @@ if __name__ == '__main__':
 	else:
 		# Load the program settings and initialize the GUI
 		globalData.gui = gui = MainGui()
-		#gui.audioEngine = AudioEngine()
+		gui.audioEngine = AudioEngine()
 		gui.fileMenu.browseCodeLibrary()
 
 		# Process any file provided on start-up (drag-and-dropped onto the program's .exe file, or provided via command line)

@@ -253,6 +253,7 @@ class CodeChange( object ):
 		else:
 			oldProcessedCode = ''
 
+		#print( 'evaluating {} for {}'.format(self.offset, self.mod.name) )
 		self.processStatus, self.length, codeOrErrorNote, self.syntaxInfo, self.isAssembly = globalData.codeProcessor.evaluateCustomCode( self.rawCode, self.mod.includePaths, self.mod.configurations )
 
 		# if self.isAssembly:
@@ -272,7 +273,7 @@ class CodeChange( object ):
 				self.mod.stateDesc = 'Assembly error with SF "{}"'.format( self.offset )
 				self.mod.errors.append( 'Assembly error with SF "{}":\n{}'.format(self.offset, codeOrErrorNote) )
 			elif self.type == 'gecko':
-				address = self.rawCustomCode.lstrip()[:8]
+				address = self.rawCode.lstrip()[:8]
 				self.mod.stateDesc = 'Assembly error with gecko code change at {}'.format( address )
 				self.mod.errors.append( 'Assembly error with gecko code change at {}:\n{}'.format(address, codeOrErrorNote) )
 			else:
@@ -649,7 +650,7 @@ class CodeMod( object ):
 			to an int or float. The source value type may not be consistent due to
 			varying sources (i.e. from an MCM format file or AMFS config/json file). """
 
-		if type( value ) == str: # Need to typecast to int or float
+		if not isinstance( value, (int, float) ): # Need to typecast to int or float
 			if optionType == 'float':
 				value = float( value )
 			elif '0x' in value: # Convert from hex using base 16
@@ -1111,6 +1112,10 @@ class CodeMod( object ):
 					changeDict['value'] = change.rawCode.strip()
 					addSourceFile = False
 
+					# Add PreProc or binary code
+					# if not change.syntaxInfo:
+					# changeDict['binary'] = change.preProcessedCode
+
 				elif change.type == 'static': # Long Static Overwrite
 					changeDict['type'] = 'replaceCodeBlock'
 					changeDict['address'] = change.offset
@@ -1237,14 +1242,19 @@ class CodeMod( object ):
 
 	def saveCache( self, change, forceSavePreProc=False, header='', longHeader=False, sourcePath='', cleanup=False, allowBin=True ):
 
-		""" Saves assembled cache files for a code change (.txt/.bin files), 
-			which will be much faster than re-saving the whole mod. """
+		""" Saves assembled cache files for a code change for faster code installation performance. 
+			Saves preProcessed code with custom syntaxes mixed in to a code .txt file, or
+			raw binary to a .bin file. Returns True/False on success. """
 		
 		if not header:
 			header = self.constructHeader( change, longHeader )
 
 		if not sourcePath:
 			sourcePath = os.path.join( self.path, change.name ) # No extension
+
+		# Ignore for short changes that reside solely within codes.json
+		if self.isAmfs and change.type == 'static' and change.length <= 16:
+			return True
 
 		# savePreProc = False
 		# saveBinary = True
@@ -1565,7 +1575,7 @@ class CodeLibraryParser():
 			for block in codeLine.split( '<<' )[1:]: # Skips first block (will never be a symbol)
 				if '>>' in block:
 					for potentialName in block.split( '>>' )[:-1]: # Skips last block (will never be a symbol)
-						if potentialName != '' and ' ' not in potentialName: 
+						if potentialName != '' and ' ' not in potentialName:
 							symbolNames.append( potentialName )
 		
 		return symbolNames
@@ -1780,7 +1790,6 @@ class CodeLibraryParser():
 						mod.addStaticOverwrite( offsetString, customCode, origHex )
 					else:
 						mod.parsingError = True
-						#mod.state = 'unavailable'
 						mod.stateDesc = 'Improper mod formatting'
 						mod.errors.append( 'Improper mod formatting' )
 
@@ -1925,7 +1934,6 @@ class CodeLibraryParser():
 					mod.addStaticOverwrite( offsetString, customCode, origHex )
 				else:
 					mod.parsingError = True
-					#mod.state = 'unavailable'
 					mod.stateDesc = 'Improper mod formatting'
 					mod.errors.append( 'Improper mod formatting' )
 
@@ -1998,11 +2006,11 @@ class CodeLibraryParser():
 		""" Store the given mod, and perfom some basic validation on it. """
 		
 		if not mod.data:
-			mod.state = 'unavailable'
+			#mod.state = 'unavailable'
 			mod.stateDesc = 'Missing mod data'
 			mod.errors.append( 'Missing mod data; may be defined incorrectly' )
 		elif mod.name in self.modNames:
-			mod.state = 'unavailable'
+			#mod.state = 'unavailable'
 			mod.stateDesc = 'Duplicate mod'
 			mod.errors.append( 'Duplicate mod; more than one by this name in library' )
 
@@ -2220,7 +2228,7 @@ class CodeLibraryParser():
 						mod = CodeMod( name, '??', 'JSON located at "{}"'.format(jsonPath), folderPath, True )
 						mod.category = codeset.get( 'category', primaryCategory ) # Secondary definition, per-code dict basis
 
-					# Store an errored-out shell of this mod, so the user can notice it and know a broken mod was discovered
+					# Store an errored-out shell of this mod, so the user can notice it and know a broken mod is present
 					mod.parsingError = True
 					mod.errors.append( 'Unable to parse codes section; {}'.format(err) )
 					self.storeMod( mod )
@@ -2319,7 +2327,6 @@ class CodeLibraryParser():
 
 			# print( err )
 			# mod.parsingError = True
-			# #mod.state = 'unavailable'
 			# mod.stateDesc = 'Missing source files'
 			# mod.errors.append( "Unable to find the file " + os.path.basename(fullAsmFilePath) )
 			# return 4, '', '', '', '', annotation
@@ -2333,7 +2340,6 @@ class CodeLibraryParser():
 		except Exception as err: # Unknown error
 			print( err )
 			mod.parsingError = True
-			#mod.state = 'unavailable'
 			mod.stateDesc = 'File reading error with ' + os.path.basename( fullAsmFilePath )
 			mod.errors.append( 'Encountered an error while reading {}: {}'.format(os.path.basename(fullAsmFilePath), err) )
 			return 5, '', '', '', '', False, annotation
@@ -2396,19 +2402,16 @@ class CodeLibraryParser():
 
 		# elif returnCode in ( 1, 2 ):
 		# 	mod.assemblyError = True
-		# 	#mod.state = 'unavailable'
 		# 	mod.stateDesc = 'Assembly error'
 		# 	mod.errors.append( 'Encountered a problem while assembling ' + os.path.basename(fullAsmFilePath) )
 
 		# elif returnCode == 3: # Missing an include file
 		# 	mod.missingIncludes = preProcessedCustomCode # The custom code string will be the name of the missing include file
-		# 	#mod.state = 'unavailable'
 		# 	mod.stateDesc = 'Missing include file: ' + preProcessedCustomCode
 		# 	mod.errors.append( 'Unable to find this include file: ' + preProcessedCustomCode )
 
 		# else: # Wut? Not expected!
 		# 	mod.assemblyError = True
-		# 	#mod.state = 'unavailable'
 		# 	mod.stateDesc = 'Assembly error'
 		# 	mod.errors.append( 'Assembly error; preAssembleRawCode return code: ' + returnCode )
 		
@@ -2430,7 +2433,6 @@ class CodeLibraryParser():
 
 		# If still here, there was a problem (both values are expected)
 		mod.parsingError = True
-		#mod.state = 'unavailable'
 		mod.stateDesc = 'Parsing error; insufficient code change info'
 
 		# Record an error message for this

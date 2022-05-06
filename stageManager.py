@@ -10,7 +10,7 @@
 #		  -  - Melee Modding Wizard -  -  
 
 
-# External GUI dependencies
+# External dependencies
 import os
 import ttk
 import time
@@ -28,7 +28,7 @@ from FileSystem import StageFile
 from FileSystem.hsdStructures import MapMusicTableEntry
 from basicFunctions import uHex, validHex, humansize, msg, createFolders
 from guiSubComponents import (
-	getColoredShape, importGameFiles, exportSingleFileWithGui, importSingleFileWithGui, importSingleTexture,
+	LabelButton, getColoredShape, importGameFiles, exportSingleFileWithGui, importSingleFileWithGui, importSingleTexture,
 	getNewNameFromUser, BasicWindow, HexEditDropdown, ToolTip, ToolTipEditor, ToolTipButton )
 from audioManager import AudioControlModule
 
@@ -97,7 +97,7 @@ class StageSwapTable( object ):
 		self.dol = globalData.disc.dol
 		self.sstFile = globalData.disc.files.get( globalData.disc.gameId + '/StageSwapTable.bin' )
 
-		if self.sstFile:
+		if self.sstFile: # Newer versions of 20XX
 			self.tableOffset = 0x0
 		else:
 			self.tableOffset = 0x3F8C80 # Offset/location within the DOL
@@ -144,7 +144,7 @@ class StageSwapTable( object ):
 	def setEntryInfo( self, internalStageId, page, newStageId, stageFlags, byteReplacePointer, byteReplacement, randomByteValues ):
 
 		""" Sets the values for a given stage, for a given page. 
-			The provided page value is expected to be a 1-indexed int. """
+			The provided page value is expected to be 1-indexed. """
 		
 		# Get the values for this entry
 		values = self.getEntryValues( internalStageId )
@@ -239,7 +239,7 @@ class StageSwapTable( object ):
 
 class ScrollArrows( object ):
 
-	""" These are for the canvases which contain the stage icons for each SSS page. """
+	""" These are for scrolling the canvases which contain the stage icons for each SSS page. """
 
 	def __init__( self, canvas ):
 		self.canvas = canvas
@@ -332,7 +332,7 @@ class MusicToolTip( ToolTip ):
 	""" Subclass of the ToolTip class in order to provide an ACM (Audio Control Module), 
 		for controlling or editing music selections, which behaves like a hoverable tooltip. 
 		Also, unlike with the tooltip class, this module will wait a second before 
-		disappearing, and will not disappear if the user's mouse is over it. 
+		disappearing, and should not disappear if the user's mouse is over it. 
 		
 		Note that the ACM used here shares the same Audio Engine as the main program GUI, 
 		meaning that music played from these tooltip modules will first stop other music. """
@@ -400,22 +400,11 @@ class MusicToolTip( ToolTip ):
 		musicId = self.getMusicId()
 		musicFile = globalData.disc.getMusicFile( musicId )
 
-		self.acm = AudioControlModule( self._tipwindow, globalData.gui.audioEngine, musicFile )
+		self.acm = AudioControlModule( self._tipwindow, self.mainTab.audioEngine, musicFile )
 		self.acm.pack( side='left' )
 		self.acm.bind( "<Leave>", self.leave, '+' ) # Hide again when user leaves the module
 
-		ttk.Button( self._tipwindow, text='E', width=3, command=self.edit ).pack( side='left' )
-
-	# def updateAcm( self ):
-
-	# 	""" If this tooltip's contents have been created (the ACM), this re-fetches the 
-	# 		music ID for this tooltip, and updates the ACM with the appropriate file. """
-
-	# 	if self.acm:
-	# 		# Get the music ID and associated audio file
-	# 		musicId = self.getMusicId()
-	# 		musicFile = globalData.disc.getMusicFile( musicId )
-	# 		self.acm.audioFile = musicFile
+		LabelButton(self._tipwindow, 'configButton', self.edit, 'Edit' ).pack( side='left', padx=6 )
 
 	def getMusicId( self ):
 
@@ -423,13 +412,13 @@ class MusicToolTip( ToolTip ):
 			entry currently selected) and gets the music ID to be used for this tooltip. """
 
 		# Get the index of the currently selected table entry, and the values for just this particular entry
-		entryIndex = int( self.mainTab.musicTableEntry.get().split( '|' )[0] ) - 1 # Switching back to 0-indexed self.musicTableEntry
+		entryIndex = self.mainTab.getMusicTableEntryIndex()
 		values = self.mainTab.musicTableStruct.getEntryValues( entryIndex )
 		musicId = values[self.valueIndex]
 
 		return musicId
 	
-	def edit( self ):
+	def edit( self, event=None ):
 
 		""" Called by the 'Edit' button on the tooltip. Prompts the user 
 			with a new window for choosing a new track for this song slot. """
@@ -453,25 +442,25 @@ class MusicToolTip( ToolTip ):
 			print 'state disabled. unscheduling', self.valueIndex
 			return
 		if not self._tipwindow:
-			self._tipwindow = tw = Tk.Toplevel(self.master)
+			self._tipwindow = Tk.Toplevel(self.master)
 			# hide the window until we know the geometry
-			tw.withdraw()
-			tw.wm_overrideredirect(1)
+			self._tipwindow.withdraw()
+			self._tipwindow.wm_overrideredirect(1)
 
-			if tw.tk.call("tk", "windowingsystem") == 'aqua':
-				tw.tk.call("::tk::unsupported::MacWindowStyle", "style", tw._w, "help", "none")
+			if self._tipwindow.tk.call("tk", "windowingsystem") == 'aqua':
+				self._tipwindow.tk.call("::tk::unsupported::MacWindowStyle", "style", self._tipwindow._w, "help", "none")
 
 			self.create_contents()
-			tw.update_idletasks()
-			x, y = self.coords()
-			tw.wm_geometry("+%d+%d" % (x, y))
-			tw.deiconify()
-			print 'deiconify after creation', self.valueIndex
-		else:
+			self._tipwindow.update_idletasks()
+			# x, y = self.coords()
+			# self._tipwindow.wm_geometry("+%d+%d" % (x, y))
+			# self._tipwindow.deiconify()
+			#print 'deiconify after creation', self.valueIndex
+		#else:
 			#print 'deiconify', self.valueIndex
-			x, y = self.coords()
-			self._tipwindow.wm_geometry("+%d+%d" % (x, y))
-			self._tipwindow.deiconify()
+		x, y = self.coords()
+		self._tipwindow.wm_geometry("+%d+%d" % (x, y))
+		self._tipwindow.deiconify()
 
 	def _hide(self):
 		#print 'hiding', self.valueIndex
@@ -490,7 +479,7 @@ class SongChooser( BasicWindow ):
 		BasicWindow.__init__( self, globalData.gui.root, "Song Chooser", resizable=True )
 		self.stageTab = stageTab
 		self.valueIndex = valueIndex # Index into the music table structure, relative to table entry
-		self.lineDict = {} # Tracks which song is on which line; key=lineNumber, value=tuple(musicId, filename, description)
+		self.lineDict = {} # Tracks which song is on which line; key=lineNumber, value=musicFileObj
 
 		# Create the listbox, with a scrollbar
 		scrollbar = Tk.Scrollbar( self.window, )
@@ -529,19 +518,16 @@ class SongChooser( BasicWindow ):
 		for musicFile in musicFiles:
 			if musicFile.longDescription:
 				self.listbox.insert( 'end', musicFile.longDescription )
-				#self.lineDict[len(self.lineDict)] = ( musicFile.musicId, musicFile.filename, musicFile.longDescription )
 			else:
 				self.listbox.insert( 'end', 'No description (' + musicFile.filename + ')' )
-				#self.lineDict[len(self.lineDict)] = ( musicFile.musicId, musicFile.filename, musicFile.filename )
 
 			self.lineDict[len(self.lineDict)] = musicFile
 
 			if musicFile.musicId == initialSelection:
 				lineToSelect = len( self.lineDict ) - 1
-		#self.lineDict[-1] = ( -1, musicFile.filename, musicFile.longDescription )
 
-		# Initialize an ACM for this window
-		self.acm = AudioControlModule( self.window, globalData.gui.audioEngine )
+		# Create an ACM for this window
+		self.acm = AudioControlModule( self.window, self.stageTab.audioEngine )
 		self.acm.grid( column=0, columnspan=2, row=1, pady=4 )
 		self.listbox.bind( '<Double-1>', self.acm.playAudio )
 
@@ -573,8 +559,8 @@ class SongChooser( BasicWindow ):
 			Sudden Death Music to be the same (this is the probable usual case, and can still 
 			be changed independantly afterwards if the user wishes. """
 
+		# Get the song ID and name
 		lineNumber = self.listbox.curselection()[0]
-		#musicId, _, newSongName = self.lineDict[lineNumber]
 		musicFile = self.lineDict[lineNumber]
 		if musicFile:
 			musicId = musicFile.musicId
@@ -584,7 +570,7 @@ class SongChooser( BasicWindow ):
 			newSongName = 'None'
 
 		# Get the index of the currently selected music table entry
-		entryIndex = int( self.stageTab.musicTableEntry.get().split( '|' )[0] ) - 1 # Switching back to 0-indexed
+		entryIndex = self.stageTab.getMusicTableEntryIndex()
 
 		# Get the name of the target music selection, and its GUI label widget (the one displaying name info, not the description label)
 		if self.valueIndex == 1:
@@ -629,7 +615,7 @@ class SongChooser( BasicWindow ):
 				toolTip._tipwindow.destroy()
 				toolTip._tipwindow = None
 
-		# Close this Song Chooser window
+		# Close this Song Chooser interface
 		self.close()
 
 
@@ -682,6 +668,7 @@ class StageManager( ttk.Frame ):
 		self.selectedStageSlotId = -1	# Internal Stage ID for the vanilla slot, not necessarily the stage the slot is set to load
 		self.musicTableStruct = None
 		self.stageSwapTable = None # For use with 20XX
+		self.audioEngine = mainGui.audioEngine
 		self.toolTips = {}
 		padding = 6
 
@@ -769,7 +756,7 @@ class StageManager( ttk.Frame ):
 
 		# Music (song labels)
 		ttk.Label( musicLabelFrame, text='External Stage ID:' ).grid( column=0, row=2, padx=(0, 5), sticky='w' )
-		self.extStageIdLabel = ttk.Label( musicLabelFrame, width=46 )
+		self.extStageIdLabel = ttk.Label( musicLabelFrame, width=50 )
 		self.extStageIdLabel.grid( column=1, row=2, sticky='w' )
 		ttk.Label( musicLabelFrame, text='Main Music:' ).grid( column=0, row=3, padx=(0, 5), sticky='w' )
 		self.mainMusicLabel = ttk.Label( musicLabelFrame )
@@ -799,7 +786,7 @@ class StageManager( ttk.Frame ):
 		self.altMusicChanceLabel = ttk.Label( musicLabelFrame )
 		self.toolTips['altChanceEditor'] = ToolTipEditor( self.altMusicChanceLabel, self, delay=500, location='e', width=4 )
 		self.altMusicChanceLabel.grid( column=1, row=8, sticky='w' )
-		musicLabelFrame.grid( column=0, columnspan=2, row=1, padx=padding, pady=padding )
+		musicLabelFrame.grid( column=0, columnspan=2, row=1, padx=(35, 0), pady=padding, sticky='ew' )
 
 		# Preview Text
 		previewTextLabelFrame = ttk.LabelFrame( row2, text='  Preview Text  ', labelanchor='n', padding=8 )
@@ -829,7 +816,7 @@ class StageManager( ttk.Frame ):
 		importBtn = ttk.Button( previewTextLabelFrame, text='Import', command=self.importPreviewText )
 		importBtn.grid( column=2, row=4, pady=3 )
 		ToolTip( importBtn, text='Import an external PNG/TPL file to the current stage select screen file.' )
-		previewTextLabelFrame.grid( columnspan=2, column=2, row=1, padx=padding, pady=padding )
+		previewTextLabelFrame.grid( columnspan=2, column=2, row=1, padx=35, pady=padding, sticky='ew' )
 
 		row2.grid( column=0, columnspan=2, row=2, sticky='nsew' )
 		row2.columnconfigure( 'all', weight=1 )
@@ -1549,6 +1536,14 @@ class StageManager( ttk.Frame ):
 				else:
 					widget['state'] = 'normal'
 
+	def getMusicTableEntryIndex( self ):
+
+		""" Returns the index of the currently selected music table entry (0-indexed),
+			parsed from the string of the music table dropdown widget. """
+
+		currentSelection = self.musicTableEntry.get()
+		return int( currentSelection.split()[1] ) - 1
+
 	def updateMusicTableInterface( self, stageFile ):
 		
 		""" Gets/stores the given stage's music table struct, creates the Table Entry dropdown list,
@@ -1585,7 +1580,7 @@ class StageManager( ttk.Frame ):
 			from the dropdown menu, as well as by the method called when a stage variation is selected. """
 
 		# Get the index of the currently selected table entry, and the values for just this particular entry
-		entryIndex = int( selectedOption.split( '|' )[0] ) - 1 # Switching back to 0-indexed self.musicTableEntry
+		entryIndex = int( selectedOption.split()[1] ) - 1 # Switching back to 0-indexed self.musicTableEntry
 		values = self.musicTableStruct.getEntryValues( entryIndex )
 		songBehavior = values[5]
 
@@ -2216,7 +2211,7 @@ class StageManager( ttk.Frame ):
 			return
 
 		# Get the index of the currently selected table entry
-		entryIndex = int( self.musicTableEntry.get().split( '|' )[0] ) - 1 # Switching back to 0-indexed
+		entryIndex = self.getMusicTableEntryIndex()
 
 		# Create a string to describe this change
 		origBehaviorName = origText.split( '|' )[1].strip()
@@ -2230,21 +2225,13 @@ class StageManager( ttk.Frame ):
 		psuedoEntryName = str( entryIndex+1 ) + '|' # Don't need to feed it the whole selection name, just the entry index
 		self.selectMusicTableEntry( psuedoEntryName ) # Repopulates the Music Table interface.
 		globalData.gui.updateProgramStatus( userMessage )
-
-	# def updateMusicTableEntry( self, valueIndex, newValue, description ):
-
-	# 	# Get the index of the currently selected table entry
-	# 	entryIndex = int( self.musicTableEntry.get().split( '|' )[0] ) - 1 # Switching back to 0-indexed
-
-	# 	self.selectedStage.updateStructValue( self.musicTableStruct, valueIndex, newValue, description, entryIndex=entryIndex )
-
 	
 	def updateAltMusicChance( self, newValue ):
 
 		""" Called from the hovering entry widget; newValue should already be validated. """
 
 		# Get the index of the currently selected table entry
-		entryIndex = int( self.musicTableEntry.get().split( '|' )[0] ) - 1 # Switching back to 0-indexed
+		entryIndex = self.getMusicTableEntryIndex()
 
 		# Create a string to describe this change
 		origValue = self.altMusicChanceLabel['text']
@@ -2282,7 +2269,7 @@ class StageManager( ttk.Frame ):
 
 		# Determine the currently selected SSS tab and canvas, and create a Stage Swap Editor gui instance
 		canvas = self.getCurrentCanvas()
-		stageSwapEditor = StageSwapEditor( self, self.selectedStageSlotId, canvas )
+		StageSwapEditor( self, self.selectedStageSlotId, canvas )
 
 
 class StageSwapEditor( BasicWindow ):

@@ -1084,9 +1084,6 @@ class Dol( FileBase ):
 				if functionsOnly and not codeChange.type == 'standalone':
 					functionsOnly = False
 
-				# Piggy-back on the codeChange module to remember configuration options found while checking for custom code
-				#codeChange.options = {}
-
 				# Convert the offset to a DOL Offset integer (even if it was a RAM Address)
 				if codeChange.type != 'standalone' and codeChange.type != 'gecko':
 					offset, errorMsg = self.normalizeDolOffset( codeChange.offset )

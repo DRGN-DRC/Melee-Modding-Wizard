@@ -2271,7 +2271,7 @@ class Disc( object ):
 		tocSpace = roundTo32( tocSize ) # Some padding is added between the TOC and end of RAM
 		tocStart = 0x81800000 - tocSpace # Also, the end of the arena space
 		self.allocationMatrix.append( [-1, tocStart - 0x20, 0] ) # Adds some padding between codes.bin and the TOC
-		print( 'predicted start of toc: ' + hex( tocStart ) )
+		print( 'predicted start of toc: ' + hex( tocStart ).replace('L', '') )
 
 		# If this is Melee, nop branches required for using the USB Screenshot regions, if those regions are used.
 		if self.dol.isMelee and globalData.checkRegionOverwrite( 'Screenshot Regions' ):
@@ -2345,12 +2345,16 @@ class Disc( object ):
 		standaloneFunctions = globalData.standaloneFunctions
 		installCount = 0
 		useCodeCache = globalData.checkSetting( 'useCodeCache' )
+		print( '\nBeginning code installations...' )
 
 		tic = time.clock()
 
 		for mod in codeMods:
 			if not mod: continue # May be 'None' if a mod wasn't found
-			elif mod.errors:
+			elif mod.state == 'unavailable': # Failsafe; theoretically shouldn't have been selectable
+				msg( 'Skipping installation of "{}" due to being unavailable.'.format(mod.name) )
+				continue
+			elif mod.errors: # Failsafe; theoretically shouldn't have been selectable
 				msg( 'Skipping installation of "{}" due to the following errors:\n\n{}'.format(mod.name, '\n'.join(mod.errors)) )
 				continue
 
@@ -2359,8 +2363,6 @@ class Disc( object ):
 
 			# Allocate space for required standalone functions (SFs are not immediately added to the DOL because they too may reference unmapped functions)
 			requiredStandaloneFunctions, missingFunctions = mod.getRequiredStandaloneFunctionNames()
-
-			# Now that the required standalone functions for this mod have been assigned space, add them to the DOL.
 			if missingFunctions:
 				msg( mod.name + ' cannot not be installed because the following standalone functions are missing:\n\n' + grammarfyList(missingFunctions) )
 				continue

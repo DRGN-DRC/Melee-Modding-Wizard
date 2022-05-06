@@ -377,7 +377,7 @@ class SisFile( DatFile ):
 
 	""" For 'pre-made' menu text files. """
 
-	# Random Stage Select Screen pointer table lookup; correlates a pointer to a stage string struct
+	# Random Stage Select Screen pointer table lookup; correlates a pointer index to a stage string struct
 	RSSS_pointerLookup = [ # indexed by int stage ID, value = SIS ID (pointer table index)
 		-1, # 0x00 - Dummy
 		-1, # 0x01 - TEST
