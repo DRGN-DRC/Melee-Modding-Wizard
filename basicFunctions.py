@@ -439,7 +439,7 @@ class ListDict(_OrderedDict):
 	""" This is used to allow for 'inserting' entries into an ordered dictionary. 
 		todo: start using 'move_to_end' method when switching to Python 3 (shouldn't need this class at that point)
 
-		By jarydks
+		By:     jarydks
 		Source: https://gist.github.com/jaredks/6276032
 
 	"""
@@ -473,7 +473,12 @@ class CodeModEncoder(json.JSONEncoder):
 
 	""" Custom JSON encoder for saving codes.json files for AMFS format code-based mods. 
 		Allows mod configuration option members (name/value/comment lists) to be output 
-		in a more compact way for better human readability (one line for each member). """
+		in a more compact way for better human readability (one line for each member). 
+		
+		By:     martineau
+		Source: https://stackoverflow.com/questions/42710879/write-two-dimensional-list-to-json-file
+
+		"""
 
 	FORMAT_SPEC = '@@{}@@'  # Unique string pattern of NoIndent object ids.
 	regex = re.compile(FORMAT_SPEC.format(r'(\d+)'))  # compile(r'@@(\d+)@@')
