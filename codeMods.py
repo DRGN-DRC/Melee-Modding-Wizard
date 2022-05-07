@@ -24,7 +24,7 @@ from collections import OrderedDict
 
 # Internal Dependencies
 import globalData
-from basicFunctions import createFolders, removeIllegalCharacters, roundTo32, toHex, validHex, msg, printStatus
+from basicFunctions import createFolders, removeIllegalCharacters, roundTo32, toHex, validHex, msg, printStatus, NoIndent, CodeModEncoder
 from guiSubComponents import cmsg
 
 
@@ -1072,7 +1072,15 @@ class CodeMod( object ):
 		
 		# Add configuration definitions if present
 		if self.configurations:
-			jsonData['codes'][0]['configurations'] = self.configurations
+			#jsonData['codes'][0]['configurations'] = self.configurations
+			# Format member lists such that name/value/comments are on the same line for better readability
+			configs = {}
+			for configName, configDict in self.configurations.items():
+				members = configDict.get( 'members' )
+				if members:
+					configDict['members'] = [ NoIndent(elem) for elem in members ]
+				configs[configName] = configDict
+			jsonData['codes'][0]['configurations'] = configs
 
 		# Add web links
 		if self.webLinks:
@@ -1161,7 +1169,7 @@ class CodeMod( object ):
 		try:
 			jsonPath = os.path.join( self.path, 'codes.json' )
 			with open( jsonPath, 'w' ) as jsonFile:
-				json.dump( jsonData, jsonFile, indent=4 )
+				json.dump( jsonData, jsonFile, cls=CodeModEncoder, indent=4 )
 			print( 'wrote new json')
 		except Exception as err:
 			print( 'Unable to create "codes.json" file; ' )
@@ -1712,7 +1720,7 @@ class CodeLibraryParser():
 									if '-' not in rangeString:
 										raise Exception( 'No "-" separator in range string' )
 									start, end = rangeString.split( '-' )
-									configurationDict['range'] = ( start, end )
+									configurationDict['range'] = ( start.strip(), end.strip() )
 
 								elif '(' in valueInfo: # A mask is present
 									valueInfo, maskInfo = valueInfo.split( '(' )

@@ -12,8 +12,10 @@
 """ Basic/general-purpose helper functions for any scripts. """
 
 import os
+import re
 import math
 import time
+import json
 import errno
 import struct
 import hashlib
@@ -23,6 +25,8 @@ import tkMessageBox
 
 from string import hexdigits
 from collections import OrderedDict as _OrderedDict
+
+from _ctypes import PyObj_FromPtr  # see https://stackoverflow.com/a/15012814/355230
 
 
 # Conversion solutions:
@@ -430,10 +434,15 @@ def getFileMd5( filePath, blocksize=65536 ): # todo: use blake2b instead for per
 	return currentHash.hexdigest()
 
 
-class ListDict(_OrderedDict): # todo: start using 'move_to_end' method when switching to Python 3
+class ListDict(_OrderedDict):
 
-	# By jarydks
-	# Source: https://gist.github.com/jaredks/6276032
+	""" This is used to allow for 'inserting' entries into an ordered dictionary. 
+		todo: start using 'move_to_end' method when switching to Python 3 (shouldn't need this class at that point)
+
+		By jarydks
+		Source: https://gist.github.com/jaredks/6276032
+
+	"""
 
 	def __insertion(self, link_prev, key_value):
 		key, value = key_value
@@ -449,3 +458,52 @@ class ListDict(_OrderedDict): # todo: start using 'move_to_end' method when swit
 
 	def insert_before(self, existing_key, key_value):
 		self.__insertion(self._OrderedDict__map[existing_key][0], key_value)
+
+
+class NoIndent(object):
+
+	""" Value wrapper. """
+
+	def __init__(self, value):
+		if not isinstance(value, (list, tuple)):
+			raise TypeError('Only lists and tuples can be wrapped')
+		self.value = value
+
+class CodeModEncoder(json.JSONEncoder):
+
+	""" Custom JSON encoder for saving codes.json files for AMFS format code-based mods. 
+		Allows mod configuration option members (name/value/comment lists) to be output 
+		in a more compact way for better human readability (one line for each member). """
+
+	FORMAT_SPEC = '@@{}@@'  # Unique string pattern of NoIndent object ids.
+	regex = re.compile(FORMAT_SPEC.format(r'(\d+)'))  # compile(r'@@(\d+)@@')
+
+	def __init__(self, **kwargs):
+		# Keyword arguments to ignore when encoding NoIndent wrapped values.
+		ignore = {'cls', 'indent'}
+
+		# Save copy of any keyword argument values needed for use here.
+		self._kwargs = {k: v for k, v in kwargs.items() if k not in ignore}
+		super(CodeModEncoder, self).__init__(**kwargs)
+
+	def default(self, obj):
+		return (self.FORMAT_SPEC.format(id(obj)) if isinstance(obj, NoIndent)
+					else super(CodeModEncoder, self).default(obj))
+
+	def iterencode(self, obj, **kwargs):
+		format_spec = self.FORMAT_SPEC  # Local var to expedite access.
+
+		# Replace any marked-up NoIndent wrapped values in the JSON repr
+		# with the json.dumps() of the corresponding wrapped Python object.
+		for encoded in super(CodeModEncoder, self).iterencode(obj, **kwargs):
+			match = self.regex.search(encoded)
+			if match:
+				id = int(match.group(1))
+				no_indent = PyObj_FromPtr(id)
+				json_repr = json.dumps(no_indent.value, **self._kwargs)
+				# Replace the matched id string with json formatted representation
+				# of the corresponding Python object.
+				encoded = encoded.replace(
+							'"{}"'.format(format_spec.format(id)), json_repr)
+
+			yield encoded

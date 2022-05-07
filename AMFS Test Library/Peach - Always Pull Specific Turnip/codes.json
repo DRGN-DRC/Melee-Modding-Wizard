@@ -18,46 +18,14 @@
                         "0x7"
                     ], 
                     "members": [
-                        [
-                            "Smile", 
-                            "0", 
-                            " # The smile Turnip. (This is an optional comment/description)"
-                        ], 
-                        [
-                            "T Eyes", 
-                            "1", 
-                            " # A comment on T Eyes"
-                        ], 
-                        [
-                            "Line Eyes", 
-                            "2", 
-                            ""
-                        ], 
-                        [
-                            "Circle Eyes", 
-                            "3", 
-                            ""
-                        ], 
-                        [
-                            "Upward Curve Eyes", 
-                            "4", 
-                            ""
-                        ], 
-                        [
-                            "Wink", 
-                            "5", 
-                            " # Knows something you don't"
-                        ], 
-                        [
-                            "Dot Eyes", 
-                            "6", 
-                            ""
-                        ], 
-                        [
-                            "Stitch Face", 
-                            "7", 
-                            " # The deadliest of vegetables"
-                        ]
+                        ["Smile", "0", " # The smile Turnip. (This is an optional comment/description)"], 
+                        ["T Eyes", "1", " # A comment on T Eyes"], 
+                        ["Line Eyes", "2", ""], 
+                        ["Circle Eyes", "3", ""], 
+                        ["Upward Curve Eyes", "4", ""], 
+                        ["Wink", "5", " # Knows something you don't"], 
+                        ["Dot Eyes", "6", ""], 
+                        ["Stitch Face", "7", " # The deadliest of vegetables"]
                     ], 
                     "type": "uint8", 
                     "annotation": " # Select your preferred vegetable features"
