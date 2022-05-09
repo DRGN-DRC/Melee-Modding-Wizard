@@ -1575,11 +1575,10 @@ class CodeConstructor( Tk.Frame ):
 		description = self.getInput( self.descScrolledText )
 
 		# Validate the above to make sure it's ASCII
-		#for subject in ( 'title', 'authors', 'description' ):
-		for subject in ( title, authors, description ):
-			#stringVariable = eval( subject ) # Basically turns the string into one of the variables created above
-			if not isinstance( subject, str ):
-				typeDetected = str(type(subject)).replace("<type '", '').replace("'>", '')
+		for subject in ( 'title', 'authors', 'description' ): # Not looping over the variables so we can use these in the msg
+			stringVariable = eval( subject ) # Basically turns the string into one of the variables created above
+			if not isinstance( stringVariable, str ):
+				typeDetected = str(type(stringVariable)).replace("<type '", '').replace("'>", '')
 				msg('The input needs to be ASCII, however ' + typeDetected + \
 					' was detected in the ' + subject + ' string.', 'Input Error')
 				return False

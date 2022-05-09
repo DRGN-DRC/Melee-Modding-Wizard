@@ -496,7 +496,7 @@ def getEmulatorPath():
 
 	emulatorPath = settings.get( 'General Settings', 'emulatorPath' )
 
-	if not os.path.exists( emulatorPath ):
+	if not os.path.exists( emulatorPath ) and gui: # todo: could have command-line input for this as well
 		message = ( 'Please specify the full path to your emulator. This path only needs to be given once, '
 					'and can be changed at any time in the settings.ini file. If you have already set this, '
 					"the path seems to have broken."
