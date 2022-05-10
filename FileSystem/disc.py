@@ -458,22 +458,19 @@ class Disc( object ):
 
 	@property
 	def symbols( self ):
+
+		""" A list of lines from the symbol map in './bin/maps/[GAMEID].map' (if present). """
+
 		if not self._symbols:
 			# Open the symbol map file to prepare making a new one, get its contents, and then close the file
 			symbolMapPath = os.path.join( globalData.paths['maps'], self.gameId + '.map' )
-			with open( symbolMapPath, 'r' ) as mapFile:
-				self._symbols = mapFile.read()
-			self._symbols = self._symbols.splitlines()
-			
-			# for i, line in enumerate( self._symbols ):
-			# 	line = line.strip()
-			# 	if not line or line.startswith( '.' ):
-			# 		continue
 
-			# 	# Parse the line (split on only the first 4 instances of a space)
-			# 	addr, length, addr2, _, symbolName = line.split( ' ', 4 )
-			# 	if addr != addr2:
-			# 		print 'found address mismatch on line {}: {}'.format( i, line )
+			if os.path.exists( symbolMapPath ):
+				with open( symbolMapPath, 'r' ) as mapFile:
+					self._symbols = mapFile.read()
+				self._symbols = self._symbols.splitlines()
+			else:
+				printStatus( 'Unable to find a symbol map with game ID "{}" in "./bin/maps"'.format(self.gameId) )
 
 		return self._symbols
 
@@ -1859,12 +1856,16 @@ class Disc( object ):
 		""" Creates a map symbol file for Dolphin. Either in Dolphin's Maps folder 
 			(if a Dolphin program is linked) or in the folder containing this disc. """
 
+		# Ensure there are lines to save
+		if not self._symbols:
+			return
+
 		dc = globalData.dolphinController
 		userFolder = dc.userFolder
 
 		if userFolder:
 			symbolMapPath = os.path.join( userFolder, 'Maps', self.gameId + '.map' )
-			print 'Map file updated and placed in maps folder'
+			print 'Map file updated and placed in Dolphin maps folder'
 		else: # Save with the disc
 			discFolder = os.path.dirname( self.filePath )
 			symbolMapPath = os.path.join( discFolder, self.gameId + '.map' )
@@ -1873,6 +1874,10 @@ class Disc( object ):
 		# Back-up any existing file
 		try: os.rename( symbolMapPath, symbolMapPath + '.bak' )
 		except: pass # May fail if orig file doesn't exist, or if .bak file does (which is fine)
+
+		# Add an extra, empty line to the end if not present (prevents last character cut-off in Dolphin)
+		if self._symbols[-1]:
+			self._symbols.append( '' )
 
 		with open( symbolMapPath, 'w' ) as mapFile:
 			mapFile.write( '\n'.join(self._symbols) )
@@ -2808,7 +2813,8 @@ class Disc( object ):
 
 	def clearMapSymbols( self, regionStart, regionEnd=-1, regionName='' ):
 
-		""" Replaces all function symbols within a given range with a single symbol entry. """
+		""" Replaces all function symbols within a given range with a single symbol entry. 
+			Used to erase or 0-out an area in RAM prior to adding new symbols. """
 
 		if regionEnd == -1: # Assume at least 4 bytes
 			regionEnd = regionStart + 4
@@ -2847,31 +2853,9 @@ class Disc( object ):
 
 	def updateSymbols( self, newSymbols ):
 
-			# summaryReport.append( ('Injection code', codeChange.type, customCodeAddress, customCodeLength) )
-			# summaryReport.append( ('SF: ' + functionName, 'standalone', functionAddress, codeChange.getLength()) )
-
-		# for shortName, changeType, functionAddress, length in summaryReport:
-		# 	if changeType == 'standalone':
-		# 		symbolName = codeName + ' SF: ' + shortName
-		# 	elif changeType == 'injection':
-		# 		symbolName = codeName + ' injection'
-		# 	else: continue
-				
-		# 	firstSymbolIndex = -1
-		# 	lastSymbolIndex = -1
-
-		# 	# Create the new line
-		# 	newLine = '{0:x} {1:08x} {0:x} 0 {2}'.format( functionAddress, length, symbolName )
-
-		# 	for i, line in enumerate( self.symbols ):
-		# 		line = line.strip()
-		# 		if not line or line.startswith( '.' ):
-		# 			continue
-
-		# 		# Parse the line (split on only the first 4 instances of a space)
-		# 		functionStart, length, _, _, symbolName = line.split( ' ', 4 )
-		# 		functionStart = int( functionStart, 16 )
-		# 		functionEnd = functionStart + int( length, 16 )
+		""" This will create new lines in the symbol map (i.e., the list attached to this disc object)
+			for injection codes and standalone functions. It'll iterate over the existing lines and 
+			add new ones as needed. """
 
 		# Sort symbols by ascending RAM address
 		newSymbols.sort( key=lambda tup: tup[0] )
@@ -2919,8 +2903,9 @@ class Disc( object ):
 
 			# Add an adjusted copy of the current line to reflect new space usage
 			if totalSpace > length: # Failsafe; shouldn't happen
-				print 'Allocation error; functions in the space of 0x{:x} to 0x{:x} are too large.'.format( symbolStart, symbolEnd )
-				print 'Target space: {}    Length: 0x{:x}'.format( symbolName, length )
+				msg( 'Allocation error; functions in the space of 0x{:x} to 0x{:x} are too large.\n'
+					 'Target space: {}    Length: 0x{:x}'.format( symbolStart, symbolEnd, symbolName, length ),
+					 'Error in Symbol Map Creation' )
 			elif totalSpace == length: # Unlikely but possible
 				pass # No line to add
 			else:
