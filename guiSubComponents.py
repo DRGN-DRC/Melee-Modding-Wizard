@@ -41,10 +41,11 @@ def getWindowGeometry( topLevelWindow ):
 def getColoredShape( imageName, color, getAsPilImage=False, subFolder='' ):
 
 	""" Returns an image of a shape/insignia/design, recolored to the given color. 
-		imageName should be an image within the "imgs" folder (without extension). 
-		The image should be an 8-bit grayscale image (single-channel with no alpha). 
-		color may be an RGBA tuple, or a common color name string (e.g. 'blue'). 
-		getAsPilImage can be set to True if the user would like to get the PIL image instead. """
+		'imageName' should be an image within the "imgs" folder (without extension). 
+		The image should be an 8-bit grayscale image (single-channel with no alpha; 
+		"8bpc GRAYA" in GIMP). 'color' may be an RGBA tuple, or a common color name 
+		string (e.g. 'blue'). 'getAsPilImage' can be set to True if the user would 
+		like to get the PIL image instead. """
 
 	# Build the file path
 	if subFolder:
@@ -57,7 +58,7 @@ def getColoredShape( imageName, color, getAsPilImage=False, subFolder='' ):
 	# Open the image as a PIL image object
 	shapeMask = Image.open( imagePath )
 	if shapeMask.mode != 'L': # These should be pre-converted for better prformance and less storage space
-		print 'Warning:', imageName, 'is not stored as a single-channel greyscale image (no alpha).'
+		print( 'Warning: {} is not stored as a single-channel greyscale image (no alpha).'.format(imageName) )
 		shapeMask = shapeMask.convert( 'L' )
 
 	# Color the image
@@ -188,7 +189,7 @@ def importSingleFileWithGui( origFileObj, validate=True ):
 		newFileObj = FileSystem.fileFactory( None, -1, -1, origFileObj.isoPath, extPath=newFilePath, source='file' )
 		newFileObj.getData()
 	except Exception as err:
-		print 'Exception during file import;', err
+		print( 'Exception during file import; {}'.format(err) )
 		globalData.gui.updateProgramStatus( 'Unable to replace the file; ' + str(err), error=True )
 		return False
 
@@ -465,8 +466,8 @@ def cmsg( message, title='', align='center', buttons=None, makeModal=False ):
 		CopyableMessageWindow( globalData.gui.root, message, title, align, buttons, makeModal )
 	else:
 		if title:
-			print '\t', title + ':'
-		print message
+			print( '\t' + title + ':' )
+		print( message )
 
 
 class CopyableMessageWindow( BasicWindow ):
@@ -941,7 +942,7 @@ class CodeSpaceOptionsWindow( BasicWindow ):
 		self.checkboxes = []
 		for overwriteOptionName, boolVar in globalData.overwriteOptions.items():
 			if dol and overwriteOptionName not in dolRegions:
-				print 'Skipping', overwriteOptionName, 'region. Not found in dol regions dict.'
+				print( 'Skipping ' + overwriteOptionName + ' region. Not found in dol regions dict.' )
 				continue
 
 			# The checkbox
@@ -963,12 +964,6 @@ class CodeSpaceOptionsWindow( BasicWindow ):
 				regionSizeLabel = ttk.Label( self.window, text=uHex(totalRegionSpace) + '  Bytes', foreground='#777', font="-slant italic" )
 				regionSizeLabel.grid( row=row, column=2, padx=padx, pady=pady )
 				ToolTip( regionSizeLabel, delay=300, text='\n'.join(tooltipText), location='e', bg='#c5e1eb', follow_mouse=False, wraplength=1000 )
-
-			# Restore button
-			# restoreBtn = ttk.Button( self.window, text='Restore', command=lambda regionName=overwriteOptionName: self.restoreRegions(regionName) )
-			# restoreBtn.grid( row=row, column=3, padx=padx, pady=pady )
-			# if not dol:
-			# 	restoreBtn['state'] = 'disabled'
 
 			# Disable regions which are reserved for Gecko codes
 			# if overwriteOptions[ 'EnableGeckoCodes' ].get() and ( overwriteOptionName == gecko.codelistRegion or overwriteOptionName == gecko.codehandlerRegion ):
@@ -1037,76 +1032,6 @@ class CodeSpaceOptionsWindow( BasicWindow ):
 	# 	willUserAllowGecko( promptToUser, True, self.window ) # This will also check for pending changes, or for enabled codes (if gecko codes are allowed)
 		
 	# 	playSound( 'menuChange' )
-
-	def restoreRegions( self, regionName ):
-
-		""" Called by the regions' "Restore" button. Restores custom code or zeroed out space for the chosen space back to vanilla code. """
-
-		if not globalData.disc:
-			msg( 'No Disc or DOL has been loaded!' ) # Failsafe; the button to access this should be disabled if a DOL isn't loaded
-			return
-
-		dol = globalData.disc.dol
-
-		if dol.isMelee and regionName== 'Screenshot Regions':
-			noteOnScreenshotNops = 'The nops required to enable these regions will also be reverted.'
-		else: noteOnScreenshotNops = ''
-
-		restoreApproved = tkMessageBox.askyesno( 'Restoration Confirmation', 'This action will overwrite the region(s) defined by "' + regionName + '" with the '
-			"game's default/vanilla hex, and deselect the region(s) so that they will not be used for custom code. Any custom code previously saved here "
-			"will be moved to the next available region upon saving. " + noteOnScreenshotNops + "\n\nAre you sure you want to do this?", parent=self.window )
-		if not restoreApproved:
-			return
-
-		# Update the option for whether or not this region should be used (and save this to file)
-		globalData.overwriteOptions[ regionName ].set( False )
-		globalData.saveProgramSettings()
-
-		# Restore nops if the regions being restored are the "screenshot" regions
-		if dol.isMelee and regionName == 'Screenshot Regions':
-			# Commands at the points below were replaced with a nop to use this region. Restore them to vanilla
-			screenshotRegionNopSites = { 'NTSC 1.03': (0x1a1b64, 0x1a1c50), 'NTSC 1.02': (0x1a1b64, 0x1a1c50), 'NTSC 1.01': (0x1a151c, 0x1a1608),
-										'NTSC 1.00': (0x1a0e1c, 0x1a0f08), 'PAL 1.00':  (0x1a2668, 0x1a2754) }
-			nopSites = screenshotRegionNopSites[ dol.revision ]
-			nop0Hex = getVanillaHex( nopSites[0] )
-			nop1Hex = getVanillaHex( nopSites[1] )
-
-			if not nop0Hex or not nop1Hex:
-				msg( 'Unable to uninstall the ScreenshotRegion nops (at ' + hex(nopSites[0]) + ' and ' + hex(nopSites[1]) + '). This was likely because an original DOL for this game revision '
-					'was not found in the original DOLs folder. In order to restore regions and look up vanilla code, you must place an original copy of the DOL here:'
-					'\n\n' + dolsFolder + '\n\nThe filename should be "[region] [version].dol", for example, "NTSC 1.02.dol"', 'Unable to Uninstall ScreenshotRegion nops', self.window )
-			else:
-				replaceHex( nopSites[0], nop0Hex )
-				replaceHex( nopSites[1], nop1Hex )
-
-		# Restore each area in this region
-		regionsUnrestored = []
-		for regionStart, regionEnd in dol.customCodeRegions[ regionName ]:
-			vanillaHex = getVanillaHex( regionStart, regionEnd - regionStart )
-
-			if not vanillaHex:
-				regionsUnrestored.append( uHex(regionStart) + '-' + uHex(regionEnd) )
-			else:
-				replaceHex( regionStart, vanillaHex )
-
-		# Notify the user of any regions that could not be restored for some reason
-		if regionsUnrestored:
-			if dol.revision in originalDols:
-				msg( "The regions below could not be restored. This is likely due to them being out of range of the DOL "
-					"(i.e. pointing to an area beyond the end of the file).\n\n" + '\n'.join(regionsUnrestored), 'Unable to restore regions', self.window )
-
-			else: # The revisions in revisionList don't appear to be loaded.
-				msg( 'Some regions could not be restored. This was likely because an original DOL for this game revision '
-					'was not found in the original DOLs folder. In order to restore regions and look up vanilla code, you must place an original '
-					'copy of the DOL here:\n\n' + dolsFolder + '\n\nThe filename should be "[region] [version].dol", for example, "NTSC 1.02.dol". '
-					'The regions below could not be restored:\n\n"' + '\n'.join(regionsUnrestored), 'Unable to Uninstall ScreenshotRegion nops', self.window )
-		else:
-			programStatus.set( 'Regions Successfully Restored' )
-
-			playSound( 'menuSelect' )
-
-		# Indicate to the program that changes have happened, so that the user can use the 'save' buttons.
-		checkForPendingChanges( changesArePending=True )
 
 	# def checkboxDisabledMessage( self, event ):
 

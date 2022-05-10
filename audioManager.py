@@ -30,7 +30,7 @@ import globalData
 import FileSystem
 
 from FileSystem import MusicFile
-from basicFunctions import uHex, humansize, msg, cmdChannel
+from basicFunctions import printStatus, uHex, humansize, msg, cmdChannel
 from guiSubComponents import ColoredLabelButton, getNewNameFromUser, BasicWindow, NeoTreeview
 
 
@@ -91,7 +91,7 @@ def getHpsFile( windowParent=None, isoPath='' ):
 		newFileObj.getData()
 		return newFileObj
 	except Exception as err:
-		print 'Exception during file initialization;', err
+		print( 'Exception during file initialization;'.format(err) )
 		globalData.gui.updateProgramStatus( 'Unable to replace the file; ' + str(err), error=True )
 		return None
 
@@ -380,7 +380,7 @@ class AudioManager( ttk.Frame ):
 
 		""" Exports a single file, while prompting the user on where they'd like to save it. 
 			Essentially operates exactly like 'exportSingleFileWithGui', except with the added 
-			optional ability to convert the track to WAV format on export, if that extension was 
+			optional ability to convert the track to WAV format on export, if that extension is 
 			chosen. Updates the default directory to search in when opening or exporting files. 
 			Also handles updating the GUI with the operation's success/failure status. """
 
@@ -438,7 +438,7 @@ class AudioManager( ttk.Frame ):
 				if err.winerror == 32: # Unable to delete the file upon move; may be because it's being used to play audio
 					successful = True
 			except Exception as err:
-				print err
+				msg( 'Unable to convert the file to WAV format; {}.\n\nYou may still be able to export it as an HPS file.'.format(err), 'Unable to Export', error=True )
 		else:
 			self.lastExportFormat = 'hps'
 
@@ -451,7 +451,7 @@ class AudioManager( ttk.Frame ):
 		if successful:
 			globalData.gui.updateProgramStatus( 'File exported successfully.', success=True )
 		else:
-			globalData.gui.updateProgramStatus( 'Unable to export. Check the error log file for details.', error=True )
+			globalData.gui.updateProgramStatus( 'Unable to export.', error=True )
 
 	def importTrack( self ):
 
@@ -539,7 +539,7 @@ class AudioManager( ttk.Frame ):
 	def editLoop( self ):
 		musicFile = self.getSelectedFile()
 		if not musicFile: return
-		print 'not yet supported'
+		msg('not yet supported!')
 
 	def delete( self ):
 

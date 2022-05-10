@@ -462,7 +462,8 @@ class ListDict(_OrderedDict):
 
 class NoIndent(object):
 
-	""" Value wrapper. """
+	""" Value wrapper for the CodeModEncoder below; used to combine some aspects of 
+		JSON output to single lines for better readability. """
 
 	def __init__(self, value):
 		if not isinstance(value, (list, tuple)):

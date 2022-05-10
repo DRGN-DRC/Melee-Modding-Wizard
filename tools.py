@@ -37,7 +37,7 @@ import FileSystem.hsdStructures as hsdStructures
 from FileSystem.disc import Disc
 from codeMods import CodeLibraryParser
 from basicFunctions import msg, uHex, cmdChannel, printStatus, humansize
-from guiSubComponents import BasicWindow, VerticalScrolledFrame, cmsg, Dropdown, getNewNameFromUser, LabelButton
+from guiSubComponents import BasicWindow, ColoredLabelButton, VerticalScrolledFrame, cmsg, Dropdown, getNewNameFromUser, LabelButton
 
 
 #class NumberConverter( BasicWindow ):
@@ -190,7 +190,11 @@ class AsmToHexConverter( BasicWindow ):
 		# Determine the include paths to be used here, and add a button at the bottom of the window to display them
 		self.detectContext()
 		ttk.Button( bottomRow, text='View Include Paths', command=self.viewIncludePaths ).grid( column=1, row=0, ipadx=7 )
-		ttk.Button( bottomRow, text='Save Hex to File', command=self.saveHexToFile ).grid( column=2, row=0, ipadx=7, sticky='e', padx=40 )
+		#ttk.Button( bottomRow, text='Save Hex to File', command=self.saveHexToFile ).grid( column=2, row=0, ipadx=7, sticky='e', padx=40 )
+		buttonsFrame = ttk.Frame( bottomRow )
+		ColoredLabelButton( buttonsFrame, 'saveToFile', self.saveHexToFile, 'Save Hex to File' ).pack( side='right', padx=8 )
+		ColoredLabelButton( buttonsFrame, 'saveToClipboard', self.copyHexToClipboard, 'Copy Hex to Clipboard' ).pack( side='right', padx=8 )
+		buttonsFrame.grid( column=2, row=0, ipadx=7, sticky='e', padx=40 )
 		bottomRow.grid( column=0, row=3, pady=(2, 6), sticky='ew' )
 		bottomRow.columnconfigure( 'all', weight=1 )
 
@@ -240,8 +244,6 @@ class AsmToHexConverter( BasicWindow ):
 
 		# Swap back in custom sytaxes
 		if self.syntaxInfo and not self.assembleSpecialSyntax.get():
-			#returnCode, hexCode = customCodeProcessor.preAssembleRawCode( asmCode, self.includePaths, discardWhitespace=False )
-			#hexCode = self.restoreCustomSyntaxInHex( hexCode, codeLength )
 			hexCode = globalData.codeProcessor.restoreCustomSyntaxInHex( hexCode, self.syntaxInfo, codeLength, self.blocksPerLine )
 
 		# Beautify and insert the new hex code
@@ -357,56 +359,6 @@ class AsmToHexConverter( BasicWindow ):
 
 		return '\n'.join( newLines )
 
-	# def restoreCustomSyntaxInHex( self, hexCode, totalLength ):
-
-	# 	""" Swap out hex code for the original custom syntax line that it came from. """
-
-	# 	newHexCodeSections = []
-	# 	offset = 0
-
-	# 	# Resolve individual syntaxes to finished assembly and/or hex
-	# 	for syntaxOffset, length, syntaxType, codeLine, names in self.syntaxInfo:
-
-	# 		# Check for and collect pre-assembled hex
-	# 		if syntaxOffset != offset:
-	# 			sectionLength = syntaxOffset - offset
-	# 			sectionCode = hexCode[offset*2:syntaxOffset*2]
-
-	# 			if self.blocksPerLine > 0:
-	# 				sectionCode = globalData.codeProcessor.beautifyHex( sectionCode, blocksPerLine=self.blocksPerLine )
-
-	# 			newHexCodeSections.append( sectionCode )
-	# 			offset += sectionLength
-
-	# 		if syntaxType == 'opt':
-	# 			instruction, variable = codeLine.split( ' ', 1 )
-	# 			if instruction in ( '.float', '.long', '.word', '.byte' ):
-	# 				newHexCodeSections.append( variable )
-	# 			else:
-	# 				newHexCodeSections.append( codeLine )
-	# 		else:
-	# 			newHexCodeSections.append( codeLine )
-			
-	# 		offset += length
-
-	# 	# Grab the last code section if present
-	# 	if offset != totalLength:
-	# 		lastSection = hexCode[offset*2:]
-	# 		sectionLength = len( lastSection ) / 2
-
-	# 		if self.blocksPerLine > 0:
-	# 			lastSection = globalData.codeProcessor.beautifyHex( lastSection, blocksPerLine=self.blocksPerLine )
-
-	# 		newHexCodeSections.append( lastSection )
-	# 		assert offset + sectionLength == totalLength, 'Custom code length mismatch detected! \nEvaluated: {}   Calc. in Code Resolution: {}'.format( totalLength, offset + sectionLength )
-
-	# 	#if self.blocksPerLine > 0:
-	# 	customCode = '\n'.join( newHexCodeSections )
-	# 	# else:
-	# 	# 	customCode = '|'.join( newHexCodeSections )
-
-	# 	return customCode
-
 	def detectContext( self ):
 
 		""" This window should use the same .include context for whatever mod it was opened with. 
@@ -442,9 +394,17 @@ class AsmToHexConverter( BasicWindow ):
 
 		cmsg( message, 'Include Paths', 'left' )
 
-	def saveHexToFile( self ):
+	def saveHexToFile( self, event=None ):
 
 		""" Prompts the user for a save location, and then saves the hex code to file as binary. """
+
+		# Get the hex code and remove whitespace
+		hexCode = self.hexCodeEntry.get( '1.0', 'end' )
+		hexCode = ''.join( hexCode.split() )
+
+		if not hexCode:
+			msg( 'No hex code to save!', 'No Hex Code', warning=True )
+			return
 
 		savePath = tkFileDialog.asksaveasfilename(
 			title="Where would you like to export the file?",
@@ -458,10 +418,6 @@ class AsmToHexConverter( BasicWindow ):
 		if not savePath:
 			globalData.gui.updateProgramStatus( 'File save canceled' )
 			return
-
-		# Get the hex code and remove whitespace
-		hexCode = self.hexCodeEntry.get( '1.0', 'end' )
-		hexCode = ''.join( hexCode.split() )
 
 		# Save the hex code to file as binary
 		try:
@@ -478,6 +434,29 @@ class AsmToHexConverter( BasicWindow ):
 			msg( 'Unable to convert the hex to binary; you may want to check for illegal characters.', 'Error' )
 			globalData.gui.updateProgramStatus( 'Unable to save; hex string could not be converted to bytearray' )
 
+	def copyHexToClipboard( self, event=None ):
+		hexCode = self.hexCodeEntry.get( '1.0', 'end' )
+		
+		globalData.gui.root.clipboard_clear()
+		globalData.gui.root.clipboard_append( hexCode )
+
+	def _flushBuffer( self, pureHexBuffer, newLines ):
+
+		""" Helper method to the beautify update method below; this dumps hex code 
+			that has been collected so far into the newLines list (properly formatted). """
+
+		if pureHexBuffer:
+			# Combine the hex collected so far into one string, and beautify it if needed
+			pureHex = ''.join( pureHexBuffer )
+			if self.blocksPerLine > 0:
+				pureHex = globalData.codeProcessor.beautifyHex( pureHex, blocksPerLine=self.blocksPerLine )
+
+			# Store hex and clear the hex buffer
+			newLines.append( pureHex )
+			pureHexBuffer = []
+
+		return pureHexBuffer, newLines
+
 	def beautifyChanged( self, widget, newValue ):
 
 		""" Called when the Beautify Hex dropdown option is changed.
@@ -489,23 +468,12 @@ class AsmToHexConverter( BasicWindow ):
 		except:
 			self.blocksPerLine = 0
 
-		# Reformat hex code currently displayed if there is any
+		# Get hex code currently displayed if there is any
 		hexCode = self.hexCodeEntry.get( '1.0', 'end' )
 		if not hexCode: return
 
 		# Clear the hex code field and info labels
 		self.hexCodeEntry.delete( '1.0', 'end' )
-
-		def flushBuffer( pureHexBuffer, newLines ):
-			if pureHexBuffer:
-				# Combine the hex collected so far into one string, and beautify it if needed
-				pureHex = ''.join( pureHexBuffer )
-				if self.blocksPerLine > 0:
-					pureHex = globalData.codeProcessor.beautifyHex( pureHex, blocksPerLine=self.blocksPerLine )
-
-				# Store hex and clear the hex buffer
-				newLines.append( pureHex )
-				pureHexBuffer = []
 		
 		newLines = []
 		pureHexBuffer = []
@@ -528,18 +496,17 @@ class AsmToHexConverter( BasicWindow ):
 				customSyntaxFound = False
 
 			if customSyntaxFound:
-				flushBuffer( pureHexBuffer, newLines )
+				pureHexBuffer, newLines = self._flushBuffer( pureHexBuffer, newLines )
 				newLines.append( codeLine )
 			else:
 				# Strip out whitespace and store the line
 				pureHex = ''.join( codeLine.split() )
 				pureHexBuffer.append( pureHex )
 
-		flushBuffer( pureHexBuffer, newLines )
+		newLines = self._flushBuffer( pureHexBuffer, newLines )[1]
 
+		# Collapse the code lines to a string and reinsert it into the text widget
 		hexCode = '\n'.join( newLines )
-		
-		# Reinsert new code
 		self.hexCodeEntry.insert( 'end', hexCode )
 
 

@@ -204,41 +204,6 @@ class CodeChange( object ):
 	# @name.setter
 	# def name( self, newName ):
 	
-	# def getPreProcessedCode( self ):
-
-	# 	""" Assembles source code if it's not already in hex form, and checks for assembly errors. """
-
-	# 	if self.processStatus != -1:
-	# 		return self.preProcessedCode
-
-	# 	#rawCustomCode = '\n'.join( customCode ).strip() # Collapses the list of collected code lines into one string, removing leading & trailing whitespace
-	# 	returnCode, preProcessedCustomCode = globalData.codeProcessor.preAssembleRawCode( self.rawCode, self.mod.includePaths, suppressWarnings=True )
-	# 	# returnCode = 0
-	# 	# preProcessedCustomCode = ''
-
-	# 	self.preProcessedCode = preProcessedCustomCode
-	# 	self.processStatus = returnCode
-
-	# 	if returnCode == 0:
-	# 		return preProcessedCustomCode
-
-	# 	# Store a message for the user on the cause
-	# 	elif returnCode == 1:
-	# 		self.mod.assemblyError = True
-	# 		self.mod.stateDesc = 'Compilation placeholder detected'
-	# 		self.mod.errors.append( 'Compilation placeholder detected with code change for {}'.format(self.offset) )
-	# 	elif returnCode == 2:
-	# 		self.mod.assemblyError = True
-	# 		self.mod.stateDesc = 'Assembly error (code starting with {})'.format( self.rawCode[:8] )
-	# 		self.mod.errors.append( 'Assembly error with custom code change at {}'.format(self.offset) )
-	# 	elif returnCode == 3:
-	# 		self.mod.parsingError = True
-	# 		self.mod.stateDesc = 'Missing include file: ' + preProcessedCustomCode
-	# 		self.mod.errors.append( 'Missing include file {}'.format(preProcessedCustomCode) )
-	# 		self.mod.missingIncludes.append( preProcessedCustomCode ) # todo: implement a way to show these to the user (maybe warning icon & interface)
-
-	# 	return ''
-	
 	def evaluate( self, reevaluate=False ):
 
 		""" Checks for special syntaxes and configurations, ensures configuration options are present and 
@@ -392,7 +357,7 @@ class CodeChange( object ):
 			returnCode = 0
 			finishedCode = self.preProcessedCode
 		else:
-			returnCode, finishedCode = globalData.codeProcessor.resolveCustomSyntaxes2( targetAddress, self )
+			returnCode, finishedCode = globalData.codeProcessor.resolveCustomSyntaxes( targetAddress, self )
 
 		if returnCode != 0 and returnCode != 100: # In cases of an error, 'finishedCode' will include specifics on the problem
 			if len( self.rawCode ) > 250: # Prevent a very long user message
@@ -1072,7 +1037,6 @@ class CodeMod( object ):
 		
 		# Add configuration definitions if present
 		if self.configurations:
-			#jsonData['codes'][0]['configurations'] = self.configurations
 			# Format member lists such that name/value/comments are on the same line for better readability
 			configs = {}
 			for configName, configDict in self.configurations.items():
@@ -1539,14 +1503,17 @@ class CodeLibraryParser():
 			codeline = codeline.upper()
 
 			# Check for the old formatting first ('PAL'), or a header designating a Gecko code for all revisions ('ALL')
-			if codeline == 'PAL' or codeline == 'ALL': isGeckoHeader = True
+			if codeline == 'PAL' or codeline == 'ALL':
+				isGeckoHeader = True
 
 			# All other conditions should include a version number (e.g. '1.02')
 			elif '.' in codeline[1:]: # Excludes first character, which may be a period indicating an assembly directive
 				# Check for a short version number string (still old formatting), e.g. '1.00', '1.01'
-				if len( codeline ) == 4: isGeckoHeader = True
+				if len( codeline ) == 4:
+					isGeckoHeader = True
 
-				elif 'NTSC' in codeline or 'PAL' in codeline: isGeckoHeader = True # Should be the new syntax, e.g. 'NTSC 1.02'
+				elif 'NTSC' in codeline or 'PAL' in codeline:
+					isGeckoHeader = True # Should be the new syntax, e.g. 'NTSC 1.02'
 
 		return isGeckoHeader
 
@@ -1781,8 +1748,13 @@ class CodeLibraryParser():
 
 				# Check if it's a Gecko codes header (the version or revision should be the only thing on that line), but don't set that flag yet
 				elif self.isGeckoCodeHeader( line ):
-					isVersionHeader = True
-					headerStringStart = line
+					#isVersionHeader = True
+					#headerStringStart = line
+					changeType = 'gecko'
+
+					# Remember the version that subsequent code lines are for
+					mod.setCurrentRevision( self.normalizeRegionString(line) )
+					continue
 
 				# If this is a header line (marking the start of a new code change), check for lingering collected codes that must first be added to the previous code change.
 				if ( isVersionHeader or '---' in line or self.isStandaloneFunctionHeader(line) ) and customCode != []:
@@ -1808,10 +1780,7 @@ class CodeLibraryParser():
 					standaloneRevisions = []
 					changeType = 'static'
 
-				# elif line == '->': # Divider between long static overwrite original and new code.
-				# 	if isLongStaticOriginal and longStaticOriginal != []:
-				# 		isLongStaticOriginal = False
-				# 		isLongStaticNew = True
+				# Check for the divider between long static overwrite original and new code.
 				elif line == '->' and changeType == 'longStaticOrig':
 					changeType = 'longStaticNew'
 					continue
@@ -1820,13 +1789,10 @@ class CodeLibraryParser():
 					# Remember the version that subsequent code lines are for
 					mod.setCurrentRevision( self.normalizeRegionString(headerStringStart) )
 
-					if self.isGeckoCodeHeader( line ):
-						# isGeckoCode = True # True for just this code change, not necessarily for the whole mod, like the variable below
-						# mod.type = 'gecko'
-						changeType = 'gecko'
+					# if self.isGeckoCodeHeader( line ):
+					# 	changeType = 'gecko'
 
 				elif self.isStandaloneFunctionHeader( line ):
-					#mod.type = 'standalone'
 					changeType = 'standalone'
 					standaloneName, revisionIdentifiers = line.lstrip()[1:].split( '>' )
 
@@ -1849,11 +1815,10 @@ class CodeLibraryParser():
 						hexCodes = [ item.strip() for item in line.replace('->', '--').split('-') if item ] # Breaks down the line into a list of values.
 						if isVersionHeader: hexCodes.pop(0) # Removes the revision indicator.
 					
-						offsetString = hexCodes[0]
+						offsetString = hexCodes[0].replace( '0x', '' ) # Hex indicator only temporarily removed
 						totalValues = len( hexCodes )
 
 						if totalValues == 1: # This is the header for a Long static overwrite (e.g. "1.02 ----- 0x804d4d90 ---"). (hexCodes would actually be just ["0x804d4d90"])
-							#isLongStaticOriginal = True
 							changeType = 'longStaticOrig'
 
 						elif totalValues == 2: # Should have an offset and an origHex value; e.g. from a line like "1.02 ------ 804D7A4C --- 00000000 ->"
@@ -1865,23 +1830,23 @@ class CodeLibraryParser():
 
 							if newHex.lower() == 'branch':
 								changeType = 'injection'
-							else: 
-								# If the values exist and are valid, add a codeChange tuple to the current game version changes list.
-								# if not validHex( offsetString.replace( '0x', '' ) ): # Should just be a hex offset.
-								# 	msg( 'Problem detected while parsing "' + mod.name + '" in the mod library file "' 
-								# 		+ os.path.basename( filepath ) + '" (index ' + str(fileIndex+1) + ').\n\n'
-								# 		'There is an invalid (non-hex) offset value: ' + offsetString, 'Incorrect Mod Formatting (Error Code 04.1)' )
-								# 	mod.parsingError = True
-								# 	customCode = []
-								# 	break
-								# else:
+							else:
 								customCode.append( newHex + lineComments )
 
-						if not offsetString.startswith( '0x' ):
+						# Validate the offset/address string and add the hex identifier
+						if validHex( offsetString ):
 							offsetString = '0x' + offsetString
+						else:
+							if changeType == 'injection':
+								changeDesc = 'code injection'
+							elif changeType == 'longStaticOrig':
+								changeDesc = 'long static overwrite'
+							else:
+								changeDesc = 'static overwrite'
+							mod.errors.append( 'Invalid (non-hex) offset detected with a ' + changeDesc )
 
+					# Continue collecting code lines
 					elif not isVersionHeader:
-						#if isLongStaticOriginal:
 						if changeType == 'longStaticOrig':
 							longStaticOriginal.append( line )
 
@@ -1890,46 +1855,7 @@ class CodeLibraryParser():
 
 			# End of per-line loop for the current mod (all lines have now been gone through).
 			# If there is any code left, save it to the last revision's last code change.
-			if customCode != [] or standaloneRevisions != []:
-				# rawCustomCode = '\n'.join( customCode ).strip()
-				# returnCode, preProcessedCustomCode = globalData.codeProcessor.preAssembleRawCode( customCode, includePaths, suppressWarnings=True )
-
-				# if returnCode == 0 and preProcessedCustomCode:
-				# 	customCodeLength = getCustomCodeLength( preProcessedCustomCode )
-
-				# 	if isInjectionCode: 	modData[currentRevision].append( ( 'injection', customCodeLength, offsetString, origHex, rawCustomCode, preProcessedCustomCode ) )
-				# 	elif isGeckoCode: 		modData[currentRevision].append( ( 'gecko', customCodeLength, '', '', rawCustomCode, preProcessedCustomCode ) )
-				# 	elif standaloneName:
-				# 		for revision in standaloneRevisions:
-				# 			if revision not in modData: modData[revision] = []
-				# 			modData[revision].append( ( 'standalone', customCodeLength, standaloneName, '', rawCustomCode, preProcessedCustomCode ) )
-				# 	elif isLongStaticNew:
-				# 		modData[currentRevision].append( ( 'static', customCodeLength, offsetString, '\n'.join(longStaticOriginal), rawCustomCode, preProcessedCustomCode ) )
-				# 	else: # standard static (1-liner)
-				# 		# if not origHex or not newHex:
-				# 		# 	cmsg( '\nProblem detected while parsing "' + mod.name + '" in the mod library file "' 
-				# 		# 		+ os.path.basename( filepath ) + '" (index ' + str(fileIndex+1) + ').\n\n'
-				# 		# 		'One of the inputs for a static overwrite (origHex or newHex) were found to be empty, which means that '
-				# 		# 		'the mod is probably not formatted correctly.', 'Incorrect Mod Formatting (Error Code 04.4)' )
-				# 		# 	mod.parsingError = True
-				# 		# 	customCode = []
-				# 		# 	break
-				# 		# elif getCustomCodeLength( origHex ) != customCodeLength:
-				# 		# 	cmsg( '\nProblem detected while parsing "' + mod.name + '" in the mod library file "' 
-				# 		# 		+ os.path.basename( filepath ) + '" (index ' + str(fileIndex+1) + ').\n\n'
-				# 		# 		'Inputs for static overwrites (the original code and custom code) should be the same '
-				# 		# 		'length. Original code:\n' + origHex + '\n\nCustom code:\n' + newHex, 'Incorrect Mod Formatting (Error Code 04.3)' )
-				# 		# 	mod.parsingError = True
-				# 		# 	customCode = []
-				# 		# 	break
-				# 		# else:
-				# 		modData[currentRevision].append( ( 'static', customCodeLength, offsetString, origHex, rawCustomCode, preProcessedCustomCode ) )
-
-				# elif returnCode == 2:
-				# 	mod.assemblyError = True
-				# elif returnCode == 3:
-				# 	mod.missingIncludes = True
-				
+			if customCode != [] or standaloneRevisions != []:				
 				if changeType == 'injection':
 					mod.addInjection( offsetString, customCode, origHex )
 				elif changeType == 'gecko':
@@ -2400,30 +2326,6 @@ class CodeLibraryParser():
 				preProcessedCode = ''
 
 		return 0, offset, author, customCode, preProcessedCode, foundBin, annotation
-			
-		# Pre-process the custom code (make sure there's no whitespace, and/or assemble it)
-		# returnCode, preProcessedCustomCode = globalData.codeProcessor.preAssembleRawCode( customCode, [os.path.dirname(fullAsmFilePath)] + mod.includePaths, suppressWarnings=True )
-
-		# # Check for errors
-		# if returnCode == 0:
-		# 	return 0, offset, customCode, preProcessedCustomCode
-
-		# elif returnCode in ( 1, 2 ):
-		# 	mod.assemblyError = True
-		# 	mod.stateDesc = 'Assembly error'
-		# 	mod.errors.append( 'Encountered a problem while assembling ' + os.path.basename(fullAsmFilePath) )
-
-		# elif returnCode == 3: # Missing an include file
-		# 	mod.missingIncludes = preProcessedCustomCode # The custom code string will be the name of the missing include file
-		# 	mod.stateDesc = 'Missing include file: ' + preProcessedCustomCode
-		# 	mod.errors.append( 'Unable to find this include file: ' + preProcessedCustomCode )
-
-		# else: # Wut? Not expected!
-		# 	mod.assemblyError = True
-		# 	mod.stateDesc = 'Assembly error'
-		# 	mod.errors.append( 'Assembly error; preAssembleRawCode return code: ' + returnCode )
-		
-		# return returnCode, '', '', ''
 
 	def getAddressAndSourceFile( self, codeChangeDict, mod ):
 
@@ -2445,20 +2347,26 @@ class CodeLibraryParser():
 
 		# Record an error message for this
 		if address and not sourceFile:
-			mod.errors.append( 'Injection at {} missing "sourceFile" path'.format(address) )
+			if codeChangeDict['type'] == 'inject':
+				mod.errors.append( 'Injection at {} missing "sourceFile" path'.format(address) )
+			else:
+				mod.errors.append( 'Static overwrite at {} missing "sourceFile" path'.format(address) )
 		if sourceFile and not address:
-			mod.errors.append( '{} injection missing its "address" value'.format(sourceFile) )
+			if codeChangeDict['type'] == 'inject':
+				mod.errors.append( '{} injection missing its "address" value'.format(sourceFile) )
+			else:
+				mod.errors.append( '{} static overwrite missing its "address" value'.format(sourceFile) )
 		elif not address and not sourceFile:
-			# Combine like messages
+			# No specifics available; add a generic message while combining like messages
 			for i, errMsg in enumerate( mod.errors ):
 				if errMsg.endswith( 'missing "address"/"sourceFile" fields' ):
 					del mod.errors[i]
 					# Parse and increase the number
 					num = int( errMsg.split()[0] )
-					mod.errors.append( '{} injections are missing "address"/"sourceFile" fields'.format(num + 1) )
+					mod.errors.append( '{} code changes are missing "address"/"sourceFile" fields'.format(num + 1) )
 					break
 			else: # Above loop didn't break; no prior message like this
-				mod.errors.append( '1 injection is missing "address"/"sourceFile" fields' )
+				mod.errors.append( '1 code change is missing "address"/"sourceFile" fields' )
 
 		return '', '', ''
 
@@ -2478,19 +2386,23 @@ class CodeLibraryParser():
 
 		""" AMFS Injection; custom code sourced from an assembly file. """
 
+		parseHeader = True
+
 		# There will be no codeChangeDict if a source file was provided (i.e. an inject folder is being processed)
 		if codeChangeDict:
 			address, sourceFile, changeName = self.getAddressAndSourceFile( codeChangeDict, mod )
 			#fullAsmFilePath = os.path.join( mod.path, sourceFile )
 			fullAsmFilePath = '\\\\?\\' + os.path.normpath( os.path.join(mod.path, sourceFile) )
 			#annotation = codeChangeDict.get( 'annotation', '' )
+			if address:
+				parseHeader = False
 		else: # Processing from 'injectFolder'; get address from file
 			address = ''
 			fullAsmFilePath = sourceFile # This will be a full path in this case
 			#annotation = ''
 
 		# Read the file for info and the custom code
-		returnCode, address, _, customCode, preProcCode, rawBin, anno = self.getCustomCodeFromFile( fullAsmFilePath, mod, True, annotation )
+		returnCode, address, _, customCode, preProcCode, rawBin, anno = self.getCustomCodeFromFile( fullAsmFilePath, mod, parseHeader, annotation )
 
 		# Check for a missing address
 		if returnCode == 0 and not address:
@@ -2706,7 +2618,7 @@ class CommandProcessor( object ):
 				"-mregnames", 						# Allows symbolic names for registers
 				'-al', 								# Options for outputting assembled hex and other info to stdout
 				'--listing-cont-lines', '100000',	# Sets the maximum number of continuation lines allowable in stdout (basically want this unlimited)
-				#'--statistics',					# Prints additional assembly stats within the errors message; todo: will require some extra post processing
+				#'--statistics',					# Prints additional assembly stats within the errors message; todo: will require some extra post processing to present this to the user
 			]
 
 		if suppressWarnings:
@@ -2877,9 +2789,9 @@ class CommandProcessor( object ):
 
 	def parseBranchHex( self, hexCode ):
 
-		""" Gets the branch operand (branch distance), and normalizes it. Avoids weird results from EABI.
-			Essentially, this does two things: strip out the link and absolute flag bits,
-			and normalize the output value, e.g. -0x40 instead of 0xffffffc0. """
+		""" Gets the branch operand (branch distance), and normalizes it. Essentially, this does two 
+			things: strip out the link and absolute flag bits, and normalize the output value, e.g. -0x40 
+			instead of 0xffffffc0. This also avoids weird results from EABI and the overhead of IPC. """
 
 		# Mask out bits 26-32 (opcode), bit 25 (sign bit) and bits 1 & 2 (branch link and absolute value flags)
 		intValue = int( hexCode, 16 )
@@ -2934,21 +2846,20 @@ class CommandProcessor( object ):
 
 	def evaluateCustomCode( self, rawCode, includePaths=None, configurations=None, validateConfigs=True ):
 		
-		""" This method takes assembly or hex code, parses out custom MCM syntaxes and comments, and assembles the code 
-			using the PowerPC EABI if it was assembly. Once that is done, the custom syntaxes are added back into the code, 
-			which will be replaced (compiled to hex) later. If the option to include whitespace is enabled, then the resulting 
-			code will be formatted with spaces after every 4 bytes and line breaks after every 8 bytes (like a Gecko code). 
-			The 'includePaths' option specifies a list of [full/absolute] directory paths for .include imports. 
+		""" Pre-processes custom code (which may be assembly or hex code) into hex data. This method parses 
+			out custom MCM syntaxes and comments, and assembles the code using the PowerPC EABI if it was assembly. 
+			Custom syntax information is collected during this process and replaced in the code with hex data placeholders. 
+			These placeholders will be replaced with the appropriate instruction later, when the custom code is finalized. 
 
 			Returns: ( returnCode, codeLength, preProcessedCode, customSyntaxRanges, isAssembly )
 
-			Return codes from this method are:
-				0: Success
-				1: Error during assembly (or in parsing assembly output)
-				2: Include file(s) could not be found 		#todo: check on this
-				3: Configuration option not found
-				4: Configuration option missing type parameter
-				5: Unrecognized configuration option type
+				Potential return codes:
+					0: Success
+					1: Error during assembly (or in parsing assembly output)
+					2: Include file(s) could not be found 		#todo: check on this
+					3: Configuration option not found
+					4: Configuration option missing type parameter
+					5: Unrecognized configuration option type
 		"""
 
 		# Convert the input into a list of lines and check if it's assembly or hex code
@@ -3354,7 +3265,7 @@ class CommandProcessor( object ):
 		# If this is hex, convert it to ASM.
 		# if disassemblyRequired:
 		conversionOutput, errors = self.disassemble( filteredCode, whitespaceNeedsRemoving=True )
-		
+
 		if errors:
 			cmsg( errors, 'Disassembly Error 02' )
 			return ( 2, '', -1 )
@@ -3402,264 +3313,7 @@ class CommandProcessor( object ):
 
 		return ( 0, newCode.strip(), length )
 
-	# def resolveCustomSyntaxes( self, thisFunctionStartingOffset, rawCustomCode, preProcessedCustomCode, includePaths=None, configurations=None ):
-
-	# 	""" Replaces any custom branch syntaxes that don't exist in the assembler with standard 'b_ [intDistance]' branches, 
-	# 		and replaces function symbols with literal RAM addresses, of where that function will end up residing in memory. 
-
-	# 		This process may require two passes. The first is always needed, in order to determine all addresses and syntax resolutions. 
-	# 		The second may be needed for final assembly because some lines with custom syntaxes might need to reference other parts of 
-	# 		the whole source code (raw custom code), such as for macros or label branch calculations. 
-			
-	# 		May return these return codes:
-	# 			0: Success (or no processing was needed)
-	# 			2: Unable to assemble source code with custom syntaxes
-	# 			3: Unable to assemble custom syntaxes (source is in hex form)
-	# 			4: Unable to find a configuration option name
-	# 			100: Success, and the last instruction is a custom syntax
-	# 	"""
-
-	# 	# If this code has no special syntaxes in it, return it as-is
-	# 	if '|S|' not in preProcessedCustomCode:
-	# 		return ( 0, preProcessedCustomCode )
-
-	# 	debugging = False
-
-	# 	if debugging:
-	# 		print '\nResolving custom syntaxes for code stored at', hex( thisFunctionStartingOffset )
-
-	# 	customCodeSections = preProcessedCustomCode.split( '|S|' )
-	# 	rawCustomCodeLines = rawCustomCode.splitlines()
-	# 	rawCodeIsAssembly = self.codeIsAssembly( rawCustomCodeLines ) # Checking the form of the raw (initial) code input, not the pre-processed code
-	# 	#dol = globalData.disc.dol
-	# 	resolvedCodeLines = []
-	# 	requiresAssembly = False
-	# 	#errorDetails = ''
-	# 	byteOffset = 0
-	# 	returnCode = 0
-
-	# 	# Resolve individual syntaxes to finished assembly and/or hex
-	# 	for i, section in enumerate( customCodeSections ):
-
-	# 		if section.startswith( 'sbs__' ): # Something of the form 'bl 0x80001234' or 'bl <function>'; build a branch from this
-	# 			section = section[5:] # Removes the 'sbs__' identifier
-
-	# 			if debugging:
-	# 				print 'recognized special branch syntax at function offset', hex( byteOffset ) + ':', section
-
-	# 			# if '+' in section:
-	# 			# 	section, offset = section.split( '+' ) # Whitespace around the + is fine for int()
-	# 			# 	if offset.lstrip().startswith( '0x' ):
-	# 			# 		branchAdjustment = int( offset, 16 )
-	# 			# 	else: branchAdjustment = int( offset )
-	# 			# else: branchAdjustment = 0
-
-	# 			# branchInstruction, targetDescriptor = section.split()[:2] # Get up to two parts max
-
-	# 			# if CodeLibraryParser.isStandaloneFunctionHeader( targetDescriptor ): # The syntax references a standalone function (comments should already be filtered out).
-	# 			# 	targetFunctionName = targetDescriptor[1:-1] # Removes the </> characters
-	# 			# 	targetFunctionAddress = globalData.standaloneFunctions[targetFunctionName][0] # RAM Address
-	# 			# 	#branchDistance = dol.calcBranchDistance( thisFunctionStartingOffset + byteOffset, targetFunctionAddress )
-	# 			# 	branchDistance = targetFunctionAddress - ( thisFunctionStartingOffset + byteOffset )
-
-	# 			# 	# if branchDistance == -1: # Fatal error; end the loop
-	# 			# 	# 	errorDetails = 'Unable to calculate SF branching distance, from {} to {}.'.format( hex(thisFunctionStartingOffset + byteOffset), hex(targetFunctionAddress) )
-	# 			# 	# 	break
-
-	# 			# else: # Must be a special branch syntax using a RAM address
-	# 			# 	# startingRamOffset = dol.offsetInRAM( thisFunctionStartingOffset + byteOffset )
-
-	# 			# 	# if startingRamOffset == -1: # Fatal error; end the loop
-	# 			# 	# 	errorDetails = 'Unable to determine starting RAM offset, from DOL offset {}.'.format( hex(thisFunctionStartingOffset + byteOffset) )
-	# 			# 	# 	break
-	# 			# 	#branchDistance = int( targetDescriptor, 16 ) - 0x80000000 - startingRamOffset
-	# 			# 	branchDistance = int( targetDescriptor, 16 ) - ( thisFunctionStartingOffset + byteOffset )
-
-	# 			# branchDistance += branchAdjustment
-	# 			branchInstruction, branchDistance = self.parseSpecialBranchSyntax( section, thisFunctionStartingOffset + byteOffset )
-
-	# 			# Remember in case reassembly is later determined to be required
-	# 			resolvedCodeLines.append( '{} {}'.format(branchInstruction, branchDistance) ) 
-
-	# 			# Replace this line with hex for the finished branch
-	# 			if not requiresAssembly: # The preProcessed customCode won't be used if reassembly is required; so don't bother replacing those lines
-	# 				customCodeSections[i] = self.assembleBranch( branchInstruction, branchDistance ) # Assembles these arguments into a finished hex string
-
-	# 			# Check if this was the last section
-	# 			if i + 1 == len( customCodeSections ):
-	# 				returnCode = 100
-
-	# 			byteOffset += 4
-
-	# 		elif section.startswith( 'sym__' ): # Contains a function symbol; something like 'lis r3, (<<function>>+0x40)@h'; change the symbol to an address
-	# 			section = section[5:]
-
-	# 			if debugging:
-	# 				print 'resolving symbol names in:', section
-
-	# 			#erroredFunctions = set()
-
-	# 			# Determine the RAM addresses for the symbols, and replace them in the line
-	# 			for name in CodeLibraryParser.containsPointerSymbol( section ):
-	# 				# Get the dol offset and ultimate RAM address of the target function
-	# 				targetFunctionAddress = globalData.standaloneFunctions[name][0]
-	# 				# ramAddress = dol.offsetInRAM( targetFunctionAddress ) + 0x80000000
-					
-	# 				# if ramAddress == -1: # Fatal error; probably an invalid function offset was given, pointing to an area outside of the DOL
-	# 				# 	erroredFunctions.add( name )
-
-	# 				#address = "0x{0:0{1}X}".format( ramAddress, 8 ) # e.g. 1234 (int) -> '0x800004D2' (string)
-	# 				address = "0x{:08X}".format( targetFunctionAddress ) # e.g. 1234 (int) -> '0x800004D2' (string)
-
-	# 				section = section.replace( '<<' + name + '>>', address )
-
-	# 			# if erroredFunctions:
-	# 			# 	errorDetails = 'Unable to calculate RAM addresses for the following function symbols:\n\n' + '\n'.join( erroredFunctions )
-	# 			# 	break				
-
-	# 			if debugging:
-	# 				print '              resolved to:', section
-
-	# 			requiresAssembly = True
-	# 			resolvedCodeLines.append( section )
-
-	# 			# Check if this was the last section
-	# 			if i + 1 == len( customCodeSections ):
-	# 				returnCode = 100
-
-	# 			byteOffset += 4
-				
-	# 		elif section.startswith( 'opt__' ): # Identifies configuration option placeholders
-	# 			section = section[5:]
-
-	# 			#optionPairs = {}
-	# 			optionData = []
-
-	# 			# Replace variable placeholders with the currently set option value
-	# 			# Check if this section requires assembly, and collect option names/values
-	# 			sectionChunks = section.split( '[[' )
-	# 			for j, chunk in enumerate( sectionChunks ):
-	# 				if ']]' in chunk:
-	# 					varName, chunk = chunk.split( ']]' )
-
-	# 					# Seek out the option name and its current value in the configurations list
-	# 					# for configuration in configurations:
-	# 					# 	if configuration['name'] == varName:
-	# 					# 		#currentValue = str( configuration['value'] )
-	# 					# 		optionData.append( (configuration['type'], configuration['value']) )
-	# 					# 		break
-	# 					# else: # Loop above didn't break; variable name not found!
-	# 					# 	return ( 4, 'Unable to find the configuration option "{}" in the mod definition.'.format(varName) )
-	# 					option = configurations.get( varName )
-	# 					if not option:
-	# 						return ( 4, 'Unable to find the configuration option "{}" in the mod definition.'.format(varName) )
-	# 					optionData.append( (option['type'], option['value']) ) # Existance of type/value already verified
-
-	# 					#sectionChunks[j] = chunk.replace( varName+']]', currentValue )
-
-	# 					# if requiresAssembly: pass
-	# 					# elif all( char in hexdigits for char in theRest.replace(' ', '') ): pass
-	# 					# else: requiresAssembly = True
-						
-	# 				if requiresAssembly: pass
-	# 				elif all( char in hexdigits for char in chunk.replace(' ', '') ): pass
-	# 				else: requiresAssembly = True
-
-	# 			# Reiterate over the chunks to replace the names with values, now that we know whether they should be packed
-	# 			for j, chunk in enumerate( sectionChunks ):
-	# 				if ']]' in chunk:
-	# 					varName, chunk = chunk.split( ']]' )
-
-	# 					if requiresAssembly: # No need to pad the value
-	# 						value = optionData.pop( 0 )[-1]
-	# 						#sectionChunks[j] = chunk.replace( varName+']]', str(value) )
-	# 						sectionChunks[j] = str( value ) + chunk
-	# 					else: # Needs to be packed to the appropriate length for the data type
-	# 						optionType, value = optionData.pop( 0 )
-	# 						# if type( value ) == str: # Need to typecast to int or float
-	# 						# 	if optionType == 'float':
-	# 						# 		value = float( value )
-	# 						# 	elif '0x' in value:
-	# 						# 		value = int( value, 16 )
-	# 						# 	else:
-	# 						# 		value = int( value )
-	# 						value = CodeMod.parseConfigValue( optionType, value )
-	# 						valueAsBytes = struct.pack( ConfigurationTypes[optionType], value )
-	# 						sectionChunks[j] = hexlify( valueAsBytes ) + chunk
-
-	# 			# if not requiresAssembly:
-	# 			# 	sectionChunks = [ chunk.replace(' ', '') for chunk in sectionChunks ]
-	# 			resolvedCodeLines.append( ''.join(sectionChunks) )
-						
-	# 			# Check if this was the last section
-	# 			if i + 1 == len( customCodeSections ):
-	# 				returnCode = 100
-
-	# 			byteOffset += 4
-
-	# 		else: # This code should already be pre-processed hex (assembled, with whitespace removed)
-	# 			byteOffset += len( section ) / 2
-
-	# 	#if errorDetails: return ( 1, errorDetails )
-
-	# 	# Assemble the final code using the full source (raw) code
-	# 	if requiresAssembly and rawCodeIsAssembly:
-	# 		if debugging:
-	# 			print 'reassembling resolved code from source (asm) code'
-
-	# 		# Using the original, raw code, remove comments, replace the custom syntaxes, and assemble it into hex
-	# 		rawAssembly = []
-	# 		for line in rawCustomCodeLines:
-	# 			# Start off by filtering out comments and empty lines.
-	# 			codeLine = line.split( '#' )[0].strip()
-					
-	# 			if CodeLibraryParser.isSpecialBranchSyntax( codeLine ) or CodeLibraryParser.containsPointerSymbol( codeLine ) or CodeLibraryParser.containsConfiguration( codeLine ):
-	# 				# Replace with resolved code lines
-	# 				rawAssembly.append( resolvedCodeLines.pop(0) )
-	# 			else:
-	# 				rawAssembly.append( codeLine )
-
-	# 		customCode, errors = self.assemble( '\n'.join(rawAssembly), includePaths=includePaths, suppressWarnings=True )
-
-	# 		if errors:
-	# 			return ( 2, 'Unable to assemble source code with custom syntaxes.\n\n' + errors )
-
-	# 	elif requiresAssembly: # Yet the raw code is in hex form; need to assemble just the lines with custom syntax
-	# 		if debugging:
-	# 			print 'assembling custom syntaxes separately from assembled hex'
-
-	# 		# Assemble the resolved lines in one group (doing it this way instead of independently in the customCodeSections loop for less IPC overhead)
-	# 		assembledResolvedCode, errors = self.assemble( '\n'.join(resolvedCodeLines), beautify=True, suppressWarnings=True )
-	# 		if errors:
-	# 			return ( 3, 'Unable to assemble hex code with custom syntaxes.\n\n' + errors )
-
-	# 		resolvedHexCodeLines = assembledResolvedCode.split() # Split on whitespace
-	# 		newCustomCodeSections = preProcessedCustomCode.split( '|S|' ) # Need to re-split this, since customCodeSections may have been modified by now
-			
-	# 		# Add the resolved, assembled custom syntaxes back into the full custom code string
-	# 		for i, section in enumerate( newCustomCodeSections ):
-	# 			if section[:5] in ( 'sbs__', 'sym__', 'opt__' ):
-	# 				newCustomCodeSections[i] = resolvedHexCodeLines.pop( 0 )
-	# 				if resolvedHexCodeLines == []: break
-
-	# 		customCode = ''.join( newCustomCodeSections )
-
-	# 	else: # Only hex should remain. Recombine the code lines back into one string. Special Branch Syntaxes have been assembled to hex
-	# 		if debugging:
-	# 			print 'resolved custom code using the preProcessedCustomCode lines'
-			
-	# 		for i, section in enumerate( customCodeSections ):
-	# 			if section[:5] in ( 'sbs__', 'sym__', 'opt__' ):
-	# 				customCodeSections[i] = resolvedCodeLines.pop( 0 ).replace( ' ', '' )
-	# 				if resolvedCodeLines == []: break
-
-	# 		customCode = ''.join( customCodeSections )
-
-	# 	return ( returnCode, customCode )
-
-	#def resolveCustomSyntaxes2( self, thisFunctionStartingOffset, rawCustomCode, preProcessedCustomCode, includePaths=None, configurations=None ):
-
-	def resolveCustomSyntaxes2( self, codeAddress, codeChange ):
+	def resolveCustomSyntaxes( self, codeAddress, codeChange ):
 
 		""" Performs final code processing on pre-processed code; replaces any custom syntaxes that 
 			don't exist in the assembler with standard 'b_ [intDistance]' branches, and replaces function 
