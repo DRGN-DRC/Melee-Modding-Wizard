@@ -806,9 +806,9 @@ class DiscTab( ttk.Frame ):
 		importSingleFileWithGui( fileObj )
 
 	def browseTexturesFromDisc( self ):
-		print 'Not yet implemented'
+		print( 'Not yet implemented' )
 	def analyzeFileFromDisc( self ):
-		print 'Not yet implemented'
+		print( 'Not yet implemented' )
 
 	def deleteIsoFiles( self, iids ):
 

@@ -322,6 +322,7 @@ def msg( message, title='', parent=None, warning=False, error=False ):
 
 	if globalData.gui: # Display a pop-up message
 
+		# Define the parent window to appear over
 		if not parent:
 			parent = globalData.gui.root
 

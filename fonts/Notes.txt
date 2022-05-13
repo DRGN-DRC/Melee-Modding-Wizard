@@ -1,0 +1,6 @@
+
+					Used for:
+	A-OTF Folk Pro, Bold.otf 	- Stage preview "text" (texture) generation
+	Palatino Linotype, Bold.ttf 	- Stage preview "text" (texture) generation
+	A-OTF Folk Pro, Heavy.otf 	- Main menu top text and buttons
+	A-OTF Folk Pro, Medium.otf	- Main menu bottom text

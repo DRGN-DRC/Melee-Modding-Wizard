@@ -238,8 +238,8 @@ class AsmToHexConverter( BasicWindow ):
 		toc = time.clock()
 
 		# Check for errors (hexCode should include warnings from the assembler)
-		if returnCode not in (0, 100):
-			cmsg( hexCode, 'Assembly Error' )
+		if returnCode not in ( 0, 100 ):
+			cmsg( hexCode, 'Assembly Error', parent=self.window )
 			return
 
 		# Swap back in custom sytaxes
@@ -289,10 +289,9 @@ class AsmToHexConverter( BasicWindow ):
 			return
 		
 		# Disassemble the code into assembly
-		#returnCode, asmCode, codeLength = globalData.codeProcessor.preDisassembleRawCode( hexCode, discardWhitespace=False )
 		asmCode, errors = globalData.codeProcessor.disassemble( hexCode )
 		if errors:
-			cmsg( errors, 'Disassembly Error' )
+			cmsg( errors, 'Disassembly Error', parent=self.window )
 			return
 
 		if self.syntaxInfo and not self.assembleSpecialSyntax.get():
@@ -392,7 +391,7 @@ class AsmToHexConverter( BasicWindow ):
 			message += ( '\n\n\nThis instance of the converter is using default assembly context for .include file imports. '
 					 'The exact paths are as follows:\n\n' + paths )
 
-		cmsg( message, 'Include Paths', 'left' )
+		cmsg( message, 'Include Paths', 'left', parent=self.window )
 
 	def saveHexToFile( self, event=None ):
 
@@ -403,7 +402,7 @@ class AsmToHexConverter( BasicWindow ):
 		hexCode = ''.join( hexCode.split() )
 
 		if not hexCode:
-			msg( 'No hex code to save!', 'No Hex Code', warning=True )
+			msg( 'No hex code to save!', 'No Hex Code', warning=True, parent=self.window )
 			return
 
 		savePath = tkFileDialog.asksaveasfilename(
@@ -427,11 +426,11 @@ class AsmToHexConverter( BasicWindow ):
 			globalData.gui.updateProgramStatus( 'File saved to "{}"'.format(savePath) )
 
 		except IOError as e: # Couldn't create the file (likely a permission issue)
-			msg( 'Unable to create "' + savePath + '" file! This is likely due to a permissions issue. You might try saving to somewhere else.', 'Error' )
+			msg( 'Unable to create "' + savePath + '" file! This is likely due to a permissions issue. You might try saving to somewhere else.', 'Error', parent=self.window )
 			globalData.gui.updateProgramStatus( 'Unable to save; could not create the file at the destination' )
 
 		except ValueError as e: # Couldn't convert the hex to a bytearray
-			msg( 'Unable to convert the hex to binary; you may want to check for illegal characters.', 'Error' )
+			msg( 'Unable to convert the hex to binary; you may want to check for illegal characters.', 'Error', parent=self.window )
 			globalData.gui.updateProgramStatus( 'Unable to save; hex string could not be converted to bytearray' )
 
 	def copyHexToClipboard( self, event=None ):
@@ -741,16 +740,16 @@ class TriCspCreator( object ):
 		finishCspScriptVersion = self.getScriptVersion( pluginDir, 'python-fu-finish-csp.py' )
 		
 		# Print out version info
-		print ''
-		print '            Version info:'
-		print ''
-		print '  GIMP:                    ', gimpVersion
-		print '  create-tri-csp script:   ', createCspScriptVersion
-		print '  finish-csp script:       ', finishCspScriptVersion
-		print ''
-		print 'GIMP executable directory: ', self.gimpDir
-		print 'GIMP Plug-ins directory:   ', pluginDir
-		print ''
+		print( '' )
+		print( '   Tri-CSP Creator version info:' )
+		print( '' )
+		print( '  GIMP:                    ' + gimpVersion )
+		print( '  create-tri-csp script:   ' + createCspScriptVersion )
+		print( '  finish-csp script:       ' + finishCspScriptVersion )
+		print( '' )
+		print( 'GIMP executable directory: ' + self.gimpDir )
+		print( 'GIMP Plug-ins directory:   ' + pluginDir )
+		print( '' )
 
 		# Update installed scripts (then no need to check version)
 		# todo
@@ -949,7 +948,7 @@ class TriCspCreator( object ):
 		# else:
 			actionStateMod = coreCodes.getModByName( 'Enter Action State On Match Start' )
 			if not actionStateMod:
-				msg( 'Unable to find the Enter Action State On Match Start mod in the Core Codes library!', warning=True )
+				msg( 'Unable to find the "Enter Action State On Match Start" mod in the Core Codes library!', warning=True )
 				return ''
 
 		# Convert the pose target frame to an int start frame
@@ -974,7 +973,7 @@ class TriCspCreator( object ):
 		# Customize Action State Freeze
 		actionStateFreeze = coreCodes.getModByName( 'Action State Freeze' )
 		if not actionStateFreeze:
-			msg( 'Unable to find the Action State Freeze mod in the Core Codes library!', warning=True )
+			msg( 'Unable to find the "Action State Freeze" mod in the Core Codes library!', warning=True )
 			return ''
 		actionStateFreeze.configure( 'Action State ID', actionState )
 		actionStateFreeze.configure( 'Frame ID', targetFrameId )
@@ -1121,7 +1120,6 @@ class DolphinController( object ):
 		# Make sure that Dolphin is in 'portable' mode
 		portableFile = os.path.join( self._rootFolder, 'portable.txt' )
 		if not os.path.exists( portableFile ):
-			print 'Dolphin is not in portable mode! Attempting to create portable.txt'
 			try:
 				with open( portableFile, 'w' ) as newFile:
 					pass

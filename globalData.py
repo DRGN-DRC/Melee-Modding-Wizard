@@ -117,73 +117,6 @@ def init( programArgs ):
 	programEnding = False
 
 
-def checkSetting( settingName ):
-
-	""" Used for checking general settings and bools. """
-
-	# Make sure there are no naming conflicts
-	if settingName in defaultSettings and settingName in defaultBoolSettings:
-		raise Exception( 'Setting {} defined as both a regular setting and bool setting!'.format(settingName) )
-
-	elif settingName in defaultSettings: # Not a bool or region overwrite setting
-		return settings.get( 'General Settings', settingName )
-
-	# Must be a bool or BooleanVar; check for it in the bools dict
-	boolSetting = boolSettings.get( settingName, 'notFound' )
-	if boolSetting == 'notFound':
-		raise Exception( 'Setting name not found (may be misspelled): ' + settingName )
-
-	elif isinstance( boolSetting, Tk.BooleanVar ):
-		return boolSetting.get()
-	else:
-		return boolSetting
-
-
-def setSetting( settingName, value ):
-
-	""" Used for setting general settings and bools to the given value. 
-		Does not include overwriteOptions, for custom code regions. """
-
-	# Make sure there are no naming conflicts
-	if settingName in defaultSettings and settingName in defaultBoolSettings:
-		raise Exception( 'Setting {} defined as both a regular setting and bool setting!'.format(settingName) )
-
-	elif settingName in defaultSettings: # Not a bool or region overwrite setting
-		settings.set( 'General Settings', settingName, value )
-		return
-
-	# Must be a bool or BooleanVar; check for it in the bools dict
-	boolSetting = boolSettings.get( settingName, 'notFound' )
-	if boolSetting == 'notFound':
-		raise Exception( 'Setting name not found (may be misspelled): ' + settingName )
-
-	# Validate the input; should be a bool
-	elif value != True and value != False:
-		raise Exception( 'Invalid value given to bool setting, "{}": {}'.format(settingName, value) )
-
-	# Set the value
-	elif isinstance( boolSetting, Tk.BooleanVar ):
-		boolSetting.set( value )
-	else:
-		boolSettings[settingName] = value
-
-
-def checkRegionOverwrite( regionName ):
-
-	""" Used specifically for checking region overwrite options. """
-
-	# Must be a bool or BooleanVar; check for it in the bools dict
-	boolSetting = overwriteOptions.get( regionName, 'notFound' )
-	if boolSetting == 'notFound':
-		print( 'Unable to find region in region overwrite options:', regionName )
-		return False
-
-	elif isinstance( boolSetting, Tk.BooleanVar ):
-		return boolSetting.get()
-	else:
-		return boolSetting
-
-
 def loadProgramSettings( useBooleanVars=False ):
 
 	""" Check for user defined settings / persistent memory, from the "settings.ini" file. 
@@ -259,6 +192,73 @@ def loadRegionOverwriteOptions( useBooleanVars=False ):
 		else:
 			overwriteOptions[ regionName ] = regionEnabled
 		processed.append( regionName )
+
+
+def checkSetting( settingName ):
+
+	""" Used for checking general settings and bools. """
+
+	# Make sure there are no naming conflicts
+	if settingName in defaultSettings and settingName in defaultBoolSettings:
+		raise Exception( 'Setting {} defined as both a regular setting and bool setting!'.format(settingName) )
+
+	elif settingName in defaultSettings: # Not a bool or region overwrite setting
+		return settings.get( 'General Settings', settingName )
+
+	# Must be a bool or BooleanVar; check for it in the bools dict
+	boolSetting = boolSettings.get( settingName, 'notFound' )
+	if boolSetting == 'notFound':
+		raise Exception( 'Setting name not found (may be misspelled): ' + settingName )
+
+	elif isinstance( boolSetting, Tk.BooleanVar ):
+		return boolSetting.get()
+	else:
+		return boolSetting
+
+
+def setSetting( settingName, value ):
+
+	""" Used for setting general settings and bools to the given value. 
+		Does not include overwriteOptions, for custom code regions. """
+
+	# Make sure there are no naming conflicts
+	if settingName in defaultSettings and settingName in defaultBoolSettings:
+		raise Exception( 'Setting {} defined as both a regular setting and bool setting!'.format(settingName) )
+
+	elif settingName in defaultSettings: # Not a bool or region overwrite setting
+		settings.set( 'General Settings', settingName, value )
+		return
+
+	# Must be a bool or BooleanVar; check for it in the bools dict
+	boolSetting = boolSettings.get( settingName, 'notFound' )
+	if boolSetting == 'notFound':
+		raise Exception( 'Setting name not found (may be misspelled): ' + settingName )
+
+	# Validate the input; should be a bool
+	elif value != True and value != False:
+		raise Exception( 'Invalid value given to bool setting, "{}": {}'.format(settingName, value) )
+
+	# Set the value
+	elif isinstance( boolSetting, Tk.BooleanVar ):
+		boolSetting.set( value )
+	else:
+		boolSettings[settingName] = value
+
+
+def checkRegionOverwrite( regionName ):
+
+	""" Used specifically for checking region overwrite options. """
+
+	# Must be a bool or BooleanVar; check for it in the bools dict
+	boolSetting = overwriteOptions.get( regionName, 'notFound' )
+	if boolSetting == 'notFound':
+		print( 'Unable to find region in region overwrite options:', regionName )
+		return False
+
+	elif isinstance( boolSetting, Tk.BooleanVar ):
+		return boolSetting.get()
+	else:
+		return boolSetting
 
 
 def saveProgramSettings():

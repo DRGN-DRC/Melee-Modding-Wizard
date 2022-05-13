@@ -454,7 +454,7 @@ class CharacterChooser( BasicWindow ):
 		self.close()
 
 
-def cmsg( message, title='', align='center', buttons=None, makeModal=False ):
+def cmsg( message, title='', align='center', buttons=None, makeModal=False, parent=None ):
 
 	""" Simple helper function to display a small, windowed message to the user, with text that can be selected/copied. 
 		This will instead print out to console if the GUI has not been initialized. 
@@ -463,7 +463,10 @@ def cmsg( message, title='', align='center', buttons=None, makeModal=False ):
 		If modal, the window will take program focus and not allow it to be returned until the window is closed. """
 	
 	if globalData.gui:
-		CopyableMessageWindow( globalData.gui.root, message, title, align, buttons, makeModal )
+		# Define the parent window to appear over
+		if not parent:
+			parent = globalData.gui.root
+		CopyableMessageWindow( parent, message, title, align, buttons, makeModal )
 	else:
 		if title:
 			print( '\t' + title + ':' )

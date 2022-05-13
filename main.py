@@ -12,8 +12,8 @@
 # Find the official thread here: 
 
 
-from __future__ import print_function
-from cProfile import label # Use print with (); preparation for moving to Python 3
+# from __future__ import print_function
+# from cProfile import label # Use print with (); preparation for moving to Python 3
 
 # External dependencies
 import math
@@ -661,7 +661,7 @@ class MainMenuOption( object ):
 		self.selfTag = selfTag = 'menuOpt' + str( currentMenuOptionCount + 1 )
 		
 		# Add the text object
-		self.text = u'\u200A'.join( list(text) ) # Rejoin with the unicode 'Hair Space' to add some kerning (https://www.fileformat.info/info/unicode/category/Zs/list.htm)
+		self.text = u'\u200A'.join( list(text) ) # Rejoin with the unicode 'Hair Space' to add some kerning (https://jkorpela.fi/chars/spaces.html)
 		
 		# Create black text for the hover effect (using two objects rather than just changing color of the other text object to make a bolder font)
 		self.blackText1 = canvas.create_text( coords[0]+24, coords[1]+12, text=self.text, anchor='w', tags=('blackText', selfTag,), font=self.font, fill='black' )
@@ -790,13 +790,15 @@ class MainMenuCanvas( Tk.Canvas ):
 		self.currentBorderColor = ''
 		self.borderImgs = {}	# key=color, value=imagesDict (key=imageName, value=image)
 		self.borderParts = {}	# key=partName, value=canvasID
-		#self.optionInfo = {}	# key=canvasId, value=( borderColor, clickCallback, optOrigX, optOrigY, textWidth )
 		self.options = []
+		self.menuOptionCount = 0
 
 		self.mainBorderWidth = 800 # Keep this an even number
 		self.mainBorderHeight = 530
 		self.bottomTextWidth = 290
 		self.bottomText = -1 # Item ID for the main menu bottom text
+
+		self.initFonts()
 
 		# Load and apply the main background image
 		self.create_image( 500, 375, image=mainGui.imageBank('bg', 'Main Menu'), anchor='center' )
@@ -813,26 +815,38 @@ class MainMenuCanvas( Tk.Canvas ):
 		self.imageSets = { 'ABG{:02}'.format(i) for i in range(4) } # ABG = Animated BackGrounds
 		self.loadImageSet()
 
-		self.displayPrimaryMenu()
+		# if showPrimaryMenu:
+		# 	self.displayPrimaryMenu()
 
 		if not globalData.checkSetting( 'disableMainMenuAnimations' ):
 			self.queueNewAnimation( shortFirstIdle=True )
 
+		# Add some test buttons if testing/debugging
 		if self.testSet:
 			self.create_text( width-40, 80, text='Fade', fill='silver', tags=('testFade',) )
 			self.create_text( width-40, 120, text='Wireframe\nPass', fill='silver', tags=('testWireframe',) )
 			self.tag_bind( 'testFade', '<1>', self.testFade )
 			self.tag_bind( 'testWireframe', '<1>', self.testWireframe )
 
-		#self.after(2000, self.isVisible)
+	def initFonts( self ):
 
-	def initFont( self, fontName, private=True, enumerable=False ):
+		""" Load fonts from the fonts folder into Tkinter. These fonts will be referred to 
+			by family name (e.g. 'A-OTF Folk Pro H'). To find the exact name of a font, you 
+			may use 'tkFont.families()'. """
+		
+		self.initFont( 'A-OTF Folk Pro, Bold.otf' ) # For the main menu buttons/options text
+		self.initFont( 'A-OTF Folk Pro, Heavy.otf' ) # For the main menu top text
+		self.initFont( 'A-OTF Folk Pro, Medium.otf' ) # For the main menu bottom text
+		#print( tkFont.families() )
+
+	def initFont( self, fontName, private=True, enumerable=True ):
 		
 		""" Makes fonts located in file `fontpath` available to the font system.
 
 			`private`     if True, other processes cannot see this font, and this 
-						font will be unloaded when the process dies
-			`enumerable`  if True, this font will appear when enumerating fonts
+						font will be unloaded when the process dies.
+			`enumerable`  if True, this font will appear when enumerating fonts.
+						 (this is necessary if you want the font to appear with .families().)
 
 			See https://msdn.microsoft.com/en-us/library/dd183327(VS.85).aspx
 		"""
@@ -1079,17 +1093,15 @@ class MainMenuCanvas( Tk.Canvas ):
 		self.create_image( textXCoord, textYCoord, image=imgsDict['borderCenterBracket'], anchor='n', tags=('mainBorder',) )
 
 		# Add top text
-		self.initFont( 'A-OTF Folk Pro, Bold.otf' ) # Family = 'A-OTF Folk Pro B'; find family names with 'tkFont.families()'
-		#print( tkFont.families() )
 		text = u'Main Menu'
-		text = u'\u2009'.join( list(text) ) # Rejoin with the unicode 'Thin Space' to add some kerning (https://www.fileformat.info/info/unicode/category/Zs/list.htm)
+		text = u'\u2009'.join( list(text) ) # Rejoin with the unicode 'Thin Space' to add some kerning (https://jkorpela.fi/chars/spaces.html)
 		italicFont = tkFont.Font( family='A-OTF Folk Pro H', size=16, slant='italic', weight='bold' )
 		self.create_text( originX+26+widthFillTop/4, originY-4, text=text, anchor='n', tags=('mainBorder',), font=italicFont, fill='#aaaaaa' )
 
 		# Add bottom text
 		text = 'Open a disc or root folder.'
 		text = u'\u200A'.join( list(text) )
-		self.bottomText = self.create_text( textXCoord, textYCoord+4, text=text, anchor='n', tags=('mainBorder',), font=('A-OTF Folk Pro B', 11), fill='#aaaaaa' )
+		self.bottomText = self.create_text( textXCoord, textYCoord+4, text=text, anchor='n', tags=('mainBorder',), font=('A-OTF Folk Pro M', 11), fill='#aaaaaa' )
 
 	def initOptionImages( self ):
 		
@@ -1260,7 +1272,6 @@ class MainMenuCanvas( Tk.Canvas ):
 		# Update the layer's alpha
 		self.topLayer = ImageTk.PhotoImage( Image.blend(self._transparentMask, self.origTopLayer, opacity) )
 		self.itemconfigure( self.topLayerId, image=self.topLayer )
-		#self.update_idletasks()
 
 		if self._fadeProgress < 100:
 			toc = time.clock()
@@ -1281,28 +1292,11 @@ class MainMenuCanvas( Tk.Canvas ):
 		self.addMenuOption( 'Load Root Folder', '#077523', self.openRoot, hoverText='Load an extracted filesystem.' ) # green
 		self.addMenuOption( 'Browse Code Library', '#9f853b', self.browseCodes, hoverText='Browse code-related game mods.' ) # yellow
 
-	def mainMenuSelected( self ):
-
-		""" Returns True/False for whether the Main Menu tab is currently selected in the GUI. """
-
-		currentlySelectedTab = self.mainGui.root.nametowidget( self.mainGui.mainTabFrame.select() )
-		if currentlySelectedTab == self.mainGui.mainMenu.master:
-			return True
-		else:
-			return False
-
-	def showAnimations( self ):
-
-		""" Should return true if the Main Menu of the GUI is selected and the option to allow 
-			them is enabled. This avoids extra processing if the animation wouldn't be visible. """
-
-		return self.mainMenuSelected() and not globalData.checkSetting( 'disableMainMenuAnimations' )
-
 	def removeOptions( self, showAnimations=True, callBack=None ):
 
-		""" Remove existing menu options (slide left). This is recursive until the options are fully 
-			hidden; uses the GUI mainloop to iterate animation steps rather than a loop in order 
-			to keep the GUI responsive throughout. When this is done, the callback is called. """
+		""" Remove existing menu options (slide left). This is recursive until the options are fully hidden; 
+			uses the GUI mainloop to iterate animation steps rather than a loop in this method in order to 
+			keep the GUI responsive throughout. When this is done, the callback is called. """
 
 		# Slide-left existing options; skip the animation if this tab isn't visible
 		if showAnimations:
@@ -1323,6 +1317,7 @@ class MainMenuCanvas( Tk.Canvas ):
 		self.delete( 'menuOptions' )
 		self.delete( 'menuOptionsBg' )
 		self.delete( 'blackText' )
+		self.menuOptionCount = 0
 		self.options = []
 
 		if showAnimations:
@@ -1332,12 +1327,14 @@ class MainMenuCanvas( Tk.Canvas ):
 		if callBack:
 			callBack()
 
-	def displayDiscOptions( self, includeRemoval=False ):
+	def displayDiscOptions( self ):
 
 		""" Remove existing options, and display a new set of options for disc or root folder operations. """
 
 		showAnimations = self.showAnimations()
-		if includeRemoval:
+
+		# Remove any existing options
+		if self.menuOptionCount > 0:
 			self.removeOptions( showAnimations, self.displayDiscOptions )
 			return
 
@@ -1374,10 +1371,11 @@ class MainMenuCanvas( Tk.Canvas ):
 
 		""" Spawns a context menu at the mouse's current location. """
 
+		globalData.gui.playSound( 'menuChange' )
+
 		guiFileMenu = self.mainGui.fileMenu
 		guiFileMenu.repopulate() # Rebuilds the 'recent' submenu
 		guiFileMenu.recentFilesMenu.post( event.x_root+10, event.y_root - 60 )
-		globalData.gui.playSound( 'menuChange' )
 
 	def openDisc( self, event ):
 		self.mainGui.promptToOpenFile( 'iso' )
@@ -1476,13 +1474,30 @@ class MainMenuCanvas( Tk.Canvas ):
 
 		return is_toplevel
 
+	def mainMenuSelected( self ):
+
+		""" Returns True/False for whether the Main Menu tab is currently selected in the GUI. """
+
+		currentlySelectedTab = self.mainGui.root.nametowidget( self.mainGui.mainTabFrame.select() )
+		if currentlySelectedTab == self.mainGui.mainMenu.master:
+			return True
+		else:
+			return False
+
+	def showAnimations( self ):
+
+		""" Should return true if the Main Menu of the GUI is selected and the option to allow 
+			them is enabled. This avoids extra processing if the animation wouldn't be visible. """
+
+		return self.mainMenuSelected() and not globalData.checkSetting( 'disableMainMenuAnimations' )
+
 #																		/------------\
 #	====================================================================   Main GUI   =========
 #																		\------------/
 
 class MainGui( Tk.Frame, object ):
 
-	def __init__( self ): # Build the interface
+	def __init__( self, showPrimaryMenu=True ): # Build the interface
 
 		self.root = Tk.Tk()
 		self.root.withdraw() # Keeps the GUI minimized until it is fully generated
@@ -1492,7 +1507,7 @@ class MainGui( Tk.Frame, object ):
 
 		self._imageBank = {} # Repository for GUI related images
 		self._soundBank = {}
-		#self.audioEngine = None
+		self.audioEngine = None
 		self.audioGate = Event()
 		self.audioGate.set()
 
@@ -1509,6 +1524,7 @@ class MainGui( Tk.Frame, object ):
 		
 		# Build the main program window
 		self.root.tk.call( 'wm', 'iconphoto', self.root._w, self.imageBank('appIcon') )
+		#self.root.iconbitmap( './imgs/appIcon5.ico' )
 		self.root.geometry( str(self.defaultWindowWidth) + 'x' + str(self.defaultWindowHeight) + '+100+50' )
 		self.root.title( "Melee Modding Wizard - v" + globalData.programVersion )
 		self.root.minsize( width=500, height=400 )
@@ -1590,6 +1606,9 @@ class MainGui( Tk.Frame, object ):
 		# Initialize and add the Main Menu
 		self.mainMenu = MainMenuCanvas( self, canvasFrame, mainMenuWidth, mainMenuHeight )
 		self.mainMenu.place( relx=0.5, rely=0.5, anchor='center' )
+
+		if showPrimaryMenu:
+			self.mainMenu.displayPrimaryMenu()
 
 	# def updateProgressDisplay( self, event ):
 
@@ -1842,18 +1861,17 @@ class MainGui( Tk.Frame, object ):
 			that the file is not within a disc. """
 
 		if filepaths == [] or filepaths == ['']: return
-		elif len( filepaths ) > 1:
-			msg( 'Please only provide one file to load at a time.' )
+		elif len( filepaths ) > 1: # todo: allow for specific features later
+			msg( 'Please only provide one file to load at a time.', 'File Import Error' )
 			self.updateProgramStatus( 'Too many files recieved.', warning=True )
 			return
 
 		# Normalize the path (prevents discrepancies between paths with forward vs. back slashes, etc.)
 		filepath = os.path.normpath( filepaths[0] )
-		#currentTab = self.root.nametowidget( self.mainTabFrame.select() )
 
 		# Validate the path (make sure it's valid)
 		if not os.path.exists( filepath ):
-			msg( 'The given path does not seem to exist!' )
+			msg( 'The given path does not seem to exist!', 'File Import Error' )
 			self.updateProgramStatus( 'Invalid path provided.', error=True )
 
 		# Check if it's a disc root directory.
@@ -1998,7 +2016,7 @@ class MainGui( Tk.Frame, object ):
 			if self.audioManagerTab:
 				self.audioManagerTab.loadFileList()
 
-		self.mainMenu.displayDiscOptions( True )
+		self.mainMenu.displayDiscOptions()
 
 		self.playSound( 'menuSelect' )
 
@@ -2109,6 +2127,7 @@ class MainGui( Tk.Frame, object ):
 		return returnCode
 
 	def onProgramClose( self ):
+		globalData.saveProgramSettings()
 		self.root.destroy() # Stops the GUI's mainloop and destroys all widgets. https://stackoverflow.com/a/42928131/8481154
 
 	def addCodeConstructionTab( self ):
@@ -2794,23 +2813,45 @@ if __name__ == '__main__':
 	elif args.opsParser == 'code':
 		print( 'todo' )
 	
-	# No option group or other command line arguments (flags) detected; start the GUI
+	# If [non-h/-v] arguments are detected but no opGroup is specified, it's likely a disc filepath
+	elif args.filePath:
+	
+		if os.path.exists( args.filePath ): # Ensure the given argument string is a filepath
+
+			# Load the program settings and initialize the GUI (skipping the initial main/primary menu)
+			globalData.gui = gui = MainGui( showPrimaryMenu=False )
+			gui.audioEngine = AudioEngine()
+
+			# Temporarily disable animations on the main menu for initial program loading
+			animsDisabled = globalData.checkSetting( 'disableMainMenuAnimations' )
+			if not animsDisabled:
+				globalData.setSetting( 'disableMainMenuAnimations', True )
+
+			# Process any file provided on start-up (drag-and-dropped onto the program's .exe file, or provided via command line)
+			gui.fileHandler( [args.filePath] )
+
+			# Reenable main menu animations now that program initialization is done
+			if not animsDisabled:
+				globalData.setSetting( 'disableMainMenuAnimations', False )
+				globalData.saveProgramSettings()
+
+			# Start the GUI's mainloop (blocks until the GUI is taken down by .destroy or .quit)
+			gui.root.mainloop()
+
+		else: # Bad input (probably not even a filepath)
+			print( 'Unrecognized command-line arguments; no operation group or valid filepath was provided.' )
+			print( '' )
+			print( 'Use "{}" --help (or -h) to see usage instructions.'.format(sys.argv[0]) )
+			sys.exit( 1 )
+	
+	# No option group or other command line arguments detected; start the GUI
 	else:
 		# Load the program settings and initialize the GUI
 		globalData.gui = gui = MainGui()
 		gui.audioEngine = AudioEngine()
-		gui.fileMenu.browseCodeLibrary()
 
-		# Process any file provided on start-up (drag-and-dropped onto the program's .exe file, or provided via command line)
-		if args.filePath:
-			gui.fileHandler( [args.filePath] )
-
-		# for testing:
-		#gui.fileHandler( ["D:\\Games\\GameCube\\- - SSB Melee - -\\Hacks\\20XX Hack Pack\\20XXHP 5.0\\SSBM, 20XXHP 5.0 - Rebuilt, v3.iso"] )
-		#gui.fileHandler( [r"D:\Games\GameCube\- - SSB Melee - -\Hacks\TEST Build\Super Smash Bros. Melee (v1.02).iso"] )
-		#gui.fileHandler( ["D:\\Games\\GameCube\\- - SSB Melee - -\\Hacks\\Injection Method 2\\Super Smash Bros. Melee (v1.02) - Rebuilt, v3.iso"] )
-		#gui.fileHandler( ["D:\\Games\\GameCube\\- - SSB Melee - -\\Hacks\\Injection Method 2\\Super Smash Bros. Melee (v1.02).iso"] )
-		#gui.fileHandler( ["D:\\Games\\GameCube\\- - SSB Melee - -\\Hacks\\20XX Hack Pack\\20XXHP 5.0\\SSBM, 20XXHP 5.0 - Rebuilt, v3 - Backup.iso"] )
+		#gui.fileHandler( [r"D:\Tex\SSBM ISO\vanilla test iso\SSBM TEST (v1.02).iso"] )
+		#gui.fileMenu.browseCodeLibrary()
 
 		# Start the GUI's mainloop (blocks until the GUI is taken down by .destroy or .quit)
 		gui.root.mainloop()

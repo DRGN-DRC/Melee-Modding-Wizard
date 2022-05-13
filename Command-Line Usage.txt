@@ -1,9 +1,31 @@
 
-	==-----------------------------------==
-	   Main Features / Table of Contents
-	==-----------------------------------==
 
-	    = Intro (Operation Groups)
+		==-----------------------------------==
+		   Main Features / Table of Contents
+		==-----------------------------------==
+
+		    = Overview
+		    = Disc Operations
+		    = Test Operations
+		    = Code Operations
+
+
+    >==-------------
+    >=- Overview
+    >==----------
+
+	Most of the command-line functionality is organized into a few "Operation Groups", which
+	must be specified to access specific features. For example:
+
+		"MMW.exe disc --discPath [filePath] --info"
+
+	In this case, "disc" is the operation group name. Here is a short description of each
+	group and the operations/arguments within them. Switches that are specific to one of these 
+	features are not included here. See the sections below for more detail on a specifc operation.
+	Details for specific op groups can also be viewed using the command "MMW.exe [opGroup] -h".
+
+	You may use the full argument name, e.g. "--build", or a shorthand version of it, shown in
+	parenthesis below (e.g. "-b" instead of "--build").
 
 	    = Disc Operations
 		--build (-b)		Build a disc from extracted root files
@@ -16,27 +38,27 @@
 		--boot			Boot test a given stage/character in Dolphin
 		--validate		Test whether files are of an expected type
 
-	    = Code Operations
+WIP!	    = Code Operations
+		--install		Install a list of given mods
+		--library		Specify the library to install from (if not using default)
 
 
+	These arguments are exceptions, and do not require an operation group:
+
+		--help (-h)		Show the program's help message and exit
+		--version (-v)		Show program's version number and exit
 
 
-
-	= Intro (Operation Groups) =
-
-		Most of the
-
-
-	= Disc Operations
+    >==-----------------------------------------------------
+    >=- OpGroup: "disc" (Disc or Root Folder Operations)
+    >==--------------------------------------------------
 
 
+    >==--------------------------------------
+    >=- OpGroup: "test" (Test Operations)
+    >==-----------------------------------
 
-
-    >==--------------------
-    >=- Test Operations
-    >==-----------------
-
-	--boot (-b)		Input: Single file path
+	--boot (-b) [		Input: Single file path
 		If you use this command with a stage or character file, that file will be loaded 
 		into a mostly-vanilla mini disc, and loaded in the Dolphin instance you've provided. 
 		The game will be booted directly into a match with the given stage or character 
