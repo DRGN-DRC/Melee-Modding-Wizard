@@ -1820,26 +1820,26 @@ class CameraObjDesc( StructBase ): # CObjDesc
 		self.name = 'Camera Struct ' + uHex( 0x20 + args[1] )
 		self.formatting = '>IHHHHHHHHHHIIfIffffff'
 		self.fields = ( 'Name_Pointer',
-						'Camera_Flags',
+						'Camera_Flags',		# 0x4
 						'Projection_Type',
-						'Viewport_Left',
+						'Viewport_Left',	# 0x8
 						'Viewport_Right',
-						'Viewport_Top',
+						'Viewport_Top',		# 0xC
 						'Viewport_Bottom',
-						'Scissor_Left',
+						'Scissor_Left',		# 0x10
 						'Scissor_Right',
-						'Scissor_Top',
+						'Scissor_Top',		# 0x14
 						'Scissor_Bottom',
-						'Eye_Position_WorldObj_Pointer',
-						'Interest_WorldObj_Pointer',
+						'Eye_Position_WorldObj_Pointer', # 0x18
+						'Interest_WorldObj_Pointer',	 # 0x1C
 						'Roll',
-						'UpVector_Pointer',
+						'UpVector_Pointer',	# 0x24
 						'Near',
 						'Far',
-						'FoV_Top',
+						'FoV_Top',			# 0x30
 						'Aspect_Bottom',
 						'Projection_Left',
-						'Projection_Right'
+						'Projection_Right'	# 0x3C
 					)
 		self.length = 0x40
 		self.childClassIdentities = {}

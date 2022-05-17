@@ -1980,8 +1980,8 @@ class Disc( object ):
 			vanillaDisc = Disc( vanillaDiscPath )
 			vanillaDisc.load()
 		else: # User canceled path input
-			#vanillaDisc = None
-			globalData.gui.updateProgramStatus( 'Unable to validate mod uninstallation', warning=True )
+			if globalData.gui:
+				globalData.gui.updateProgramStatus( 'Unable to validate mod uninstallation', warning=True )
 			return codeMods
 
 		problematicMods = []
@@ -2408,7 +2408,7 @@ class Disc( object ):
 						break
 					else:
 						# Cache assembled code if that feature is enabled
-						if useCodeCache and not codeChange.isCached:
+						if mod.isAmfs and useCodeCache and not codeChange.isCached:
 							mod.saveCache( codeChange )
 
 						# Store the function in the DOL
@@ -2438,7 +2438,7 @@ class Disc( object ):
 							problemWithMod = True
 						else:
 							# Cache assembled code if that feature is enabled
-							if useCodeCache and not codeChange.isCached:
+							if mod.isAmfs and useCodeCache and not codeChange.isCached:
 								mod.saveCache( codeChange )
 
 							problemWithMod = self.storeCodeChange( ramAddress, finishedCode, mod.name + ' static overwrite' )
@@ -2482,7 +2482,7 @@ class Disc( object ):
 							break
 						else:
 							# Cache assembled code if that feature is enabled
-							if useCodeCache and not codeChange.isCached:
+							if mod.isAmfs and useCodeCache and not codeChange.isCached:
 								mod.saveCache( codeChange )
 
 							# If the return code was 100, the last instruction was created by a custom branch syntax, which was deliberate and we don't want it replaced.
@@ -2581,7 +2581,7 @@ class Disc( object ):
 		toc = time.clock()
 		print( '\nMod installation time:', toc-tic )
 
-		if globalData.gui.codeManagerTab:
+		if globalData.gui and globalData.gui.codeManagerTab:
 			globalData.gui.codeManagerTab.updateInstalledModsTabLabel()
 
 		# End of the 'not onlyUpdateGameSettings' block
