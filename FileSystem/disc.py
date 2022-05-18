@@ -1508,6 +1508,9 @@ class Disc( object ):
 
 		isoBinary.close()
 
+		if not globalData.gui and totalUnsavedChanges > 1:
+			print( '' ) # Forces the next print to not be on the 'progress display' line
+
 		return 0, filesUpdated
 
 	def buildNewDisc( self, newFilePath='', buildMsg='Building ISO:' ):
@@ -1682,7 +1685,7 @@ class Disc( object ):
 
 		# Display the bar and percentage as complete (%100)
 		self.updateProgressDisplay( buildMsg, 0, 100, 100 )
-		if not globalData.gui: print '\n' # Add an extra line for spacing/readability in the command prompt output
+		if not globalData.gui: print( '\n' ) # Add an extra line for spacing/readability in the command prompt output
 
 		# Rename the new binary file to the target name (removing existing files if needed)
 		if newFilePath or self.isRootFolder: # Provided via "Save Disc As..." or due to a new generated filename because backupOnRebuild is True
@@ -2364,7 +2367,7 @@ class Disc( object ):
 				continue
 
 			installCount += 1
-			self.updateProgressDisplay( 'Installing Mods', -1, installCount, totalModsToInstall )
+			self.updateProgressDisplay( 'Installing Mods', 0, installCount, totalModsToInstall )
 
 			# Allocate space for required standalone functions (SFs are not immediately added to the DOL because they too may reference unmapped functions)
 			requiredStandaloneFunctions, missingFunctions = mod.getRequiredStandaloneFunctionNames()
@@ -2579,7 +2582,7 @@ class Disc( object ):
 						mod.setState( 'disabled', updateControlPanelCounts=False )
 
 		toc = time.clock()
-		print( '\nMod installation time:', toc-tic )
+		print( '\nMod installation time: ' + str(toc-tic) )
 
 		if globalData.gui and globalData.gui.codeManagerTab:
 			globalData.gui.codeManagerTab.updateInstalledModsTabLabel()

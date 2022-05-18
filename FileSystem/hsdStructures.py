@@ -2304,12 +2304,12 @@ class MapGroundParameters( StructBase ): # grGroundParam
 		StructBase.__init__( self, *args, **kwargs )
 
 		self.name = 'Stage Parameters ' + uHex( 0x20 + args[1] )
-		self.formatting = '>fIIIIIfffffIIIIffffffffffIHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHIIIIIIIIIII'
+		self.formatting = '>fIIIIIfffffIIIIffffIffffffHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHIIIIIIIIIII'
 		self.fields = ( 'Stage_Scaling',
 						'Shadow_Intensity',
-						'Camera_FOV_Depth/Delta?',
-						'Camera_Zoom_Distance_1',					# min zoom distance?
-						'Camera_Zoom_Distance_2',			# 0x10		  max zoom?
+						'Camera_FoV_Depth/Delta?',
+						'Min_Camera_Distance',
+						'Max_Camera_Distance',			# 0x10
 						'Minimum_Tilt_and_Tilt_Scaling?',			# FOV_Up?
 						'Pitch_Bias_(Vertical_Rotation)',
 						'Yaw_Bias_(Horizontal_Rotation)',
@@ -2317,18 +2317,20 @@ class MapGroundParameters( StructBase ): # grGroundParam
 						'Bubble_Multiplier',
 						'Camera_Speed_Smoothness',					# Higher value results in tighter control
 						'',
-						'Pause_Minimum_Zoom',			# 0x30
-						'Pause_Initial_Zoom_Level',
+						'Pause_Min_Zoom',			# 0x30
+						'Pause_Initial_Zoom',
 						'Pause_Max_Zoom',
 						'Pause_Max_Angle_Up',
 						'Pause_Max_Angle_Left',		# 0x40
 						'Pause_Max_Angle_Right',
 						'Pause_Max_Angle_Down',
 						'Fixed_Camera_Mode_Bool',		# 0x4C (1=Enable, 0=Normal Camera)
-						'Fixed_Camera_X-Axis_Offset',	
-						'',	'',
-						'',	'',
-						'Padding?',						# 0x64
+						'Fixed_Camera_X-Axis',	
+						'Fixed_Camera_Y-Axis',
+						'Fixed_Camera_Z-Axis',
+						'Fixed_Camera_FoV',
+						'Fixed_Camera_Vertical_Angle',	# 0x60
+						'Fixed_Camera_Horizontal_Angle',
 						'',		'',		'',		'',		# 0x68 - First halfword
 						'',		'',		'',		'',
 						'',		'',		'',		'',
