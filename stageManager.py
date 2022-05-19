@@ -2176,7 +2176,7 @@ class StageManager( ttk.Frame ):
 			globalData.disc.removeFiles( [stageObj] )
 
 			# Update random neutral stage name in MnSlChr
-			if globalData.disc.is20XX and stageObj.isRandomNeutral():
+			if stageObj.isRandomNeutral():
 				stageObj.setDescription( 'Custom {}'.format(stageObj.randomNeutralId) )
 
 			# Update the GUI

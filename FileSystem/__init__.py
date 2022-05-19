@@ -143,8 +143,6 @@ def isValidReplacement( origFileObj, newFileObj ):
 
 	# If the files (which are the same class) are a sub-class of DAT files....
 	elif issubclass( origFileObj.__class__, (DatFile,) ):
-		orig20xxVersion = globalData.disc.is20XX
-
 		# Initialize the files so we can get their string dictionaries (and make sure they're not corrupted)
 		try:
 			origFileObj.initialize()
@@ -166,20 +164,18 @@ def isValidReplacement( origFileObj, newFileObj ):
 		if origFileStrings != newFileStrings:
 			fileMismatch = True
 			
-		# If the file being imported is the CSS. Check if it's for the right game version
+		# If the file being imported is a 20XX CSS file, check if it's for the right game version
 		#elif issubclass( origFileObj, (CssFile,) ):
-		elif origFileObj.__class__.__name__ == 'CssFile' and orig20xxVersion:
+		elif origFileObj.__class__.__name__ == 'CssFile' and globalData.disc.is20XX:
 
-			# Check if this is a version of 20XX, and if so, get its main build number
-			#orig20xxVersion = globalData.disc.is20XX
+			# Get the main (major) build numbers
+			orig20xxVersion = origFileObj.get20xxVersion()
 			if orig20xxVersion:
 				if 'BETA' in orig20xxVersion: origMainBuildNumber = int( orig20xxVersion[-1] )
 				else: origMainBuildNumber = int( orig20xxVersion[0] )
 			else: origMainBuildNumber = 0
 
-			#cssfileSize = os.path.getsize( newExternalFilePath )
-			#proposed20xxVersion = globalDiscDetails['is20XX']
-			proposed20xxVersion = globalData.disc.get20xxVersion( newFileObj.getData() )
+			proposed20xxVersion = newFileObj.get20xxVersion()
 			if proposed20xxVersion:
 				if 'BETA' in proposed20xxVersion: proposedMainBuildNumber = int( proposed20xxVersion[-1] )
 				else: proposedMainBuildNumber = int( proposed20xxVersion[0] )

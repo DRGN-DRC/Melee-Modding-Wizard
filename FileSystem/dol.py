@@ -249,7 +249,7 @@ class Dol( FileBase ):
 
 		""" 20XX has a version string in the DOL at 0x0x3F7158, preceded by an ASCII string of '20XX'.
 			Versions up to 4.07++ used an ASCII string for the version as well (v4.07/4.07+/4.07++ have the same string).
-			Versions 5.x.x use a new method of project code, major version, minor version, and patch, respectively (one byte each). """
+			Starting with v5 there's a new method of 'project code, major version, minor version, and patch' (one byte each). """
 
 		# Check for the '20XX' string
 		if self.data[0x3F7154:0x3F7158] != bytearray( b'\x32\x30\x58\x58' ):

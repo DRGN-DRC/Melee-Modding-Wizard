@@ -1530,12 +1530,6 @@ class DiscMenu( Tk.Menu, object ):
 				else:
 					self.add_command( label='Rename Disc Folder Name', underline=2, command=self.renameFilesystemEntry )				# N
 
-		# 	if globalDiscDetails['is20XX'] and self.entity == 'file' and self.entityName.startswith( 'gr' ): # A single stage file is chosen
-		# 		# Get the full case-sensitive file name
-		# 		iidValues = self.fileTree.item( self.iidSelectionsTuple[0], 'values' )
-		# 		fullFileName = iidValues[4].split( '/' )[-1] # 5th item in iidValues is isoPath
-		# 		if get20xxRandomNeutralNameOffset( fullFileName )[0] != -1:
-		# 			self.add_command( label='Rename Random Neutral Nickname', underline=16, command=self.renameRandomNeutralStage )		# U
 			self.add_command( label='Remove Selected Item(s)', underline=0, command=self.removeItemsFromIso )							# R
 		# 	self.add_command( label='Move Selected to Directory', underline=1, command=moveSelectedToDirectory )						# O
 

@@ -2239,25 +2239,27 @@ def parseArguments(): # Parses command line arguments
 		# Define "disc" options
 		discOpsParser = subparsers.add_parser( 'disc', help='Perform operations on ISO/GCM files, such as adding or getting files.' )
 		discOpsParser.add_argument( '-b', '--build', dest='rootFolderPath', help='Builds a disc file (ISO or GCM) from a given root folder path. '
-											'The folder should contain a "sys" folder, and optionally a "files" folder (or files will be taken from the same root folder). '
-											'The disc will be built in the root path given, unless the -o option is also provided.' )
-		discOpsParser.add_argument( '-d', '--discPath', help='Provide a filepath for a target disc for the program to operate on. '
-															 'This is required for most disc operations.' )
-		discOpsParser.add_argument( '-e', '--export', help='Export one or more files from a given disc. Use an ISO path to target a specific file within a disc. '
-														   'e.g. "--export PlSsNr.dat" or "--export .\\audio\\us\\mario.ssm" '
-														   'If operating on multiple files, this should be a list of ISO paths. '
-														   'If the --output command is not also used, files are output to the current working directory.', nargs='+' )
-		discOpsParser.add_argument( '-i', '--import', dest='_import', help='Provide a filepath for an external/standalone file to be imported into a given disc. '
-														   'Supplement this with the --isoPath (-p) command to define what file to target. '
-														   'The given filepath may be a single path, or a list of paths for multiple files.', nargs='+' )
-		discOpsParser.add_argument( '-l', '--listFiles', action="store_true", help='List the files within the given disc. Can be used with --info' )
-		discOpsParser.add_argument( '-n', '--info', action="store_true", help='Show various information on the given disc. Can be used with --listFiles' )
+											'The folder should contain a "sys" folder, and optionally a "files" folder (or else files will be taken from '
+											'the same root folder). The disc will be built in the root path given, unless the --output option is also provided.' )
+		discOpsParser.add_argument( '-d', '--discPath', help='Provide a filepath for a target disc for the program to operate on. This is required '
+															 'for most of the disc operations (those that say they operate on a "given disc").' )
+		discOpsParser.add_argument( '-e', '--export', help='Export one or more files from a given disc. Use an ISO path to target a specific file within the disc: '
+														   'e.g. "--export PlSsNr.dat" or "--export ./audio/us/mario.ssm" '
+														   'If operating on multiple files, this should be a list of ISO paths (separated by spaces). '
+														   'If the --output command is not also used, files are output to the current working directory.', nargs='+', metavar='ISOPATH' )
+		discOpsParser.add_argument( '-i', '--import', dest='_import', help='Provide one or more filepaths for external/standalone files to be imported '
+														   'into a given disc. Supplement this with the --isoPath (-p) command to define what file(s) '
+														   'in the disc to replace. The given filepath may be a single path, or a list of paths for '
+														   'multiple files (separated by spaces). If operating on multiple files, the list of paths '
+														   'should be in the same order as those in the --isoPath argument.', nargs='+', metavar='FILEPATH' )
+		discOpsParser.add_argument( '-l', '--listFiles', action="store_true", help='List the files within a given disc. May be used with --info.' )
+		discOpsParser.add_argument( '-n', '--info', action="store_true", help='Show various information on a given disc. May be used with --listFiles.' )
 		discOpsParser.add_argument( '-nbu', '--no-backup-on-rebuild', dest='noBackupOnRebuild', action="store_true", help='Do not back up (create a copy of) '
 											'the disc in cases where it needs to be rebuilt. Instead, the original disc will be replaced by a new file by the same name.' )
 		discOpsParser.add_argument( '-o', '--output', dest='outputFilePath', help='Provides an output path for various operations. May be just a folder path, '
 																				  'or it may include the file name in order to name the finished file.' )
-		discOpsParser.add_argument( '-p', '--isoPath', help='Used to target a specific file within a disc. e.g. "PlSsNr.dat" or ".\\audio\\us\\mario.ssm" '
-															'If operating on multiple files, this should be a list of ISO paths.', nargs='+' )
+		discOpsParser.add_argument( '-p', '--isoPath', help='Used to target one or more specific files within a disc. e.g. "PlSsNr.dat" or "./audio/us/mario.ssm". '
+															'If operating on multiple files, this should be a list of ISO paths (separated by spaces).', nargs='+' )
 		
 		# Define "test" options
 		testOpsParser = subparsers.add_parser( 'test', help='Asset test tool. Used to validate or boot-test assets such as characters or stage files.' )
