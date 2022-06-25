@@ -817,6 +817,11 @@ class CodeManagerTab( ttk.Frame ):
 
 		""" Save all mods in the library as the desired format. """
 
+		# Ensure there's something to be saved
+		if not globalData.codeMods:
+			msg( 'There are no codes loaded to save!' )
+			return
+
 		# Prompt the user to determine what kind of format to use
 		userPrompt = PromptHowToSaveLibrary()
 		formatChoice = userPrompt.typeVar.get()

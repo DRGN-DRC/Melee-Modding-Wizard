@@ -40,7 +40,7 @@ FR_NOT_ENUM = 0x20
 # Internal dependencies
 import globalData
 
-from tools import TriCspCreator, AsmToHexConverter, CodeLookup
+from tools import CharacterColorConverter, TriCspCreator, AsmToHexConverter, CodeLookup
 from FileSystem import DatFile, CharDataFile, CharAnimFile, CharCostumeFile
 from FileSystem import CssFile, SssFile, StageFile, MusicFile
 from FileSystem.disc import Disc, isExtractedDirectory
@@ -69,7 +69,7 @@ class FileMenu( Tk.Menu, object ):
 		self.add_command( label='Open Dolphin Screenshots Folder', underline=15, command=self.openDolphinScreenshots )				# R
 		self.add_command( label='Open Disc (ISO/GCM)', underline=11, command=lambda: globalData.gui.promptToOpenFile('iso') )		# I
 		self.add_command( label='Open Root (Disc Directory)', underline=6, command=lambda: globalData.gui.promptToOpenRoot() )		# O		(gui nonexistant on init; lambda required)
-		self.add_command( label='Open DAT (or USD, etc.)', underline=5, command=lambda: globalData.gui.promptToOpenFile('dat') )	# D
+		#self.add_command( label='Open DAT (or USD, etc.)', underline=5, command=lambda: globalData.gui.promptToOpenFile('dat') )	# D
 		self.add_command( label='Browse Code Library', underline=0, command=self.browseCodeLibrary )								# B
 		self.add_separator()
 		self.add_command( label='View Unsaved Changes', underline=0, command=self.showUnsavedChanges )								# V
@@ -189,7 +189,7 @@ class SettingsMenu( Tk.Menu, object ):
 	def __init__( self, parent, tearoff=True, *args, **kwargs ): # Create the menu and its contents
 		super( SettingsMenu, self ).__init__( parent, tearoff=tearoff, *args, **kwargs )
 		self.open = False
-
+		
 		#self.add_command( label='Adjust Texture Filters', underline=15, command=setImageFilters )								# F
 		
 		# Disc related options
@@ -226,18 +226,18 @@ class SettingsMenu( Tk.Menu, object ):
 		# self.add_checkbutton( label="Export Textures using Dolphin's Naming Convention", underline=32, 
 		# 		variable=globalData.boolSettings['useDolphinNaming'], command=globalData.saveProgramSettings )					# N
 
-		# Image-editing related options; todo
-		#self.add_separator()
-		#self.add_command( label='Open Settings File', )
-		#self.add_command( label='More...', )
+		self.add_separator()
+		self.add_command( label='Open Settings File', underline=0, command=self.openSettingsFile )								# O
 
-	# def openSettingsFile( self ):
-	# 	pass
+	def openSettingsFile( self ):
 
-	# def repopulate( self ):
-	# 	# Check the settings file, in case anything has been changed manually/externally.
-	# 	# Any changes from within the program will have updated these here as well.
-	# 	loadSettings()
+		""" Open the settings file in the user's default text editor. """
+
+		try:
+			os.startfile( globalData.paths['settingsFile'] )
+		except:
+			filename = os.path.basename( globalData.paths['settingsFile'] )
+			msg( "Unable to find and open the '{}' file!".format(filename), error=True )
 
 
 class ToolsMenu( Tk.Menu, object ):
@@ -253,8 +253,6 @@ class ToolsMenu( Tk.Menu, object ):
 
 		# Clear all current population
 		self.delete( 0, 'last' )
-
-		""" This will refresh the 'Open Recent' files menu. """
 																									# Key shortcut (using alt key)
 		self.add_cascade( label="ASM <-> HEX Converter", command=lambda: AsmToHexConverter(), underline=0 )				# A
 		#self.add_cascade( label="Number and Address Conversion", command=lambda: AsmToHexConverter(), underline=0 )	# N
@@ -262,6 +260,7 @@ class ToolsMenu( Tk.Menu, object ):
 		self.add_cascade( label='Create Code Mod', command=self.createCodeMod, underline=12 )							# M
 		self.add_cascade( label='Save Code Library As', command=self.saveCodeLibraryAs, underline=6 )					# O
 		self.add_separator()
+		self.add_cascade( label="Character Color Converter", command=self.characterColorConverter, underline=0 )		# S
 		self.add_cascade( label="Test External Stage File", command=self.testStage, underline=14 )						# S
 		self.add_cascade( label="Test External Character File", command=self.testCharacter, underline=14 )				# C
 		self.add_separator()
@@ -297,6 +296,9 @@ class ToolsMenu( Tk.Menu, object ):
 			globalData.gui.fileMenu.browseCodeLibrary()
 
 		globalData.gui.codeManagerTab.saveCodeLibraryAs()
+
+	def characterColorConverter( self ):
+		globalData.cccWindow = CharacterColorConverter()
 
 	def testStage( self ):
 
@@ -1389,7 +1391,7 @@ class MainMenuCanvas( Tk.Canvas ):
 		self.mainGui.root.update()
 		self.mainGui.updateProgramStatus( 'Ready' )
 
-	def loadDiscManagement( self, event ):
+	def loadDiscManagement( self, event=None ):
 		
 		""" Adds the Disc File Tree and Disc Details tabs to the GUI, 
 			and switches to the Disc File Tree tab. """
@@ -1408,7 +1410,7 @@ class MainMenuCanvas( Tk.Canvas ):
 		# globalData.gui.updateProgramStatus( 'Ready' )
 		self.mainGui.playSound( 'menuSelect' )
 
-	def loadStageEditor( self, event ):
+	def loadStageEditor( self, event=None ):
 
 		""" Add the Stage Manager tab to the GUI and select it. """
 	
@@ -1429,7 +1431,7 @@ class MainMenuCanvas( Tk.Canvas ):
 		# globalData.gui.updateProgramStatus( 'Ready' )
 		self.mainGui.playSound( 'menuSelect' )
 
-	def loadMusicManager( self, event ):
+	def loadMusicManager( self, event=None ):
 
 		""" Add the Music Manager tab to the GUI and select it. """
 		
@@ -1445,7 +1447,7 @@ class MainMenuCanvas( Tk.Canvas ):
 		# globalData.gui.updateProgramStatus( 'Ready' )
 		self.mainGui.playSound( 'menuSelect' )
 
-	def loadDebugMenuEditor( self, event ):
+	def loadDebugMenuEditor( self, event=None ):
 
 		""" Add the Debug Menu Editor tab to the GUI and select it. """
 		

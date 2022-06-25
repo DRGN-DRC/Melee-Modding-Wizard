@@ -20,6 +20,7 @@ from tkMessageBox import askyesno
 import ttk
 import tkFileDialog
 import Tkinter as Tk
+from FileSystem.fileBases import DatFile
 
 # Internal dependencies
 import globalData
@@ -38,7 +39,7 @@ from guiSubComponents import (
 		DisguisedEntry,
 		ToolTip, NeoTreeview
 	)
-from tools import SisTextEditor
+from tools import CharacterColorConverter, SisTextEditor
 
 
 class DiscTab( ttk.Frame ):
@@ -423,6 +424,14 @@ class DiscTab( ttk.Frame ):
 
 			# if discFile.filename.endswith( 'AJ.dat') and 'Wait' not in discFile.filename:
 			# 	print discFile.filename, hex(discFile.size)
+
+			# if ( discFile.filename.endswith( 'at' ) or  discFile.filename.endswith( 'sd' ) ) and discFile.size > 4000000:
+			# 	print( discFile.filename, ': ', hex(discFile.size), discFile.size )
+
+			# if issubclass( discFile.__class__, DatFile ):
+			# 	discFile.initialize()
+			# 	if discFile.headerInfo and discFile.headerInfo['rtEntryCount'] > 10000:
+			# 		print( discFile.filename, ': ', discFile.headerInfo['rtEntryCount'] )
 			
 			self.isoFileTree.insert( parent, 'end', iid=discFile.isoPath, text=' ' + entryName, values=(description, 'file') )
 		except Exception as err:
@@ -520,8 +529,16 @@ class DiscTab( ttk.Frame ):
 
 	def scrollToSection( self, target ):
 
-		""" Used primarily by the 'quick links' (Characters | Menus | etc) at the top of the 
-			Disc File Tree to jump to a specific section. Can also give an iid/isoPath target. """
+		""" Used primarily by the 'quick links' at the top of the 
+			Disc File Tree to jump to a specific section.
+			
+			The "target" may be any of the following:
+				System
+				Characters
+				Menus
+				Stages
+				Or any existing iid/isoPath in the treeview
+		"""
 
 		isoFileTreeChildren = self.isoFileTree.get_children()
 		if not isoFileTreeChildren: return
@@ -1517,7 +1534,7 @@ class DiscMenu( Tk.Menu, object ):
 			if self.selectionCount == 1:
 
 				if self.entity == 'file':
-					self.add_command( label='Rename Disc Filesystem Name', underline=2, command=self.renameFilesystemEntry )			# N
+					self.add_command( label='Rename (in disc filesystem)', underline=2, command=self.renameFilesystemEntry )			# N
 
 					if self.fileObj.__class__.__name__ == 'StageFile' and self.fileObj.isRandomNeutral():
 						self.add_command( label='Rename Stage Name (in CSS)', underline=2, command=self.renameDescription )				# N
@@ -1528,7 +1545,7 @@ class DiscMenu( Tk.Menu, object ):
 
 					#if self.fileObj.filename.endswith( 'AJ.dat' ):
 				else:
-					self.add_command( label='Rename Disc Folder Name', underline=2, command=self.renameFilesystemEntry )				# N
+					self.add_command( label='Rename (in disc filesystem)', underline=2, command=self.renameFilesystemEntry )				# N
 
 			self.add_command( label='Remove Selected Item(s)', underline=0, command=self.removeItemsFromIso )							# R
 		# 	self.add_command( label='Move Selected to Directory', underline=1, command=moveSelectedToDirectory )						# O
@@ -1541,6 +1558,11 @@ class DiscMenu( Tk.Menu, object ):
 			self.add_command( label='Copy Offset to Clipboard', underline=2, command=self.copyFileOffsetToClipboard )					# P
 			# self.add_command( label='Browse Textures', underline=0, command=browseTexturesFromDisc )									# B
 			# self.add_command( label='Analyze Structure', underline=5, command=analyzeFileFromDisc )									# Z
+
+			if self.entityName.startswith( 'Pl' ):
+				self.add_command( label='Set as CCC Source File', underline=11, command=lambda: self.cccSelectFromDisc( 'source' ) )		# S
+				self.add_command( label='Set as CCC Destination File', underline=11, command=lambda: self.cccSelectFromDisc( 'dest' ) )		# D
+		
 		elif self.selectionCount > 1:
 			# Check if all of the items are files
 			for iid in self.iidSelectionsTuple:
@@ -1550,6 +1572,27 @@ class DiscMenu( Tk.Menu, object ):
 			else: # The loop above didn't break; only files here
 				self.add_separator()
 				self.add_command( label='Copy Offsets to Clipboard', underline=2, command=self.copyFileOffsetToClipboard )				# P
+				
+		# Check if this is a version of 20XX, and if so, get its main build number
+		#orig20xxVersion = globalData.disc.is20XX # This is an empty string if the version is not detected or it's not 20XX
+
+		# Add an option for CSP Trim Colors, if it's appropriate
+		# if self.iidSelectionsTuple and orig20xxVersion:
+		# 	if 'BETA' in orig20xxVersion:
+		# 		majorBuildNumber = int( orig20xxVersion[-1] )
+		# 	else: majorBuildNumber = int( orig20xxVersion[0] )
+
+		# 	# Check if any of the selected files are an appropriate character alt costume file
+		# 	for iid in self.iidSelectionsTuple:
+		# 		entityName = os.path.basename( iid )
+		# 		thisEntity = self.fileTree.item( iid, 'values' )[1] # Will be a string of 'file' or 'folder'
+
+		# 		if thisEntity == 'file' and candidateForTrimColorUpdate( entityName, orig20xxVersion, majorBuildNumber ):
+		# 			if not lastSeperatorAdded:
+		# 				self.add_separator()
+		# 				lastSeperatorAdded = True
+		# 			self.add_command( label='Generate CSP Trim Colors', underline=0, command=self.prepareForTrimColorGeneration )		# G
+		# 			break
 
 	def extractRootWithNative( self ):
 
@@ -1761,35 +1804,6 @@ class DiscMenu( Tk.Menu, object ):
 		else:
 			globalData.gui.updateProgramStatus( '{} files added. '.format(len(filesToAdd)) + statusBarMsg )
 
-		# Check if this is a version of 20XX, and if so, get its main build number
-		#orig20xxVersion = globalData.disc.is20XX # This is an empty string if the version is not detected or it's not 20XX
-
-		# Add an option for CSP Trim Colors, if it's appropriate
-		# if self.iidSelectionsTuple and orig20xxVersion:
-		# 	if 'BETA' in orig20xxVersion:
-		# 		majorBuildNumber = int( orig20xxVersion[-1] )
-		# 	else: majorBuildNumber = int( orig20xxVersion[0] )
-
-		# 	# Check if any of the selected files are an appropriate character alt costume file
-		# 	for iid in self.iidSelectionsTuple:
-		# 		entityName = os.path.basename( iid )
-		# 		thisEntity = self.fileTree.item( iid, 'values' )[1] # Will be a string of 'file' or 'folder'
-
-		# 		if thisEntity == 'file' and candidateForTrimColorUpdate( entityName, orig20xxVersion, majorBuildNumber ):
-		# 			if not lastSeperatorAdded:
-		# 				self.add_separator()
-		# 				lastSeperatorAdded = True
-		# 			self.add_command( label='Generate CSP Trim Colors', underline=0, command=self.prepareForTrimColorGeneration )		# G
-		# 			break
-
-		# if self.entity == 'file' and self.entityName.startswith( 'pl' ):
-		# 	if not lastSeperatorAdded:
-		# 		self.add_separator()
-		# 		lastSeperatorAdded = True
-
-		# 	self.add_command( label='Set as CCC Source File', underline=11, command=lambda: self.cccSelectFromDisc( 'source' ) )		# S
-		# 	self.add_command( label='Set as CCC Destination File', underline=11, command=lambda: self.cccSelectFromDisc( 'dest' ) )		# D
-
 	def removeItemsFromIso( self ):
 		self.discTab.deleteIsoFiles( self.iidSelectionsTuple )
 
@@ -1819,19 +1833,6 @@ class DiscMenu( Tk.Menu, object ):
 
 	# 			if thisEntity == 'file' and candidateForTrimColorUpdate( entityName, orig20xxVersion, origMainBuildNumber ):
 	# 				generateTrimColors( iid, True ) # autonomousMode=True means it will not prompt the user to confirm its main color choices
-
-	# def cccSelectFromDisc( self, role ): # Select a file in a disc as input to the Character Color Converter
-	# 	# Double-check that the disc file can still be located
-	# 	if not discDetected(): return
-
-	# 	# Disc verified; proceed
-	# 	datHex = getFileDataFromDiscTree( iid=self.iidSelectionsTuple[0] )
-
-	# 	if datHex:
-	# 		prepareColorConversion( self.iidSelectionsTuple[0], datHex, role )
-
-	# 		# Switch to the CCC tab if both source and destination files have been provided.
-	# 		if CCC['dataStorage']['sourceFile'] != '' and CCC['dataStorage']['destFile'] != '': globalData.gui.mainTabFrame.select( globalData.gui.cccTab )
 
 	def renameFilesystemEntry( self ):
 
@@ -1935,3 +1936,12 @@ class DiscMenu( Tk.Menu, object ):
 			offsets.append( uHex(fileObj.offset) )
 
 		copyToClipboard( ', '.join(offsets) )
+
+	def cccSelectFromDisc( self, role ):
+
+		""" Add character files from the disc to the CCC tool window. """
+
+		if not globalData.cccWindow:
+			globalData.cccWindow = CharacterColorConverter()
+
+		globalData.cccWindow.updateSlotRepresentation( self.fileObj, role )

@@ -28,16 +28,22 @@ from ruamel import yaml
 from shutil import copy
 from binascii import hexlify
 from ScrolledText import ScrolledText
-from PIL import ImageGrab
+from PIL import ImageGrab, Image, ImageTk
 
 # Internal dependencies
 import globalData
+import FileSystem
 import FileSystem.hsdStructures as hsdStructures
 
+from newTkDnD.tkDnD import TkDnD
 from FileSystem.disc import Disc
+from FileSystem import CharCostumeFile
 from codeMods import CodeLibraryParser
 from basicFunctions import msg, uHex, cmdChannel, printStatus, humansize
-from guiSubComponents import BasicWindow, ColoredLabelButton, VerticalScrolledFrame, cmsg, Dropdown, getNewNameFromUser, LabelButton
+from guiSubComponents import ( 
+	BasicWindow, CharacterColorChooser, ColoredLabelButton, 
+	VerticalScrolledFrame, cmsg, Dropdown, 
+	getNewNameFromUser, LabelButton )
 
 
 #class NumberConverter( BasicWindow ):
@@ -1348,7 +1354,7 @@ class DolphinController( object ):
 		timeout = 30
 		bgColor = 0
 
-		print 'Waiting for game start...'
+		print( 'Waiting for game start...' )
 		while bgColor == 0:
 			try:
 				# Sample a pixel on the other side of the black bar
@@ -1368,7 +1374,7 @@ class DolphinController( object ):
 
 		# Start-up detected. The character should be posed, and game paused
 		# todo: edit to work on multiple monitors. code here: https://github.com/python-pillow/Pillow/issues/1547
-		print 'Game start detected.'
+		print( 'Game start detected.' )
 		dimensions = win32gui.GetWindowRect( renderWindow )
 		image = ImageGrab.grab( dimensions )
 		image.save( savePath )
@@ -1555,3 +1561,345 @@ class SisTextEditor( BasicWindow ):
 			byte = textStruct.data[position]
 
 		return endBytes
+
+
+class CharacterColorConverter( BasicWindow ):
+
+	""" Tool window to convert character costumes meant for one color slot to a different color slot. """
+
+	def __init__( self ):
+		BasicWindow.__init__( self, globalData.gui.root, 'Character Color Converter', dimensions=(720, 450), topMost=False, unique=True )
+
+		self.fontColor = 'black'
+		self.source = None
+		self.dest = None
+		self.targetCostumeId = -1
+		
+		fileSelectionRows = Tk.Frame( self.window )
+
+		ttk.Label( fileSelectionRows, text="Step 1 | Choose the source file you'd like to convert.\n\n(If selecting from the " \
+			"Disc File Tree, you may right-click \non the file and select 'Set as CCC Source File'.)", wraplength=350 ).grid( column=0, row=0, padx=15, pady=25 )
+		
+		row1RightCell = Tk.Frame( fileSelectionRows )
+
+		ttk.Button( row1RightCell, text='  Within a Disc  ', command=self.pointToDiscTab ).grid( column=0, row=0 )
+		ttk.Button( row1RightCell, text='  Standalone File  ', command=lambda: self.selectStandalone('source') ).grid( column=1, row=0 )
+		self.cccSourceCanvas = Tk.Canvas( row1RightCell, width=290, height=64, borderwidth=0, highlightthickness=0 )
+		self.cccIdentifiersXPos = 90
+		self.cccSourceCanvas.create_text( self.cccIdentifiersXPos, 20, anchor='w', font="-weight bold -size 10", fill=self.fontColor, text='Character: ' )
+		self.cccSourceCanvas.create_text( self.cccIdentifiersXPos, 44, anchor='w', font="-weight bold -size 10", fill=self.fontColor, text='Costume Color: ' )
+		self.cccSourceCanvas.insigniaImage = None
+		self.cccSourceCanvas.grid( column=0, row=1, columnspan=2, pady=7 )
+
+		row1RightCell.grid( column=1, row=0, pady=(22, 0) )
+
+		ttk.Label( fileSelectionRows, text='Step 2 | Choose a "destination" file of the desired color (and same character). ' \
+			'If you choose a destination file within a disc, that file will be replaced. If you choose a standalone file, a new ' \
+			"file will be created after the source file is converted.", wraplength=350 ).grid( column=0, row=1, padx=15, pady=25 )
+		
+		row2RightCell = Tk.Frame( fileSelectionRows )
+
+		ttk.Button( row2RightCell, text='  Within a Disc  ', command=self.pointToDiscTab ).grid( column=0, row=0 )
+		ttk.Button( row2RightCell, text='  Standalone File  ', command=self.chooseDestinationColor ).grid( column=1, row=0 )
+		self.cccDestCanvas = Tk.Canvas( row2RightCell, width=290, height=64, borderwidth=0, highlightthickness=0 ) #, background='blue'
+		self.cccDestCanvas.create_text( self.cccIdentifiersXPos, 20, anchor='w', font="-weight bold -size 10", fill=self.fontColor, text='Character: ' )
+		self.cccDestCanvas.create_text( self.cccIdentifiersXPos, 44, anchor='w', font="-weight bold -size 10", fill=self.fontColor, text='Costume Color: ' )
+		self.cccDestCanvas.insigniaImage = None
+		self.cccDestCanvas.grid( column=0, row=1, columnspan=2, pady=7 )
+
+		row2RightCell.grid( column=1, row=1 )
+		fileSelectionRows.pack( pady=0 )
+
+		finalButtonsFrame = Tk.Frame( self.window )
+		ttk.Button( finalButtonsFrame, text='    Step 3 | Convert!    ', command=self.convertCharacterColor ).pack( side='left', padx=25 )
+		#self.cccOpenConvertedFileButton = ttk.Button( finalButtonsFrame, text='    Open Converted File    ', command=openConvertedCharacterFile, state='disabled' )
+		#self.cccOpenConvertedFileButton.pack( side='left', padx=25 )
+		finalButtonsFrame.pack( pady=(5, 10) )
+
+		cccBannerFrame = Tk.Frame( self.window )
+		ttk.Label( cccBannerFrame, image=globalData.gui.imageBank('cccBanner') ).place(relx=0.5, rely=0.5, anchor='center')
+		cccBannerFrame.pack( fill='both', expand=1 )
+
+		# Set up the Drag-n-drop event handlers.
+		self.dnd = TkDnD( self.window )
+		for widget in fileSelectionRows.grid_slaves(row=0): self.dnd.bindtarget(widget, lambda event: self.dndHandler( event, 'source' ), 'text/uri-list')
+		for widget in fileSelectionRows.grid_slaves(row=1): self.dnd.bindtarget(widget, lambda event: self.dndHandler( event, 'dest' ), 'text/uri-list')
+
+	def dndHandler( self, event, role ):
+
+		""" Processes files that are drag-and-dropped onto the GUI. The paths that this event recieves are in one string, 
+			each enclosed in {} brackets (if they contain a space) and separated by a space. Turn this into a list. """
+
+		paths = event.data.replace('{', '').replace('}', '')
+		drive = paths[:2]
+
+		filepaths = [drive + path.strip() for path in paths.split(drive) if path != '']
+
+		self.root.deiconify() # Brings the main program window to the front (application z-order).
+		
+		if len( filepaths ) > 1:
+			msg( 'Please provide only one filepath.', parent=self.window )
+			return
+		
+		self.loadStandalone( filepaths[0], role )
+
+	def cancel( self ):
+		globalData.cccWindow = None
+		self.close()
+
+	def pointToDiscTab( self ):
+
+		""" Prompt to load a disc if one is not open, and then go to the Disc File Tree tab. """
+
+		mainGui = globalData.gui
+
+		# If a disc is not loaded, ask to load one
+		if not globalData.disc:
+			mainGui.promptToOpenFile( 'iso' )
+
+		# If a disc is loaded, load the Disc File Tree tab and switch to it
+		if globalData.disc:
+			mainGui.mainMenu.loadDiscManagement()
+			mainGui.root.deiconify()
+			mainGui.discTab.scrollToSection( 'Characters' )
+		
+	def selectStandalone( self, role ):
+
+		""" Prompts the user to select a standalone file (one not within a disc) for the source file to be converted. """
+
+		filepath = tkFileDialog.askopenfilename(
+			title="Choose a character texture file.",
+			parent=self.window,
+			initialdir=globalData.getLastUsedDir( 'dat' ),
+			filetypes=[ ('Texture data files', '*.dat *.usd *.lat *.rat'), ('All files', '*.*') ]
+			)
+
+		if filepath != '' and os.path.exists( filepath ):
+			globalData.setLastUsedDir( filepath, 'dat' )
+
+			# Load the new file
+			self.loadStandalone( filepath, role )
+
+	def loadStandalone( self, filepath, role ):
+
+		""" Load a filepath as a DAT file object, store it, and update the GUI with character/color names/images. """
+
+		try:
+			newFileObj = CharCostumeFile( None, -1, -1, '', extPath=filepath, source='file' )
+			newFileObj.validate()
+		except Exception as err:
+			print( 'Exception during file loading; {}'.format(err) )
+			globalData.gui.updateProgramStatus( 'Unable to load the file; ' + str(err), error=True )
+			newFileObj = None
+
+		if newFileObj:
+			self.updateSlotRepresentation( newFileObj, role )
+
+	def chooseDestinationColor( self ):
+
+		""" Prompts the user to choose a color slot to convert the source file into. 
+			Used in place of the 'destination' file if a disc file is not used. """
+
+		if not self.source:
+			msg( 'Please choose a source file first.', parent=self.window )
+			return
+
+		window = CharacterColorChooser( self.source.extCharId, master=self.window )
+		self.targetCostumeId = window.costumeId
+
+		self.updateSlotRepresentation( None, 'dest' )
+
+	# def createStandalone( self ):
+		
+	# 	# Get a save filepath from the user
+	# 	targetFile = tkFileDialog.asksaveasfilename(
+	# 		title="Where would you like to save the {} file?".format( fileExt[1:].upper() ),
+	# 		initialdir=globalData.getLastUsedDir(),
+	# 		initialfile=initialFilename,
+	# 		defaultextension=fileExt,
+	# 		filetypes=[ (fileTypeDescription, fileExt), ("All files", "*") ]
+	# 		)
+	# 	if targetFile == '':
+	# 		return # No filepath; user canceled
+			
+	#def prepareColorConversion( self, filepath, datHex, role ): # datHex includes the file header
+
+	def clearSlotRepresentation( self, role ):
+
+		""" Remove the insignia image and reset the character/color text for the source or destination canvas. """
+
+		if role == 'source':
+			canvas = self.cccSourceCanvas
+		else:
+			canvas = self.cccDestCanvas
+		
+		# Remove existing canvas items and store the image generated above
+		canvas.delete( 'all' )
+		canvas.create_text( self.cccIdentifiersXPos, 20, anchor='w', font="-weight bold -size 10", fill=self.fontColor, text='Character: ' )
+		canvas.create_text( self.cccIdentifiersXPos, 44, anchor='w', font="-weight bold -size 10", fill=self.fontColor, text='Costume Color: ' )
+		canvas.insigniaImage = None
+
+	def updateSlotRepresentation( self, fileObj, role ):
+		
+		charAbbr = ''
+		colorAbbr = ''
+		
+		if role == 'source':
+			self.source = fileObj
+			canvas = self.cccSourceCanvas
+
+			if not fileObj:
+				self.clearSlotRepresentation( role )
+				return
+
+			# Reset the destination file/color
+			self.clearSlotRepresentation( 'dest' )
+		else:
+			self.dest = fileObj
+			canvas = self.cccDestCanvas
+
+		# Get the character and color abbreviations (along with some validation)
+		if fileObj:
+			fileObj.initialize()
+			firstString = fileObj.rootNodes[0][1] # First root node symbol
+
+			if not firstString[:3] == 'Ply':
+				msg( "This file doesn't appear to be a character costume!", parent=self.window )
+			elif '5K' not in firstString:
+				if 'Kirby' in firstString:
+					msg( "Only Kirby's base color files are supported (e.g. 'PlKbBu'). "
+						"You'll have to modify this one manually. Luckily, none of his files have many textures.", parent=self.window )
+				else: # If here, this must be Master/Crazy Hand, or one of the Fighting Wire Frames.
+					msg( "This character doesn't have multiple color files. \nThere is nothing to convert.", parent=self.window )
+				self.clearSlotRepresentation( role )
+				return
+			else:
+				charAbbr = fileObj.charAbbr
+				colorAbbr = fileObj.colorAbbr
+
+		elif self.targetCostumeId == -1:
+			# Role must be 'dest', since there's no fileObj
+			self.clearSlotRepresentation( role )
+			return
+
+		else:
+			# Role must be 'dest', since there's no fileObj
+			charAbbr = self.source.charAbbr
+			colorAbbr = globalData.costumeSlots[charAbbr][self.targetCostumeId]
+		
+		# Parse the string for character and color slot
+		#charKey, colorAbbr = firstString[3:].split( '5K' )
+		# colorAbbr = firstString.split( '5K' )[1]
+		# if colorAbbr.startswith( '_' ): colorAbbr = 'Nr'
+		# else: colorAbbr = colorAbbr.split('_')[0]
+		
+		# Get a list of character names (indexed by external ID)
+		# charList = globalData.charList[:0x1A]
+		# charList = charList[:0x12] + ['Zelda/Sheik'] + charList[0x14:]
+
+		# if charAbbr == 'Gw':
+		# 	msg( 'Game & Watch has no costume slots to swap!', parent=self.window )
+		# 	charAbbr = ''
+		# if charAbbr == 'Gk': msg( 'Giga Bowser only has one color file! \nThere is nothing to convert.', parent=self.window )
+		# elif charAbbr == 'Pe' and colorAbbr == 'Ye':
+		# 	msg("Peach's yellow costume has too many differences from the other colors to map. You'll need to convert this costume manually. (Using the DAT Texture Tree tab to "
+		# 		"dump all textures from the source file, and then you can use those to replace the textures in the destination file. Although there are likely textures "
+		# 		"that do not have equivalents.) Sorry about that; this is actually the only character & color combination not supported by this tool.", parent=self.window )
+		# elif charKey not in CCC or colorAbbr not in CCC[charKey]:
+		# elif extCharId >= len( globalData.charList ):
+		# 	# Failsafe scenario. Shouldn't actually be able to get here now that everything besides yellow Peach (handled above) should be mapped.
+		# 	msg( 'This character or color is not supported. \n\nID (first root node string): ' + firstString + \
+		# 		'\n\nCharacter key found: ' + str(charKey in CCC) + '\nColor key found: ' + str(colorAbbr in charColorLookup), parent=self.window )
+		# else:
+
+		if not charAbbr:
+			msg( 'This character could not be determined or is not supported. \n\nID (first root node string): ' + firstString, parent=self.window )
+			self.clearSlotRepresentation( role )
+			return
+		elif not colorAbbr:
+			msg( 'This color slot could not be determined or is not supported. \n\nID (first root node string): ' + firstString, parent=self.window )
+			self.clearSlotRepresentation( role )
+			return
+
+		# Get an image that is greyscale with alpha
+		insigniaPath = os.path.join( globalData.paths['imagesFolder'], 'Universe Insignias', globalData.universeNames[charAbbr] + ".png" )
+		greyscaleInsignia = Image.open( insigniaPath ).convert( 'L' )
+
+		# Look up the color to use for the insignia
+		insigniaColor = globalData.charColorLookup.get( colorAbbr, 'white' )
+		if insigniaColor == 'neutral': insigniaColor = ( 210, 210, 210, 255 )
+
+		# Create a blank canvas, and combine the other images onto it
+		blankImage = Image.new( 'RGBA', greyscaleInsignia.size, (0, 0, 0, 0) )
+		colorScreen = Image.new( 'RGBA', greyscaleInsignia.size, insigniaColor )
+		completedInsignia = ImageTk.PhotoImage( Image.composite(blankImage, colorScreen, greyscaleInsignia) )
+		
+		# Remove existing canvas items and store the image generated above
+		canvas.delete('all')
+		canvas.insigniaImage = completedInsignia
+
+		# Attache the images to the canvas
+		canvas.create_image( 0, 0, image=canvas.insigniaImage, anchor='nw' )
+
+		charName = globalData.charNameLookup[charAbbr].split( ']' )[-1].lstrip()
+		colorName = globalData.charColorLookup.get( colorAbbr, 'Unknown' ).capitalize()
+		canvas.create_text( self.cccIdentifiersXPos, 20, anchor='w', fill=self.fontColor, font="-weight bold -size 10", text='Character: ' + charName )
+		canvas.create_text( self.cccIdentifiersXPos, 44, anchor='w', fill=self.fontColor, font="-weight bold -size 10", text='Costume Color: ' + colorName )
+
+		# Bring this window to the front
+		self.window.deiconify()
+
+	def convertCharacterColor( self ):
+
+		# Validate input
+		if not self.source:
+			msg( 'You must choose a source file first.', parent=self.window )
+			return
+		elif self.dest and self.source.extCharId != self.dest.extCharId:
+			msg( 'Both files must be for the same character.', '''"I can't let you do that, Star Fox!"''', parent=self.window )
+			return
+
+		origColorAbbr = self.source.colorAbbr
+		if self.dest:
+			newColorAbbr = self.dest.colorAbbr
+		elif self.targetCostumeId == -1:
+			msg( 'You must choose a destination file or target color first.', parent=self.window )
+			return
+		else:
+			newColorAbbr = globalData.costumeSlots[self.source.charAbbr][self.targetCostumeId]
+
+		if origColorAbbr == newColorAbbr:
+			if self.dest:
+				msg( 'These character costumes are for the same color!\nThere is nothing to convert.', parent=self.window )
+			else:
+				msg( 'The costume file is already the selected destination color!\nThere is nothing to convert.', parent=self.window )
+			return
+
+		print( 'source:', origColorAbbr )
+		print( 'target:', newColorAbbr )
+
+		# Check what kind of strings we're updating from (neutral slot or other?)
+		firstString = self.source.rootNodes[0][1] # First root node symbol
+		charKey, colorKey = firstString[3:].split( '5K' ) # e.g. PlyZelda5KWh_Share_joint or PlyZelda5K_Share_joint
+		if colorKey.startswith( '_' ): origColorAbbr = 'Nr'
+		else: origColorAbbr = colorKey.split( '_' )[0]
+
+		# Update the root node strings/symbols
+		newRootNodes = []
+		if origColorAbbr == 'Nr':
+			for offset, _ in self.source.rootNodes:
+				newString = ''
+				newRootNodes.append( (offset, newString) )
+
+		
+# def openConvertedCharacterFile():
+
+# 	""" This function is used by the Character Color Converter (CCC) tab, for opening a finished/converted costume file in 
+# 		the DAT Texture Tree tab. This is useful for making sure the conversion was successful and the new textures are intact. """
+
+# 	destFilepath = CCC['dataStorage']['destFile']
+
+# 	if Gui.isoFileTree.exists( destFilepath ): 
+# 		loadFileWithinDisc( destFilepath ) # 'destFilepath' will actually be an iid in this case.
+# 	else: 
+# 		fileHandler( [destFilepath] )

@@ -350,7 +350,7 @@ class BasicWindow( object ):
 		if minsize[0] != -1:
 			self.window.minsize( width=minsize[0], height=minsize[1] )
 
-		# Override the 'X' close button functionality (cancel methods should also call close when they're done)
+		# Override the 'X' close button functionality (all cancel methods should also call close when they're done)
 		cancelMethod = getattr( self, "cancel", None )
 		if cancelMethod and callable( cancelMethod ):
 			self.window.protocol( 'WM_DELETE_WINDOW', self.cancel )
@@ -450,6 +450,59 @@ class CharacterChooser( BasicWindow ):
 
 	def cancel( self ):
 		self.charId = -1
+		self.costumeId = -1
+		self.close()
+
+
+class CharacterColorChooser( BasicWindow ):
+
+	""" Prompts the user to choose a color slot for a given character. This references external character ID and 
+		costume ID, the latter of which will be returned when this window closes. 
+		This window will block the main interface until a selection is made. """
+
+	def __init__( self, charId, message='', master=None ):
+
+		if not master:
+			master = globalData.gui.root
+
+		BasicWindow.__init__( self, master, 'Select a Character Color Slot', offsets=(300, 300) )
+		
+		self.emptySelection = '- - -'
+		self.charId = charId # External ID
+		self.costumeId = -1
+
+		if message: # Optional user message
+			ttk.Label( self.window, text=message, wraplength=500 ).pack( padx=14, pady=(12, 0) )
+		
+		# Get the character and costume color abbreviations for the chosen character
+		charAbbreviation = globalData.charAbbrList[self.charId]
+		self.costumeSlots = globalData.costumeSlots[charAbbreviation]
+
+		# Format the color options with human-readable names
+		costumeOptions = [ '{}  ({})'.format(abbr, globalData.charColorLookup.get(abbr, 'N/A')) for abbr in self.costumeSlots ]
+		
+		colorChoice = Tk.StringVar()
+		self.colorDropdown = ttk.OptionMenu( self.window, colorChoice, self.emptySelection, *costumeOptions, command=self.colorSelected )
+		self.colorDropdown.pack( pady=(4, 0) )
+		
+		buttonFrame = ttk.Frame( self.window )
+		ttk.Button( buttonFrame, text='Confirm', command=self.close ).grid( column=0, row=0, padx=6 )
+		ttk.Button( buttonFrame, text='Cancel', command=self.cancel ).grid( column=1, row=0, padx=6 )
+		buttonFrame.pack( padx=20, pady=(4, 12) )
+
+		# Make this window modal (will not allow the user to interact with main GUI until this is closed)
+		self.window.grab_set()
+		globalData.gui.root.wait_window( self.window )
+
+	def colorSelected( self, selectedOption ):
+
+		""" Called when the user changes the current selection. Sets the currently 
+			selected character ID, and populates the costume color drop-down. """
+
+		self.costumeId = self.costumeSlots.index( selectedOption.split()[0] )
+		self.close()
+
+	def cancel( self ):
 		self.costumeId = -1
 		self.close()
 
@@ -633,11 +686,13 @@ class PopupScrolledTextWindow( BasicWindow ):
 
 	def cleanup( self, event='' ):
 		self.entryText = self.entry.get( '1.0', 'end' ).strip()
-		self.window.destroy()
+		#self.window.destroy()
+		self.close()
 
 	def cancel( self, event='' ):
 		self.entryText = ''
-		self.window.destroy()
+		#self.window.destroy()
+		self.close()
 
 
 class VanillaDiscEntry( PopupEntryWindow ):

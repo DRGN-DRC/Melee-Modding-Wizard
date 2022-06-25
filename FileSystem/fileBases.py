@@ -25,7 +25,6 @@ import globalData
 import hsdStructures
 from tplCodec import TplDecoder, TplEncoder
 from basicFunctions import uHex, msg, printStatus, createFolders
-#from . import fileStructures
 
 showLogs = False
 
@@ -474,6 +473,8 @@ class DatFile( FileBase ):
 		self.headerData = self.data[:0x20]
 		self.data = self.data[0x20:]
 		self.parseHeader()
+		if not self.headerInfo:
+			return # Unable to parse
 		
 		# Other file sections can now be separated out, using information from the header
 		stringTableStart = self.headerInfo['stringTableStart']
@@ -483,10 +484,8 @@ class DatFile( FileBase ):
 		# Parse the RT and String Table
 		self.parseRelocationTable()
 		stringTableLength = self.parseStringTable()
-		#assert stringTableLength != -1, 'Invalid string table length; unable to parse string table'
-		if showLogs and stringTableLength == -1:
-			print 'Invalid string table length; unable to parse string table'
-			return
+		if not stringTableLength > 0:
+			return # Unable to parse
 		
 		# Separate out other file sections using the info gathered above
 		self.stringTableData = self.data[ stringTableStart : stringTableStart + stringTableLength ]
@@ -516,6 +515,10 @@ class DatFile( FileBase ):
 			filesize, rtStart, rtEntryCount, rootNodeCount, referenceNodeCount = struct.unpack( '>5I', self.headerData[:0x14] )
 			rtEnd = rtStart + ( rtEntryCount * 4 )
 			rootNodesEnd = rtEnd + ( rootNodeCount * 8 ) # Each root/reference node table entry is 8 bytes
+
+			# Assume no DAT file is larger than 10 MB, or has more than 100 K pointers
+			assert filesize <= 10485760, 'Invalid DAT file; unexpectedly large filesize value: ' + str( filesize )
+			assert rtEntryCount <= 100000, 'Invalid DAT file; unexpectedly high number of pointers: ' + str( rtEntryCount )
 
 			self.headerInfo = {
 				'filesize': filesize,
@@ -573,6 +576,8 @@ class DatFile( FileBase ):
 				string = stringBytes.decode( 'ascii' ) # Convert the bytearray to a text string
 				self.stringDict[stringTableLength] = string
 				stringTableLength += len( string ) + 1 # +1 to account for null terminator
+
+			assert stringTableLength > 0, 'Invalid string table length; unable to parse string table.'
 
 			return stringTableLength
 
@@ -1638,12 +1643,12 @@ class DatFile( FileBase ):
 		# Update root nodes
 		newRootNodes = []
 		nodesModified = False
-		for structOffset, stringOffset in self.rootNodes:
+		for structOffset, string in self.rootNodes:
 			# Collect unaffected nodes
 			if structOffset < extensionOffset:
-				newRootNodes.append( (structOffset, stringOffset) )
+				newRootNodes.append( (structOffset, string) )
 			else: # Struct offset is past the affected area; needs to be increased
-				newRootNodes.append( (structOffset + amount, stringOffset) )
+				newRootNodes.append( (structOffset + amount, string) )
 				nodesModified = True
 		if nodesModified:
 			self.rootNodes = newRootNodes
@@ -1652,12 +1657,12 @@ class DatFile( FileBase ):
 		# Update reference nodes
 		newRefNodes = []
 		nodesModified = False
-		for structOffset, stringOffset in self.referenceNodes:
+		for structOffset, string in self.referenceNodes:
 			# Collect unaffected nodes
 			if structOffset < extensionOffset:
-				newRefNodes.append( (structOffset, stringOffset) )
+				newRefNodes.append( (structOffset, string) )
 			else: # Struct offset is past the affected area; needs to be reduced
-				newRefNodes.append( (structOffset + amount, stringOffset) )
+				newRefNodes.append( (structOffset + amount, string) )
 				nodesModified = True
 		if nodesModified:
 			self.referenceNodes = newRefNodes
@@ -2054,4 +2059,3 @@ class DatFile( FileBase ):
 			paletteData = self.getData( paletteDataOffset, paletteLength )
 
 		return paletteData, paletteType
-

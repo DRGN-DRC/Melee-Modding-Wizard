@@ -84,7 +84,8 @@ class CharDataFile( CharFileBase, DatFile ):
 
 	def validate( self ):
 
-		""" Verifies whether this is actually a character data file by checking the string table. """
+		""" Verifies whether this is actually a character data file by checking the string table. 
+			This will also initialize the file and retrieve its file data. """
 
 		self.initialize()
 		rootNodeName = self.rootNodes[0][1]
@@ -335,7 +336,8 @@ class CharCostumeFile( CharFileBase, DatFile ):
 
 	def validate( self ):
 
-		""" Verifies whether this is actually a character costume file by checking the string table. """
+		""" Verifies whether this is actually a character costume file by checking the string table. 
+			This will also initialize the file and retrieve its file data. """
 
 		self.initialize()
 		rootNodeName = self.rootNodes[0][1]

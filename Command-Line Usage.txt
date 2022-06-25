@@ -14,13 +14,13 @@
     >=- Overview
     >==----------
 
-	Most of the command-line functionality is organized into a few "Operation Groups", which
-	must be specified to access specific features. For example:
+	Most of the command-line functionality is organized into a few "operation groups", which
+	must be specified to access features within them. For example:
 
-		"MMW.exe disc --discPath [filePath] --info"
+		"MMW.exe" disc --discPath [filePath] --info
 
-	In this case, "disc" is the operation group name. Here is a short description of each
-	group and the operations/arguments within them. Switches that are specific to one of these 
+	In this case, "disc" is the operation group name. Here is a short description of each group 
+	and the operations/arguments within them. Other switches that are specific to one of these 
 	features are not included here. See the sections below for more detail on a specifc operation.
 	Details for specific op groups can also be viewed using the command "MMW.exe [opGroup] -h".
 
@@ -38,12 +38,12 @@
 		--boot			Boot test a given stage/character in Dolphin
 		--validate		Test whether files are of an expected type
 
-WIP!	    = Code Operations
+  WIP!	    = Code Operations
 		--install		Install a list of given mods
 		--library		Specify the library to install from (if not using default)
 
 
-	These arguments are exceptions, and do not require an operation group:
+	These arguments do not require an operation group:
 
 		--help (-h)		Show the program's help message and exit
 		--version (-v)		Show program's version number and exit

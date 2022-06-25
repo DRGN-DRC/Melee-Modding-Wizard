@@ -42,7 +42,8 @@ def init( programArgs ):
 	""" If any check on settings will be required, call 'globalData.loadProgramSettings()' first to fully initialize them. """
 
 	global scriptHomeFolder, paths, defaultSettings, defaultBoolSettings, settings, boolSettings, overwriteOptions
-	global codeProcessor, dolphinController, gui, disc, dol, codeMods, standaloneFunctions, fileStructureClasses, programEnding
+	global codeProcessor, dolphinController, gui, disc, dol, codeMods, standaloneFunctions, fileStructureClasses
+	global cccWindow, programEnding
 
 	scriptHomeFolder = os.path.abspath( os.path.dirname(programArgs[0]) ) # Can't use __file__; incompatible with cx_freeze process
 
@@ -106,6 +107,7 @@ def init( programArgs ):
 	gui = None
 	disc = None
 	dol = None # A vanilla DOL not associated with a disc
+	cccWindow = None
 
 	codeMods = []
 	standaloneFunctions = {} # Key='functionName', value=( functionRamAddress, codeChangeObj )
@@ -338,7 +340,7 @@ def getRecentFilesLists():
 
 def setLastUsedDir( savePath, category='default', fileExt='', saveSettings=True ):
 	
-	""" Normalizes the give path (and converts to a folder path if a file path was given) 
+	""" Normalizes the given path (and converts to a folder path if a file path was given) 
 		and sets it as the default program directory. This can be used on a per-file-type 
 		basis; for example, a last used dir for discs, or a last used dir for music files. """
 
@@ -674,6 +676,46 @@ charNameLookup = {
 	'Wf': 'Wolf',
 	'Ys': 'Yoshi',
 	'Zd': 'Zelda'
+}
+
+
+universeNames = {
+	'Bo': 'SSB',
+	'Ca': 'F-Zero',
+	'Ch': 'SSB',
+	'Cl': 'The Legend of Zelda',
+	'Co': 'SSB',
+	'Dk': 'Donkey Kong',
+	'Dr': 'Mario',
+	'Fc': 'Star Fox',
+	'Fe': 'Fire Emblem',
+	'Fx': 'Star Fox',
+	'Gk': 'SSB',
+	'Gl': 'SSB',
+	'Gn': 'The Legend of Zelda',
+	'Gw': 'Game & Watch',
+	'Kb': 'Kirby',
+	'Kp': 'Mario',
+	'Lg': 'Mario',
+	'Lk': 'The Legend of Zelda',
+	'Mh': 'SSB',
+	'Mr': 'Mario',
+	'Ms': 'Fire Emblem',
+	'Mt': 'Pokemon',
+	'Nn': 'Ice Climber',
+	'Ns': 'EarthBound',
+	'Pc': 'Pokemon',
+	'Pe': 'Mario',
+	'Pk': 'Pokemon',
+	'Pn': 'Ice Climber',
+	'Pp': 'Ice Climber',
+	'Pr': 'Pokemon',
+	'Sb': 'SSB',
+	'Sk': 'The Legend of Zelda',
+	'Ss': 'Metroid',
+	'Wf': 'Star Fox',
+	'Ys': 'Yoshi',
+	'Zd': 'The Legend of Zelda',
 }
 
 

@@ -405,7 +405,8 @@ def saveAndShowTempFileData( fileData, filename ):
 
 	""" Saves binary to a new temporary file, and opens it in the user's hex editor of choice. """
 
-	hexEditorPath = globalData.getHexEditorPath() # Will also validate the path
+	# Get the file path to the hex editor (prompts user if needed and validates the path)
+	hexEditorPath = globalData.getHexEditorPath()
 	if not hexEditorPath: return # User may have canceled the prompt
 
 	# Create the temporary file path, and any folders that might be needed
@@ -442,7 +443,6 @@ class ListDict(_OrderedDict):
 
 		By:     jarydks
 		Source: https://gist.github.com/jaredks/6276032
-
 	"""
 
 	def __insertion(self, link_prev, key_value):
@@ -479,8 +479,7 @@ class CodeModEncoder(json.JSONEncoder):
 		
 		By:     martineau
 		Source: https://stackoverflow.com/questions/42710879/write-two-dimensional-list-to-json-file
-
-		"""
+	"""
 
 	FORMAT_SPEC = '@@{}@@'  # Unique string pattern of NoIndent object ids.
 	regex = re.compile(FORMAT_SPEC.format(r'(\d+)'))  # compile(r'@@(\d+)@@')
