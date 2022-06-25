@@ -1870,11 +1870,11 @@ class Disc( object ):
 
 		if userFolder:
 			symbolMapPath = os.path.join( userFolder, 'Maps', self.gameId + '.map' )
-			print 'Map file updated and placed in Dolphin maps folder'
+			print( 'Map file updated and placed in Dolphin maps folder' )
 		else: # Save with the disc
 			discFolder = os.path.dirname( self.filePath )
 			symbolMapPath = os.path.join( discFolder, self.gameId + '.map' )
-			print 'Map file updated and placed with the disc'
+			print( 'Map file updated and placed with the disc' )
 
 		# Back-up any existing file
 		try: os.rename( symbolMapPath, symbolMapPath + '.bak' )

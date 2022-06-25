@@ -386,7 +386,7 @@ class ToolsMenu( Tk.Menu, object ):
 
 		# Get the disc's short title from the banner file
 		bannerFile = globalData.disc.getBannerFile()
-		defaultPatchName = os.path.splitext( bannerFile.shortTitle )[0] + ' patch.xdelta'
+		defaultPatchName = bannerFile.shortTitle + ' patch.xdelta'
 
 		# Get the output directory and file name for the patch
 		savePath = tkFileDialog.asksaveasfilename(
