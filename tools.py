@@ -42,7 +42,7 @@ from codeMods import CodeLibraryParser
 from basicFunctions import msg, uHex, cmdChannel, printStatus, humansize
 from guiSubComponents import ( 
 	BasicWindow, CharacterColorChooser, ColoredLabelButton, 
-	VerticalScrolledFrame, cmsg, Dropdown, 
+	VerticalScrolledFrame, cmsg, Dropdown, exportSingleFileWithGui, 
 	getNewNameFromUser, LabelButton )
 
 
@@ -1885,12 +1885,47 @@ class CharacterColorConverter( BasicWindow ):
 		else: origColorAbbr = colorKey.split( '_' )[0]
 
 		# Update the root node strings/symbols
-		newRootNodes = []
+		self.source = []
 		if origColorAbbr == 'Nr':
-			for offset, _ in self.source.rootNodes:
-				newString = ''
-				newRootNodes.append( (offset, newString) )
+			# Add color abbreviations to strings
+			for offset, oldString in self.source.rootNodes:
+				charKey, colorKey = oldString.split( '5K' )
+				newString = charKey + '5K' + newColorAbbr + colorKey
+				self.source.append( (offset, newString) )
+			fileSizeDiff = 2 * len( self.source.rootNodes )
+		elif newColorAbbr == 'Nr':
+			# Remove color abbreviations from strings
+			for offset, oldString in self.source.rootNodes:
+				charKey, colorKey = oldString.split( '5K' )
+				newString = charKey + '5K' + colorKey[2:]
+				self.source.append( (offset, newString) )
+			fileSizeDiff = -2 * len( self.source.rootNodes )
+		else:
+			# Change color abbreviations to new ones
+			for offset, oldString in self.source.rootNodes:
+				charKey, colorKey = oldString.split( '5K' )
+				newString = charKey + '5K' + newColorAbbr + colorKey[2:]
+				self.source.append( (offset, newString) )
+			fileSizeDiff = 0
 
+		if fileSizeDiff != 0:
+			self.source.headerInfo['filesize'] += fileSizeDiff
+		
+		# Update file data
+		self.source.headerNeedsRebuilding = True
+		self.source.stringsNeedRebuilding = True
+		self.getFullData()
+
+		# Update the filename
+		#if self.source.isoPath:
+		# gameFileName = 'Pl{}{}'.format( self.source.charAbbr, origColorAbbr )
+		# if gameFileName in self.source.filename:
+
+
+		if self.dest: # Saving to a disc (replace existing file)
+			globalData.disc.replaceFile( self.dest, self.source )
+		else: # Saving to an external file
+			exportSingleFileWithGui( self.source, self.window )
 		
 # def openConvertedCharacterFile():
 

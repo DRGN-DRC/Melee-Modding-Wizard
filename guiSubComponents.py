@@ -72,17 +72,20 @@ def getColoredShape( imageName, color, getAsPilImage=False, subFolder='' ):
 		return ImageTk.PhotoImage( finishedShape )
 
 
-def exportSingleFileWithGui( fileObj ):
+def exportSingleFileWithGui( fileObj, master=None ):
 
 	""" Exports a single file, while prompting the user on where they'd like to save it. 
 		Updates the default directory to search in when opening or exporting files. 
 		Also handles updating the GUI with the operation's success/failure status. """
+
+	if not master:
+		master = globalData.gui.root
 	
 	# Prompt for a place to save the file.
 	fileExt = fileObj.ext[1:] # Removing dot
 	savePath = tkFileDialog.asksaveasfilename(
 		title="Where would you like to export the file?",
-		parent=globalData.gui.root,
+		parent=master,
 		initialdir=globalData.getLastUsedDir(),
 		initialfile=fileObj.filename,
 		defaultextension=fileExt,
