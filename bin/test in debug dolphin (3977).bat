@@ -1,1 +1,0 @@
-"D:\Games\- Emulators -\Dolphin\Dolphin (5.0-3977)\Dolphin.exe" -d %1
