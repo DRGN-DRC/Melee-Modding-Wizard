@@ -1,7 +1,9 @@
-# Melee Modding Wizard (DTW)
+# Melee Modding Wizard (MMW)
+![Melee Modding Wizard](/imgs/logo.png)
+
 This program provides a large variety of features and tools for modding Super Smash Bros. Melee and the 20XX Hack Pack. This incorporates major functions of DTW, such as game disc and extracted disc root/folder operations, as well as a suit of code development and installation tools from MCM.
 
-Check out the thread here for a broader overview of its capabilities: [Melee Modding Wizard on SmashBoards.com]()
+Check out the thread here for a broader feature overview: [Melee Modding Wizard on SmashBoards.com]()
 
 ## Installation & Setup
 
@@ -10,19 +12,19 @@ I've included the dependencies and wrote a simple installer for them. It'll inst
 ## Credits, Copyright, and Licenses
 * **MeleeMedia**   ( [Website](https://smashboards.com/threads/meleemedia-mth-thp-and-hps-conversion.505591/) | [GitHub](https://github.com/Ploaj/MeleeMedia) )    `- Converts audio and video formats`
     - Created by Ploaj (2020)
-* **png.py**  ( [Website](https://pypng.readthedocs.io/en/latest/) | [GitHub](https://github.com/drj11/pypng/) )    `- PNG codec used within the TPL codec`
+* **png.py**       ( [Website](https://pypng.readthedocs.io/en/latest/) | [GitHub](https://github.com/drj11/pypng/) )    `- PNG codec used within the TPL codec`
     - Copyright (c) 2015 Pavel Zlatovratskii <scondo@mail.ru>
     - Copyright (c) 2006 Johann C. Rocholl <johann@browsershots.org>
     - Portions Copyright (C) 2009 David Jones <drj@pobox.com>
     - And probably portions Copyright (C) 2006 Nicko van Someren <nicko@nicko.org>
     - Original concept by Johann C. Rocholl.
     - MIT License
-* **pngquant** ( [Website](https://pngquant.org/) | [GitHub](https://github.com/kornelski/pngquant) )    `- Used in palette and CSP trim color generation`
+* **pngquant**      ( [Website](https://pngquant.org/) | [GitHub](https://github.com/kornelski/pngquant) )    `- Used in palette and CSP trim color generation`
     - Copyright (c) by Kornel Lesiński (2009-2018), Greg Roelofs (1997-2002), and Jef Poskanzer (1989, 1991)
     - Licensed under GPL v3 or later
-* **wimgt**   ( [Website](https://szs.wiimm.de/wimgt/) | [GitHub](https://github.com/Wiimm/wiimms-szs-tools) )    `- Used for CMPR (type _14) texture encoding`
+* **wimgt**        ( [Website](https://szs.wiimm.de/wimgt/) | [GitHub](https://github.com/Wiimm/wiimms-szs-tools) )    `- Used for CMPR (type _14) texture encoding`
     - Copyright (c) by Wiimm (2011)
     - GNU GPL v2 or later
-* **xxHash**  ( [PyPI](https://pypi.org/project/xxhash/) | [GitHub](https://github.com/ifduyue/python-xxhash) )      `- Used for Dolphin hash generation`
+* **xxHash**    ( [PyPI](https://pypi.org/project/xxhash/) | [GitHub](https://github.com/ifduyue/python-xxhash) )      `- Used for Dolphin hash generation`
     - Copyright (c) by Yue Du (2014-2020)
     - Licensed under [BSD 2-Clause License](http://opensource.org/licenses/BSD-2-Clause)
