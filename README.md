@@ -3,7 +3,7 @@
 
 This program provides a large variety of features and tools for modding Super Smash Bros. Melee and the 20XX Hack Pack. This incorporates major functions of DTW, such as game disc and extracted disc root/folder operations, as well as a suit of code development and installation tools from MCM.
 
-Check out the thread here for a broader feature overview: [Melee Modding Wizard on SmashBoards.com]()
+Check out the thread here for a broader feature overview: [Melee Modding Wizard on SmashBoards.com](https://smashboards.com/threads/melee-modding-wizard-beta-v0-9-3.517823/)
 
 ## Installation & Setup
 
