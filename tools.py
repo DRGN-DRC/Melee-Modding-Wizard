@@ -39,7 +39,7 @@ from newTkDnD.tkDnD import TkDnD
 from FileSystem.disc import Disc
 from FileSystem import CharCostumeFile
 from codeMods import CodeLibraryParser
-from basicFunctions import msg, uHex, cmdChannel, printStatus, humansize
+from basicFunctions import msg, saveAndShowTempFileData, uHex, cmdChannel, printStatus, humansize
 from guiSubComponents import ( 
 	BasicWindow, CharacterColorChooser, ColoredLabelButton, 
 	VerticalScrolledFrame, cmsg, Dropdown, exportSingleFileWithGui, 
@@ -1583,7 +1583,7 @@ class CharacterColorConverter( BasicWindow ):
 		row1RightCell = Tk.Frame( fileSelectionRows )
 
 		ttk.Button( row1RightCell, text='  Within a Disc  ', command=self.pointToDiscTab ).grid( column=0, row=0 )
-		ttk.Button( row1RightCell, text='  Standalone File  ', command=lambda: self.selectStandalone('source') ).grid( column=1, row=0 )
+		ttk.Button( row1RightCell, text='  Standalone File  ', command=self.selectStandaloneSource ).grid( column=1, row=0 )
 		self.cccSourceCanvas = Tk.Canvas( row1RightCell, width=290, height=64, borderwidth=0, highlightthickness=0 )
 		self.cccIdentifiersXPos = 90
 		self.cccSourceCanvas.create_text( self.cccIdentifiersXPos, 20, anchor='w', font="-weight bold -size 10", fill=self.fontColor, text='Character: ' )
@@ -1611,7 +1611,7 @@ class CharacterColorConverter( BasicWindow ):
 		fileSelectionRows.pack( pady=0 )
 
 		finalButtonsFrame = Tk.Frame( self.window )
-		ttk.Button( finalButtonsFrame, text='    Step 3 | Convert!    ', command=self.convertCharacterColor ).pack( side='left', padx=25 )
+		ttk.Button( finalButtonsFrame, text='    Step 3 | Convert!    ', command=self.prepareColorConversion ).pack( side='left', padx=25 )
 		#self.cccOpenConvertedFileButton = ttk.Button( finalButtonsFrame, text='    Open Converted File    ', command=openConvertedCharacterFile, state='disabled' )
 		#self.cccOpenConvertedFileButton.pack( side='left', padx=25 )
 		finalButtonsFrame.pack( pady=(5, 10) )
@@ -1663,7 +1663,7 @@ class CharacterColorConverter( BasicWindow ):
 			mainGui.root.deiconify()
 			mainGui.discTab.scrollToSection( 'Characters' )
 		
-	def selectStandalone( self, role ):
+	def selectStandaloneSource( self ):
 
 		""" Prompts the user to select a standalone file (one not within a disc) for the source file to be converted. """
 
@@ -1678,7 +1678,7 @@ class CharacterColorConverter( BasicWindow ):
 			globalData.setLastUsedDir( filepath, 'dat' )
 
 			# Load the new file
-			self.loadStandalone( filepath, role )
+			self.loadStandalone( filepath, 'source' )
 
 	def loadStandalone( self, filepath, role ):
 
@@ -1730,8 +1730,10 @@ class CharacterColorConverter( BasicWindow ):
 
 		if role == 'source':
 			canvas = self.cccSourceCanvas
+			self.source = None
 		else:
 			canvas = self.cccDestCanvas
+			self.dest = None
 		
 		# Remove existing canvas items and store the image generated above
 		canvas.delete( 'all' )
@@ -1751,9 +1753,6 @@ class CharacterColorConverter( BasicWindow ):
 			if not fileObj:
 				self.clearSlotRepresentation( role )
 				return
-
-			# Reset the destination file/color
-			self.clearSlotRepresentation( 'dest' )
 		else:
 			self.dest = fileObj
 			canvas = self.cccDestCanvas
@@ -1786,21 +1785,29 @@ class CharacterColorConverter( BasicWindow ):
 			# Role must be 'dest', since there's no fileObj
 			charAbbr = self.source.charAbbr
 			colorAbbr = globalData.costumeSlots[charAbbr][self.targetCostumeId]
-		
-		# Parse the string for character and color slot
-		#charKey, colorAbbr = firstString[3:].split( '5K' )
-		# colorAbbr = firstString.split( '5K' )[1]
-		# if colorAbbr.startswith( '_' ): colorAbbr = 'Nr'
-		# else: colorAbbr = colorAbbr.split('_')[0]
-		
-		# Get a list of character names (indexed by external ID)
-		# charList = globalData.charList[:0x1A]
-		# charList = charList[:0x12] + ['Zelda/Sheik'] + charList[0x14:]
 
-		# if charAbbr == 'Gw':
-		# 	msg( 'Game & Watch has no costume slots to swap!', parent=self.window )
-		# 	charAbbr = ''
-		# if charAbbr == 'Gk': msg( 'Giga Bowser only has one color file! \nThere is nothing to convert.', parent=self.window )
+		# Check for unsupported characters
+		if charAbbr == 'Gw':
+			msg( 'Game & Watch has no costume slots to swap!', parent=self.window )
+			self.clearSlotRepresentation( role )
+			return
+		elif charAbbr == 'Gk':
+			msg( 'Giga Bowser has no costume slots to swap!', parent=self.window )
+			self.clearSlotRepresentation( role )
+			return		  # Falcon/Nana/Ness				Yellow Peach
+		elif charAbbr in ( 'Ca', 'Nn', 'Ns' ) or ( charAbbr == 'Pe' and colorAbbr == 'Ye' ):
+			msg( ("This character is not yet supported in this tool due to differing skeletal structures in the files. "
+					'In the meantime, if only the textures are different between these costumes, you could try the '
+					'CCC tool in DAT Texture Wizard, and/or export/import the model using HSDRaw.'), parent=self.window )
+			self.clearSlotRepresentation( role )
+			return
+		elif charAbbr in ( 'Pc', 'Pk', 'Pr' ):
+			msg( ("This character is not yet supported in this tool due to model (hat) differences. "
+					'In the meantime, if only the textures are different between these costumes, you could try the '
+					'CCC tool in DAT Texture Wizard, and/or export/import the model using HSDRaw.'), parent=self.window )
+			self.clearSlotRepresentation( role )
+			return
+
 		# elif charAbbr == 'Pe' and colorAbbr == 'Ye':
 		# 	msg("Peach's yellow costume has too many differences from the other colors to map. You'll need to convert this costume manually. (Using the DAT Texture Tree tab to "
 		# 		"dump all textures from the source file, and then you can use those to replace the textures in the destination file. Although there are likely textures "
@@ -1849,7 +1856,10 @@ class CharacterColorConverter( BasicWindow ):
 		# Bring this window to the front
 		self.window.deiconify()
 
-	def convertCharacterColor( self ):
+	def prepareColorConversion( self ):
+
+		""" Performs some validation on the currently selected file(s) and target color slot, 
+			and then begins the conversion process. """
 
 		# Validate input
 		if not self.source:
@@ -1859,6 +1869,7 @@ class CharacterColorConverter( BasicWindow ):
 			msg( 'Both files must be for the same character.', '''"I can't let you do that, Star Fox!"''', parent=self.window )
 			return
 
+		# Ensure a target file or target color slot has been chosen
 		origColorAbbr = self.source.colorAbbr
 		if self.dest:
 			newColorAbbr = self.dest.colorAbbr
@@ -1868,6 +1879,7 @@ class CharacterColorConverter( BasicWindow ):
 		else:
 			newColorAbbr = globalData.costumeSlots[self.source.charAbbr][self.targetCostumeId]
 
+		# Ensure the color slots are different
 		if origColorAbbr == newColorAbbr:
 			if self.dest:
 				msg( 'These character costumes are for the same color!\nThere is nothing to convert.', parent=self.window )
@@ -1875,57 +1887,85 @@ class CharacterColorConverter( BasicWindow ):
 				msg( 'The costume file is already the selected destination color!\nThere is nothing to convert.', parent=self.window )
 			return
 
-		print( 'source:', origColorAbbr )
-		print( 'target:', newColorAbbr )
+		# Passed validation; perform the conversion
+		self.convertCharacterColor( self.source, newColorAbbr, self.dest, self.window )
+		self.cancel()
+
+	@staticmethod
+	def convertCharacterColor( sourceFile, newColorAbbr, destinationFile=None, guiParent=None ):
+		
+		origColorAbbr = sourceFile.colorAbbr
+
+		# print( 'source:', origColorAbbr )
+		# print( 'target:', newColorAbbr )
+
+		#saveAndShowTempFileData( sourceFile.getData(), 'CCC old.dat' )
 
 		# Check what kind of strings we're updating from (neutral slot or other?)
-		firstString = self.source.rootNodes[0][1] # First root node symbol
+		firstString = sourceFile.rootNodes[0][1] # First root node symbol
 		charKey, colorKey = firstString[3:].split( '5K' ) # e.g. PlyZelda5KWh_Share_joint or PlyZelda5K_Share_joint
 		if colorKey.startswith( '_' ): origColorAbbr = 'Nr'
 		else: origColorAbbr = colorKey.split( '_' )[0]
 
 		# Update the root node strings/symbols
-		self.source = []
+		newRootNodes = []
 		if origColorAbbr == 'Nr':
 			# Add color abbreviations to strings
-			for offset, oldString in self.source.rootNodes:
+			for offset, oldString in sourceFile.rootNodes:
 				charKey, colorKey = oldString.split( '5K' )
 				newString = charKey + '5K' + newColorAbbr + colorKey
-				self.source.append( (offset, newString) )
-			fileSizeDiff = 2 * len( self.source.rootNodes )
+				newRootNodes.append( (offset, newString) )
+			fileSizeDiff = 2 * len( sourceFile.rootNodes )
 		elif newColorAbbr == 'Nr':
 			# Remove color abbreviations from strings
-			for offset, oldString in self.source.rootNodes:
+			for offset, oldString in sourceFile.rootNodes:
 				charKey, colorKey = oldString.split( '5K' )
 				newString = charKey + '5K' + colorKey[2:]
-				self.source.append( (offset, newString) )
-			fileSizeDiff = -2 * len( self.source.rootNodes )
+				newRootNodes.append( (offset, newString) )
+			fileSizeDiff = -2 * len( sourceFile.rootNodes )
 		else:
 			# Change color abbreviations to new ones
-			for offset, oldString in self.source.rootNodes:
+			for offset, oldString in sourceFile.rootNodes:
 				charKey, colorKey = oldString.split( '5K' )
 				newString = charKey + '5K' + newColorAbbr + colorKey[2:]
-				self.source.append( (offset, newString) )
+				newRootNodes.append( (offset, newString) )
 			fileSizeDiff = 0
+		sourceFile.rootNodes = newRootNodes
 
 		if fileSizeDiff != 0:
-			self.source.headerInfo['filesize'] += fileSizeDiff
+			sourceFile.headerInfo['filesize'] += fileSizeDiff
+			sourceFile.size += fileSizeDiff
 		
-		# Update file data
-		self.source.headerNeedsRebuilding = True
-		self.source.stringsNeedRebuilding = True
-		self.getFullData()
+		# Update file data (rebuild header and/or string table bytearrays)
+		sourceFile.headerNeedsRebuilding = True
+		sourceFile.stringsNeedRebuilding = True
+		sourceFile.getFullData()
 
 		# Update the filename
-		#if self.source.isoPath:
-		# gameFileName = 'Pl{}{}'.format( self.source.charAbbr, origColorAbbr )
-		# if gameFileName in self.source.filename:
+		gameFileName = 'Pl{}{}'.format( sourceFile.charAbbr, origColorAbbr )
+		if gameFileName in sourceFile.filename:
+			newGameFileName = 'Pl{}{}'.format( sourceFile.charAbbr, newColorAbbr )
+			sourceFile.filename = sourceFile.filename.replace( gameFileName, newGameFileName )
 
+		# Save the converted file
+		if destinationFile: # Saving to a disc (replace existing destination file)
+			globalData.disc.replaceFile( destinationFile, sourceFile )
 
-		if self.dest: # Saving to a disc (replace existing file)
-			globalData.disc.replaceFile( self.dest, self.source )
-		else: # Saving to an external file
-			exportSingleFileWithGui( self.source, self.window )
+			# Color the replaced file in the Disc File Tree
+			globalData.gui.discTab.isoFileTree.item( destinationFile.isoPath, tags='changed' )
+			
+			# Update program status message
+			globalData.gui.updateProgramStatus( 'File converted successfully.', success=True )
+			globalData.gui.playSound( 'menuChange' )
+
+		elif guiParent: # Saving to an external file
+			exportSingleFileWithGui( sourceFile, guiParent ) # Will include status message update
+
+		#saveAndShowTempFileData( sourceFile.getData(), 'CCC new.dat' )
+
+		if sourceFile.charAbbr not in ( 'Dk', 'Fx', 'Kp', 'Lg', 'Lk', 'Mr' ):
+			msg( "Due to minor differences in these costume's skeletons, there may be potential for "
+				 "desyncs if using this new character file with Slippi. You have been warned. :P", 'Warning!', warning=True )
 		
 # def openConvertedCharacterFile():
 

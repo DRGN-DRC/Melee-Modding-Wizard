@@ -528,13 +528,12 @@ class StructBase( object ):
 		# Look for pointers to other structures within this structure
 		if self.fields and not includeSiblings: # If wanting to include siblings, the other method is more efficient
 			# Check for sibling offsets that should be ignored
-			if not includeSiblings:
-				siblingPointerOffsets = []
-				for i, fieldName in enumerate( self.fields ):
-					if fieldName.startswith( 'Next_' ):
-						relativeOffset = struct.calcsize( self.formatting[1:i+1] ) # +1 due to endianness marker
-						siblingPointerOffsets.append( self.offset + relativeOffset )
-						break # Not expecting multiple of these atm
+			siblingPointerOffsets = []
+			for i, fieldName in enumerate( self.fields ):
+				if fieldName.startswith( 'Next_' ):
+					relativeOffset = struct.calcsize( self.formatting[1:i+1] ) # +1 due to endianness marker
+					siblingPointerOffsets.append( self.offset + relativeOffset )
+					break # Not expecting multiple of these atm
 
 			# Iterate over all pointers in the data section, looking for those that are within the offset range of this structure
 			for pointerOffset, pointerValue in self.dat.pointers:
@@ -542,7 +541,7 @@ class StructBase( object ):
 				if pointerOffset < self.offset: continue
 				elif pointerOffset >= self.offset + self.length: break
 
-				if not includeSiblings and pointerOffset in siblingPointerOffsets: continue
+				if pointerOffset in siblingPointerOffsets: continue
 
 				self.children.append( pointerValue )
 		else:
@@ -561,6 +560,28 @@ class StructBase( object ):
 			self._childrenChecked = True
 
 		return self.children
+
+	def getBranchDescendants( self, recursive=True ):
+
+		""" Recursively returns all children and sibling structs for this structure. """
+
+		allStructs = []
+		subBranches = self.getChildren( includeSiblings=True )
+
+		# print( 'Descendants of ' + self.name )
+		# print( 'direct:' + str([ hex( 0x20 + s) for s in subBranches]) )
+
+		for offset in subBranches:
+			structure = self.dat.getStruct( offset )
+			allStructs.append( structure )
+			decendants = structure.getBranchDescendants()
+			d2 = [ hex( 0x20 + d.offset) for d in decendants]
+			#print( '\t' + str(d2) )
+			allStructs.extend( decendants )
+
+		#print( 'all:' + str([ hex( 0x20 + s.offset) for s in allStructs]) )
+
+		return allStructs
 
 	def initDescendants( self, override=False ):
 
@@ -589,6 +610,8 @@ class StructBase( object ):
 		self._branchInitialized = True
 
 	def getBranchSize( self ):
+
+		""" Checks this structure and recursively all children to determine the entire branch of structs. """
 
 		if self.branchSize != -1:
 			return self.branchSize

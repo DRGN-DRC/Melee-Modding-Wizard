@@ -410,8 +410,9 @@ def saveAndShowTempFileData( fileData, filename ):
 	if not hexEditorPath: return # User may have canceled the prompt
 
 	# Create the temporary file path, and any folders that might be needed
-	tempFilePath = os.path.join( globalData.paths['tempFolder'], filename )
-	createFolders( os.path.split(tempFilePath)[0] )
+	tempFolderPath = globalData.paths['tempFolder']
+	tempFilePath = os.path.join( tempFolderPath, filename )
+	createFolders( tempFolderPath )
 
 	# Save the file data to a temporary file.
 	try:

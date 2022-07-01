@@ -462,3 +462,18 @@ class CharCostumeFile( CharFileBase, DatFile ):
 
 		colorSlots = globalData.costumeSlots.get( char, ('Nr',) )
 		return colorSlots.index( color )
+
+	def getSkeleton( self ):
+		
+		# Ensure root nodes and the string table have been parsed
+		self.initialize()
+
+		firstNodeOffset, firstNodeString = self.rootNodes[0]
+		assert firstNodeString.endswith( 'Share_joint' ), 'Unable to get skeleton; incorrect root node string encountered: ' + firstNodeString
+
+		# Get the skeleton struct (should be the first child joint/bone of the first root node)
+		jointClass = globalData.fileStructureClasses['JointObjDesc']
+		rootBone = self.initSpecificStruct( jointClass, firstNodeOffset )
+		skeletonStructOffset = rootBone.getValues( 'Child_Pointer' )
+		
+		return self.initSpecificStruct( jointClass, skeletonStructOffset )

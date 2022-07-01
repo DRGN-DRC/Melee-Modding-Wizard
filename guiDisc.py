@@ -13,6 +13,7 @@
 from cProfile import label
 import os
 import time
+import copy
 from binascii import hexlify
 from tkMessageBox import askyesno
 
@@ -20,7 +21,9 @@ from tkMessageBox import askyesno
 import ttk
 import tkFileDialog
 import Tkinter as Tk
-from FileSystem.fileBases import DatFile
+# from FileSystem.charFiles import CharCostumeFile
+# from FileSystem.fileBases import DatFile
+# from FileSystem.hsdStructures import DisplayObjDesc, InverseMatrixObjDesc, JointObjDesc
 
 # Internal dependencies
 import globalData
@@ -133,7 +136,7 @@ class DiscTab( ttk.Frame ):
 		ttk.Button( self.isoOpsPanelButtons, text="Export", command=self.exportIsoFiles, state='disabled' ).grid( row=0, column=0, padx=7 )
 		ttk.Button( self.isoOpsPanelButtons, text="Import", command=self.importSingleIsoFile, state='disabled' ).grid( row=0, column=1, padx=7 )
 		ttk.Button( self.isoOpsPanelButtons, text="Browse Textures", command=self.browseTexturesFromDisc, state='disabled', width=18 ).grid( row=1, column=0, columnspan=2, pady=(7,0) )
-		ttk.Button( self.isoOpsPanelButtons, text="Analyze Structure", command=self.analyzeFileFromDisc, state='disabled', width=18 ).grid( row=2, column=0, columnspan=2, pady=(7,0) )
+		#ttk.Button( self.isoOpsPanelButtons, text="Analyze Structure", command=self.analyzeFileFromDisc, state='disabled', width=18 ).grid( row=2, column=0, columnspan=2, pady=(7,0) )
 		self.isoOpsPanelButtons.pack( pady=2 )
 
 		# Add the Magikoopa image
@@ -403,6 +406,8 @@ class DiscTab( ttk.Frame ):
 			description = discFile.longDescription
 		
 		try:
+			# The following commented-out code is occasionally used for some ad-hoc testing.
+
 			# altPath = 'GALE01/' + discFile.filename.replace( '.usd', '.dat' )
 			# if discFile.filename.endswith( '.usd' ) and altPath in globalData.disc.files:
 			# 	print discFile.filename, humansize(discFile.size)
@@ -432,6 +437,22 @@ class DiscTab( ttk.Frame ):
 			# 	discFile.initialize()
 			# 	if discFile.headerInfo and discFile.headerInfo['rtEntryCount'] > 10000:
 			# 		print( discFile.filename, ': ', discFile.headerInfo['rtEntryCount'] )
+
+			# if discFile.filename == 'PlZdWh.dat':
+			# 	discFile.initialize()
+			# 	s1 = discFile.getStruct( 0xAC64 )
+			# 	#s1 = discFile.getSkeleton()
+			# 	s2 = discFile.getStruct( 0xA9FC )
+			# 	structsEquivalent = discFile.structuresEquivalent( s1, s2, False )
+			# 	print( '0x{:x} equivalent to 0x{:x}: {}'.format(s1.offset, s2.offset, structsEquivalent) )
+
+			# if issubclass( discFile.__class__, CharCostumeFile ) and not discFile.filename.endswith( 'Nr.dat' ):# and discFile.filename.startswith( 'PlCaGr' ):
+			# 	# Check for Nr costume
+			# 	defaultCostume = globalData.disc.files.get( 'GALE01/Pl' + discFile.charAbbr + 'Nr.dat' )
+			# 	if defaultCostume:
+			# 		#structsEquivalent = discFile.structuresEquivalent( defaultCostume.getSkeleton(), discFile.getSkeleton(), True, [DisplayObjDesc] )
+			# 		structsEquivalent = discFile.structuresEquivalent( defaultCostume.getSkeleton(), discFile.getSkeleton(), True, None, [JointObjDesc, InverseMatrixObjDesc] )
+			# 		print( discFile.charAbbr + discFile.colorAbbr + ' skele equivalent to Nr costume: ' + str(structsEquivalent) )
 			
 			self.isoFileTree.insert( parent, 'end', iid=discFile.isoPath, text=' ' + entryName, values=(description, 'file') )
 		except Exception as err:
@@ -687,13 +708,9 @@ class DiscTab( ttk.Frame ):
 		""" Basically just a recursive helper function to self.exportIsoFiles(). Passing the open isoBinary 
 			file object so that we can get file data from it directly, and avoid opening it multiple times. """
 
-		useConvenienceFolders = globalData.checkSetting( 'useDiscConvenienceFolders' )
+		useConvenienceFolders = globalData.checkSetting( 'useConvenienceFoldersOnExport' )
 
-		for iid in selection: # The iids will be isoPaths
-			# Prevent files from being exported twice, depending on user selection
-			# if (selection != iidSelectionsTuple) and iid in iidSelectionsTuple:
-			# 	continue
-
+		for iid in selection: # The iids will be isoPaths and/or folder iids
 			# Attempt to get a file for this iid (isoPath)
 			fileObj = globalData.disc.files.get( iid )
 
@@ -705,6 +722,7 @@ class DiscTab( ttk.Frame ):
 					if fileObj.source == 'disc':
 						# Can perform the getData method ourselves for efficiency, since we have the open isoBinary file object
 						assert fileObj.offset != -1, 'Invalid file offset for disc export: -1'
+						assert fileObj.size != -1, 'Invalid file size for disc export: -1'
 						isoBinary.seek( fileObj.offset )
 						datData = isoBinary.read( fileObj.size )
 					else: # source == 'file' or 'self'
@@ -755,7 +773,6 @@ class DiscTab( ttk.Frame ):
 				msg( "Unable to find the disc image. Be sure that the file path is correct and that the file hasn't been moved or deleted.", 'Disc Not Found' )
 			return
 		
-		#fileObj = globalData.disc.files.get( iidSelections[0] )
 		iid = next( iter(iidSelections) )
 		fileObj = globalData.disc.files.get( iid )
 
@@ -1929,7 +1946,7 @@ class DiscMenu( Tk.Menu, object ):
 		self.fileTree.selection_set( self.iidSelectionsTuple ) 	# Highlights the item(s)
 		self.fileTree.focus( self.iidSelectionsTuple[0] ) 		# Sets keyboard focus to the first item
 
-		# Get the hashes of all of the items selected
+		# Get the offsets of all of the items selected
 		offsets = []
 		for iid in self.iidSelectionsTuple:
 			fileObj = globalData.disc.files.get( iid )
@@ -1944,4 +1961,11 @@ class DiscMenu( Tk.Menu, object ):
 		if not globalData.cccWindow:
 			globalData.cccWindow = CharacterColorConverter()
 
-		globalData.cccWindow.updateSlotRepresentation( self.fileObj, role )
+		# Create a copy of the file (wihtout making a disc copy) to send to the CCC, because it will be modified
+		disc = self.fileObj.disc
+		self.fileObj.disc = None
+		fileCopy = copy.deepcopy( self.fileObj )
+		self.fileObj.disc = disc
+		fileCopy.disc = disc
+
+		globalData.cccWindow.updateSlotRepresentation( fileCopy, role )

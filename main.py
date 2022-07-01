@@ -197,6 +197,8 @@ class SettingsMenu( Tk.Menu, object ):
 		# self.add_command(label='Set General Preferences', command=setPreferences)
 		self.add_checkbutton( label='Use Disc Convenience Folders', underline=9, 												# C
 				variable=globalData.boolSettings['useDiscConvenienceFolders'], command=globalData.saveProgramSettings )
+		self.add_checkbutton( label='Use Disc Convenience Folders with File Exports', underline=39, 							# E
+				variable=globalData.boolSettings['useConvenienceFoldersOnExport'], command=globalData.saveProgramSettings )
 		# self.add_checkbutton( label='Avoid Rebuilding Disc', underline=0, 													# A
 		# 		variable=globalData.boolSettings['avoidRebuildingIso'], command=globalData.saveProgramSettings )
 		self.add_checkbutton( label='Back-up Disc When Rebuilding', underline=0, 												# B
@@ -254,13 +256,13 @@ class ToolsMenu( Tk.Menu, object ):
 		# Clear all current population
 		self.delete( 0, 'last' )
 																									# Key shortcut (using alt key)
+		self.add_cascade( label="Character Color Converter", command=self.characterColorConverter, underline=1 )		# H
 		self.add_cascade( label="ASM <-> HEX Converter", command=lambda: AsmToHexConverter(), underline=0 )				# A
 		#self.add_cascade( label="Number and Address Conversion", command=lambda: AsmToHexConverter(), underline=0 )	# N
 		self.add_cascade( label='Code Lookup', command=lambda: CodeLookup(), underline=5 )								# L
 		self.add_cascade( label='Create Code Mod', command=self.createCodeMod, underline=12 )							# M
 		self.add_cascade( label='Save Code Library As', command=self.saveCodeLibraryAs, underline=6 )					# O
 		self.add_separator()
-		self.add_cascade( label="Character Color Converter", command=self.characterColorConverter, underline=0 )		# S
 		self.add_cascade( label="Test External Stage File", command=self.testStage, underline=14 )						# S
 		self.add_cascade( label="Test External Character File", command=self.testCharacter, underline=14 )				# C
 		self.add_separator()
@@ -1525,8 +1527,8 @@ class MainGui( Tk.Frame, object ):
 		#self.root.option_add( "*Font", default_font ) # Use this to apply the default font to be used everywhere
 		
 		# Build the main program window
-		self.root.tk.call( 'wm', 'iconphoto', self.root._w, self.imageBank('appIcon') )
-		#self.root.iconbitmap( './imgs/appIcon5.ico' )
+		#self.root.tk.call( 'wm', 'iconphoto', self.root._w, self.imageBank('appIcon') )
+		self.root.iconbitmap( os.path.join(globalData.paths['imagesFolder'], 'appIcon.ico') )
 		self.root.geometry( str(self.defaultWindowWidth) + 'x' + str(self.defaultWindowHeight) + '+100+50' )
 		self.root.title( "Melee Modding Wizard - v" + globalData.programVersion )
 		self.root.minsize( width=500, height=400 )
@@ -1536,13 +1538,12 @@ class MainGui( Tk.Frame, object ):
 		# Main Menu Bar & Context Menus
 		self.menubar = Tk.Menu( self.root )																			# Keyboard shortcuts:
 		self.fileMenu = FileMenu( self.menubar ) # Storing this on the GUI so we can later easily access the 'recent' submenu
-		self.menubar.add_cascade( label='File', menu=self.fileMenu, underline=0 )										# File 			[F]
-		self.menubar.add_cascade( label='Settings', menu=SettingsMenu( self.menubar ), underline=0 )					# Settings 		[S]
+		self.menubar.add_cascade( label='File', menu=self.fileMenu, underline=0 )										# File			[F]
+		self.menubar.add_cascade( label='Settings', menu=SettingsMenu( self.menubar ), underline=0 )					# Settings		[S]
 		self.menubar.add_cascade( label='Tools', menu=ToolsMenu( self.menubar ), underline=0 )							# Tools			[T]
-		#self.menubar.add_cascade( label='About', menu=AboutMenu( self.menubar ), underline=0 )							# File 			[A]
+		#self.menubar.add_cascade( label='About', menu=AboutMenu( self.menubar ), underline=0 )							# About			[A]
 
-		#self.style.configure( 'MainMenuBg.TNotebook', background='black' )
-		self.mainTabFrame = ttk.Notebook( self.root ) # , style='MainMenuBg.TNotebook'
+		self.mainTabFrame = ttk.Notebook( self.root )
 		self.dnd.bindtarget( self.mainTabFrame, self.dndHandler, 'text/uri-list' )
 
 		self.discTab = None				# Frame
@@ -1559,11 +1560,6 @@ class MainGui( Tk.Frame, object ):
 		# Set the bottom status message
 		self.statusLabel = ttk.Label( self.root, text='Ready' )
 		self.statusLabel.grid( column=0, row=1, sticky='w', pady=2, padx=7 )
-
-		# Set the background and main menu
-		#self.mainMenu.place( relx=0.5, rely=0.5, anchor='center' )
-		# self.style.configure( 'MainMenuBg', background='black' )
-		# self['style'] = 'MainMenuBg'
 
 		# Configure resize behavior
 		self.root.columnconfigure( 'all', weight=1 )

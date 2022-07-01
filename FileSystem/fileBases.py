@@ -26,7 +26,6 @@ import hsdStructures
 from tplCodec import TplDecoder, TplEncoder
 from basicFunctions import uHex, msg, printStatus, createFolders
 
-showLogs = False
 
 
 					# = ---------------------------- = #
@@ -125,12 +124,10 @@ class FileBase( object ):
 					with open( self.disc.filePath, 'rb' ) as isoBinary:
 						isoBinary.seek( self.offset )
 						self.data = bytearray( isoBinary.read(self.size) )
-					#self.source = 'self'
 
 				elif self.source == 'file':
 					with open( self.extPath, 'rb' ) as externalFile:
 						self.data = bytearray( externalFile.read() )
-					#self.source = 'self'
 
 					# Set size & origSize if uninitialized
 					if self.size == -1:
@@ -473,8 +470,6 @@ class DatFile( FileBase ):
 		self.headerData = self.data[:0x20]
 		self.data = self.data[0x20:]
 		self.parseHeader()
-		if not self.headerInfo:
-			return # Unable to parse
 		
 		# Other file sections can now be separated out, using information from the header
 		stringTableStart = self.headerInfo['stringTableStart']
@@ -484,8 +479,6 @@ class DatFile( FileBase ):
 		# Parse the RT and String Table
 		self.parseRelocationTable()
 		stringTableLength = self.parseStringTable()
-		if not stringTableLength > 0:
-			return # Unable to parse
 		
 		# Separate out other file sections using the info gathered above
 		self.stringTableData = self.data[ stringTableStart : stringTableStart + stringTableLength ]
@@ -511,31 +504,25 @@ class DatFile( FileBase ):
 
 		""" All of the positional values obtained here are relative to the data section (-0x20 from the actual/absolute file offset). """
 
-		try:
-			filesize, rtStart, rtEntryCount, rootNodeCount, referenceNodeCount = struct.unpack( '>5I', self.headerData[:0x14] )
-			rtEnd = rtStart + ( rtEntryCount * 4 )
-			rootNodesEnd = rtEnd + ( rootNodeCount * 8 ) # Each root/reference node table entry is 8 bytes
+		filesize, rtStart, rtEntryCount, rootNodeCount, referenceNodeCount = struct.unpack( '>5I', self.headerData[:0x14] )
+		rtEnd = rtStart + ( rtEntryCount * 4 )
+		rootNodesEnd = rtEnd + ( rootNodeCount * 8 ) # Each root/reference node table entry is 8 bytes
 
-			# Assume no DAT file is larger than 10 MB, or has more than 100 K pointers
-			assert filesize <= 10485760, 'Invalid DAT file; unexpectedly large filesize value: ' + str( filesize )
-			assert rtEntryCount <= 100000, 'Invalid DAT file; unexpectedly high number of pointers: ' + str( rtEntryCount )
+		# Assume no DAT file is larger than 10 MB, or has more than 100 K pointers
+		assert filesize <= 10485760, 'Invalid DAT file; unexpectedly large filesize value: ' + str( filesize )
+		assert rtEntryCount <= 100000, 'Invalid DAT file; unexpectedly high number of pointers: ' + str( rtEntryCount )
 
-			self.headerInfo = {
-				'filesize': filesize,
-				'rtStart': rtStart, # Also the size of the data block
-				'rtEntryCount': rtEntryCount,
-				'rootNodeCount': rootNodeCount,
-				'referenceNodeCount': referenceNodeCount,
-				'magicNumber': self.headerData[20:24].decode( 'ascii' ),
-				'rtEnd': rtEnd,
-				'rootNodesEnd': rootNodesEnd,
-				'stringTableStart': rootNodesEnd + ( referenceNodeCount * 8 ), # Each root/reference node table entry is 8 bytes
-			}
-
-		except Exception as errorMessage:
-			if showLogs:
-				print 'Unable to parse the DAT file header of', self.printPath()
-				print errorMessage
+		self.headerInfo = {
+			'filesize': filesize,
+			'rtStart': rtStart, # Also the size of the data block
+			'rtEntryCount': rtEntryCount,
+			'rootNodeCount': rootNodeCount,
+			'referenceNodeCount': referenceNodeCount,
+			'magicNumber': self.headerData[20:24].decode( 'ascii' ),
+			'rtEnd': rtEnd,
+			'rootNodesEnd': rootNodesEnd,
+			'stringTableStart': rootNodesEnd + ( referenceNodeCount * 8 ), # Each root/reference node table entry is 8 bytes
+		}
 
 	def parseRelocationTable( self ):
 
@@ -555,38 +542,28 @@ class DatFile( FileBase ):
 		except Exception as errorMessage:
 			self.pointerOffsets = []
 			self.pointerValues = []
-			if showLogs:
-				print 'Unable to parse the DAT file relocation table of', self.printPath()
-				print errorMessage
+			raise Exception( 'Unable to parse the DAT file relocation table of {}; {}'.format(self.printPath(), errorMessage) )
 
 	def parseStringTable( self ):
 
 		""" Creates a dictionary for the string table, where keys=dataSectionOffsets, and values=stringLabels. 
 			Returns the length of the string table (in bytes), or -1 if there was a parsing error. """
 
-		try:
-			stringTable = self.data[self.headerInfo['stringTableStart']:] # Can't separate this out beforehand, without knowing its length
-			totalStrings = self.headerInfo['rootNodeCount'] + self.headerInfo['referenceNodeCount']
+		stringTable = self.data[self.headerInfo['stringTableStart']:] # Can't separate this out beforehand, without knowing its length
+		totalStrings = self.headerInfo['rootNodeCount'] + self.headerInfo['referenceNodeCount']
 
-			self.stringDict = {}
-			stringTableLength = 0
-			strings = stringTable.split( b'\x00' )[:totalStrings] # End splicing eliminates an empty string, and/or extra additions at the end of the file.
+		self.stringDict = {}
+		stringTableLength = 0
+		strings = stringTable.split( b'\x00' )[:totalStrings] # End splicing eliminates an empty string, and/or extra additions at the end of the file.
 
-			for stringBytes in strings:
-				string = stringBytes.decode( 'ascii' ) # Convert the bytearray to a text string
-				self.stringDict[stringTableLength] = string
-				stringTableLength += len( string ) + 1 # +1 to account for null terminator
+		for stringBytes in strings:
+			string = stringBytes.decode( 'ascii' ) # Convert the bytearray to a text string
+			self.stringDict[stringTableLength] = string
+			stringTableLength += len( string ) + 1 # +1 to account for null terminator
 
-			assert stringTableLength > 0, 'Invalid string table length; unable to parse string table.'
+		assert stringTableLength > 0, 'Invalid string table length; unable to parse string table.'
 
-			return stringTableLength
-
-		except Exception as errorMessage:
-			self.stringDict = {}
-			if showLogs:
-				print "Unable to parse the string table of", self.printPath()
-				print errorMessage
-			return -1
+		return stringTableLength
 
 	def getStringTableSize( self ):
 
@@ -610,35 +587,34 @@ class DatFile( FileBase ):
 			Both are a list of tuples of the form ( structOffset, string ), 
 			where the string is from the file's string table. """
 
-		try:
-			rootNodes = []; referenceNodes = []
-			nodePointerOffset = self.headerInfo['rtEnd']
-			nodesTable = [ self.nodeTableData[i:i+8] for i in xrange(0, len(self.nodeTableData), 8) ] # separates the data into groups of 8 bytes
+		#try:
+		rootNodes = []; referenceNodes = []
+		nodePointerOffset = self.headerInfo['rtEnd']
+		nodesTable = [ self.nodeTableData[i:i+8] for i in xrange(0, len(self.nodeTableData), 8) ] # separates the data into groups of 8 bytes
 
-			for i, entry in enumerate( nodesTable ):
-				structOffset, stringOffset = struct.unpack( '>II', entry ) # Struct offset is the first 4 bytes; string offset is the second 4 bytes
-				string = self.stringDict[ stringOffset ]
+		for i, entry in enumerate( nodesTable ):
+			structOffset, stringOffset = struct.unpack( '>II', entry ) # Struct offset is the first 4 bytes; string offset is the second 4 bytes
+			string = self.stringDict[ stringOffset ]
 
-				# Store the node
-				if i < self.headerInfo['rootNodeCount']: rootNodes.append( ( structOffset, string ) )
-				else: referenceNodes.append( ( structOffset, string ) )
+			# Store the node
+			if i < self.headerInfo['rootNodeCount']: rootNodes.append( ( structOffset, string ) )
+			else: referenceNodes.append( ( structOffset, string ) )
 
-				# Remember the pointer and struct offsets (these aren't included in the RT!)
-				self.pointerOffsets.append( nodePointerOffset ) # Absolute file offset for this node's pointer
-				self.pointerValues.append( structOffset )
+			# Remember the pointer and struct offsets (these aren't included in the RT!)
+			self.pointerOffsets.append( nodePointerOffset ) # Absolute file offset for this node's pointer
+			self.pointerValues.append( structOffset )
 
-				nodePointerOffset += 8
+			nodePointerOffset += 8
 
-			rootNodes.sort()
-			referenceNodes.sort()
+		rootNodes.sort()
+		referenceNodes.sort()
 
-			self.rootNodes = rootNodes
-			self.referenceNodes = referenceNodes
+		self.rootNodes = rootNodes
+		self.referenceNodes = referenceNodes
 
-		except Exception as errorMessage:
-			if showLogs:
-				print "Unable to parse the root/reference nodes table of", self.printPath()
-				print errorMessage
+		# except Exception as errorMessage:
+		#	print "Unable to parse the root/reference nodes table of", self.printPath()
+		#	print errorMessage
 
 	def evaluateStructs( self ):
 
@@ -646,28 +622,22 @@ class DatFile( FileBase ):
 			of all [unique] structure offsets in the data section, which includes offsets for the file 
 			header (at -0x20), RT, root nodes table, reference nodes table (if present), and string table. """
 
-		try:
-			# Sort the lists of pointers and their values found in the RT and node tables
-			self.pointers = sorted( zip(self.pointerOffsets, self.pointerValues) ) # Creates a sorted list of (pointerOffset, pointerValue) tuples
+		# Sort the lists of pointers and their values found in the RT and node tables
+		self.pointers = sorted( zip(self.pointerOffsets, self.pointerValues) ) # Creates a sorted list of (pointerOffset, pointerValue) tuples
 
-			# Create a list of unique structure offsets, sorted by file order.
-			# The data section's primary assumption is that no pointer points into the middle of a struct, and thus must be to the start of one.
-			self.structureOffsets = [ -0x20 ] # For the file header. Negative, not 0, because these offsets are relative to the start of the data section
-			self.structureOffsets.extend( set(self.pointerValues) ) # Using a set to eliminate duplicates
-			self.structureOffsets.append( self.headerInfo['rtStart'] )
-			self.structureOffsets.append( self.headerInfo['rtEnd'] ) # For the root nodes table
-			if self.headerInfo['rootNodesEnd'] != self.headerInfo['stringTableStart']: # Might not have a reference nodes table
-				self.structureOffsets.append( self.headerInfo['rootNodesEnd'] ) # For the reference nodes table
-			self.structureOffsets.append( self.headerInfo['stringTableStart'] )
-			self.structureOffsets.sort()
+		# Create a list of unique structure offsets, sorted by file order.
+		# The data section's primary assumption is that no pointer points into the middle of a struct, and thus must be to the start of one.
+		self.structureOffsets = [ -0x20 ] # For the file header. Negative, not 0, because these offsets are relative to the start of the data section
+		self.structureOffsets.extend( set(self.pointerValues) ) # Using a set to eliminate duplicates
+		self.structureOffsets.append( self.headerInfo['rtStart'] )
+		self.structureOffsets.append( self.headerInfo['rtEnd'] ) # For the root nodes table
+		if self.headerInfo['rootNodesEnd'] != self.headerInfo['stringTableStart']: # Might not have a reference nodes table
+			self.structureOffsets.append( self.headerInfo['rootNodesEnd'] ) # For the reference nodes table
+		self.structureOffsets.append( self.headerInfo['stringTableStart'] )
+		self.structureOffsets.sort()
 
-			# The following helps provide an efficient means for determining the structure owner of an offset (used by the .getPointerOwner() function)
-			self.structStartRanges = zip( self.structureOffsets, self.structureOffsets[1:] )
-
-		except Exception as errorMessage:
-			if showLogs:
-				print "Unable to evaluate the file's structs;"
-				print errorMessage
+		# The following helps provide an efficient means for determining the structure owner of an offset (used by the .getPointerOwner() function)
+		self.structStartRanges = zip( self.structureOffsets, self.structureOffsets[1:] )
 
 	def separateNodeLists( self ):
 
@@ -701,9 +671,8 @@ class DatFile( FileBase ):
 			# print 'dspv:', len( dataSectionPointerValues )
 
 		except Exception as errorMessage:
-			if showLogs:
-				print "Unable to separate the root/reference nodes lists of", self.printPath()
-				print errorMessage
+			print "Unable to separate the root/reference nodes lists of", self.printPath()
+			print errorMessage
 
 	def parseDataSection( self ):
 
@@ -739,9 +708,8 @@ class DatFile( FileBase ):
 			self.orphanStructures = dataSectionStructureOffsets.difference( self.structs.keys() )
 			
 		except Exception as errorMessage:
-			if showLogs:
-				print 'Unable to parse the DAT file data section of', self.printPath()
-				print errorMessage
+			print 'Unable to parse the DAT file data section of', self.printPath()
+			print errorMessage
 
 	def hintRootClasses( self ):
 
@@ -1152,7 +1120,7 @@ class DatFile( FileBase ):
 		# Call the superclass method to make sure this file's data has been loaded from disc/file
 		super( DatFile, self ).getData()
 
-		# Return just the data section if no args were given
+		# Return all file data if no args were given
 		if dataOffset == 0 and dataLength == -1:
 			return self.getFullData()
 
@@ -2059,3 +2027,210 @@ class DatFile( FileBase ):
 			paletteData = self.getData( paletteDataOffset, paletteLength )
 
 		return paletteData, paletteType
+
+	def getBranch( self, offset ):
+
+		""" Returns all structures that make up a given branch of a dat file
+			(i.e. a structure and all of its children/siblings/decendants). """
+
+		parentStruct = self.getStruct( offset )
+		# print( 'parent: ' + hex(0x20 + parentStruct.offset) )
+		structs = [ parentStruct ]
+
+		structs.extend( parentStruct.getBranchDescendants() )
+
+		# print( [hex(0x20+s.offset) for s in structs] )
+		# print( 'total size: ' + hex(parentStruct.getBranchSize()) )
+
+		return structs
+
+	def exportBranch( self, offset, savePath ):
+
+		""" Exports all structures that make up a given branch of a dat file
+			(i.e. a structure and all of its children/siblings/decendants)
+			and creates a dat file out of it for saving it externally. """
+
+		structs = self.getBranch( offset )
+		structs.sort( key=lambda s: s.offset )
+
+		# Create a new, empty DAT file
+		newDat = DatFile( None, -1, -1, '', source='self' )
+		
+		newStructOffsets = {}
+		#pointers = []
+		oldPointerValues = []
+		#data = bytearray()
+		#pointersData = bytearray
+
+		# Collect the structs into a new data section
+		for structure in structs:
+			dataPosition = len( newDat.data )
+
+			# Collect pointer offsets for the new relocation table; iterate over all pointers in this 
+			# file's data section, looking for those that are within the offset range of this structure.
+			for pointerOffset, pointerValue in self.pointers:
+				# Ensure we're only looking in range of this struct
+				if pointerOffset < structure.offset: continue
+				elif pointerOffset >= structure.offset + structure.length: break
+
+				# Store the new pointer offset
+				pointerRelOffset = pointerOffset - structure.offset
+				newDat.pointerOffsets.append( dataPosition + pointerRelOffset )
+				#pointersData.append( structure.data[pointerRelOffset:pointerRelOffset+4] )
+				oldPointerValues.append( pointerValue )
+
+			# Collect the struct's data, ensuring 4-byte alignment
+			newDat.data.extend( structure.data )
+			padding = len( newDat.data ) % 4
+			newDat.data.extend( bytearray(padding) )
+			newStructOffsets[structure.offset] = dataPosition
+		newDat.rtNeedsRebuilding = True
+
+		# pointersFormatting = '>{}I'.format( len(pointersData)/4 )
+		# oldPointerValues = struct.unpack( pointersFormatting, pointersData )
+
+		# Update the pointer values in this new data section; point to new struct offsets
+		for pointer, oldValue in zip( newDat.pointerOffsets, oldPointerValues ):
+			newValue = newStructOffsets[oldValue]
+			newDat.data[pointer:pointer+4] = struct.pack( '>I', newValue )
+
+		# Create a root node string (symbol)
+		if self.isoPath:
+			filename = os.path.basename( self.isoPath )
+			nodeString = filename + '_Branch_'
+		else:
+			nodeString = 'Branch_'
+		label = self.getStructLabel( offset )
+		if label:
+			nodeString += label
+		else:
+			nodeString += '0x{:X}'.format( 0x20 + offset )
+
+		# Add data that will become the root nodes and strings tables
+		newDat.rootNodes = [ (0, nodeString) ]
+		#newDat.rebuildNodeAndStringTables()
+		newDat.nodesNeedRebuilding = True
+
+		# Add header info and trigger it to be built
+		newDat.headerInfo = {
+			'filesize': 0x20 + len( newDat.data ) + ( len(newDat.pointerOffsets) * 4 ) + 8 + len( newDat.stringTableData ),
+			'rtStart': len( newDat.data ), # Also the size of the data block
+			'rtEntryCount': len( newDat.pointerOffsets ),
+			'rootNodeCount': 1,
+			'referenceNodeCount': 0,
+			#'magicNumber': u'\x00\x00\x00\x00',
+			# 'rtEnd': -1,
+			# 'rootNodesEnd': -1,
+			# 'stringTableStart': -1, # Each root/reference node table entry is 8 bytes
+		}
+		self.headerData = bytearray( 0x20 )
+		newDat.headerNeedsRebuilding = True
+
+		newDat.export( savePath )
+
+	def importBranch( datFileObj, importOffset, node=0, offset=0 ):
+
+		""" Imports a whole or part (a branch) of the data section of a DAT file into 
+			the given offset of this file. If both node and offset are unspecified (0), 
+			then the entire data section of the file will be imported. """
+
+
+
+	def structuresEquivalent( self, struct1, struct2, checkWholeBranch=True, blacklist=None, whitelist=None ):
+
+		""" Compares two structures to see if they are equivalent. Differences in 
+			pointer values are ignored. If 'checkWholeBranch' is True, the entire 
+			branch (the given structs and all of their decendants) are checked. """
+
+		if struct1.length != struct2.length:
+			print( '{} and {} not equivalent; lengths mismatch: 0x{:X} != 0x{:X}'.format(struct1.name, struct2.name, struct1.length, struct2.length) )
+			return False
+
+		struct1Children = struct1.getChildren( includeSiblings=True )
+		struct2Children = struct2.getChildren( includeSiblings=True )
+
+		if len( struct1Children ) != len( struct2Children ):
+			print( '{} and {} not equivalent; child count mismatch: {} != {}'.format(struct1.name, struct2.name, len(struct1Children), len(struct2Children)) )
+			return False
+
+		# Get pointer offsets within this struct
+		pointerOffsets1 = []
+		for pointerOffset, _ in struct1.dat.pointers:
+			# Ensure we're only looking in range of this struct
+			if pointerOffset < struct1.offset: continue
+			elif pointerOffset >= struct1.offset + struct1.length: break
+			pointerOffsets1.append( pointerOffset - struct1.offset )
+		pointerOffsets2 = []
+		for pointerOffset, _ in struct2.dat.pointers:
+			# Ensure we're only looking in range of this struct
+			if pointerOffset < struct2.offset: continue
+			elif pointerOffset >= struct2.offset + struct2.length: break
+			pointerOffsets2.append( pointerOffset - struct2.offset )
+
+		# These are relative at this point, so these should be equal
+		if pointerOffsets1 != pointerOffsets2:
+			print( '{} and {} not equivalent; child pointers mismatch'.format(struct1.name, struct2.name) )
+			return False
+
+		# Scan the structures' data, looking for differences
+		position = 0
+		for byte1, byte2 in zip( struct1.data, struct2.data ):
+			# Check if at the boundary of a 4-byte multiple
+			if position % 4 == 0:
+				# Check if this (this and next 3 bytes) is a pointer
+				if position in pointerOffsets1:
+					checkingPointer = True
+					
+					# Look ahead to the full pointer value and compare them
+					pointer1 = struct1.data[position:position+4]
+					pointer2 = struct2.data[position:position+4]
+
+					# Check if only one of the pointers is null (no, this is not redundant to child count check!)
+					if pointer1 == bytearray( 4 ) or pointer2 == bytearray( 4 ):
+						if pointer1 != pointer2: # Only one pointer is null
+							print( '{} and {} not equivalent; children differ'.format(struct1.name, struct2.name) )
+							return False
+				else:
+					checkingPointer = False
+
+			# Check non-pointer bytes for differences
+			if not checkingPointer and byte1 != byte2:
+				print( '{} and {} not equivalent; data differs'.format(struct1.name, struct2.name) )
+				return False
+
+			position += 1
+
+		if not checkWholeBranch:
+			return True
+
+		# These structs are the same so far; check decendants
+		for child1Offset, child2Offset in zip( struct1Children, struct2Children ):
+			child1Struct = struct1.dat.getStruct( child1Offset )
+			child2Struct = struct2.dat.getStruct( child2Offset )
+
+			if not child1Struct or not child2Struct:
+				if child1Struct and not child2Struct:
+					print( '{} and {} not equivalent; null pointer mismatch (invalid s2)'.format(struct1.name, struct2.name) )
+					return False
+				elif child2Struct and not child1Struct:
+					print( '{} and {} not equivalent; null pointer mismatch (invalid s1)'.format(struct1.name, struct2.name) )
+					return False
+				else:
+					# At least the structs match. Continue on but give a warning
+					print( 'Warning! Invalid pointer detected in structs {} and {}'.format(struct1.name, struct2.name) )
+
+			# Only check whitelisted structs if those were specified
+			if whitelist and child1Struct.__class__ not in whitelist:
+				#print( 'Skipping {}, as its class is {}'.format(child1Struct.name, child1Struct.__class__.__name__) )
+				continue
+
+			# Ignore blacklisted structs
+			elif blacklist and child1Struct.__class__ in blacklist:
+				#print( 'Skipping {}'.format(child1Struct.name) )
+				continue
+
+			elif not self.structuresEquivalent( child1Struct, child2Struct, True, blacklist, whitelist ):
+				#print( '{} and {} not equivalent; child diff between '.format(struct1.name, struct2.name, child1Struct.name, child2Struct.name) )
+				return False
+
+		return True

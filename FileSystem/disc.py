@@ -739,32 +739,6 @@ class Disc( object ):
 
 		return newName
 
-	# def getFolderContents( self, folderIsoPath, recursive=True ):
-
-	# 	""" Returns all isoPaths for items in the given folder (also an isoPath). """
-
-	# 	paths = []
-	# 	endIndex = 0
-
-	# 	for i, entry in enumerate( self.fstEntries ): # Entries are of the form [ folderFlag, stringOffset, entryOffset, entrySize, entryName, isoPath ]
-	# 		if not endIndex:
-	# 			# Skip files until we find the target folder
-	# 			if entry[0] and entry[-1] == folderIsoPath:
-	# 				endIndex = entry[3]
-
-	# 		# If this is reached, we're in a folder. Check for a folder within this
-	# 		elif recursive and entry[0]:
-	# 			#paths.append( entry[-1] )
-	# 			paths.extend( self.getFolderContents(entry[-1], True) )
-
-	# 		# Folder is found; we're currently in it
-	# 		elif i >= endIndex:
-	# 			break
-	# 		else:
-	# 			paths.append( entry[-1] )
-
-	# 	return paths
-
 	def listInfo( self ):
 
 		""" Returns a string describing disc information. """
@@ -1490,6 +1464,9 @@ class Disc( object ):
 					else: # The file is expected to be in the FST (other system file size changes aren't supported)
 						self.updateFstEntry( fileObj.offset, fileObj.size )
 
+					# Update the original size to the 'current' size, so further saves with this file don't add extra padding
+					fileObj.origSize = fileObj.size
+
 				# Update progress display (don't bother if there's only one file)
 				if totalUnsavedChanges > 1:
 					self.updateProgressDisplay( 'Updating disc files:', 0, updateIndex, totalUnsavedChanges )
@@ -1538,15 +1515,6 @@ class Disc( object ):
 
 		# Determine file space and how much padding to add between files (will also rebuild the FST list)
 		projectedDiscSize, totalSystemFileSpace, fstOffset, interFilePaddingLength, paddingSetting = self.getDiscSizeCalculations()
-
-		#projectedDiscSize, interFilePaddingLength, paddingSetting = self.calculateDiscSize(  )
-
-		# print 'totalNonSystemFiles determined:', totalNonSystemFiles
-		# print 'interFilePaddingLength:', hex(interFilePaddingLength)
-		# print 'total system file space:', hex(totalSystemFileSpace)
-		# print 'total non-system file space:', hex(totalNonSystemFileSpace)
-		# print 'padding:', hex(interFilePaddingLength), 'paddingSetting:', paddingSetting
-		# print 'projected disc size:', hex(projectedDiscSize), projectedDiscSize
 
 		dataCopiedSinceLastUpdate = 0
 		fileWriteSuccessful = False
@@ -2059,7 +2027,7 @@ class Disc( object ):
 
 		return problematicMods
 
-	def storeCodeChange( self, address, code, modName='', requiredChange=False ):
+	def storeCodeChange( self, address, code, modName, requiredChange=False ):
 
 		""" Saves custom code to the DOL and/or to the codes.bin file (used to store custom code). 
 			Also detects conflicts between mods during the mod installation operation, and notifies the user of conflicts. 
@@ -2077,31 +2045,30 @@ class Disc( object ):
 				break
 
 		if conflictDetected:
-			if modName: # Case to silently fail when uninstalling a mod previously detected to have a problem
-				oldCodeStart = self.dol.offsetInDOL( regionStart )
-				newCodeStart = self.dol.offsetInDOL( address )
-				oldChangeRegion = 'Code Start: 0x{:X},  Code End: 0x{:X}'.format( oldCodeStart, oldCodeStart + codeLength )
-				newChangeRegion = 'Code Start: 0x{:X},  Code End: 0x{:X}'.format( newCodeStart, newCodeStart + newCodeLength )
+			oldCodeStart = self.dol.offsetInDOL( regionStart )
+			newCodeStart = self.dol.offsetInDOL( address )
+			oldChangeRegion = 'Code Start: 0x{:X},  Code End: 0x{:X}'.format( oldCodeStart, oldCodeStart + codeLength )
+			newChangeRegion = 'Code Start: 0x{:X},  Code End: 0x{:X}'.format( newCodeStart, newCodeStart + newCodeLength )
 
-				if requiredChange:
-					warningMsg = ( 'A conflict (writing overlap) was detected between the {} and a '
-								   'code change for {}: {}'
-								   '\n\nThe latter has been partially overwritten and will likely no longer function correctly. '
-								   "It's recommended to be uninstalled.".format(modName, modPurpose, oldChangeRegion) )
-				else:
-					warningMsg = ( 'A conflict (writing overlap) was detected between these two changes:\n\n"' + \
-									modPurpose + '"\n\t' + oldChangeRegion + '\n\n"' + \
-									modName + '"\n\t' + newChangeRegion + \
-									'\n\nThese cannot both be enabled. "' + modName + '" will not be enabled. "' + \
-									modPurpose + '" may need to be reinstalled.' )
-				
-				msg( warningMsg, 'Conflicting Changes Detected' )
+			if requiredChange:
+				warningMsg = ( 'A conflict (writing overlap) was detected between the {} and a '
+								'code change for {}: {}'
+								'\n\nThe latter has been partially overwritten and will likely no longer function correctly. '
+								"It's recommended to be uninstalled.".format(modName, modPurpose, oldChangeRegion) )
+			else:
+				warningMsg = ( 'A conflict (writing overlap) was detected between these two changes:\n\n"' + \
+								modPurpose + '"\n\t' + oldChangeRegion + '\n\n"' + \
+								modName + '"\n\t' + newChangeRegion + \
+								'\n\nThese cannot both be enabled. "' + modName + '" will not be enabled. "' + \
+								modPurpose + '" may need to be reinstalled.' )
+			
+			msg( warningMsg, 'Conflicting Changes Detected' )
 		
 		else: # No problems; save the code change to the DOL and remember this change
 			dolOffset = self.dol.offsetInDOL( address )
 
 			if dolOffset == -1: # Not in the DOL. Belongs in the codes.bin file
-				print 'Address not in the DOL:', hex( address )
+				print( 'Address not in the DOL: ' + hex(address) )
 
 				# Prepend the data to the beginning of codes.bin
 				_, arenaEnd, arenaSpaceUsed = self.allocationMatrix[-1]
@@ -2119,8 +2086,8 @@ class Disc( object ):
 			else:
 				self.dol.setData( dolOffset, bytearray.fromhex(code) )
 			
-			#if modName: # Don't remember if no mod name; means this is a reversion
-			self.modifiedRegions.append( (address, newCodeLength, modName) )
+			if not conflictDetected:
+				self.modifiedRegions.append( (address, newCodeLength, modName) )
 		
 		return conflictDetected
 

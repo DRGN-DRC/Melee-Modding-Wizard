@@ -1,0 +1,238 @@
+
+!
+	[  These codes are for testing MCM/MMW code installation functionality.	]
+	[  Applying only these codes should create a DOL with this hash:	]
+	[	- 					]
+	[									]
+	[  Which should have these effects:					]
+	[	- Boot to the Character Select Screen				]
+	[	- Bowser can Flame Cancel					]
+	[	- Captain Falcon cannot rapid-jab				]
+	[	- 					]
+	[	- 					]
+
+
+	-==-
+
+
+Boot to Scene [TEST]
+- Does not skip loading memory card data.
+Configurations:
+    uint8 Scene = 0x2
+	0x00: Title Screen (Press Start)
+	0x01: Language change menu reload? # brings to language change selection and saves
+	0x02: VS Mode Character Select Screen
+	0x03: Classic Mode
+	0x04: Adventure Mode
+	0x05: All-Star Mode
+	0x06: Debug Menu
+	0x07: Master Sound Test
+	0x08: VS Mode CSS Cycler # Looks like regular VS mode, but actually cycles through many different CSSs
+	0x09: Black Screen...?
+	0x0A: Camera Mode
+	0x0B: Trophy Gallery
+	0x0C: Trophy Lottery
+	0x0D: Trophy Collection
+	0x0E: Match # starts with the debug menu configurations?
+	0x0F: Target Test
+	0x10: Super Sudden Death
+	0x11: Invisible Melee
+	0x12: Slo-Mo Melee
+	0x13: Lightning Melee
+	0x14: "A new foe has appeared!" # Ganon with sword, freezes if you try to progress, ID from debug?
+	0x15: Classic Mode trophy acquisition # +credits (C.Falcon, ID from debug?)
+	0x16: Adventure Mode trophy acquisition # +credits (C.Falcon, ID from debug?)
+	0x17: All-Star Mode trophy acquisition # +credits (C.Falcon, ID from debug?)
+	0x18: Intro video
+	0x19: Adventure Mode cinematics cycler
+	0x1A: Character trophy acquisition # no credits (uses All-Star trophy; C.Falcon, ID from debug?)
+	0x1B: Tournament Menu
+	0x1C: Training Mode
+	0x1D: Tiny Melee
+	0x1E: Giant Melee
+	0x1F: Stamina Mode
+	0x20: Home-Run Contest
+	0x21: 10-Man Melee
+	0x22: 100-Man Melee
+	0x23: 3-Minute Melee
+	0x24: 15-Minute Melee
+	0x25: Endless Melee
+	0x26: Cruel Melee
+	0x27: "Enable Progressive Scan Display?"
+	0x28: Plays Intro Video
+	0x29: Memory Card Overwrite Confirmation
+	0x2A: Fixed-Camera Mode
+	0x2B: Event Match 1 # Match ID from the debug menu?
+	0x2C: Single-Button Mode
+[Dan Salvato, Achilles, DRGN]
+Version -- DOL Offset ------ Hex to Replace ---------- ASM Code
+1.00 ------ 0x1BB794 ---- 887F0004 -> 386000[[Scene]] ---- (lbz r3,4(r31) -> li r0,2)
+1.01 ------ 0x1BBFA8 ---- 887F0004 -> 386000[[Scene]] ---- (lbz r3,4(r31) -> li r0,2)
+1.02 ------ 0x1BC600 ---- 887F0004 -> 386000[[Scene]] ---- (lbz r3,4(r31) -> li r0,2)
+PAL ------- 0x1BE160 ---- 887F0004 -> 386000[[Scene]] ---- (lbz r3,4(r31) -> li r0,2)
+
+
+	-==-
+
+
+Bowser - Flame Cancel [TEST]
+Test for static overwrite functionality.
+Restores his Flame Cancel ability to as it was in v1.00.
+[Achilles]
+Version -- DOL Offset ------ Hex to Replace ---------- ASM Code
+1.02 ------ 0x132264 ---- 38800155 -> 38800156
+
+
+	-==-
+
+
+Captain Falcon - No Rapid Jabs [TEST]
+Test for code injection functionality.
+[Achilles]
+Version -- DOL Offset ------ Hex to Replace ---------- ASM Code
+1.02 ------ 0xD376C ---- 7C0802A6 -> Branch
+
+81DE0064 2C0E0002
+40820008 4E800020
+7C0802A6 00000000
+
+
+	-==-
+
+
+Configuration A Parse TEST
+Example mod demonstration for various configurations types.
+The code change does nothing (just sets bytes in the common code areas).
+Configurations:
+    float Float Slider = .6 (0xFF); 0-1.0 # You can even set comments
+    int32 Int Slider = 42; 0-100 # You can even set comments
+    uint32 Object = 0x4 # Select your preferred vegetable features
+        0: Point # Optional comment/description
+        1: Line
+        2: Square
+        3: Cube # Another comment
+        4: Tesseract
+    int16 Some INT16 = 0x16
+    int16 Object 2 = 0x2 # Select your preferred vegetable features
+        0: Point # Optional comment/description
+        1: Line
+        2: Square
+        3: Cube # Another comment
+        4: Tesseract
+[DRGN]
+Version -- DOL Offset ------ Hex to Replace ---------- ASM Code
+1.02 ----- 0x304 --- 00000000 -> 390000[[Object 2]]
+1.02 ----- 0x308 --- 00000000 -> 48000010
+
+
+	-==-
+
+
+Configuration B Parse TEST
+Testing for reading an installed mod configuration within a DOL, including multiple values ORed to the same location.
+The code change does nothing (just sets bytes in the common code areas).
+Configurations:
+    int32 VarInt32 = 50 (0xFF00)
+    int8 VarInt8 = 50 (0xFF)
+[DRGN]
+Revision ---- DOL Offset ---- Hex to Replace ---------- ASM Code -
+NTSC 1.02 ----- 0x310 ------ 00000000 -> Branch
+
+81DE0064 2C0E0002
+40820008 [[VarInt32|VarInt8]]
+7C0802A6 00000000
+bl <TEST_Func>
+7C0802A6 00000000
+
+<TEST_Func> ALL
+7C0802A6 00000000
+7C0802A6 00000000
+
+
+	-==-
+
+
+Peach - Always Pull Specific Turnip [TEST]
+The default for this code is Stitch Face, but it can be changed to any of the turnips.
+Configurations:
+    uint8 Turnip Type = 0x7; 0-0x7 # Select your preferred vegetable features
+        0: Smile # The smile Turnip. (This is an optional comment/description)
+        1: T Eyes # A comment on T Eyes
+        2: Line Eyes
+        3: Circle Eyes
+        4: Upward Curve Eyes
+        5: Wink # Knows something you don't
+        6: Dot Eyes
+        7: Stitch Face # The deadliest of vegetables
+[??]
+Version -- DOL Offset ------ Hex to Replace ---------- ASM Code
+1.02 ----- 0x802BD410 --- 7CC83378 -> 390000[[Turnip Type]]
+1.02 ----- 0x8011D090 --- 40820010 -> 48000010
+1.01 ----- 0x802BC988 --- 7CC83378 -> 390000[[Turnip Type]]
+1.01 ----- 0x8011CE04 --- 40820010 -> 48000010
+1.00 ----- 0x802BBDA0 --- 38C60001 -> 390000[[Turnip Type]]
+1.00 ------ 0x11CA54 ---- 7FE3FB78 -> 48000010
+
+
+	-==-
+
+!
+Just an SF
+[DRGN]
+<TEST_Func> NTSC 1.02
+.long 0x01234567
+.long 0x01234567
+
+.long 0x01234567
+
+.long 0x01234567
+.long 0x01234567
+
+
+	-==-
+
+!
+Test End File Alignment on Main Menu Load
+Tests for alignment error
+[Punkline]
+Version -- DOL Offset ------ Hex to Replace ---------- ASM Code
+1.02 ------ 0x1ADF4C ---- 80010024 -> branch
+
+# --- SDATA offsets
+r13.xFSTEntries = -0x4424
+r13.xFSTPaths   = -0x4420
+r13.xFSTCount   = -0x441C
+r13.xDVDAsyncQueue = -0x3ea8
+
+# rFST:
+FST.xStr    = 0x0
+FST.xOffset = 0x4
+FST.xSize   = 0x8
+FST.size    = 0xC
+
+
+rFST = 31
+
+lwz r3, r13.xFSTCount(r13)
+subi r3, r3, 1
+lwz rFST, r13.xFSTEntries(r13)
+mulli r3, r3, FST.size
+add rFST, rFST, r3
+# rFST = last file in FST entries
+
+lwz r3, FST.xSize(rFST)
+bl 0x80381fa8  # hsdAllocMemPiece
+# allocate space for loading file
+
+lwz r30, 0x24(sp)  # backup sp value for safe return
+mr r4, r3                  # r3 = path str
+lwz r3, FST.xStr(rFST)     # r4 = file output
+addi r5, sp, 0x24          # r5 = temp value to store file size
+lwz rFST, r13.xFSTPaths(r13)
+add r3, r3, rFST
+bl 0x8001668c  # DVD.load
+# attempt to load last file in ISO into allocated space
+
+mr r0, r30  # recover last instruction from backup sp value
+.long 0     # return from injection
+

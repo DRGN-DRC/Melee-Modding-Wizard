@@ -12,7 +12,7 @@
 """ Container for global data that all scripts may access. 
 	Contains settings, settings-related load/save functions, and look-up tables. """
 
-programVersion = '0.9.4'
+programVersion = '0.9.3'
 
 # External Dependencies
 import os
@@ -80,6 +80,7 @@ def init( programArgs ):
 	}
 	defaultBoolSettings = { # Same as above, but for bools, which are initialized slightly differently (must be strings of 0 or 1!)
 		'useDiscConvenienceFolders': '1',
+		'useConvenienceFoldersOnExport': '0',
 		'backupOnRebuild': '1',
 		'alwaysEnableCrashReports': '1',
 		'alwaysAddFilesAlphabetically': '0',
