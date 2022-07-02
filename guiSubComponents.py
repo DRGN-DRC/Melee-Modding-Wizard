@@ -1523,16 +1523,15 @@ class NeoTreeview( ttk.Treeview, object ):
 				self.item( folderIid, open=True )
 			except: pass # The item may have been deleted, which is fine
 
-		# Set the current selections
+		# Set the current selections and set scroll position back to what it was
 		try:
 			self.selection_set( self.selectionState )
+			self.focus( self.focusState )
+			if self.scrollbar:
+				self.yview_moveto( self.scrollState )
 		except: # Prior selections might not exist
 			pass
 
-		# Set scroll position back to what it was
-		self.focus( self.focusState )
-		if self.scrollbar:
-			self.yview_moveto( self.scrollState )
 
 	def addTag( self, iid, tagToAdd ):
 

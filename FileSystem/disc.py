@@ -418,13 +418,14 @@ class Disc( object ):
 			# 			self.is20XX = self.get20xxVersion( cssData )
 			# 			break
 
-			self.instantiateFilesystem()
-
 			# Add the file's data to the file objects created above, since we have it (prevent having to open the disc again later)
 			dol.data = dolData
 			dol.load()
 			self.is20XX = dol.is20XX
 			fst.data = fstData
+
+			self.instantiateFilesystem()
+			
 			# if cssData: # Couldn't do this in the loop above because the file object hadn't been created yet
 			# 	cssFile = self.files.get( self.gameId + '/' + itemName )
 			# 	if cssFile:
