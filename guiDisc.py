@@ -400,7 +400,7 @@ class DiscTab( ttk.Frame ):
 
 		# Add the file to the treeview (all files in the treeview should be added with the line below, but may be modified elsewhere)
 		if usingConvenienceFolders:
-			# Add extra space to indent the name from the stage folder name
+			# Add extra space to indent the name from the parent folder name
 			description = '     ' + discFile.shortDescription
 		else:
 			description = discFile.longDescription
@@ -746,7 +746,7 @@ class DiscTab( ttk.Frame ):
 					failedExports += 1
 
 			else: # Item is a folder.
-				print 'unable to get this file!:', iid
+				print( 'Unable to get this file!: ' + str(iid) )
 			# 	exported, failedExports = self.exportItemsInSelection( self.isoFileTree.get_children(iid), iidSelectionsTuple, isoBinary, directoryPath, exported, failedExports )
 
 		return exported, failedExports
@@ -1770,7 +1770,7 @@ class DiscMenu( Tk.Menu, object ):
 					fileObj.isoPath = '/'.join( newFileIsoPath.split('/')[:-1] + [newName] )
 					fileObj.filename = newName
 			except Exception as err:
-				print 'Unable to init', filepath, ';', err
+				print( 'Unable to initialize {}; {}'.format(filepath, err) )
 				continue
 			fileObj.insertionKey = iidToAddBefore
 			filesToAdd.append( fileObj )
@@ -1873,7 +1873,7 @@ class DiscMenu( Tk.Menu, object ):
 				'unexpected problems. \n\nAre you sure you want to do this?'), 'Warning!' ):
 				return
 		
-		print 'rename filesystem entry not yet implemented'
+		print( 'rename filesystem entry not yet implemented' )
 		# Update the file name in the FST
 		# oldName = 
 		# for entry in globalData.disc.fstEntries: # Entries are of the form [ folderFlag, stringOffset, entryOffset, entrySize, entryName, isoPath ]
@@ -1908,9 +1908,14 @@ class DiscMenu( Tk.Menu, object ):
 		
 		if returnCode == 0:
 			# Update the new name in the treeview on this tab, as well as in the Stage Manager tab
+			if globalData.checkSetting( 'useDiscConvenienceFolders' ):
+				# Add extra space to indent the name from the parent folder name
+				description = '     ' + self.fileObj.shortDescription
+			else:
+				description = self.fileObj.longDescription
+			globalData.gui.discTab.isoFileTree.item( self.fileObj.isoPath, values=(description, 'file') )
 			if globalData.gui.stageManagerTab:
 				globalData.gui.stageManagerTab.renameTreeviewItem( self.fileObj.isoPath, newName ) # No error if not currently displayed
-			#globalData.gui.discTab.isoFileTree.item( self.fileObj.isoPath, values=(newName, 'file'), tags='changed' )
 
 			if self.fileObj.__class__.__name__ == 'StageFile' and self.fileObj.isRandomNeutral():
 				globalData.gui.updateProgramStatus( 'Stage name updated in the CSS file', success=True )

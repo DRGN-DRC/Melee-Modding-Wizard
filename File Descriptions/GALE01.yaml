@@ -103,8 +103,12 @@ yorster.hps: Yoshi's Island
 ystory.hps: Yoshi's Story
 zebes.hps: Brinstar
 
-# Miscellaneous Vanilla Files:
+# Vanilla Sound Effects
+nr_name.ssm: CSS Character Name Announcements
+
+# Miscellaneous Vanilla Files (applies to .usd as well):
 GmGover.dat: '1P Mode: Game Over Screen'
+GmKumite.dat: Multi-Man Melee
 GmPause.dat: Pause Screen
 GmRst.dat: Results Screen
 GmStRoll.dat: Credits Screen/Minigame
@@ -115,24 +119,30 @@ GmTou3p.dat: Tournament Mode File 3
 GmTou4p.dat: Tournament Mode File 4
 GmTrain.dat: Training Mode
 GmTtAll.dat: Title Screen
+IfAll.dat: Match HUD and Interface
 IfComSn.dat: '"Coming Soon" Screen'
 IfHrNoCn.dat: Home Run Contest File 1
 IfHrReco.dat: Home Run Contest File 2
 IfPrize.dat: Special Achievement Messages
 IfVsCam.dat: 'Special Melee: Camera Mode'
 IrAls.dat: '1P Mode: "VS." Intro Screens'
-IrNml.dat: Adventure Mode Stage Splash Screens
+IrEzFigG.dat: Snag the Trophies splash screen
+IrEzTarg.dat: Break the Targets splash screen
+IrNml.dat: Adventure Mode stage splash screens
 ItCo.dat: Items
+LbAd.dat: Audio-loading data
 LbMcGame.dat: Memory card banners and icon
 LbMcSnap.dat: Memory card snapshot banner/icon
-LbRb.dat: Controller Rumble Data
+LbRb.dat: Controller rumble data
 MnExtAll.dat: Extra menu graphics for the CSS
 MnMaAll.dat: Main menu graphics file
+MnNamedef.dat: Name entry data
 MnSlChr.dat: Character Select Screen
 MnSlMap.dat: Stage Select Screen
 NtAppro.dat: "'New Challenger' Screens"
 opening.dat: Game banner, title, and description texts
 PlCo.dat: Textures & global data common to the cast
+usa.ini: Language indicator (tells game to use .usd)
 
 # UI / Menu text strings
 SdDec.dat: Bonuses text
@@ -149,6 +159,7 @@ SdToy.dat: Trophy names
 SdToyExp.dat: Trophy descriptions
 SdTrain.dat: Training mode strings
 SdVsCam.dat: Camera mode snapshot management text
+SmSt.dat: Sound Test
 
 # Vanilla Stages
 GrBb.dat: Big Blue
@@ -223,12 +234,12 @@ IfComDb.dat: Turbo Mode
 IfComDI.dat: Directional Influence Draw
 IfComDW.dat: DAT Texture Wizard
 IfComM1.dat: Basic Unlock-All Save File
-IfComM2.dat: "Memory Card Mod: Stage Expansion"
-IfComM3.dat: "Memory Card Mod: 20XX TE"
-IfComM4.dat: "Memory Card Mod: SD Remix Lite"
-IfComM5.dat: "Memory Card Mod: Minigames Mod"
-IfComM6.dat: "Memory Card Mod: Crazy Mod"
-IfComM7.dat: "Memory Card Mod: Stage Expansion"
+IfComM2.dat: 'Memory Card Mod: Stage Expansion'
+IfComM3.dat: 'Memory Card Mod: 20XX TE'
+IfComM4.dat: 'Memory Card Mod: SD Remix Lite'
+IfComM5.dat: 'Memory Card Mod: Minigames Mod'
+IfComM6.dat: 'Memory Card Mod: Crazy Mod'
+IfComM7.dat: 'Memory Card Mod: Stage Expansion'
 IfComNI.dat: Nintendont
 IfComNJ.dat: NBA Jam
 IfComSD.dat: SD Remix
@@ -328,3 +339,16 @@ GrTSk.iat: SSB64 Intro Stage             # 20XXHP 5.0+
 GrNSr.0at: Underground Maze (original)
 GrEF2.rat: Ripple Star
 GrEF3.fat: Falcon's Realm
+
+# Adventure Mode Cutscenes
+Vi0102.dat: Adventure Mode cutscenes (Mario & Luigi)
+Vi0401.dat: Adventure Mode cutscenes data
+Vi0402.dat: Adventure Mode cutscenes data
+Vi0501.dat: Adventure Mode cutscenes (Kirby)
+Vi0502.dat: Adventure Mode cutscenes (Kirby)
+Vi0601.dat: Adventure Mode cutscenes data
+Vi0801.dat: Adventure Mode cutscenes data
+Vi1101.dat: Adventure Mode cutscenes (Mario & Luigi)
+Vi1201v1.dat: Adventure Mode cutscenes data
+Vi1201v2.dat: Adventure Mode cutscenes (Giga Bowser)
+Vi1202.dat: Adventure Mode cutscenes data
