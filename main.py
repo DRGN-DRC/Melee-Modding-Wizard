@@ -28,6 +28,7 @@ import pyaudio, wave
 import Tkinter as Tk
 import ttk, tkMessageBox, tkFileDialog
 
+#from tkinter import StringVar
 from threading import Thread, Event
 from collections import OrderedDict
 from subprocess import Popen, PIPE, CalledProcessError
@@ -46,7 +47,7 @@ from FileSystem import CssFile, SssFile, StageFile, MusicFile
 from FileSystem.disc import Disc, isExtractedDirectory
 from basicFunctions import msg, openFolder
 from guiSubComponents import (
-		cmsg, importGameFiles, 
+		ToolTip, cmsg, importGameFiles, 
 		HexEditEntry, CharacterChooser
 	)
 from guiDisc import DiscTab, DiscDetailsTab
@@ -688,9 +689,10 @@ class MainMenuOption( object ):
 		self.bdRight = canvas.create_image( coords[0]+28+textWidth, coords[1], image=canvas.optionBgRightImage, anchor='nw', tags=('menuOptionsBg', selfTag) )
 
 		# Layer the menu option background elements over the character image, and the text over the menu option background elements
-		canvas.lower( self.blackText1, 'charImage' )
-		canvas.lower( self.blackText2, 'charImage' )
-		canvas.tag_raise( 'menuOptionsBg', 'charImage' )
+		if not canvas.debugMode:
+			canvas.lower( self.blackText1, 'charImage' )
+			canvas.lower( self.blackText2, 'charImage' )
+			canvas.tag_raise( 'menuOptionsBg', 'charImage' )
 		canvas.tag_raise( 'menuOptions', 'menuOptionsBg' )
 
 		# Add click and hover event handlers
@@ -780,6 +782,7 @@ class MainMenuCanvas( Tk.Canvas ):
 		def noScroll( arg1, arg2 ): return
 		self.yview_scroll = noScroll
 
+		self.debugMode = False
 		self.testSet = '' # For testing. Set to 'ABGxx' to test a specific character image, or to '' for no testing
 
 		self.mainMenuFolder = os.path.join( globalData.paths['imagesFolder'], 'Main Menu' )
@@ -805,7 +808,8 @@ class MainMenuCanvas( Tk.Canvas ):
 		self.initFonts()
 
 		# Load and apply the main background image
-		self.create_image( 500, 375, image=mainGui.imageBank('bg', 'Main Menu'), anchor='center' )
+		if not self.debugMode:
+			self.create_image( 500, 375, image=mainGui.imageBank('bg', 'Main Menu'), anchor='center' )
 
 		# Load the mask used to create the wireframe effect
 		maskPath = os.path.join( self.mainMenuFolder, "ABGM.png" )
@@ -816,21 +820,31 @@ class MainMenuCanvas( Tk.Canvas ):
 		self.initOptionImages()
 
 		# Load the character image
-		self.imageSets = { 'ABG{:02}'.format(i) for i in range(4) } # ABG = Animated BackGrounds
-		self.loadImageSet()
+		if not self.debugMode:
+			self.imageSets = { 'ABG{:02}'.format(i) for i in range(4) } # ABG = Animated BackGrounds
+			self.loadImageSet()
 
-		# if showPrimaryMenu:
-		# 	self.displayPrimaryMenu()
+			if not globalData.checkSetting( 'disableMainMenuAnimations' ):
+				self.queueNewAnimation( shortFirstIdle=True )
 
-		if not globalData.checkSetting( 'disableMainMenuAnimations' ):
-			self.queueNewAnimation( shortFirstIdle=True )
+			# Add some test buttons if testing/debugging
+			if self.testSet:
+				self.create_text( width-40, 80, text='Fade', fill='silver', tags=('testFade',) )
+				self.create_text( width-40, 120, text='Wireframe\nPass', fill='silver', tags=('testWireframe',) )
+				self.tag_bind( 'testFade', '<1>', self.testFade )
+				self.tag_bind( 'testWireframe', '<1>', self.testWireframe )
 
-		# Add some test buttons if testing/debugging
-		if self.testSet:
-			self.create_text( width-40, 80, text='Fade', fill='silver', tags=('testFade',) )
-			self.create_text( width-40, 120, text='Wireframe\nPass', fill='silver', tags=('testWireframe',) )
-			self.tag_bind( 'testFade', '<1>', self.testFade )
-			self.tag_bind( 'testWireframe', '<1>', self.testWireframe )
+		# Show current coordinates of mouse in debug mode
+		if self.debugMode:
+			self.mouseCoordsVar = Tk.StringVar()
+			ToolTip( self, textvariable=self.mouseCoordsVar )
+			self.bind( '<Motion>', self.showCoords )
+
+	def showCoords( self, event ):
+
+		""" Displays mouse coordinates at the top of the canvas when in debug mode. """
+
+		self.mouseCoordsVar.set( '{} x {}'.format(event.x, event.y) )
 
 	def initFonts( self ):
 
@@ -876,6 +890,9 @@ class MainMenuCanvas( Tk.Canvas ):
 		return bool( numFontsAdded )
 
 	def loadImageSet( self ):
+
+		""" Loads the images necessary for a character background (main + wireframe), and creates an alpha mask for it. """
+
 		# Randomly select an image set (without selecting the current one), unless doing testing
 		if self.testSet:
 			self.imageSet = self.testSet
@@ -1109,7 +1126,7 @@ class MainMenuCanvas( Tk.Canvas ):
 
 	def initOptionImages( self ):
 		
-		""" Image storage for option background images, to prevent 
+		""" Stores option background images to prevent 
 			garbage collection and redundant image processing. """
 
 		# Load the option background images
@@ -1146,24 +1163,27 @@ class MainMenuCanvas( Tk.Canvas ):
 
 	def addMenuOption( self, text, borderColor, clickCallback, pause=False, hoverText='' ):
 		
-		# Calculate main menu border position
+		# Calculate main menu border position (top-left edges of border)
 		originX = ( int(self['width']) - self.mainBorderWidth ) / 2
 		originY = ( int(self['height']) - self.mainBorderHeight ) / 2
-		heightFill = self.mainBorderHeight - 102 # -70 - 32
 
 		# Calculate position of this menu option
-		spacingBetweenOptions = heightFill / ( self.menuOptionCount + 1 )
-		currentMenuOptionCount = len( self.find_withtag('menuOptions') )
-		y = originY + 70 + spacingBetweenOptions * ( currentMenuOptionCount + 1 )
 		optOriginX = originX + 46 # 70 (offset from main border left origin) - 24 (width of option bg left +4)
-		optOriginY = y -12
+		verticalSpace = self.mainBorderHeight - 80 # -48 - 32
+		leftoverSpace = verticalSpace - ( 30 * self.menuOptionCount )
+		if leftoverSpace > 310: # Make the grouping a little tighter if there's a ton of extra space
+			originY += 60
+			leftoverSpace -= 120
+		spaceBetweenOptions = leftoverSpace / ( self.menuOptionCount + 1 )
+		currentMenuOptionCount = len( self.find_withtag('menuOptions') )
+		optOriginY = originY + 48 + spaceBetweenOptions + (spaceBetweenOptions + 30) * ( currentMenuOptionCount )
 
 		# Add the text object
-		mO = MainMenuOption( self, (optOriginX, optOriginY), text, borderColor, clickCallback, currentMenuOptionCount, hoverText )
-		self.options.append( mO )
+		option = MainMenuOption( self, (optOriginX, optOriginY), text, borderColor, clickCallback, currentMenuOptionCount, hoverText )
+		self.options.append( option )
 
 		if pause:
-			# Used to animate option additions (delay between displaying multiple options)
+			# Used to animate option additions (adds a slight delay between displaying multiple options)
 			self.update_idletasks()
 			time.sleep( .03 )
 
@@ -1344,12 +1364,13 @@ class MainMenuCanvas( Tk.Canvas ):
 
 		# Add new options
 		if globalData.disc.isMelee and globalData.disc.is20XX:
-			self.menuOptionCount = 6
+			self.menuOptionCount = 7
 			self.addMenuOption( 'Disc Management', '#394aa6', self.loadDiscManagement, showAnimations, 'Disc File Tree and Disc Details tabs.' ) # blue
 			self.addMenuOption( 'Code Manager', '#a13728', self.browseCodes, showAnimations, 'Make code-related modifications.' ) # red
 			self.addMenuOption( 'Stage Manager', '#077523', self.loadStageEditor, showAnimations, 'Configure stage loading.' ) # green
 			self.addMenuOption( 'Music Manager', '#9f853b', self.loadMusicManager, showAnimations, 'Listen to and configure music.' ) # yellow
 			self.addMenuOption( 'Sound Effect Editor', '#7b5467', self.loadDiscManagement, showAnimations, 'WIP!' ) # pinkish (blended)
+			self.addMenuOption( 'Character Modding', '#53c6b8', self.loadDebugMenuEditor, showAnimations, 'Modify character properties.' ) # teal
 			self.addMenuOption( 'Debug Menu Editor', '#582493', self.loadDebugMenuEditor, showAnimations, 'View/edit the in-game Debug Menu.' ) # purple
 
 		elif globalData.disc.isMelee:
