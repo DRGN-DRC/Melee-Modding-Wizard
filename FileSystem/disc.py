@@ -502,6 +502,14 @@ class Disc( object ):
 		else:
 			return bannerFile
 
+	def getFile( self, filename ):
+
+		""" Returns a file object for a given file name. A full isoPath is not needed for this method, 
+			however if the file is in a folder, the folder must be included (e.g. 'audio/castle.hps'). 
+			Returns None if the file is not found. """
+
+		return self.files.get( self.gameId + '/' + filename )
+
 	def parseFST( self, fstData ):
 
 		""" Parses a GC disc's FST/TOC (File System Table/Table of Contents), and builds 

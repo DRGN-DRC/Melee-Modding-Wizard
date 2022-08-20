@@ -98,17 +98,21 @@ class CodeManagerTab( ttk.Frame ):
 
 		ttk.Separator( self.controlPanel, orient='horizontal' ).pack( pady=7, ipadx=120 )
 
+		# Add the Select/Deselect All buttons
 		selectBtnsContainer = ttk.Frame( self.controlPanel, padding="0 0 0 0" )
+
 		selectBtnsContainer.selectAllBtn = ttk.Button( selectBtnsContainer, text='Select All', width=12 )
 		selectBtnsContainer.selectAllBtn.pack( side='left', padx=6, pady=0 )
 		ToolTip( selectBtnsContainer.selectAllBtn, delay=600, justify='center', text='Shift-Click to select\nwhole library' )
 		selectBtnsContainer.selectAllBtn.bind( '<Button-1>', self.selectAllMods )
 		selectBtnsContainer.selectAllBtn.bind( '<Shift-Button-1>', self.selectWholeLibrary )
+		
 		selectBtnsContainer.deselectAllBtn = ttk.Button( selectBtnsContainer, text='Deselect All', width=12 )
 		selectBtnsContainer.deselectAllBtn.pack( side='left', padx=6, pady=0 )
 		ToolTip( selectBtnsContainer.deselectAllBtn, delay=600, justify='center', text='Shift-Click to deselect\nwhole library' )
 		selectBtnsContainer.deselectAllBtn.bind( '<Button-1>', self.deselectAllMods )
 		selectBtnsContainer.deselectAllBtn.bind( '<Shift-Button-1>', self.deselectWholeLibrary )
+
 		selectBtnsContainer.pack( pady=4 )
 
 		ttk.Button( self.controlPanel, text=' Rescan for Mods ', command=self.scanCodeLibrary ).pack( pady=4 )

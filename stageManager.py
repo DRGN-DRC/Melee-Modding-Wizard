@@ -25,7 +25,7 @@ import globalData
 
 from tplCodec import TplEncoder
 from FileSystem import StageFile
-from FileSystem.hsdStructures import MapMusicTableEntry
+from FileSystem.hsdStructures import MapMusicTable
 from basicFunctions import uHex, validHex, humansize, msg, createFolders
 from guiSubComponents import (
 	LabelButton, getColoredShape, importGameFiles, exportSingleFileWithGui, importSingleFileWithGui, importSingleTexture,
@@ -37,6 +37,7 @@ class StageSwapTable( object ):
 
 	""" Data table for 20XX HP's Stage Engine. This table is 0x5D0 bytes long, and located at 
 		the 'tableOffset' value below. It is composed of 31 entries, each 0x30 bytes long. 
+
 		Each entry is of this form:
 			B	0x0: Stage name (ASCII; only used as identifier in this table)
 			B	0x8: New Stage ID; SSS, page 1
@@ -1822,12 +1823,12 @@ class StageManager( ttk.Frame ):
 				returnCode = 0
 			except ValueError as err:
 				returnCode = 3
-				print 'ValueError during PIL image saving;', err
+				print( 'ValueError during PIL image saving; {}'.format(err) )
 			except IOError as err:
-				print 'IOError during PIL image saving;', err
+				print( 'IOError during PIL image saving; {}'.format(err) )
 				returnCode = 2
 			except Exception as err: # For everything else
-				print 'Exception during PIL image saving;', err
+				print( 'Exception during PIL image saving; {}'.format(err) )
 				returnCode = -1
 
 		# Update the default directory to start in when opening or exporting files.
@@ -1868,7 +1869,7 @@ class StageManager( ttk.Frame ):
 			newImage = Image.open( imagePath )
 		except Exception as err:
 			globalData.gui.updateProgramStatus( 'Unable to open the texture due to an unrecognized error. Check the log for details.' )
-			print err
+			print( 'Unable to load image for preview text; {}'.format(err) )
 			return
 
 		# Ensure the image isn't too large (at least by dimensions)
@@ -2670,8 +2671,7 @@ class StageSwapEditor( BasicWindow ):
 				raise Exception( 'Illegal character for stage name string.' )
 			failedEncoding = False
 		except Exception as err:
-			print 'Unable to convert character to value:', newString[0]
-			print err
+			print( 'Unable to convert character to value: {} ; {}'.format(newString[0], err) )
 			failedEncoding = True
 		
 		# Look for a label widget paired with this entry, and update it if found
@@ -2875,13 +2875,13 @@ class MusicBehaviorEditor( BasicWindow ):
 		self.initialValue = initialValue
 		self.selectedBehavior = Tk.IntVar( value=initialValue )
 
-		for index, behavior in MapMusicTableEntry.enums['Song_Behavior'].items():
+		for index, behavior in MapMusicTable.enums['Song_Behavior'].items():
 			# Add the radio button to the GUI
 			btn = ttk.Radiobutton( self.window, text=behavior, value=index, variable=self.selectedBehavior )
 			btn.grid( column=0, columnspan=2, row=index, sticky='w', pady=3, padx=(25, 15) )
 
 			# Add a tooltip description
-			description = MapMusicTableEntry.songBehaviorDescriptions[index]
+			description = MapMusicTable.songBehaviorDescriptions[index]
 			ToolTip( btn, text=description, delay=700, wraplength=500 )
 		
 		#buttonFrame = ttk.Frame( self.window )

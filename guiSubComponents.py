@@ -9,18 +9,23 @@
 #		╚═╝     ╚═╝ ╚═╝     ╚═╝  ╚══╝╚══╝ 			 ------                                                   ------
 #		  -  - Melee Modding Wizard -  -  
 
+# External dependencies
 import os
 import ttk
 import time
+import struct
 import tkFileDialog
 import Tkinter as Tk
+
+from binascii import hexlify
 from PIL import Image, ImageTk
 
+# Internal dependencies
 import globalData
 import FileSystem
 
 from ScrolledText import ScrolledText
-from basicFunctions import uHex, humansize, msg, getFileMd5
+from basicFunctions import grammarfyList, uHex, humansize, msg, getFileMd5, validHex
 
 
 def getWindowGeometry( topLevelWindow ):
@@ -771,10 +776,10 @@ class VanillaDiscEntry( PopupEntryWindow ):
 
 class HexEditEntry( Tk.Entry ):
 
-	""" Used for struct hex and value display and editing. 
-		"dataOffsets" will typically be a single int value, but can be a list of offsets. """
+	""" Used for struct hex or value display and editing. 
+		"dataOffsets" will typically be a single int value, but may also be a list of offsets. """
 
-	def __init__( self, parent, dataOffsets=None, byteLength=-1, formatting='', updateName='' ):
+	def __init__( self, parent, targetFile, dataOffsets, byteLength, formatting, updateName='', valueEntry=False ):
 		Tk.Entry.__init__( self, parent,
 			width=byteLength*2+2, 
 			justify='center', 
@@ -784,10 +789,182 @@ class HexEditEntry( Tk.Entry ):
 			highlightthickness=1, 
 			highlightcolor='#0099f0' )
 
+		self.fileObj	= targetFile
 		self.offsets	= dataOffsets		# May be a single file offset (int), or a list of them
 		self.byteLength = byteLength
 		self.formatting = formatting
-		self.updateName = updateName
+		
+		if updateName:
+			self.updateName = updateName.replace( '\n', ' ' )
+		elif type( dataOffsets ) == list:
+			offsets = [uHex(0x20+o) for o in dataOffsets] # Cast to uppercase string and adjust for header offset
+			self.updateName = 'Offsets ' + grammarfyList( offsets )
+		else:
+			self.updateName = 'Offset ' + uHex( 0x20 + dataOffsets )
+
+		# Optional widgets that this may be paired with
+		self.hexEntryWidget = None			# Used by HexEditEntry widgets for hex data
+		self.valueEntryWidget = None		# Used by HexEditEntry widgets for values
+		self.colorSwatchWidget = None
+
+		if valueEntry:
+			self.bind( '<Return>', self.updateValue )
+		else:
+			self.bind( '<Return>', self.updateHex )
+
+	def updateDataInFile( self, newData ):
+		
+		""" Replaces the data in the file for each offset location. """
+
+		if type( self.offsets ) == list:
+			for offset in self.offsets:
+				updateName = 'Offset ' + uHex( 0x20 + offset )
+				descriptionOfChange = updateName + ' modified in ' + self.fileObj.filename
+				self.fileObj.updateData( offset, newData, descriptionOfChange )
+		else:
+			# The offsets attribute is just a single value (the usual case)
+			descriptionOfChange = self.updateName + ' modified in ' + self.fileObj.filename
+			self.fileObj.updateData( self.offsets, newData, descriptionOfChange )
+
+	def updateHex( self, event ):
+
+		""" Validates widget input, checks if it's new/different from what's in the file, 
+			and updates the data in the file if it differs. Also triggers updating of any paired widgets. """
+
+		# Validate the input
+		newHex = self.get().zfill( self.byteLength * 2 ).upper() # Pads the string with zeroes to the left if not enough characters
+		if not validHex( newHex ):
+			msg( 'The entered text is not valid hexadecimal!' )
+			return
+
+		# Confirm whether updating is necessary by checking if this is actually new data for any of the offset locations
+		if type( self.offsets ) == list:
+			for offset in self.offsets:
+				currentFileHex = hexlify( self.fileObj.getData(offset, self.byteLength) ).upper()
+				if currentFileHex != newHex: # Found a difference
+					break
+			else: # The loop above didn't break; no change found
+				return # No change to be updated
+		else: # The offsets attribute is just a single value (the usual case)
+			currentFileHex = hexlify( self.fileObj.getData(self.offsets, self.byteLength) ).upper()
+			if currentFileHex == newHex:
+				return # No change to be updated
+
+		# Get the data as a bytearray, and check for other GUI compoenents that may need to be updated
+		newData = bytearray.fromhex( newHex )
+		decodedValue = None
+
+		if len( newData ) != self.byteLength: # Due to the zfill above, this should only happen if the hex entry is too long
+			msg( 'The new value must be {} characters ({} bytes) long.'.format(self.byteLength*2, self.byteLength) )
+			return
+		elif self.valueEntryWidget and self.formatting:
+			# Check that the appropriate value can be decoded from this hex (if formatting is available)
+			try:
+				decodedValue = struct.unpack( '>' + self.formatting, newData )
+			except Exception as err:
+				# Construct and display an error message for the user
+				dataTypes = { 	'?': 'a boolean', 'b': 'a signed character', 'B': 'an unsigned character', 	# 1-byte
+								'h': 'a signed short (halfword)', 'H': 'an unsigned short',				# 2-bytes
+								'i': 'a signed integer', 'I': 'an unsigned integer', 'f': 'a float' } # 4-bytes
+				if self.formatting in dataTypes:
+					expectedLength = struct.calcsize( self.formatting )
+					msg( 'The entered value is invalid for {} value (should be {} byte(s) long).'.format( dataTypes[self.formatting], expectedLength ) )
+				else: # I tried
+					msg( 'The entered value is invalid.' )
+				print( 'Error encountered unpacking hex entry data; {}'.format(err) )
+				return
+
+		# Change the background color of the widget, to show that changes have been made to it and are pending saving.
+		self.configure( background='#faa' )
+
+		# If this entry has a color swatch associated with it, redraw it
+		if self.colorSwatchWidget:
+			self.colorSwatchWidget.renderCircle( newHex )
+
+		# Add the widget to a list, to keep track of what widgets need to have their background restored to white when saving.
+		# global editedDatEntries
+		# editedDatEntries.append( widget )
+
+		# Update the hex shown in the widget (in case the user-entered value was zfilled; i.e. was not long enough)
+		self.delete( 0, 'end' )
+		self.insert( 0, newHex )
+
+		# Update the data shown in the neighboring, decoded value widget
+		if decodedValue:
+			self.valueEntryWidget.delete( 0, 'end' )
+			self.valueEntryWidget.insert( 0, decodedValue )
+			self.valueEntryWidget.configure( background='#faa' )
+			#editedDatEntries.append( self.valueEntryWidget )
+
+		self.updateDataInFile( newData )
+
+		globalData.gui.updateProgramStatus( self.updateName + ' Updated' )
+
+	def updateValue( self, event ):
+
+		""" Validates widget input, checks if it's new/different from what's in the file, 
+			and updates the data in the file if it differs. Also triggers updating of any paired widgets. """
+
+		# if event.__class__ == HexEditDropdown:
+		# 	widget = event
+		# else:
+		# 	widget = event.widget
+
+		# Validate the entered value by making sure it can be correctly encoded
+		try:
+			formatting = self.formatting
+
+			if formatting == 'f':
+				newHex = hexlify( struct.pack( '>f', float(self.get()) ) ).upper()
+			else:
+				newHex = hexlify( struct.pack( '>' + formatting, int(self.get()) ) ).upper()
+		except Exception as err:
+			# Construct and display an error message for the user
+			dataTypes = { 	'?': 'a boolean', 'b': 'a signed character', 'B': 'an unsigned character', 	# 1-byte
+							'h': 'a signed short (halfword)', 'H': 'an unsigned short',				# 2-bytes
+							'i': 'a signed integer', 'I': 'an unsigned integer', 'f': 'a float' } # 4-bytes
+			if formatting in dataTypes:
+				msg( 'The entered value is invalid for {} value.'.format( dataTypes[formatting] ) )
+			else: # I tried
+				msg( 'The entered value is invalid.' )
+			print( 'Error encountered packing value entry data; {}'.format(err) )
+			return
+
+		# Confirm whether updating is necessary by checking if this is actually new data for any of the offset locations
+		if type( self.offsets ) == list:
+			for offset in self.offsets:
+				currentFileHex = hexlify( self.fileObj.getData(offset, self.byteLength) ).upper()
+				if currentFileHex != newHex: # Found a difference
+					break
+			else: # The loop above didn't break; no change found
+				return # No change to be updated
+		else: # The offsets attribute is just a single value (the usual case)
+			currentFileHex = hexlify( self.fileObj.getData(self.offsets, self.byteLength) ).upper()
+			if currentFileHex == newHex:
+				return # No change to be updated
+
+		# Change the background color of the widget, to show that changes have been made to it and are pending saving.
+		# if event.__class__ == HexEditDropdown:
+		# 	self.configure( style='Edited.TMenubutton' )
+		# else:
+		self.configure( background='#faa' )
+
+		# Add the widget to a list, to keep track of what widgets need to have their background restored to white when saving.
+		# global editedDatEntries
+		# editedDatEntries.append( self )
+
+		# Update the data shown in the neiboring widget
+		if self.hexEntryWidget:
+			self.hexEntryWidget.delete( 0, 'end' )
+			self.hexEntryWidget.insert( 0, newHex )
+			self.hexEntryWidget.configure( background='#faa' )
+			#editedDatEntries.append( hexEntryWidget )
+
+		# Replace the data in the file for each location
+		newData = bytearray.fromhex( newHex )
+		self.updateDataInFile( newData )
+
+		globalData.gui.updateProgramStatus( self.updateName + ' Updated' )
 
 
 class SliderAndEntry( ttk.Frame ):
@@ -1910,3 +2087,307 @@ class ToolTipButton( PopupInterface ):
 				toolTip._hide()
 
 		super( ToolTipButton, self )._show()
+
+
+class Item( ttk.Frame ):
+
+	""" Used with the DDList class to create a list interface with drag-and-drop ordering capability. """
+
+	def __init__(self, master, value, width, height, selection_handler=None, drag_handler = None, drop_handler=None, **kwargs):
+
+		kwargs.setdefault("class_", "Item")
+		ttk.Frame.__init__(self, master, **kwargs)
+		
+		self._x = None
+		self._y = None
+		
+		self._width = width
+		self._height = height
+
+		self._tag = "item%s"%id(self)
+		self._value = value
+
+		self._selection_handler = selection_handler
+		self._drag_handler = drag_handler
+		self._drop_handler = drop_handler
+
+	@property
+	def x(self):
+		return self._x
+		
+	@property
+	def y(self):
+		return self._y
+		
+	@property
+	def width(self):
+		return self._width
+
+	@property
+	def height(self):
+		return self._height
+
+	@property
+	def value(self):
+		return self._value
+		
+	def init(self, container, x, y):
+		self._x = x
+		self._y = y
+
+		self.place(in_=container, x=x, y=y, width=self._width, height=self._height)
+
+		self.bind_class(self._tag, "<ButtonPress-1>", self._on_selection)
+		self.bind_class(self._tag, "<B1-Motion>", self._on_drag)
+		self.bind_class(self._tag, "<ButtonRelease-1>", self._on_drop)
+
+		self._add_bindtag(self)
+		
+		# Python3 compatibility: dict.values() return a view
+		list_of_widgets = list(self.children.values())
+		while len(list_of_widgets) != 0:
+			widget = list_of_widgets.pop()
+			list_of_widgets.extend(widget.children.values())
+			
+			self._add_bindtag(widget)
+	
+	def _add_bindtag(self, widget):
+		bindtags = widget.bindtags()
+		if self._tag not in bindtags:
+			widget.bindtags((self._tag,) + bindtags)
+
+	def _on_selection(self, event):
+		self.tkraise()
+
+		self._move_lastx = event.x_root
+		self._move_lasty = event.y_root
+		
+		if self._selection_handler:
+			self._selection_handler(self)
+
+	def _on_drag(self, event):
+		self.master.update_idletasks()
+		
+		cursor_x = self._x + event.x
+		cursor_y = self._y + event.y
+
+		self._x += event.x_root - self._move_lastx
+		self._y += event.y_root - self._move_lasty
+
+		self._move_lastx = event.x_root
+		self._move_lasty = event.y_root
+
+		self.place_configure(x=self._x, y=self._y)
+
+		if self._drag_handler:
+			self._drag_handler(cursor_x, cursor_y)
+
+	def _on_drop(self, event):
+		if self._drop_handler:
+			self._drop_handler()
+			
+	def set_position(self, x,y):
+		self._x = x
+		self._y = y
+		self.place_configure(x =x, y =y)
+		
+	def move(self, dx, dy):
+		self._x += dx
+		self._y += dy
+
+		self.place_configure(x =self._x, y =self._y)
+
+class DDList( ttk.Frame ):
+
+	""" Used to create a list interface with drag-and-drop ordering capability. 
+		Originally created by Miguel Martinez
+		Source: https://code.activestate.com/recipes/580717-sortable-megawidget-in-tkinter-like-the-sortable-w/ """
+
+	def __init__(self, master, item_width, item_height, item_relief=None, item_borderwidth=None, item_padding=None, item_style=None, offset_x=0, offset_y=0, gap=0, **kwargs):
+		kwargs["width"] = item_width+offset_x*2
+		kwargs["height"] = offset_y*2
+
+		ttk.Frame.__init__(self, master, **kwargs)
+
+		self._item_borderwidth = item_borderwidth
+		self._item_relief = item_relief
+		self._item_padding = item_padding
+		self._item_style= item_style
+		self._item_width = item_width
+		self._item_height = item_height
+		
+		self._offset_x = offset_x
+		self._offset_y = offset_y
+
+		self._left = offset_x
+		self._top = offset_y
+		self._right = self._offset_x + self._item_width
+		self._bottom = self._offset_y
+
+		self._gap = gap
+
+		self._index_of_selected_item = None
+		self._index_of_empty_container = None
+
+		self._list_of_items = []
+		self._position = {}
+
+		self._new_y_coord_of_selected_item = None
+
+	def create_item(self, value=None, **kwargs):
+		
+		if self._item_relief is not None:
+			kwargs.setdefault("relief", self._item_relief)
+		
+		if self._item_borderwidth is not None:
+			kwargs.setdefault("borderwidth", self._item_borderwidth)
+			
+		if self._item_style is not None:
+			kwargs.setdefault("style", self._item_style)
+		
+		if self._item_padding is not None:
+			kwargs.setdefault("padding", self._item_padding)
+
+		item = Item(self.master, value, self._item_width, self._item_height, self._on_item_selected, self._on_item_dragged, self._on_item_dropped, **kwargs)   
+		return item
+
+	def configure_items(self, **kwargs):
+		for item in self._list_of_items:
+			item.configure(**kwargs)
+
+	def add_item(self, item, index=None):
+		if index is None:
+			index = len(self._list_of_items)
+		else:
+			if not -len(self._list_of_items) < index < len(self._list_of_items):
+				raise ValueError("Item index out of range")
+
+			for i in range(index, len(self._list_of_items)):
+				_item = self._list_of_items[i]
+				_item.move(0,  self._item_height + self._gap)
+				
+				self._position[_item] += 1
+		
+		x = self._offset_x
+		y = self._offset_y + index * (self._item_height + self._gap)
+
+		self._list_of_items.insert(index, item)
+		self._position[item] = index
+
+		item.init(self, x,y)
+
+		if len(self._list_of_items) == 1:
+			self._bottom += self._item_height
+		else:
+			self._bottom += self._item_height + self._gap
+			
+		self.configure(height=self._bottom + self._offset_y)
+
+		return item
+
+	def delete_item(self, index):
+		
+		if isinstance(index, Item):
+			index = self._position[index]
+		else:
+			if not -len(self._list_of_items) < index < len(self._list_of_items):
+				raise ValueError("Item index out of range")
+
+		item = self._list_of_items.pop(index)
+		value = item.value
+
+		del self._position[item]
+
+		item.destroy()
+		
+		for i in range(index, len(self._list_of_items)):
+			_item = self._list_of_items[i]
+			_item.move(0,  -(self._item_height+self._gap))
+			self._position[_item] -= 1
+		
+		if len(self._list_of_items) == 0:
+			self._bottom -= self._item_height
+		else:
+			self._bottom -= self._item_height + self._gap
+
+		self.configure(height=self._bottom + self._offset_y)
+		
+		return value
+
+	del_item = delete_item
+	
+	def pop(self):
+		return self.delete_item(-1)
+		
+	def shift(self):
+		return self.delete_item(0)
+		
+	def append(self, item):
+		self.add_item(item)
+		
+	def unshift(self, item):
+		self.add_item(0, item)
+		
+	def get_item(self, index):
+		return self._list_of_items[index]
+
+	def get_value(self, index):
+		return self._list_of_items[index].value
+
+	def _on_item_selected(self, item):		
+		self._index_of_selected_item = self._position[item]
+		self._index_of_empty_container = self._index_of_selected_item
+
+	def _on_item_dragged(self, x, y):
+
+		if self._left < x < self._right and self._top < y < self._bottom:
+
+			quotient, remainder = divmod(y-self._offset_y, self._item_height + self._gap)
+
+			if remainder < self._item_height:
+			
+				new_container = quotient
+
+				if new_container != self._index_of_empty_container:
+					if new_container > self._index_of_empty_container:
+						for index in range(self._index_of_empty_container+1, new_container+1, 1):
+							item = self._get_item_of_virtual_list(index)
+
+							item.move(0,-(self._item_height+self._gap))
+					else:
+						for index in range(self._index_of_empty_container-1, new_container-1, -1):
+							item = self._get_item_of_virtual_list(index)
+
+							item.move(0,self._item_height+self._gap)
+
+					self._index_of_empty_container = new_container
+
+	def _get_item_of_virtual_list(self, index):
+		if self._index_of_empty_container == index:
+			raise Exception("No item in index: %s"%index)
+		else:
+			if self._index_of_empty_container != self._index_of_selected_item:
+				if index > self._index_of_empty_container:
+					index -= 1
+
+				if index >= self._index_of_selected_item:
+					index += 1
+			item = self._list_of_items[index]
+			return item
+
+	def _on_item_dropped(self):
+		
+		item = self._list_of_items.pop(self._index_of_selected_item)
+		self._list_of_items.insert(self._index_of_empty_container, item)
+		
+		x = self._offset_x
+		y = self._offset_y + self._index_of_empty_container *(self._item_height + self._gap)
+		
+		item.set_position(x,y)
+		
+		for i in range(min(self._index_of_selected_item, self._index_of_empty_container),max(self._index_of_selected_item, self._index_of_empty_container)+1):
+			item = self._list_of_items[i]
+			self._position[item] = i
+
+		self._index_of_empty_container = None
+		self._index_of_selected_item = None

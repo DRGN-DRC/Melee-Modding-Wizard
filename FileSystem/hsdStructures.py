@@ -63,8 +63,8 @@ class StructBase( object ):
 		self._branchInitialized = False
 		#self.changesNeedSaving = False				# Indicates that some of the decoded values have been changed
 
-		# Determine the structure's file depth (x, y) tuple, if possible. 
-		#		x = how "deep" into the file (the file header is first, at 0), 
+		# Determine the structure's file depth (x, y) tuple, if possible.
+		#		x = how "deep" into the file (the file header is first, at 0. Root Nodes Table is next, at 1)
 		# 		y = sibling index
 		self.structDepthQuickCheck( parentOffset, structDepth ) # Also sets parents
 
@@ -91,7 +91,7 @@ class StructBase( object ):
 		# Separate the actual struct data from any padding, and perform some basic validation
 		structData = self.dat.getData( self.offset, deducedStructLength )
 		paddingData = structData[ self.offset + self.length:]
-		structData = structData[:self.length] # Trim off the padding
+		structData = structData[:self.length] # Trim off any padding
 		if not any( structData ):
 			# Check if there's a class hint for this struct
 			existingEntity = self.dat.structs.get( self.offset, None )
@@ -840,35 +840,24 @@ class TableStruct( StructBase ):
 
 		return self.offset + ( struct.calcsize(self.entryFormatting) * index )
 
-# class PointerTable( StructBase ):
-
-# 	def __init__( self, *args, **kwargs ):
-# 		StructBase.__init__( self, *args, **kwargs )
-
-# 		self.name = 'Pointer Table ' + uHex( 0x20 + args[1] )
-# 		self.formatting = '>IiiiiHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHI'
-# 		self.fields = ()
-# 		self.length = 0x64
-# 		self.childClassIdentities = {}
-# 		self._siblingsChecked = True
-# 		self._childrenChecked = True
-
-# 		# Check the parent's Music_Table_Entry_Count to see how many entries should be in this table structure
-# 		parentOffset = self.getAnyDataSectionParent()
-# 		parentStruct = self.dat.initSpecificStruct( MapGroundParameters, parentOffset )
-# 		self.entryCount = parentStruct.getValues()[63]
-# 		#print 'entry count for Area Table:', hex( self.entryCount ), 'length:', hex(0x64*self.entryCount), 'apparent length:', hex(self.dat.getStructLength( self.offset ))
-
 
 class DataBlock( StructBase ):
 
 	""" A specialized class for raw blocks of data, to mimic and behave as other structures. """
+	
+	def __init__( self, *args, **kwargs ):
+		StructBase.__init__( self, *args, **kwargs )
+
+		self.name = 'Data Block ' + uHex( 0x20 + args[1] )
+		self._siblingsChecked = True
+		self._childrenChecked = True
+		self._branchInitialized = True
 
 	def validated( self, *args, **kwargs ): return True
 	def getSiblings( self, nextOnly=False ): return []
 	def isSibling( self, offset ): return False
 	def getChildren( self, includeSiblings=True ): return []
-	def initDescendants( self ): return
+	def initDescendants( self, override ): return
 	def getAttributes( self ): # Gets the properties of this block from a parent image/palette/other data header
 		aParentOffset = self.getAnyDataSectionParent()
 		return self.dat.getStruct( aParentOffset ).getValues()
@@ -879,7 +868,7 @@ class ImageDataBlock( DataBlock ):
 	def __init__( self, *args, **kwargs ):
 		DataBlock.__init__( self, *args, **kwargs )
 
-		self.name = 'Image Data Block ' + uHex( 0x20 + args[1] )
+		self.name = 'Image ' + self.name
 
 	@staticmethod
 	def getDataLength( width, height, imageType ):
@@ -912,7 +901,7 @@ class PaletteDataBlock( DataBlock ):
 	def __init__( self, *args, **kwargs ):
 		DataBlock.__init__( self, *args, **kwargs )
 
-		self.name = 'Palette Data Block ' + uHex( 0x20 + args[1] )
+		self.name = 'Palette ' + self.name
 
 	def getAttributes( self ):
 
@@ -929,7 +918,7 @@ class FrameDataBlock( DataBlock ):
 	def __init__( self, *args, **kwargs ):
 		DataBlock.__init__( self, *args, **kwargs )
 
-		self.name = 'Frame Data String ' + uHex( 0x20 + args[1] )
+		self.name = 'Frame ' + self.name
 
 	def identifyTrack( self ):
 
@@ -980,7 +969,7 @@ class FrameDataBlock( DataBlock ):
 				break
 
 		if shift > 14: # Error
-			print 'Warning; uleb128 value found to be invalid (more than 3 bytes)'
+			print( 'Warning; uleb128 value found to be invalid (more than 3 bytes)' )
 			value = -1
 
 		return readPosition, value
@@ -995,7 +984,7 @@ class FrameDataBlock( DataBlock ):
 
 		# Make sure there's a parent struct, and it's the correct class
 		if not parentStruct or parentStruct.__class__ != FrameObjDesc: 
-			print 'Unable to parse', self.name, '; unable to initialize parent as a FrameObjDesc.'
+			print( 'Unable to parse {}; unable to initialize parent as a FrameObjDesc.'.format(self.name) )
 			return -1, -1, []
 
 		_, stringLength, _, _, dataTypeAndScale, slopeDataTypeAndScale, _, _ = parentStruct.getValues()
@@ -1005,18 +994,18 @@ class FrameDataBlock( DataBlock ):
 		dataScale = 1 << ( dataTypeAndScale & 0b11111 ) 	# Use the first 5 bits
 		dataTypeFormatting, dataTypeByteLength = parentStruct.dataTypes[dataType][1:]
 		if debugging:
-			print 'dataTypeAndScale:', format( dataTypeAndScale, 'b' ).zfill( 8 )
-			print 'dataType / scale:', dataType, '/', dataScale
-			print 'dataType len:', dataTypeByteLength
+			print( 'dataTypeAndScale: ' + format( dataTypeAndScale, 'b' ).zfill( 8 ) )
+			print( 'dataType / scale: {} / {}'.format(dataType, dataScale) )
+			print( 'dataType len: ' + str(dataTypeByteLength) )
 
 		# Display the slope dataType and slope scale
 		slopeDataType = slopeDataTypeAndScale >> 5 			# Use the last (left-most) 3 bits
 		slopeDataScale = 1 << ( slopeDataTypeAndScale & 0b11111 ) 	# Use the first 5 bits
 		slopeDataTypeFormatting, slopeDataTypeByteLength = parentStruct.dataTypes[slopeDataType][1:]
 		if debugging:
-			print 'slopeDataTypeAndScale:', format( slopeDataTypeAndScale, 'b' ).zfill( 8 )
-			print 'slope dataType / scale:', slopeDataType, '/', slopeDataScale
-			print 'slope dataType len:', slopeDataTypeByteLength
+			print( 'slopeDataTypeAndScale: ' + format( slopeDataTypeAndScale, 'b' ).zfill( 8 ) )
+			print( 'slope dataType / scale: {} / {}'.format(slopeDataType, slopeDataScale) )
+			print( 'slope dataType len: ' + str(slopeDataTypeByteLength) )
 
 		# The first value in the string is a uleb128, which defines two variables: interpolationID, and an array size
 		readPosition, opCodeValue = self.decodeUleb128( 0 ) # Starts with read position 0
@@ -1079,7 +1068,7 @@ class DisplayDataBlock( DataBlock ):
 	def __init__( self, *args, **kwargs ):
 		DataBlock.__init__( self, *args, **kwargs )
 
-		self.name = 'Display List Data Block ' + uHex( 0x20 + args[1] )
+		self.name = 'Display List ' + self.name
 
 
 class VertexDataBlock( DataBlock ):
@@ -1087,7 +1076,7 @@ class VertexDataBlock( DataBlock ):
 	def __init__( self, *args, **kwargs ):
 		DataBlock.__init__( self, *args, **kwargs )
 
-		self.name = 'Vertex Data Block ' + uHex( 0x20 + args[1] )
+		self.name = 'Vertex ' + self.name
 
 
 					# = --------------------------------------------------- = #
@@ -1371,14 +1360,14 @@ class PolygonObjDesc( StructBase ): # A.k.a. Meshes
 
 			elif args[1] + 0x14 in self.dat.structureOffsets: # Not expected, but just in case....
 				self.fields = mostFields + ( 'JObjDesc_Pointer',)
-				print self.name, 'found a JObjDesc pointer!'
+				print( self.name + ' found a JObjDesc pointer!' )
 
 			else:
 				self.fields = mostFields + ( 'Null Pointer',) # No underscore, so validation method ignores this as an actual pointer
 
 		except Exception as err:
-			print 'PolygonObjDesc initialization failure;'
-			print err
+			print( 'PolygonObjDesc initialization failure;' )
+			print( err )
 
 
 class VertexAttributesArray( StructBase ):
@@ -2376,11 +2365,11 @@ class MapGroundParameters( StructBase ): # grGroundParam
 						'RGBA_Bubble_Bottom-right'
 					)
 		self.length = 0xDC
-		self.childClassIdentities = { 62: 'MapMusicTableEntry' }
+		self.childClassIdentities = { 62: 'MapMusicTable' }
 		self._siblingsChecked = True
 
 
-class MapMusicTableEntry( TableStruct ):
+class MapMusicTable( TableStruct ):
 
 	enums = { 'Song_Behavior': OrderedDict([
 				( 0, 'Play Main Music, Unless Holding L' ),
@@ -2457,7 +2446,7 @@ class MapMusicTableEntry( TableStruct ):
 
 		# Reinitialize this as a Table Struct to duplicate this entry struct for all enties in this table
 		TableStruct.__init__( self )
-		#super( MapMusicTableEntry, self ).__init__( self ) # probably should use this instead
+		#super( MapMusicTable, self ).__init__( self ) # probably should use this instead
 
 
 class CharSelectScreenDataTable( StructBase ):

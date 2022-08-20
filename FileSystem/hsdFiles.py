@@ -608,6 +608,8 @@ class SisFile( DatFile ):
 		""" Returns a list of tuples containing texture info. Each tuple is of the following form: 
 				( imageDataOffset, imageHeaderOffset, paletteDataOffset, paletteHeaderOffset, width, height, imageType, mipmapCount ) """
 
+		self.initialize()
+
 		# Get the first pointer in the SIS table
 		#imageDataStart = self.getStruct( 0 ).getValues()[0]
 		sisTable = self.initGenericStruct( 0, structDepth=(3, 0), asPointerTable=True )
@@ -894,6 +896,8 @@ class StageFile( DatFile ):
 		""" Returns a list of tuples containing texture information. Each tuple is of the following form: 
 				( imageDataOffset, imageHeaderOffset, paletteDataOffset, paletteHeaderOffset, width, height, imageType, mipmapCount ) """
 
+		self.initialize()
+
 		#imageDataOffsetsFound = set()
 		texturesInfo = []
 		
@@ -939,13 +943,15 @@ class StageFile( DatFile ):
 
 			# Call the original DatFile method to check for the usual texture headers
 			texturesInfo.extend( super(StageFile, self).identifyTextures() )
-						
+			
 		except Exception as err:
-			print 'Encountered an error during texture identification:'
-			print err
+			print( 'Encountered an error during texture identification: {}'.format(err) )
 		
 		# toc = time.clock()
 		# print 'image identification time:', toc - tic
+
+		# Sort the texture info tuples by offset
+		texturesInfo.sort()
 
 		return texturesInfo
 

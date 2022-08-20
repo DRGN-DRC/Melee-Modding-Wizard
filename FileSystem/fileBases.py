@@ -587,34 +587,33 @@ class DatFile( FileBase ):
 			Both are a list of tuples of the form ( structOffset, string ), 
 			where the string is from the file's string table. """
 
-		#try:
-		rootNodes = []; referenceNodes = []
-		nodePointerOffset = self.headerInfo['rtEnd']
-		nodesTable = [ self.nodeTableData[i:i+8] for i in xrange(0, len(self.nodeTableData), 8) ] # separates the data into groups of 8 bytes
+		try:
+			rootNodes = []; referenceNodes = []
+			nodePointerOffset = self.headerInfo['rtEnd']
+			nodesTable = [ self.nodeTableData[i:i+8] for i in xrange(0, len(self.nodeTableData), 8) ] # separates the data into groups of 8 bytes
 
-		for i, entry in enumerate( nodesTable ):
-			structOffset, stringOffset = struct.unpack( '>II', entry ) # Struct offset is the first 4 bytes; string offset is the second 4 bytes
-			string = self.stringDict[ stringOffset ]
+			for i, entry in enumerate( nodesTable ):
+				structOffset, stringOffset = struct.unpack( '>II', entry ) # Struct offset is the first 4 bytes; string offset is the second 4 bytes
+				string = self.stringDict[ stringOffset ]
 
-			# Store the node
-			if i < self.headerInfo['rootNodeCount']: rootNodes.append( ( structOffset, string ) )
-			else: referenceNodes.append( ( structOffset, string ) )
+				# Store the node
+				if i < self.headerInfo['rootNodeCount']: rootNodes.append( ( structOffset, string ) )
+				else: referenceNodes.append( ( structOffset, string ) )
 
-			# Remember the pointer and struct offsets (these aren't included in the RT!)
-			self.pointerOffsets.append( nodePointerOffset ) # Absolute file offset for this node's pointer
-			self.pointerValues.append( structOffset )
+				# Remember the pointer and struct offsets (these aren't included in the RT!)
+				self.pointerOffsets.append( nodePointerOffset ) # Absolute file offset for this node's pointer
+				self.pointerValues.append( structOffset )
 
-			nodePointerOffset += 8
+				nodePointerOffset += 8
 
-		rootNodes.sort()
-		referenceNodes.sort()
+			rootNodes.sort()
+			referenceNodes.sort()
 
-		self.rootNodes = rootNodes
-		self.referenceNodes = referenceNodes
+			self.rootNodes = rootNodes
+			self.referenceNodes = referenceNodes
 
-		# except Exception as errorMessage:
-		#	print "Unable to parse the root/reference nodes table of", self.printPath()
-		#	print errorMessage
+		except Exception as errorMessage:
+			raise Exception( 'Unable to parse the root/reference nodes table of {}; {}'.format(self.printPath(), errorMessage) )
 
 	def evaluateStructs( self ):
 
@@ -671,8 +670,7 @@ class DatFile( FileBase ):
 			# print 'dspv:', len( dataSectionPointerValues )
 
 		except Exception as errorMessage:
-			print "Unable to separate the root/reference nodes lists of", self.printPath()
-			print errorMessage
+			raise Exception( 'Unable to separate the root/reference nodes lists of {}; {}'.format(self.printPath(), errorMessage) )
 
 	def parseDataSection( self ):
 
@@ -708,8 +706,7 @@ class DatFile( FileBase ):
 			self.orphanStructures = dataSectionStructureOffsets.difference( self.structs.keys() )
 			
 		except Exception as errorMessage:
-			print 'Unable to parse the DAT file data section of', self.printPath()
-			print errorMessage
+			raise Exception( 'Unable to parse the DAT file data section of {}; {}'.format(self.printPath(), errorMessage) )
 
 	def hintRootClasses( self ):
 
@@ -747,7 +744,7 @@ class DatFile( FileBase ):
 				break
 
 		else: # The loop above did not break; no struct start offsets found beyond this offset. So the struct must end at the RT
-			print 'ad-hoc struct detected in tail data (after string table); unable to calculate length for struct', hex(0x20+targetStructOffset)
+			print( 'ad-hoc struct detected in tail data (after string table); unable to calculate length for struct ' + hex(0x20+targetStructOffset) )
 			structLength = self.headerInfo['filesize'] - 0x20 - targetStructOffset
 
 		return structLength
@@ -790,11 +787,11 @@ class DatFile( FileBase ):
 		structure.getParents( True )
 
 		if not structure.parents:
-			print 'orphan found (no parents);', hex( 0x20 + structure.offset )
+			print( 'orphan found (no parents); ' + hex(0x20 + structure.offset) )
 			self.orphanStructures.add( structure.offset )
 
 		elif len( structure.parents ) == 1 and structure.offset in structure.parents:
-			print 'orphan found (self referencing);', hex( 0x20 + structure.offset )
+			print( 'orphan found (self referencing); ' + hex(0x20 + structure.offset) )
 			self.orphanStructures.add( structure.offset )
 
 	def getStruct( self, structOffset, parentOffset=-1, structDepth=None ):
@@ -811,7 +808,7 @@ class DatFile( FileBase ):
 			newStructClass = globalData.fileStructureClasses[structure]
 
 			if not newStructClass: # Unable to find a structure by that name
-				print 'Unable to find a structure class of', structure
+				print( 'Unable to find a structure class of "' + structure + '"' )
 				structure = None # We'll let the structure factory handle this
 
 			elif issubclass( newStructClass, hsdStructures.DataBlock ):
@@ -929,28 +926,6 @@ class DatFile( FileBase ):
 
 		return newStruct
 
-	# def initPointerTable( self, offset, parentOffset=-1, structDepth=None, deducedStructLength=-1 ):
-
-	# 	if deducedStructLength == -1:
-	# 		deducedStructLength = self.getStructLength( offset ) # This length will include any padding too
-
-	# 	newStruct = hsdStructures.StructBase( self, offset, parentOffset, structDepth )
-
-	# 	newStruct.data = self.getData( offset, deducedStructLength )
-	# 	newStruct.formatting = '>' + 'I' * ( deducedStructLength / 4 ) # Assume a basic formatting if this is an unknown struct
-	# 	newStruct.fields = ()
-	# 	newStruct.length = deducedStructLength
-	# 	newStruct.padding = 0
-
-	# 	# Add this struct to the DAT's structure dictionary
-	# 	self.structs[offset] = newStruct
-
-	# 	# Ensure that even if orphaned structs are somehow initialized, they're still found.
-	# 	if not newStruct.parents:
-	# 		self.checkForOrphans( newStruct )
-
-	# 	return newStruct
-
 	def initSpecificStruct( self, newStructClass, offset, parentOffset=-1, structDepth=None, printWarnings=True ):
 
 		""" Attempts to validate and initialize a structure as a specific class (if it doesn't already exist).
@@ -1001,6 +976,12 @@ class DatFile( FileBase ):
 
 			return None
 
+		# Ensure data is gathered (may not be collected in .validated() if that method is overridden)
+		if not newStructure.data:
+			if newStructure.length == -1:
+				newStructure.length = self.getStructLength( offset )
+			newStructure.data = self.getData( offset, newStructure.length )
+
 		# Valid struct of this class. Add it to the DAT's structure dictionary
 		self.structs[offset] = newStructure
 
@@ -1029,38 +1010,44 @@ class DatFile( FileBase ):
 				pass
 			
 			else: # If the struct has already been initialized as something else, return None
-				print 'Attempted to initialize a {} for Struct 0x{:X}, but a {} already existed'.format( newDataClass.__name__, 0x20+offset, existingStruct.__class__.__name__)
+				print( 'Attempted to initialize a {} for Struct 0x{:X}, but a {} already existed'.format(newDataClass.__name__, 0x20+offset, existingStruct.__class__.__name__) )
 				return None
 
 		deducedStructLength = self.getStructLength( offset ) # This length will include any padding too
 		newStructure = newDataClass( self, offset, parentOffset, structDepth )
 
-		# Get the data length, if not provided; deterimined by a parent struct, if possible
-		if dataLength == -1 and parentOffset != -1:
-			if newDataClass == hsdStructures.ImageDataBlock:
-				# Try to initialize an image data header, and get info from that
-				imageDataHeader = self.initSpecificStruct( hsdStructures.ImageObjDesc, parentOffset )
+		# Check if the struct already has its length defined internally
+		if newStructure.length != -1:
+			newStructure.data = self.getData( offset, newStructure.length )
 
-				if imageDataHeader:
-					width, height, imageType = imageDataHeader.getValues()[1:4]
-					dataLength = hsdStructures.ImageDataBlock.getDataLength( width, height, imageType )
+		else:
+			# Get the data length, if not provided. Deterimined by a parent struct, if possible
+			if dataLength == -1 and parentOffset != -1:
+				if newDataClass == hsdStructures.ImageDataBlock:
+					# Try to initialize an image data header, and get info from that
+					imageDataHeader = self.initSpecificStruct( hsdStructures.ImageObjDesc, parentOffset )
 
-			elif newDataClass == hsdStructures.FrameDataBlock:
-				# Try to initialize a parent frame object, and get info from that
-				frameObj = self.initSpecificStruct( hsdStructures.FrameObjDesc, parentOffset )
-				dataLength = frameObj.getValues( specificValue='Data_String_Length' )
+					if imageDataHeader:
+						width, height, imageType = imageDataHeader.getValues()[1:4]
+						dataLength = hsdStructures.ImageDataBlock.getDataLength( width, height, imageType )
 
-		# Exact data length undetermined. Assume the full space before the next struct start.
-		if dataLength == -1:
-			dataLength = deducedStructLength
+				elif newDataClass == hsdStructures.FrameDataBlock:
+					# Try to initialize a parent frame object, and get info from that
+					frameObj = self.initSpecificStruct( hsdStructures.FrameObjDesc, parentOffset )
+					dataLength = frameObj.getValues( specificValue='Data_String_Length' )
 
-		# Add the final properties
-		newStructure.data = self.getData( offset, dataLength )
-		newStructure.formatting = '>' + 'B' * dataLength
-		newStructure.length = dataLength
-		newStructure.padding = deducedStructLength - dataLength
-		newStructure._siblingsChecked = True
-		newStructure._childrenChecked = True
+			# Exact data length undetermined. Assume the full space before the next struct start.
+			if dataLength == -1:
+				dataLength = deducedStructLength
+
+			# Add the final properties
+			newStructure.data = self.getData( offset, dataLength )
+			newStructure.length = dataLength
+			newStructure.branchSize = dataLength
+			newStructure.formatting = '>' + 'B' * dataLength
+			newStructure.padding = deducedStructLength - dataLength
+			# newStructure._siblingsChecked = True
+			# newStructure._childrenChecked = True
 
 		# Add this struct to the DAT's structure dictionary
 		self.structs[offset] = newStructure
@@ -1668,6 +1655,8 @@ class DatFile( FileBase ):
 		""" Returns a list of tuples containing texture info. Each tuple is of the following form: 
 				( imageDataOffset, imageHeaderOffset, paletteDataOffset, paletteHeaderOffset, width, height, imageType, mipmapCount ) """
 
+		self.initialize()
+
 		imageDataOffsetsFound = set()
 		texturesInfo = []
 		
@@ -1726,11 +1715,13 @@ class DatFile( FileBase ):
 				imageDataOffsetsFound.add( imageDataOffset )
 
 		except Exception as err:
-			print 'Encountered an error during texture identification:'
-			print err
+			print( 'Encountered an error during texture identification: {}'.format(err) )
 		
 		# toc = time.clock()
 		# print 'image identification time:', toc - tic
+
+		# Sort the texture info tuples by offset
+		texturesInfo.sort()
 
 		return texturesInfo
 
@@ -1767,12 +1758,15 @@ class DatFile( FileBase ):
 
 				if headerImageDataOffset == imageDataOffset:
 					#print 'header seek time:', time.clock() - tic
-					imageDataLength = hsdStructures.ImageDataBlock.getDataLength( width, height, imageType )
 					break
 
 			else: # The loop above didn't break; unable to find the header!
 				print 'Unable to find an image data header for the imageDataOffset', hex( imageDataOffset+0x20 )
 				return None
+
+		# Should have details on the texture by now; calculate length if still needed
+		if imageDataLength == -1:
+			imageDataLength = hsdStructures.ImageDataBlock.getDataLength( width, height, imageType )
 
 		# try:
 		assert imageDataLength > 0x20, 'Invalid imageDataLength given to getTexture(): ' + hex( imageDataLength )

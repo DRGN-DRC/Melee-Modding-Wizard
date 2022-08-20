@@ -48,13 +48,14 @@ from FileSystem.disc import Disc, isExtractedDirectory
 from basicFunctions import msg, openFolder
 from guiSubComponents import (
 		ToolTip, cmsg, importGameFiles, 
-		HexEditEntry, CharacterChooser
+		CharacterChooser
 	)
 from guiDisc import DiscTab, DiscDetailsTab
 from codesManager import CodeManagerTab, CodeConstructor
 from debugMenuEditor import DebugMenuEditor
 from stageManager import StageManager
 from audioManager import AudioManager, AudioEngine
+from characterModding import CharModding
 from newTkDnD.tkDnD import TkDnD
 
 
@@ -1370,16 +1371,17 @@ class MainMenuCanvas( Tk.Canvas ):
 			self.addMenuOption( 'Stage Manager', '#077523', self.loadStageEditor, showAnimations, 'Configure stage loading.' ) # green
 			self.addMenuOption( 'Music Manager', '#9f853b', self.loadMusicManager, showAnimations, 'Listen to and configure music.' ) # yellow
 			self.addMenuOption( 'Sound Effect Editor', '#7b5467', self.loadDiscManagement, showAnimations, 'WIP!' ) # pinkish (blended)
-			self.addMenuOption( 'Character Modding', '#53c6b8', self.loadDebugMenuEditor, showAnimations, 'Modify character properties.' ) # teal
+			self.addMenuOption( 'Character Modding', '#53c6b8', self.loadCharacterModder, showAnimations, 'Modify character properties.' ) # teal
 			self.addMenuOption( 'Debug Menu Editor', '#582493', self.loadDebugMenuEditor, showAnimations, 'View/edit the in-game Debug Menu.' ) # purple
 
 		elif globalData.disc.isMelee:
-			self.menuOptionCount = 5
+			self.menuOptionCount = 6
 			self.addMenuOption( 'Disc Management', '#394aa6', self.loadDiscManagement, showAnimations, 'Disc File Tree and Disc Details tabs.' ) # blue
 			self.addMenuOption( 'Code Manager', '#a13728', self.browseCodes, showAnimations, 'Make code-related modifications.' ) # red
 			self.addMenuOption( 'Stage Manager', '#077523', self.loadStageEditor, showAnimations, 'Configure stage loading.' ) # green
 			self.addMenuOption( 'Music Manager', '#9f853b', self.loadMusicManager, showAnimations, 'Listen to and configure music.' ) # yellow
 			self.addMenuOption( 'Sound Effect Editor', '#7b5467', self.loadDiscManagement, showAnimations, 'WIP!' ) # pinkish (blended)
+			self.addMenuOption( 'Character Modding', '#53c6b8', self.loadCharacterModder, showAnimations, 'Modify character properties.' ) # teal
 
 		else:
 			self.menuOptionCount = 3
@@ -1396,7 +1398,7 @@ class MainMenuCanvas( Tk.Canvas ):
 
 		""" Spawns a context menu at the mouse's current location. """
 
-		globalData.gui.playSound( 'menuChange' )
+		#globalData.gui.playSound( 'menuChange' )
 
 		guiFileMenu = self.mainGui.fileMenu
 		guiFileMenu.repopulate() # Rebuilds the 'recent' submenu
@@ -1470,6 +1472,19 @@ class MainMenuCanvas( Tk.Canvas ):
 		# globalData.gui.updateProgramStatus( 'Ready' )
 		self.mainGui.playSound( 'menuSelect' )
 
+	def loadCharacterModder( self, event=None ):
+
+		# Load the tab
+		if not self.mainGui.charModTab:
+			self.mainGui.addCharModdingTab()
+
+		# Switch to the tab
+		self.mainGui.mainTabFrame.select( self.mainGui.charModTab )
+
+		# self.mainGui.root.update()
+		# globalData.gui.updateProgramStatus( 'Ready' )
+		self.mainGui.playSound( 'menuSelect' )
+
 	def loadDebugMenuEditor( self, event=None ):
 
 		""" Add the Debug Menu Editor tab to the GUI and select it. """
@@ -1516,6 +1531,7 @@ class MainMenuCanvas( Tk.Canvas ):
 
 		return self.mainMenuSelected() and not globalData.checkSetting( 'disableMainMenuAnimations' )
 
+
 #																		/------------\
 #	====================================================================   Main GUI   =========
 #																		\------------/
@@ -1527,6 +1543,7 @@ class MainGui( Tk.Frame, object ):
 		self.root = Tk.Tk()
 		self.root.withdraw() # Keeps the GUI minimized until it is fully generated
 		self.style = ttk.Style()
+		#self.style.configure( 'Edited.TMenubutton', background='#faa' ) # For OptionMenu widgets
 
 		globalData.loadProgramSettings( True ) # Load using BooleanVars. Must be done after creating Tk.root
 
@@ -1574,6 +1591,7 @@ class MainGui( Tk.Frame, object ):
 		self.menuEditorTab = None
 		self.stageManagerTab = None
 		self.audioManagerTab = None
+		self.charModTab = None
 
 		self.mainTabFrame.grid( column=0, row=0, sticky='nsew' )
 		self.mainTabFrame.bind( '<<NotebookTabChanged>>', self.onMainTabChanged )
@@ -2035,6 +2053,10 @@ class MainGui( Tk.Frame, object ):
 			if self.audioManagerTab:
 				self.audioManagerTab.loadFileList()
 
+			# Re-load the Character Modding tabs
+			if self.charModTab:
+				self.charModTab.repopulate()
+
 		self.mainMenu.displayDiscOptions()
 
 		self.playSound( 'menuSelect' )
@@ -2156,6 +2178,11 @@ class MainGui( Tk.Frame, object ):
 			
 			self.mainTabFrame.add( self.codeConstructionTab, text=' Code Construction ' )
 			#self.codeConstructionTab.pack( fill='both', expand=1, pady=7 )
+
+	def addCharModdingTab( self ):
+
+		if not self.charModTab:
+			self.charModTab = CharModding( self.mainTabFrame, self )
 
 	def runInEmulator( self, event=None ):
 
