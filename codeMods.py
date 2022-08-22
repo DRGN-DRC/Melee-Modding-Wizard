@@ -38,6 +38,7 @@ def regionsOverlap( regionList ):
 
 	""" Checks selected custom code regions to make sure they do not overlap one another. """
 
+	dol = globalData.disc.dol
 	overlapDetected = False
 
 	# Compare each region to every other region
@@ -50,7 +51,6 @@ def regionsOverlap( regionList ):
 			if nextRegionStart < regionEnd and regionStart < nextRegionEnd: # The regions overlap by some amount.
 				overlapDetected = True
 
-				dol = globalData.disc.dol
 				rS = dol.dolOffset( regionStart )
 				rE = dol.dolOffset( regionEnd )
 				nrs = dol.dolOffset( nextRegionStart )
@@ -114,7 +114,7 @@ class CodeChange( object ):
 			dolOffset, error = dol.normalizeDolOffset( self.offset )
 			if error:
 				self.mod.parsingError = True
-				self.mod.errors.append( error )
+				self.mod.errors.add( error )
 				return ''
 
 			# Determine the amount of code to get
@@ -147,7 +147,7 @@ class CodeChange( object ):
 					+ os.path.basename( self.mod.path ) + '" (index ' + str(self.mod.fileIndex+1) + '). '
 					'There is an invalid (non-hex) original hex value found:\n\n' + filteredOriginal, 'Incorrect Mod Formatting (Error Code 04.2)' )
 				self.mod.parsingError = True
-				self.mod.errors.append( 'Invalid original hex value for code to be installed at ' + self.offset )
+				self.mod.errors.add( 'Invalid original hex value for code to be installed at ' + self.offset )
 				self._origCode = ''
 			else:
 				self._origCode = filteredOriginal
@@ -161,16 +161,9 @@ class CodeChange( object ):
 		self._origCode = code
 		self._origCodePreprocessed = False
 
-	def getLength( self ):
-
-		if self.length == -1:
-			self.evaluate()
-		
-		return self.length
-		
 	@property
 	def name( self ):
-			
+
 		""" This name should be provided from the original file that the code came from. 
 			If that is not available (e.g. for a new change), this will create one based 
 			on the annotation (removing illegal characters), if available. If there is no 
@@ -201,8 +194,16 @@ class CodeChange( object ):
 
 		return self._name
 
-	# @name.setter
-	# def name( self, newName ):
+	def getLength( self ):
+
+		if self.length == -1:
+			self.evaluate()
+		
+		return self.length
+		
+	def updateLength( self, newLength ):
+		self.length = newLength
+		self.origCode = '' # Will otherwise have the wrong amount of data. Will be recollected when needed
 	
 	def evaluate( self, reevaluate=False ):
 
@@ -219,7 +220,9 @@ class CodeChange( object ):
 			oldProcessedCode = ''
 
 		#print( 'evaluating {} for {}'.format(self.offset, self.mod.name) )
-		self.processStatus, self.length, codeOrErrorNote, self.syntaxInfo, self.isAssembly = globalData.codeProcessor.evaluateCustomCode( self.rawCode, self.mod.includePaths, self.mod.configurations )
+		self.processStatus, codeLength, codeOrErrorNote, self.syntaxInfo, self.isAssembly = globalData.codeProcessor.evaluateCustomCode( self.rawCode, self.mod.includePaths, self.mod.configurations )
+
+		self.updateLength( codeLength )
 
 		# if self.isAssembly:
 		# 	print self.mod.name, 'has ASM'
@@ -236,35 +239,35 @@ class CodeChange( object ):
 			self.mod.assemblyError = True
 			if self.type == 'standalone':
 				self.mod.stateDesc = 'Assembly error with SF "{}"'.format( self.offset )
-				self.mod.errors.append( 'Assembly error with SF "{}":\n{}'.format(self.offset, codeOrErrorNote) )
+				self.mod.errors.add( 'Assembly error with SF "{}":\n{}'.format(self.offset, codeOrErrorNote) )
 			elif self.type == 'gecko':
 				address = self.rawCode.lstrip()[:8]
 				self.mod.stateDesc = 'Assembly error with gecko code change at {}'.format( address )
-				self.mod.errors.append( 'Assembly error with gecko code change at {}:\n{}'.format(address, codeOrErrorNote) )
+				self.mod.errors.add( 'Assembly error with gecko code change at {}:\n{}'.format(address, codeOrErrorNote) )
 			else:
 				self.mod.stateDesc = 'Assembly error with custom code change at {}'.format( self.offset )
-				self.mod.errors.append( 'Assembly error with custom code change at {}:\n{}'.format(self.offset, codeOrErrorNote) )
+				self.mod.errors.add( 'Assembly error with custom code change at {}:\n{}'.format(self.offset, codeOrErrorNote) )
 		elif self.processStatus == 2:
 			self.mod.parsingError = True
 			self.mod.stateDesc = 'Missing include file: {}'.format(codeOrErrorNote)
-			self.mod.errors.append( 'Missing include file: {}'.format(codeOrErrorNote) )
+			self.mod.errors.add( 'Missing include file: {}'.format(codeOrErrorNote) )
 			#self.mod.missingIncludes.append( preProcessedCustomCode ) # todo: implement a way to show these to the user (maybe warning icon & interface)
 		elif self.processStatus == 3:
 			self.mod.parsingError = True
 			if not self.mod.configurations:
 				self.mod.stateDesc = 'Unable to find configurations'
-				self.mod.errors.append( 'Unable to find configurations' )
+				self.mod.errors.add( 'Unable to find configurations' )
 			else:
 				self.mod.stateDesc = 'Configuration option not found: {}'.format(codeOrErrorNote)
-				self.mod.errors.append( 'Configuration option not found: {}'.format(codeOrErrorNote) )
+				self.mod.errors.add( 'Configuration option not found: {}'.format(codeOrErrorNote) )
 		elif self.processStatus == 4:
 			self.mod.parsingError = True
 			self.mod.stateDesc = 'Configuration option "{}" missing type parameter'.format( codeOrErrorNote )
-			self.mod.errors.append( 'Configuration option "{}" missing type parameter'.format(codeOrErrorNote) )
+			self.mod.errors.add( 'Configuration option "{}" missing type parameter'.format(codeOrErrorNote) )
 		elif self.processStatus == 5:
 			self.mod.parsingError = True
 			self.mod.stateDesc = 'Unrecognized configuration option type: {}'.format(codeOrErrorNote)
-			self.mod.errors.append( 'Unrecognized configuration option type: {}'.format(codeOrErrorNote) )
+			self.mod.errors.add( 'Unrecognized configuration option type: {}'.format(codeOrErrorNote) )
 
 		if self.processStatus != 0:
 			self.preProcessedCode = ''
@@ -310,7 +313,9 @@ class CodeChange( object ):
 			self.length = -1
 			return
 
-		self.processStatus, self.length, codeOrErrorNote, self.syntaxInfo = globalData.codeProcessor._evaluateHexcode( codeLines, self.mod.includePaths, self.mod.configurations )
+		self.processStatus, codeLength, codeOrErrorNote, self.syntaxInfo = globalData.codeProcessor._evaluateHexcode( codeLines, self.mod.includePaths, self.mod.configurations )
+
+		self.updateLength( codeLength )
 
 		if self.processStatus == 0:
 			self.preProcessedCode = codeOrErrorNote
@@ -321,18 +326,18 @@ class CodeChange( object ):
 			self.mod.parsingError = True
 			if not self.mod.configurations:
 				self.mod.stateDesc = 'Unable to find configurations'
-				self.mod.errors.append( 'Unable to find configurations' )
+				self.mod.errors.add( 'Unable to find configurations' )
 			else:
 				self.mod.stateDesc = 'Configuration option not found: {}'.format(codeOrErrorNote)
-				self.mod.errors.append( 'Configuration option not found: {}'.format(codeOrErrorNote) )
+				self.mod.errors.add( 'Configuration option not found: {}'.format(codeOrErrorNote) )
 		elif self.processStatus == 4:
 			self.mod.parsingError = True
 			self.mod.stateDesc = 'Configuration option "{}" missing type parameter'.format( codeOrErrorNote )
-			self.mod.errors.append( 'Configuration option "{}" missing type parameter'.format(codeOrErrorNote) )
+			self.mod.errors.add( 'Configuration option "{}" missing type parameter'.format(codeOrErrorNote) )
 		elif self.processStatus == 5:
 			self.mod.parsingError = True
 			self.mod.stateDesc = 'Unrecognized configuration option type: {}'.format(codeOrErrorNote)
-			self.mod.errors.append( 'Unrecognized configuration option type: {}'.format(codeOrErrorNote) )
+			self.mod.errors.add( 'Unrecognized configuration option type: {}'.format(codeOrErrorNote) )
 
 		if self.processStatus != 0:
 			self.preProcessedCode = ''
@@ -402,7 +407,7 @@ class CodeMod( object ):
 		self.assemblyError = False
 		self.parsingError = False
 		#self.missingIncludes = []		# Include filesnames detected to be required by the assembler
-		self.errors = []
+		self.errors = set()
 
 	def setState( self, newState, statusText='', updateControlPanelCounts=True ):
 
@@ -443,31 +448,33 @@ class CodeMod( object ):
 
 		return codeChanges
 
-	def _normalizeCodeImport( self, customCode, annotation ):
+	def _normalizeCodeImport( self, customCode, annotation='' ):
 
 		""" Normalize custom code import (ensure it's a string), and 
 			create an annotation from the code if one isn't provided. """
 
-		if annotation: # Don't need to probe to get one; just make sure we have a string
-			if isinstance( customCode, list ):
-				customCode = '\n'.join( customCode )
-
-		elif not customCode:
-			annotation = '' # Unable to set it
-
-		else:
-			# Collapse the list of collected code lines into one string, removing leading & trailing whitespace
-			if isinstance( customCode, list ):
-				firstLine = customCode[0]
-				customCode = '\n'.join( customCode )
+		if customCode:
+			if annotation:
+				if isinstance( customCode, list ):
+					customCode = '\n'.join( customCode )
+				else:
+					customCode = customCode.strip()
 			else:
-				firstLine = customCode.splitlines()[0]
-				customCode = customCode
+				# Collapse the list of collected code lines into one string, removing leading & trailing whitespace
+				if isinstance( customCode, list ):
+					firstLine = customCode[0]
+					customCode = '\n'.join( customCode )
+				else:
+					firstLine = customCode.splitlines()[0]
+					customCode = customCode
 
-			if firstLine.lstrip().startswith( '#' ):
-				annotation = firstLine.strip( '# ' )
+				if firstLine.lstrip().startswith( '#' ):
+					annotation = firstLine.strip( '# ' )
+				
+		else: # Could still be an empty list...
+			customCode = ''
 
-		return customCode.strip(), annotation
+		return customCode, annotation
 
 	def addStaticOverwrite( self, offsetString, customCode, origCode='', annotation='', name='' ):
 		# Collapse the list of collected code lines into one string, removing leading & trailing whitespace
@@ -649,6 +656,29 @@ class CodeMod( object ):
 
 		return '\n'.join( errorMsg )
 
+	def assessForErrors( self ):
+		
+		""" Evaluates this mod's custom code for assembly errors and checks for valid DOL offsets. """
+
+		# Get the DOL file
+		try:
+			dol = globalData.getVanillaDol()
+		except Exception as err:
+			printStatus( 'Unable to assess code offsets/addresses; {}'.format(err.message), warning=True )
+			dol = None
+
+		for codeChanges in self.data.values():
+			for change in codeChanges:
+				# Check if the RAM Address or DOL Offset is valid
+				if dol:
+					error = dol.normalizeDolOffset( change.offset, 'string' )[1]
+					if error:
+						self.parsingError = True
+						self.errors.add( error )
+				
+				# Check for assembly errors
+				change.evaluate( True )
+
 	def validateWebLink( self, origUrlString ):
 
 		""" Validates a given URL (string), partly based on a whitelist of allowed domains. 
@@ -669,9 +699,9 @@ class CodeMod( object ):
 		else:
 			print( 'Invalid link detected for "{}" (domain not allowed): {}'.format(self.name, origUrlString) )
 
-	def buildModString( self, reevaluateCodeChanges=False ):
+	def buildModString( self ):
 
-		""" Builds a string to store/share this mod in MCM's normal code format. 
+		""" Builds a string to store/share this mod in MCM's original, text-file code format. 
 			If this mod is a Gecko code, this method will create a MCM-Gecko format string that is
 			a slight variant of a normal Gecko code (as one would see in a Dolphin INI file). This 
 			variant exists so that a Gecko code may have several variants for different revisions. """
@@ -735,15 +765,12 @@ class CodeMod( object ):
 			addVersionHeader = True
 
 			for change in codeChanges:
-				# newHex = change.rawCode
-				# if newHex.startswith( '0x' ):
-				# 	newHex = newHex[2:] # Don't want to replace all instances
 				newHex = change.rawCode.strip()
 				if not newHex:
 					continue
 
 				if change.type in ( 'static', 'injection' ):
-					change.evaluate( reevaluateCodeChanges )
+					change.evaluate( True )
 					addChangesHeader = True
 				
 					# Get the offset
@@ -959,7 +986,7 @@ class CodeMod( object ):
 
 		# Append this mod to the end of the target Mod Library text file (could be a new file, or an existing one).
 		try:
-			modString = self.buildModString( reevaluateCodeChanges=True )
+			modString = self.buildModString()
 
 			try:
 				# Get contents of an existing file
@@ -969,7 +996,7 @@ class CodeMod( object ):
 				if fileContents and self.fileIndex == -1: # Add to the end of the file
 					# Get the file index for this mod and prepend a separator
 					self.fileIndex = len( fileContents.split( '-==-' ) )
-					modString = fileContents + '\n\n\n\t-==-\n\n\n' + modString
+					modString = fileContents + '\n\n\t-==-\n\n\n' + modString
 
 				elif fileContents: # Replace the given index
 					mods = fileContents.split( '-==-' )
@@ -1215,7 +1242,7 @@ class CodeMod( object ):
 	def saveCache( self, change, forceSavePreProc=False, header='', longHeader=False, sourcePath='', cleanup=False, allowBin=True ):
 
 		""" Saves assembled cache files for a code change for faster code installation performance. 
-			Saves preProcessed code with custom syntaxes mixed in to a code .txt file, or
+			Saves preProcessed code that includes custom syntaxes mixed in to a code .txt file, or
 			raw binary to a .bin file. Returns True/False on success. """
 		
 		if not header:
@@ -1725,7 +1752,7 @@ class CodeLibraryParser():
 						except Exception as err:
 							mod.parsingError = True
 							mod.stateDesc = 'Configurations parsing error'
-							mod.errors.append( 'Configurations parsing error; {}'.format(err) )
+							mod.errors.add( 'Configurations parsing error; {}'.format(err) )
 							continue
 
 					else: # Assume all other lines are more description text
@@ -1771,7 +1798,7 @@ class CodeLibraryParser():
 					else:
 						mod.parsingError = True
 						mod.stateDesc = 'Improper mod formatting'
-						mod.errors.append( 'Improper mod formatting' )
+						mod.errors.add( 'Improper mod formatting' )
 
 					# Empty current temporary data containers for code
 					customCode = []
@@ -1843,7 +1870,7 @@ class CodeLibraryParser():
 								changeDesc = 'long static overwrite'
 							else:
 								changeDesc = 'static overwrite'
-							mod.errors.append( 'Invalid (non-hex) offset detected with a ' + changeDesc )
+							mod.errors.add( 'Invalid (non-hex) offset detected with a ' + changeDesc )
 
 					# Continue collecting code lines
 					elif not isVersionHeader:
@@ -1855,7 +1882,7 @@ class CodeLibraryParser():
 
 			# End of per-line loop for the current mod (all lines have now been gone through).
 			# If there is any code left, save it to the last revision's last code change.
-			if customCode != [] or standaloneRevisions != []:				
+			if customCode != [] or standaloneRevisions != []:
 				if changeType == 'injection':
 					mod.addInjection( offsetString, customCode, origHex )
 				elif changeType == 'gecko':
@@ -1869,7 +1896,7 @@ class CodeLibraryParser():
 				else:
 					mod.parsingError = True
 					mod.stateDesc = 'Improper mod formatting'
-					mod.errors.append( 'Improper mod formatting' )
+					mod.errors.add( 'Improper mod formatting' )
 
 			mod.desc = '\n'.join( mod.desc )
 
@@ -1898,7 +1925,7 @@ class CodeLibraryParser():
 		if returnCode == 0 and not address:
 			mod.parsingError = True
 			mod.stateDesc = 'Missing address for "{}"'.format( sourceFile )
-			mod.errors.append( 'Unable to find an address' )
+			mod.errors.add( 'Unable to find an address' )
 
 		codeChange = mod.addStaticOverwrite( address, customCode, '', anno, modName )
 		if preProcCode:
@@ -1928,7 +1955,7 @@ class CodeLibraryParser():
 		if returnCode == 0 and not address:
 			mod.parsingError = True
 			mod.stateDesc = 'Missing address for "{}"'.format( sourceFile )
-			mod.errors.append( 'Unable to find an address' )
+			mod.errors.add( 'Unable to find an address' )
 			
 		codeChange = mod.addInjection( address, customCode, '', anno, modName )
 		if preProcCode:
@@ -1942,11 +1969,11 @@ class CodeLibraryParser():
 		if not mod.data:
 			#mod.state = 'unavailable'
 			mod.stateDesc = 'Missing mod data'
-			mod.errors.append( 'Missing mod data; may be defined incorrectly' )
+			mod.errors.add( 'Missing mod data; may be defined incorrectly' )
 		elif mod.name in self.modNames:
 			#mod.state = 'unavailable'
 			mod.stateDesc = 'Duplicate mod'
-			mod.errors.append( 'Duplicate mod; more than one by this name in library' )
+			mod.errors.add( 'Duplicate mod; more than one by this name in library' )
 
 		self.codeMods.append( mod )
 		self.modNames.add( mod.name )
@@ -1961,6 +1988,7 @@ class CodeLibraryParser():
 		description = []
 		codeChangeTuples = []
 		codeBuffer = [ '', -1, '', [], 0 ] # Temp staging area while code lines are collected, before they are submitted to the above codeChangeTuples list.
+		processedHex = ''
 
 		# Load the DOL for this revision (if one is not already loaded), for original/vanilla code look-ups
 		#vanillaDol = loadVanillaDol( gameRevision )
@@ -1974,7 +2002,7 @@ class CodeLibraryParser():
 			elif line.startswith( '$' ) or ( '[' in line and ']' in line ):
 				line = line.lstrip( '$' )
 
-				# Sanity check; the buffer should be empty if a new code is starting
+				# Sanity check; the buffer should be empty if a new code change is starting
 				if codeBuffer[0]:
 					# print 'Warning! Gecko code parsing ran into an error or an invalid code!'
 					# print 'The code buffer was not emptied before a new code was encountered.'
@@ -1999,7 +2027,6 @@ class CodeLibraryParser():
 				newHexLength = len( processedHex ) / 2 # Divide by 2 to count by bytes rather than nibbles
 
 				if collectedCodeLength + newHexLength < totalBytes:
-					#codeBuffer[3].append( processedHex )
 					codeBuffer[3].append( line )
 					codeBuffer[4] += newHexLength
 
@@ -2007,19 +2034,6 @@ class CodeLibraryParser():
 					# Collect the remaining new hex and consolidate it
 					#bytesRemaining = totalBytes - collectedCodeLength
 					codeBuffer[3].append( line )
-					#codeBuffer[3].append( processedHex[:bytesRemaining*2] ) # x2 to count by nibbles
-					#rawCustomCode = ''.join( codeBuffer[3] ) # Joins without whitespace
-					#customCode = globalData.codeProcessor.beautifyHex( rawCustomCode ) # Formats to 8 byte per line
-
-					# Get the original/vanilla code
-					# intRamAddress = int( ramAddress[2:], 16 ) # Trims off leading 0x before conversion
-					# dolOffset = dol.offsetInDOL( intRamAddress )
-					# if dolOffset == -1: #originalCode = ''
-					# 	raise Exception( 'Unable to convert Gecko code; no equivalent DOL offset for {}.'.format(ramAddress) )
-					# elif changeType == 'static': # Long static overwrite (06 opcode)
-					# 	originalCode = hexlify( dol.getData(dolOffset, totalBytes) )
-					# else: # Injection
-					# 	originalCode = hexlify( dol.getData(dolOffset, 4) ) # At the injection point
 
 					# Add the finished code change to the list, and reset the buffer
 					#codeChangeTuples.append( (changeType, totalBytes, ramAddress, originalCode, customCode, rawCustomCode, 0) )
@@ -2029,12 +2043,6 @@ class CodeLibraryParser():
 			elif line.startswith( '04' ): # A Static Overwrite
 				ramAddress = '0x80' + line[2:8]
 				customCode = line.replace( ' ', '' )[8:16]
-
-				# Get the vanilla code from the DOL
-				# dolOffset = dol.offsetInDOL( int(ramAddress, 16) )
-				# if dolOffset == -1: #originalCode = ''
-				# 	raise Exception( 'Unable to convert Gecko code; no equivalent DOL offset for {}.'.format(ramAddress) )
-				# else: originalCode = hexlify( dol.getData(dolOffset, 4) )
 
 				#codeChangeTuples.append( ('static', 4, ramAddress, originalCode, customCode, customCode, 0) )
 				codeChangeTuples.append( ('static', ramAddress, [customCode]) )
@@ -2055,6 +2063,12 @@ class CodeLibraryParser():
 
 			else:
 				raise Exception( 'Found an unrecognized Gecko opcode: ' + line.lstrip()[:2].upper() )
+
+		# Check for any lingering code
+		if codeBuffer[0] and processedHex:
+			# Add the finished code change to the list
+			codeChangeTuples.append( (changeType, ramAddress, codeBuffer[3]) )
+			print( 'Warning: the Gecko code change for address {} appears to be malformed!'.format(ramAddress) )
 
 		return title, authors, '\n'.join( description ), codeChangeTuples
 
@@ -2140,7 +2154,7 @@ class CodeLibraryParser():
 
 							elif codeType in ( 'branch', 'branchAndLink', 'binary', 'replaceBinary' ):
 								mod.parsingError = True
-								mod.errors.append( 'The "' + codeType + '" AMFS code type is not supported' )
+								mod.errors.add( 'The "' + codeType + '" AMFS code type is not supported' )
 
 							elif codeType == 'standalone': # For Standalone Functions
 								self.parseAmfsStandalone( codeChangeDict, mod, annotation )
@@ -2150,12 +2164,12 @@ class CodeLibraryParser():
 
 							else:
 								mod.parsingError = True
-								mod.errors.append( 'Unrecognized AMFS code type: ' + codeType )
+								mod.errors.add( 'Unrecognized AMFS code type: ' + codeType )
 
 						self.storeMod( mod )
 
 					else: # Build all subfolders/files
-						mod.errors.append( "No 'build' section found in codes.json" )
+						mod.errors.add( "No 'build' section found in codes.json" )
 
 				except Exception as err:
 					if not mod: # Ill-formatted JSON, or missing basic info
@@ -2164,7 +2178,7 @@ class CodeLibraryParser():
 
 					# Store an errored-out shell of this mod, so the user can notice it and know a broken mod is present
 					mod.parsingError = True
-					mod.errors.append( 'Unable to parse codes section; {}'.format(err) )
+					mod.errors.add( 'Unable to parse codes section; {}'.format(err) )
 					self.storeMod( mod )
 
 		else: # Grab everything from the current folder (and subfolders). Assume .s are static overwrites, and .asm are injections
@@ -2174,7 +2188,7 @@ class CodeLibraryParser():
 			
 			# mod = CodeMod( codeset['name'], authors, description, fullFolder, True )
 
-			#self.errors.append( "No 'codes' section found in codes.json" ) #todo
+			#self.errors.add( "No 'codes' section found in codes.json" ) #todo
 			msg( 'No "codes" section found in codes.json for the mod in "{}".'.format(folderPath) )
 
 	def parseSourceFileHeader( self, asmFile ):
@@ -2262,7 +2276,7 @@ class CodeLibraryParser():
 			# print( err )
 			# mod.parsingError = True
 			# mod.stateDesc = 'Missing source files'
-			# mod.errors.append( "Unable to find the file " + os.path.basename(fullAsmFilePath) )
+			# mod.errors.add( "Unable to find the file " + os.path.basename(fullAsmFilePath) )
 			# return 4, '', '', '', '', annotation
 			#print( 'Error reading source; {}'.format(err) )
 			print( 'No source .asm found for ' + os.path.basename(fullAsmFilePath) )
@@ -2275,7 +2289,7 @@ class CodeLibraryParser():
 			print( err )
 			mod.parsingError = True
 			mod.stateDesc = 'File reading error with ' + os.path.basename( fullAsmFilePath )
-			mod.errors.append( 'Encountered an error while reading {}: {}'.format(os.path.basename(fullAsmFilePath), err) )
+			mod.errors.add( 'Encountered an error while reading {}: {}'.format(os.path.basename(fullAsmFilePath), err) )
 			return 5, '', '', '', '', False, annotation
 
 		# Check for preProcessed files (.txt/.bin) and see if the source code is more recent
@@ -2348,25 +2362,26 @@ class CodeLibraryParser():
 		# Record an error message for this
 		if address and not sourceFile:
 			if codeChangeDict['type'] == 'inject':
-				mod.errors.append( 'Injection at {} missing "sourceFile" path'.format(address) )
+				mod.errors.add( 'Injection at {} missing "sourceFile" path'.format(address) )
 			else:
-				mod.errors.append( 'Static overwrite at {} missing "sourceFile" path'.format(address) )
+				mod.errors.add( 'Static overwrite at {} missing "sourceFile" path'.format(address) )
 		if sourceFile and not address:
 			if codeChangeDict['type'] == 'inject':
-				mod.errors.append( '{} injection missing its "address" value'.format(sourceFile) )
+				mod.errors.add( '{} injection missing its "address" value'.format(sourceFile) )
 			else:
-				mod.errors.append( '{} static overwrite missing its "address" value'.format(sourceFile) )
+				mod.errors.add( '{} static overwrite missing its "address" value'.format(sourceFile) )
 		elif not address and not sourceFile:
 			# No specifics available; add a generic message while combining like messages
 			for i, errMsg in enumerate( mod.errors ):
 				if errMsg.endswith( 'missing "address"/"sourceFile" fields' ):
-					del mod.errors[i]
+					#del mod.errors[i]
+					mod.errors.remove( errMsg )
 					# Parse and increase the number
 					num = int( errMsg.split()[0] )
-					mod.errors.append( '{} code changes are missing "address"/"sourceFile" fields'.format(num + 1) )
+					mod.errors.add( '{} code changes are missing "address"/"sourceFile" fields'.format(num + 1) )
 					break
 			else: # Above loop didn't break; no prior message like this
-				mod.errors.append( '1 code change is missing "address"/"sourceFile" fields' )
+				mod.errors.add( '1 code change is missing "address"/"sourceFile" fields' )
 
 		return '', '', ''
 
@@ -2413,7 +2428,7 @@ class CodeLibraryParser():
 			if not address:
 				mod.parsingError = True
 				mod.stateDesc = 'Missing address for "{}"'.format( sourceFile )
-				mod.errors.append( 'Unable to find an address for ' + sourceFile )
+				mod.errors.add( 'Unable to find an address for ' + sourceFile )
 				return
 
 		codeChange = mod.addInjection( address, customCode, '', anno, changeName )
@@ -2432,7 +2447,7 @@ class CodeLibraryParser():
 		#if returnCode != 0:
 			# mod.parsingError = True
 			# mod.stateDesc = 'Parsing error; unable to get code from file'
-			# mod.errors.append( "Unable to read the 'sourceFile' {}".format(sourceFile) )
+			# mod.errors.add( "Unable to read the 'sourceFile' {}".format(sourceFile) )
 		#	return
 		
 		# Store the info for this code change
@@ -2455,7 +2470,7 @@ class CodeLibraryParser():
 			
 		except WindowsError as err:
 			mod.parsingError = True
-			mod.errors.append( 'Unable to find the folder "{}"'.format(fullFolderPath) )
+			mod.errors.add( 'Unable to find the folder "{}"'.format(fullFolderPath) )
 			print( err )
 
 	def parseAmfsInjectFolder( self, codeChangeDict, mod, annotation ):
@@ -2467,7 +2482,7 @@ class CodeLibraryParser():
 		isRecursive = codeChangeDict.get( 'isRecursive', -1 )
 		if isRecursive == -1: # Flag not found!
 			mod.parsingError = True
-			mod.errors.append( 'No "isRecursive" flag defined for the {} folder.'.format(sourceFolder) )
+			mod.errors.add( 'No "isRecursive" flag defined for the {} folder.'.format(sourceFolder) )
 			return
 
 		# try:
@@ -2490,14 +2505,14 @@ class CodeLibraryParser():
 			mod.parsingError = True
 			if sourceFile:
 				sourceFileName = os.path.basename( sourceFile )
-				mod.errors.append( 'SF for {} is missing its name property'.format(sourceFileName) )
+				mod.errors.add( 'SF for {} is missing its name property'.format(sourceFileName) )
 			else:
-				mod.errors.append( 'An SF is missing its name property' )
+				mod.errors.add( 'An SF is missing its name property' )
 
 		# If a sourceFile was provided, construct the full path and get the custom code
 		if not sourceFile:
 			mod.parsingError = True
-			mod.errors.append( 'SF {} is missing its "sourceFile" property'.format(name) )
+			mod.errors.add( 'SF {} is missing its "sourceFile" property'.format(name) )
 			customCode = ''
 			changeName = ''
 		else:

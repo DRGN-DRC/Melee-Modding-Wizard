@@ -560,11 +560,12 @@ def getVanillaDiscPath():
 def getVanillaDol( skipCache=False ):
 
 	""" Retrieves and returns the Start.dol file from a vanilla disc. 
-		Or, if a path is given for the 'dolSource' setting, that DOL is used. """
+		Or, if a path is given for the 'dolSource' setting, that DOL is used. 
+		May raise an exception if a DOL cannot be retrieved. """
 
 	# Check for a cached copy to use
 	global dol
-	if not skipCache and dol:
+	if dol and not skipCache:
 		return dol
 	
 	dolPath = settings.get( 'General Settings', 'dolSource' )

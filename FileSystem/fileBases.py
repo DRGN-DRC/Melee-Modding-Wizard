@@ -152,7 +152,13 @@ class FileBase( object ):
 		if dataLength == -1:
 			dataLength = 1
 
-		return self.data[ dataOffset:dataOffset+dataLength ]
+		data = self.data[ dataOffset:dataOffset+dataLength ]
+
+		# Check that all of the data was retrieved
+		if len( data ) != dataLength:
+			printStatus( 'Unable to retrieve 0x{:X} bytes from 0x{:X}; possibly invalid data length or offset'.format(dataLength, dataOffset), error=True )
+
+		return data
 
 	def setData( self, dataOffset, newData ):
 

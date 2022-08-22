@@ -995,7 +995,9 @@ class CodeManagerTab( ttk.Frame ):
 			newMod.guiModule = modModule
 
 			return newMod
-		except:
+
+		except Exception as err:
+			print( err )
 			return None
 
 	def saveCodeChanges( self ):
@@ -1150,9 +1152,9 @@ class ModModule( Tk.Frame, object ):
 		moduleWidth = 500 # Mostly just controls the wraplength of text areas.
 
 		# Row 1: Title and author(s)
-		title = Tk.Label( self, text=mod.name, font=("Times", 11, "bold"), wraplength=moduleWidth*.6, anchor='n' )
+		title = Tk.Label( self, text=mod.name, font=("Times", 11, "bold"), wraplength=(moduleWidth*.60)-14, anchor='n' )
 		title.grid( column=0, row=0, sticky='ew', padx=14 )
-		self.authorLabel = Tk.Label( self, text=' - by ' + mod.auth, font=("Verdana", 8), wraplength=moduleWidth*.4, fg='#424242' )
+		self.authorLabel = Tk.Label( self, text=' - by ' + mod.auth, font=("Verdana", 8), wraplength=(moduleWidth*.4)-10, fg='#424242' )
 		self.authorLabel.grid( column=1, row=0, sticky='e', padx=10 )
 
 		# Row 2: Description
@@ -1558,14 +1560,17 @@ class CodeConstructor( Tk.Frame ):
 		ttk.OptionMenu( versionChangerTab, verChooser, self.dolVariations[0], *self.dolVariations ).pack()
 
 		def addAnotherVersion():
+			# Check if the selected tab already exists
 			tabName = 'For ' + verChooser.get()
+			if self.getTabByName( self.revisionsNotebook, tabName ) != -1: # Tab not found.
+				msg( 'A tab for that game revision already exists.' )
+				return
 
-			if self.getTabByName( self.revisionsNotebook, tabName ) == -1: # Tab not found.
-				self.addGameVersionTab( verChooser.get(), True )
+			# Add a new tab
+			self.addGameVersionTab( verChooser.get(), True )
 
-				# Select the newly created tab.
-				self.revisionsNotebook.select( globalData.gui.root.nametowidget(self.getTabByName( self.revisionsNotebook, tabName )) )
-			else: msg( 'A tab for that game revision already exists.' )
+			# Select the newly created tab.
+			self.revisionsNotebook.select( globalData.gui.root.nametowidget(self.getTabByName( self.revisionsNotebook, tabName )) )
 
 		ttk.Button( versionChangerTab, text=' Add ', command=addAnotherVersion ).pack( pady=15 )
 
@@ -1681,10 +1686,6 @@ class CodeConstructor( Tk.Frame ):
 		# Add a new tab for this game version if not already present, and define its GUI parts to attach code change modules to.
 		versionTab = self.getTabByName( self.revisionsNotebook, gameVersionTabName )
 
-		# if versionTab != -1: # Found an existing tab by that name. Add this code change to that tab
-		# 	codeChangesListFrame = versionTab.winfo_children()[0]
-
-		# else: # Create a new version tab, and add this code change to that
 		# If one cannot be found, create a new version tab and add this code change to that
 		if versionTab == -1:
 			versionTab = Tk.Frame( self.revisionsNotebook )
@@ -1748,6 +1749,11 @@ class CodeConstructor( Tk.Frame ):
 		# Create a new notebook for game versions, and/or a tab for this specific revision, if needed.
 		dolRevision, versionTab = self.addGameVersionTab( dolRevision, False )
 		codeChangesListFrame, newHexFieldContainer = versionTab.winfo_children()
+		self.mod.currentRevision = dolRevision
+
+		# Ensure a data (code changes) list is present for this revision (might be a new mod)
+		if not dolRevision in self.mod.data:
+			self.mod.data[dolRevision] = []
 
 		# Create a new codeChange module if one was not provided
 		if codeChange:
@@ -1927,25 +1933,33 @@ class CodeConstructor( Tk.Frame ):
 		entryWindow = PopupScrolledTextWindow( globalData.gui.root, title='Gecko Codes Import', message=userMessage, width=55, height=22, button1Text='Import' )
 		if not entryWindow.entryText: return # User canceled
 
-		dol = globalData.getVanillaDol()
-
-		# Get the revision for this code
-		if dol and dol.revision:
-			dolRevision = dol.revision
-		else: # Prompt the user for it
+		# Prompt the user for a revision
+		if not self.mod.currentRevision:
 			revisionWindow = RevisionPromptWindow( labelMessage='Choose the region and game version that this code is for.', regionSuggestion='NTSC', versionSuggestion='02' )
 			if not revisionWindow.region or not revisionWindow.version: return # User canceled
 			
-			dolRevision = revisionWindow.region + ' ' + revisionWindow.version
+			self.mod.currentRevision = revisionWindow.region + ' ' + revisionWindow.version
 
 		# Parse the gecko code input and create code change modules for the changes
 		parser = CodeLibraryParser()
-		title, newAuthors, description, codeChanges = parser.parseGeckoCode( entryWindow.entryText.splitlines() )
-		if not codeChanges:
+		try:
+			title, newAuthors, description, codeChanges = parser.parseGeckoCode( entryWindow.entryText.splitlines() )
+			if not codeChanges:
+				msg( 'No code changes could be parsed from this code. You may want to check that the Gecko code is not malformed.', 'Unable to Parse', error=True )
+				return
+		except Exception as error:
+			if 'unrecognized Gecko opcode' in error:
+				unkonwnOpcode = error.split( ':' )[1].strip()
+				errorMsg = 'An unrecognized opCode was found in the code; this one has not been added to the parser: {}'.format( unkonwnOpcode )
+			else:
+				errorMsg = 'An unknown error occurred while parsing:\n\n{}'.format( error )
+			msg( errorMsg, 'Unable to Parse', warning=True )
 			return
 
 		# Set the mod's title and description, if they haven't already been set
-		if not self.getInput( self.titleEntry ):
+		currentTitle = self.getInput( self.titleEntry )
+		if not currentTitle or currentTitle == 'New Mod':
+			self.titleEntry.delete( 0, 'end' )
 			self.titleEntry.insert( 0, title )
 			self.updateTabName()
 		if description:
@@ -1962,6 +1976,10 @@ class CodeConstructor( Tk.Frame ):
 			self.authorsEntry.delete( 0, 'end' )
 			self.authorsEntry.insert( 'end', ', '.join(currentAuthors) )
 
+		# Ensure a data (code changes) list is present for this revision (might be a new mod)
+		if not self.mod.currentRevision in self.mod.data:
+			self.mod.data[self.mod.currentRevision] = []
+
 		# Add new code change modules
 		for changeType, address, customCodeLines in codeChanges:
 			# Create a new CodeChange object and attach it to the internal mod module
@@ -1973,11 +1991,15 @@ class CodeConstructor( Tk.Frame ):
 				print( 'Invalid code change type from Gecko code parser:', changeType )
 
 			# Create the code change's GUI element
-			self.addCodeChangeModule( changeType, codeChange, dolRevision )
+			self.addCodeChangeModule( changeType, codeChange, self.mod.currentRevision )
 
 		# Mark that these changes have not been saved yet, and update the status display
 		self.undoableChanges = True
 		self.updateSaveStatus( True )
+
+		# Evaluate the custom code and check for assembly errors
+		self.mod.assessForErrors()
+		self.updateErrorNotice()
 
 		globalData.gui.playSound( 'menuChange' )
 
@@ -2037,7 +2059,7 @@ class CodeConstructor( Tk.Frame ):
 
 		changeType = codeChangeModule.codeChange.type
 
-		# Update the module's custom code, calculate code length, and update this module's length display
+		# Update the module's custom code and calculate code length
 		codeChangeModule.codeChange.rawCode = self.getInput( codeChangeModule.newHexField )
 		returnCode = codeChangeModule.codeChange.evaluate( True )
 		if returnCode != 0:
@@ -2046,6 +2068,8 @@ class CodeConstructor( Tk.Frame ):
 			codeChangeModule.lengthDisplayVar.set( '0 bytes' )
 			self.updateErrorNotice( '', codeChangeModule )
 			return
+
+		# Update this module's length display
 		codeChangeModule.lengthDisplayVar.set( uHex(codeChangeModule.codeChange.length) + ' bytes' )
 
 		# Validate and update offset/address and original code field
@@ -2072,7 +2096,8 @@ class CodeConstructor( Tk.Frame ):
 	def updateErrorNotice( self, newError='', codeChangeModule=None ):
 
 		if newError:
-			self.mod.errors.append( newError )
+			#self.mod.errors.append( newError )
+			self.mod.errors.add( newError )
 
 		# If this mod has errors, show the warnings button if it's not present (or remove it if this mod is OK)
 		if self.mod.parsingError or self.mod.assemblyError or self.mod.errors:
@@ -2135,10 +2160,8 @@ class CodeConstructor( Tk.Frame ):
 
 		# Perform the save in the appropriate format
 		if self.mod.isMini:
-			print( 'saving as Mini')
 			saveSuccessful = self.mod.saveAsStandaloneFile()
 		elif self.mod.isAmfs:
-			print( 'saving as AMFS')
 			if self.mod.type == 'gecko':
 
 				convertedGeckoMod = globalData.gui.codeManagerTab.convertGeckoCode( self.mod )
@@ -2155,7 +2178,6 @@ class CodeConstructor( Tk.Frame ):
 
 			saveSuccessful = self.mod.saveInAmfsFormat()
 		else:
-			print( 'saving as MCM')
 			saveSuccessful = self.mod.saveInMcmFormat()
 
 		if not saveSuccessful:
@@ -2198,8 +2220,7 @@ class CodeConstructor( Tk.Frame ):
 		self.updateSaveStatus( False, 'Saved To Library' )
 
 		# Reload the library to get the new or updated codes.
-		#scanModsLibrary( playAudio=False )
-		#globalData.gui.codeManagerTab.scanCodeLibrary( playAudio=False )
+		globalData.gui.codeManagerTab.scanCodeLibrary( playAudio=False )
 		
 		return True
 
@@ -2222,6 +2243,8 @@ class CodeConstructor( Tk.Frame ):
 				analysisText += '\nSave Format: Minimal'
 			analysisText += '\nSource File: ' + self.mod.path
 			analysisText += '\nPosition in file: ' + str( self.mod.fileIndex )
+		elif not self.mod.path:
+			analysisText += '\nSource: N/A (New mod)'
 		else:
 			analysisText += '\nSource: Unknown! (The source path could not be found)'
 
@@ -2335,9 +2358,8 @@ class CodeConstructor( Tk.Frame ):
 
 	def closeMod( self ):
 		# If there are unsaved changes, propt whether the user really wants to close.
-		#if self.saveStatusLabel['foreground'] == '#a34343':
 		if self.changesArePending():
-			sureToClose = tkMessageBox.askyesno( 'Unsaved Changes', "It looks like this mod has some changes that haven't been saved. Are you sure you want to discard changes and close it?" )
+			sureToClose = tkMessageBox.askyesno( 'Unsaved Changes', "It looks like this mod has some changes that haven't been saved.\n\nAre you sure you want to discard changes and close it?" )
 			if not sureToClose: return
 
 		# Restore the backup copy
