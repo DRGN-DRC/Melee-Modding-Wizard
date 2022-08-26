@@ -14,11 +14,11 @@ import ttk
 import Tkinter as Tk
 
 from binascii import hexlify
-from basicFunctions import msg
+from basicFunctions import msg, printStatus
 
 # Internal Dependencies
 import globalData
-from FileSystem.charFiles import CharDataFile
+from FileSystem.charFiles import CharDataFile, SubAction
 from guiSubComponents import DDList, HexEditEntry, ToolTip, VerticalScrolledFrame
 
 
@@ -80,7 +80,6 @@ class CharModding( ttk.Notebook ):
 			# 	continue
 
 			# Try to get the character's icon texture
-			# extCharId = fileObj.extCharId
 			if texturesInfo:
 				textureIndex = self.iconIndices.get( fileObj.charAbbr, 71 )
 				texOffset, _, _, _, texWidth, texHeight, texType, _ = texturesInfo[textureIndex]
@@ -262,39 +261,6 @@ class CharModding( ttk.Notebook ):
 
 		return propertiesTab
 
-	# def buildSubActionsTab( self, parent ):
-		
-	# 	""" Adds the subAction editor to a character tab. """
-		
-	# 	subActionsTab = ttk.Frame( parent )
-
-	# 	actionTable = parent.charFile.getActionTable()
-	# 	title = parent.charFile.filename + ' Action Table Entries - ' + hex( actionTable.offset + 0x20 )
-	# 	#self.subActions = {}
-
-	# 	lines = []
-	# 	for i, values in actionTable.iterateEntries():
-	# 		actionName = parent.charFile.getString( values[0] )
-	# 		offset = actionTable.entryIndexToOffset( i )
-	# 		lines.append( '\t{} | {} - {}'.format(i, uHex(offset + 0x20), actionName) )
-
-
-	# 	subActionScrollBar = Tk.Scrollbar( subActionsTab, orient='vertical' )
-	# 	self.subActionList = Tk.Listbox( subActionsTab, yscrollcommand=subActionScrollBar.set )
-	# 	subActionScrollBar.config( command=self.subActionList.yview )
-	# 	for i, values in actionTable.iterateEntries():
-	# 		#self.subActions[i] = values
-	# 		actionName = parent.charFile.getString( values[0] )
-	# 		# label = ttk.Label( self.subActionList.interior, text=actionName )
-	# 		# label.index = i
-	# 		# label.pack()
-	# 		self.subActionList.insert( i, actionName )
-
-	# 	self.subActionList.grid( column=0, row=0, sticky='nsew' )
-	# 	subActionScrollBar.grid( column=1, row=0, sticky='ns' )
-
-	# 	return subActionsTab
-
 
 class SubActionEditor( ttk.Frame, object ):
 
@@ -303,68 +269,176 @@ class SubActionEditor( ttk.Frame, object ):
 
 		self.actionTable = parent.charFile.getActionTable()
 		self.charFile = parent.charFile
+
+		# Add the action table pane's title
 		title = self.charFile.filename + ' Action Table Entries - ' + hex( self.actionTable.offset + 0x20 )
+		ttk.Label( self, text=title ).grid( columnspan=2, column=0, row=0, pady=4 )
 
-		ttk.Label( self, text=title ).grid( columnspan=2, column=0, row=0 )
-
+		# Add the action table list and its scrollbar
 		subActionScrollBar = Tk.Scrollbar( self, orient='vertical' )
 		self.subActionList = Tk.Listbox( self, yscrollcommand=subActionScrollBar.set )
 		subActionScrollBar.config( command=self.subActionList.yview )
 		for i, values in self.actionTable.iterateEntries():
-			if values[0] == 0:
-				actionName = 'Entry ' + str(i+1)
-			else:
-				actionName = parent.charFile.getString( values[0] ).split( 'ACTION_' )[1].split( '_figatree' )[0]
-			self.subActionList.insert( i, actionName )
+			self.subActionList.insert( i, '  ' + self.getSubActionName(values[0], i) )
 		self.subActionList.bind('<<ListboxSelect>>', self.subActionSelected )
-
 		self.subActionList.grid( column=0, row=1, sticky='nsew' )
 		subActionScrollBar.grid( column=1, row=1, sticky='ns' )
 
-		# Pane for showing subAction events
+		# Pane for showing subAction events (empty for now)
 		ttk.Label( self, text='Event Display:' ).grid( column=2, row=0 )
-		self.displayPane = DDList( self, 450, 600 )
-		self.displayPane.grid( column=2, row=1, sticky='nsew' )
+		scrollPane = VerticalScrolledFrame( self )
+		self.displayPane = DDList( scrollPane.interior, 500, 40, item_borderwidth=2, offset_x=2, offset_y=2, gap=2 )
+		self.displayPane.pack( fill='both', expand=True )
+		scrollPane.grid( column=2, row=1, sticky='nsew' )
 
 		# Pane for general info display
 		infoPane = ttk.Frame( self )
 		emptyWidget = Tk.Frame( relief='flat' ) # This is used as a simple workaround for the labelframe, so we can have no text label with no label gap.
-		generalInfoBox = ttk.Labelframe( infoPane, labelwidget=emptyWidget, padding=(20, 4) )
-		self.subActionIndex = Tk.StringVar( value='SubAction Table Index:' )
+		generalInfoBox = ttk.Labelframe( infoPane, labelwidget=emptyWidget, padding=(20, 5) )
 		self.subActionId = Tk.StringVar( value='SubAction ID:' )
+		self.subActionIndex = Tk.StringVar( value='SubAction Table Index:' )
 		self.subActionFlags = Tk.StringVar( value='SubAction Flags:' )
 		self.subActionAnimOffset = Tk.StringVar( value='Animation Offset:' )
 		self.subActionAnimSize = Tk.StringVar( value='Animation Size:' )
 		self.subActionEventsOffset = Tk.StringVar( value='Events Offset:' )
-		ttk.Label( generalInfoBox, textvariable=self.subActionIndex ).pack()
 		ttk.Label( generalInfoBox, textvariable=self.subActionId ).pack()
+		ttk.Label( generalInfoBox, textvariable=self.subActionIndex ).pack()
 		ttk.Label( generalInfoBox, textvariable=self.subActionFlags ).pack()
 		ttk.Label( generalInfoBox, textvariable=self.subActionAnimOffset ).pack()
 		ttk.Label( generalInfoBox, textvariable=self.subActionAnimSize ).pack()
 		ttk.Label( generalInfoBox, textvariable=self.subActionEventsOffset ).pack()
 		generalInfoBox.pack( fill='x', expand=True )
-		infoPane.grid( column=3, row=1, sticky='nsew' )
+		
+		flagsBox = ttk.Labelframe( infoPane, text=' Flags ', padding=(20, 5) )
+		ttk.Label( flagsBox, text='TEST' ).pack()
+		flagsBox.pack( fill='x', expand=True, pady=20 )
+		infoPane.grid( column=3, row=1, padx=20, pady=10 )
 
 		# Configure row/column stretch and resize behavior
 		self.columnconfigure( 0, weight=1 ) # SubAction Listbox
 		self.columnconfigure( 1, weight=0 ) # Scrollbar
+		self.columnconfigure( 2, weight=2 ) # Events display pane
+		self.columnconfigure( 3, weight=0 ) # Info display
+		self.rowconfigure( 0, weight=0 )
 		self.rowconfigure( 1, weight=1 )
-		self.rowconfigure( 3, weight=1 )
+
+	def getSubActionName( self, namePointer, index ):
+		if namePointer == 0:
+			return 'Entry ' + str( index + 1 )
+		else:
+			return self.charFile.getString( namePointer ).split( 'ACTION_' )[1].split( '_figatree' )[0]
 
 	def subActionSelected( self, event ):
 
 		# Get the subAction index and values from the subaction entry
 		index = self.subActionList.curselection()[0]
 		entry = self.actionTable.getEntryValues( index )
-		print( entry )
 		
 		# Update general info display
-		self.subActionId.set( 'SubAction Table Index: 0x{:X}'.format(index) )
-		self.subActionId.set( 'SubAction ID: 0x{:X}'.format(entry[4]) )
-		self.subActionFlags.set( 'SubAction Flags: 0x{:X}'.format(entry[5]) )
-		self.subActionAnimOffset.set( 'Animation Offset: 0x{:X}'.format(0x20+entry[1]) )
-		self.subActionAnimSize.set( 'Animation Size: 0x{:X}'.format(entry[2]) )
-		self.subActionEventsOffset.set( 'Events Offset: 0x{:X}'.format(0x20+entry[3]) )
+		self.subActionId.set( 'SubAction ID:  0x{:X}'.format(entry[4]) )
+		self.subActionIndex.set( 'SubAction Table Index:  0x{:X}'.format(index) )
+		self.subActionFlags.set( 'SubAction Flags:  0x{:X}'.format(entry[5]) )
+		self.subActionAnimOffset.set( 'Animation Offset:  0x{:X}'.format(0x20+entry[1]) )
+		self.subActionAnimSize.set( 'Animation Size:  0x{:X}'.format(entry[2]) )
+		self.subActionEventsOffset.set( 'Events Offset:  0x{:X}'.format(0x20+entry[3]) )
+
+		# Clear the events display pane
+		self.displayPane.delete_all_items()
 
 		# Update the subAction events display list
-		#eventsData = self.charFile.
+		try:
+			subActionStruct = self.charFile.initDataBlock( SubAction, entry[3], self.actionTable.offset )
+			subActionStruct.parse()
+		except Exception as err:
+			subActionName = self.getSubActionName( entry[0], index )
+			printStatus( 'Unable to parse {} subAction (index {}); {}'.format(subActionName, index, err) )
+			return
+
+		# Populate the events display pane
+		self.displayPane.update_width()
+		for event in subActionStruct.events:
+			# Exit on End of Script event
+			if event.id == 0:
+				break
+
+			# Create a GUI module for the event
+			item = self.displayPane.create_item()
+			eM = EventModule( item, event, self.displayPane )
+			eM.pack( fill='both', expand=True )
+
+			# Add the GUI module to the display panel
+			self.displayPane.add_item( item )
+			eM.lastIndex = self.displayPane._position[item]
+
+
+class EventModule( ttk.Frame, object ):
+
+	def __init__( self, parentItem, event, displayPane ):
+		super( EventModule, self ).__init__( parentItem )
+
+		self.name = event.name
+		self.event = event
+		self.expanded = False
+		self.ddList = displayPane
+		self.lastIndex = -1
+
+		label = ttk.Label( self, text=self.name )
+		label.pack( anchor='w', padx=(12,0), pady=(4,0) )
+
+		label.bind( '<Double-Button-1>', self.eventClicked )
+		self.bind( '<Double-Button-1>', self.eventClicked )
+		
+	def eventClicked( self, tkEvent=None ):
+
+		# Check if the item has been moved (user just wants to drag-and-drop)
+		currentIndex = self.ddList._position[self.master]
+		if self.lastIndex != currentIndex:
+			self.lastIndex = currentIndex
+			return
+		elif not self.event.fields: # todo: move check to before adding binding
+			print( 'no fields' )
+			return
+
+		# Not moved. Toggle state
+		if self.expanded:
+			self.contract()
+		else:
+			self.expand()
+
+	def expand( self ):
+		item = self.master
+
+		# Construct the event details label
+		stringParts = []
+		for valueName, format, value in zip( self.event.fields, self.event.formats, self.event.values ):
+			if valueName == 'Padding': continue
+			elif valueName in ( 'Pointer', 'Offset' ):
+				stringParts.append( '{}:  0x{:X}'.format(valueName, value) )
+			# elif format == 'bool':
+			# 	stringParts.append( '{}:  {}'.format(valueName, value) )
+			else:
+				stringParts.append( '{}:  {}'.format(valueName, value) )
+
+		detailsLabel = ttk.Label( self, text='\n'.join(stringParts) )
+		detailsLabel.pack( anchor='w', padx=(24,0), pady=(4,0) )
+		detailsLabel.bind( '<Double-Button-1>', self.eventClicked )
+
+		# Adjust height of the widget
+		item.update_idletasks()
+		currentHeight = item.winfo_height()
+		targetHeight = currentHeight + detailsLabel.winfo_reqheight()
+
+		self.ddList.update_item_height( item, targetHeight )
+
+		self.expanded = True
+
+	def contract( self ):
+
+		item = self.master
+
+		for widget in self.winfo_children()[1:]:
+			widget.destroy()
+
+		self.ddList.update_item_height( item, 50 )
+
+		self.expanded = False

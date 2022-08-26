@@ -784,7 +784,7 @@ class MainMenuCanvas( Tk.Canvas ):
 		def noScroll( arg1, arg2 ): return
 		self.yview_scroll = noScroll
 
-		self.debugMode = False
+		self.debugMode = True
 		self.testSet = '' # For testing. Set to 'ABGxx' to test a specific character image, or to '' for no testing
 
 		self.mainMenuFolder = os.path.join( globalData.paths['imagesFolder'], 'Main Menu' )
@@ -1530,7 +1530,10 @@ class MainMenuCanvas( Tk.Canvas ):
 		""" Should return true if the Main Menu of the GUI is selected and the option to allow 
 			them is enabled. This avoids extra processing if the animation wouldn't be visible. """
 
-		return self.mainMenuSelected() and not globalData.checkSetting( 'disableMainMenuAnimations' )
+		if self.debugMode or not self.mainMenuSelected():
+			return False
+		else:
+			return globalData.checkSetting( 'disableMainMenuAnimations' )
 
 
 #																		/------------\
@@ -1539,12 +1542,27 @@ class MainMenuCanvas( Tk.Canvas ):
 
 class MainGui( Tk.Frame, object ):
 
+	def inspectStyle( self, styleName ):
+		layout = self.style.layout( styleName )
+		print( 'Layout:' )
+		print( layout )
+		print( '' )
+
+		for element in layout:
+			print( '{} options:'.format(element[0]) )
+			print( self.style.element_options(element[0]) )
+
 	def __init__( self, showPrimaryMenu=True ): # Build the interface
 
 		self.root = Tk.Tk()
 		self.root.withdraw() # Keeps the GUI minimized until it is fully generated
 		self.style = ttk.Style()
+		#self.style.configure( "Item.DDList.TFrame", relief='raised' )
 		#self.style.configure( 'Edited.TMenubutton', background='#faa' ) # For OptionMenu widgets
+
+		#print(self.style.layout('TFrame'))
+		# print(self.style.element_options('TFrame') )
+		#self.inspectStyle( 'TFrame') 
 
 		globalData.loadProgramSettings( True ) # Load using BooleanVars. Must be done after creating Tk.root
 

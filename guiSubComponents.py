@@ -11,6 +11,7 @@
 
 # External dependencies
 import os
+from turtle import width
 import ttk
 import time
 import struct
@@ -1517,8 +1518,8 @@ class VerticalScrolledFrame( Tk.Frame ):
 		The outer widget is essentially just a Frame; which can be attached using 
 		pack/place/grid geometry managers as normal. """
 
-	def __init__(self, parent, defaultHeight=700, *args, **kw):
-		Tk.Frame.__init__(self, parent, *args, **kw)
+	def __init__( self, parent, defaultHeight=700, *args, **kw ):
+		Tk.Frame.__init__( self, parent, *args, **kw )
 
 		# create a canvas object, and a vertical scrollbar for scrolling it
 		self.vscrollbar = Tk.Scrollbar( self, orient='vertical' )
@@ -2093,7 +2094,7 @@ class Item( ttk.Frame ):
 
 	""" Used with the DDList class to create a list interface with drag-and-drop ordering capability. """
 
-	def __init__(self, master, value, width, height, selection_handler=None, drag_handler = None, drop_handler=None, **kwargs):
+	def __init__(self, master, value, width, height, selection_handler=None, drag_handler=None, drop_handler=None, **kwargs):
 
 		kwargs.setdefault("class_", "Item")
 		ttk.Frame.__init__(self, master, **kwargs)
@@ -2157,7 +2158,7 @@ class Item( ttk.Frame ):
 			widget.bindtags((self._tag,) + bindtags)
 
 	def _on_selection(self, event):
-		self.tkraise()
+		self.tkraise() # Show on top of other widgets
 
 		self._move_lastx = event.x_root
 		self._move_lasty = event.y_root
@@ -2180,7 +2181,7 @@ class Item( ttk.Frame ):
 		self.place_configure(x=self._x, y=self._y)
 
 		if self._drag_handler:
-			self._drag_handler(cursor_x, cursor_y)
+			self._drag_handler( self, cursor_x, cursor_y)
 
 	def _on_drop(self, event):
 		if self._drop_handler:
@@ -2200,7 +2201,9 @@ class Item( ttk.Frame ):
 class DDList( ttk.Frame ):
 
 	""" Used to create a list interface with drag-and-drop ordering capability. 
-		Originally created by Miguel Martinez
+		Originally created by Miguel Martinez. Modified to allow height resizing 
+		after initialization and items added.
+
 		Source: https://code.activestate.com/recipes/580717-sortable-megawidget-in-tkinter-like-the-sortable-w/ """
 
 	def __init__(self, master, item_width, item_height, item_relief=None, item_borderwidth=None, item_padding=None, item_style=None, offset_x=0, offset_y=0, gap=0, **kwargs):
@@ -2212,8 +2215,9 @@ class DDList( ttk.Frame ):
 		self._item_borderwidth = item_borderwidth
 		self._item_relief = item_relief
 		self._item_padding = item_padding
-		self._item_style= item_style
-		self._item_width = item_width
+		self._item_style = item_style
+		self._item_width = item_width - offset_x
+		#self._item_width = item_width - offset_x * 2 - 4
 		self._item_height = item_height
 		
 		self._offset_x = offset_x
@@ -2221,7 +2225,8 @@ class DDList( ttk.Frame ):
 
 		self._left = offset_x
 		self._top = offset_y
-		self._right = self._offset_x + self._item_width
+		#self._right = self._offset_x + self._item_width
+		self._right = self._offset_x * 2 + self._item_width
 		self._bottom = self._offset_y
 
 		self._gap = gap
@@ -2233,6 +2238,44 @@ class DDList( ttk.Frame ):
 		self._position = {}
 
 		self._new_y_coord_of_selected_item = None
+		self.selected = False
+
+		globalData.gui.style.configure( 'SeletectedItem.TFrame', background='#78F', relief='flat' )
+		globalData.gui.style.configure( 'NonSeletectedItem.TFrame', relief='groove' )
+
+		self.master.bind( '<Configure>', self.update_width )
+
+	def update_width(self, event=None):
+		containerWidth = self.master.winfo_width()
+
+		self._item_width = containerWidth - ( self._offset_x * 2 )
+		for item in self._list_of_items:
+			item.width = self._item_width
+			item.place_configure(width=item.width)
+
+		self._right = self._offset_x * 2 + self._item_width
+
+		self.configure( width=containerWidth )
+
+	def update_item_height(self, item, newHeight):
+
+		# Adjust the height of this item
+		difference = newHeight - item._height
+		item._height = newHeight
+		item.configure(height=newHeight)
+		item.place_configure(height=newHeight)
+		
+		# Adjust positions of items below this one
+		index = self._position[item] + 1
+		if index < len( self._list_of_items ):
+			for item in self._list_of_items[index:]:
+				#item._y += difference
+				item._move_lasty = difference
+				item.move(0, difference)
+		
+		# Adjust the height of this item list (container)
+		self._bottom += difference
+		self.configure(height=self._bottom + self._offset_y)
 
 	def create_item(self, value=None, **kwargs):
 		
@@ -2241,14 +2284,16 @@ class DDList( ttk.Frame ):
 		
 		if self._item_borderwidth is not None:
 			kwargs.setdefault("borderwidth", self._item_borderwidth)
-			
+		
 		if self._item_style is not None:
 			kwargs.setdefault("style", self._item_style)
+		else:
+			kwargs.setdefault("style", 'NonSeletectedItem.TFrame')
 		
 		if self._item_padding is not None:
 			kwargs.setdefault("padding", self._item_padding)
 
-		item = Item(self.master, value, self._item_width, self._item_height, self._on_item_selected, self._on_item_dragged, self._on_item_dropped, **kwargs)   
+		item = Item(self.master, value, self._item_width, self._item_height, self._on_item_selected, self._on_item_dragged, self._on_item_dropped, **kwargs)
 		return item
 
 	def configure_items(self, **kwargs):
@@ -2264,7 +2309,7 @@ class DDList( ttk.Frame ):
 
 			for i in range(index, len(self._list_of_items)):
 				_item = self._list_of_items[i]
-				_item.move(0,  self._item_height + self._gap)
+				_item.move(0, self._item_height + self._gap)
 				
 				self._position[_item] += 1
 		
@@ -2302,7 +2347,7 @@ class DDList( ttk.Frame ):
 		
 		for i in range(index, len(self._list_of_items)):
 			_item = self._list_of_items[i]
-			_item.move(0,  -(self._item_height+self._gap))
+			_item.move(0, -(self._item_height+self._gap))
 			self._position[_item] -= 1
 		
 		if len(self._list_of_items) == 0:
@@ -2315,6 +2360,17 @@ class DDList( ttk.Frame ):
 		return value
 
 	del_item = delete_item
+
+	def delete_all_items(self):
+		
+		for item in self._list_of_items:
+			item.destroy()
+
+		self._list_of_items = []
+		self._position = {}
+
+		self._bottom = self._offset_y
+		self.configure(height=self._bottom + self._offset_y)
 	
 	def pop(self):
 		return self.delete_item(-1)
@@ -2334,31 +2390,44 @@ class DDList( ttk.Frame ):
 	def get_value(self, index):
 		return self._list_of_items[index].value
 
-	def _on_item_selected(self, item):		
+	def _on_item_selected(self, item):
+
+		for _item in self._list_of_items:
+			if self._item_style is not None:
+				_item.configure(style=self._item_style)
+			elif _item == item:
+				_item.configure(style='SeletectedItem.TFrame')
+			else:
+				_item.configure(style='NonSeletectedItem.TFrame')
+			_item.selected = False
+
+		self.selected = True
+
 		self._index_of_selected_item = self._position[item]
 		self._index_of_empty_container = self._index_of_selected_item
 
-	def _on_item_dragged(self, x, y):
+	def _on_item_dragged(self, item, x, y):
 
 		if self._left < x < self._right and self._top < y < self._bottom:
 
-			quotient, remainder = divmod(y-self._offset_y, self._item_height + self._gap)
+			quotient, remainder = divmod(y-self._offset_y, item.height + self._gap)
+			print( 'quotient', quotient, 'remainder', remainder)
 
-			if remainder < self._item_height:
+			if remainder < item.height:
 			
 				new_container = quotient
 
 				if new_container != self._index_of_empty_container:
 					if new_container > self._index_of_empty_container:
+						print('new_container >', new_container, self._index_of_empty_container)
 						for index in range(self._index_of_empty_container+1, new_container+1, 1):
-							item = self._get_item_of_virtual_list(index)
-
-							item.move(0,-(self._item_height+self._gap))
+							_item = self._get_item_of_virtual_list(index)
+							_item.move(0,-(item.height+self._gap))
 					else:
+						print('new_container <=', new_container, self._index_of_empty_container)
 						for index in range(self._index_of_empty_container-1, new_container-1, -1):
-							item = self._get_item_of_virtual_list(index)
-
-							item.move(0,self._item_height+self._gap)
+							_item = self._get_item_of_virtual_list(index)
+							_item.move(0,item.height+self._gap)
 
 					self._index_of_empty_container = new_container
 
@@ -2380,8 +2449,14 @@ class DDList( ttk.Frame ):
 		item = self._list_of_items.pop(self._index_of_selected_item)
 		self._list_of_items.insert(self._index_of_empty_container, item)
 		
+		# Calculate new coordinates for the item being dropped
 		x = self._offset_x
-		y = self._offset_y + self._index_of_empty_container *(self._item_height + self._gap)
+		#y = self._offset_y + self._index_of_empty_container *(self._item_height + self._gap)
+		y = self._offset_y
+		for _item in self._list_of_items:
+			if _item == item:
+				break
+			y += _item.height + self._gap
 		
 		item.set_position(x,y)
 		

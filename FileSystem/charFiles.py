@@ -11,6 +11,7 @@
 
 import json
 import struct
+import bitstring
 import globalData
 
 from collections import OrderedDict
@@ -470,6 +471,7 @@ class ActionTable( TableStruct ):
 						'Padding'					# ARAM animation pointer placeholder (used when loaded into RAM)
 					)
 		self.length = 0x18
+		self.structDepth = ( 3, 0 )
 		self.childClassIdentities = {}
 		self._childrenChecked = True
 		tableLength = self.dat.getStructLength( args[1] )
@@ -480,11 +482,113 @@ class ActionTable( TableStruct ):
 		#super( ActionTable, self ).__init__( self ) # probably should use this instead
 
 
+class SubActionEvent( object ):
+
+	def __init__( self, eventCode, name, length, valueNames, bitFormats, data ):
+
+		self.id = eventCode
+		self.name = name
+		self.length = length
+		self.fields = valueNames
+		self.formats = bitFormats
+		self.data = data			# Still a bytearray here
+		self.modified = False
+		
+		# Convert the event's data from a bytearray to a stream of bits
+		self.dataBits = bitstring.ConstBitStream( bytes=self.data, offset=6 ) # Skips the event ID (top 6 bits)
+		self.values = self.dataBits.readlist( bitFormats )
+
+		if not self.fields and self.values[0] != 0:
+			print( 'Unexpectedly found a non-zero value for a {} subAction event with no fields.'.format(name) )
+
+
 class SubAction( DataBlock ):
 
-	eventDesc = { # Defines [EventID]: ( name, length, valueNames, bitmasks )
-		0: ( 'End of Script', 4, (), () ),
+	eventDesc = { # Defines [EventID]: ( name, length, valueNames, bitFormats )
+		0x00: ( 'End of Script', 4, (), ('int',) ),
+		0x01: ( "Synchronous Timer", 4, ('Frame',), ('uint',) ),
+		0x02: ( "Asynchronous Timer", 4, ('Frame',), ('uint',) ),
+		0x03: ( "Set Loop", 4, ('Loop Count',), ('uint',) ),
+		0x04: ( "Execute Loop", 4, (), ('int',) ),
+		0x05: ( "Subroutine", 8, ('Padding', 'Pointer'), ('uint:26', 'uint:32')), # First param is "Target"?
+		0x06: ( "Return", 4, (), ('int',) ),
+		0x07: ( "GoTo", 8, ('Padding', 'Pointer'), ('uint:26', 'uint:32')), # First param is "Target"?
+		0x08: ( "Set Loop Animation Timer", 4, (), ('int',) ),
+		0x09: ( "Unknown 0x09", 4, ('Unknown',), ('int',) ),
+		0x0A: ( "Graphic Effect", 0x14, ('Padding', 'Graphic ID', 'Bone ID', 
+										'Padding', 'Z Offset', 'Y Offset', 'X Offset', 
+										'Z Range', 'Y Range', 'X Range'), 
+										('uint:26', 'uint:10', 'uint:6',		# First padding may be two params as: 'uint:8', 'uint:18'
+										'uint:16', 'int:16', 'int:16', 'int:16', 
+										'int:16', 'int:16', 'int:16') ),
+		0x0B: ( "Create Hitbox", 0x14, ('Hitbox ID', 'Padding', 'Bone Attachment', 'Padding', 'Damage', 
+										'Size', 'Z Offset', 'Y Offset', 'X Offset', 
+										'Knockback Angle', 'Knockback Growth', 'Weight Dependent Set Knockback', 
+										'Padding', 'Hitbox Interaction', 'Base Knockback', # Split hitbox interaction to air/ground?
+										'Element', 'Shield Damage', 'Sound Effect', 'Hit Grounded Opponents', 'Hit Airborne Opponents'), 
+										('uint:3', 'uint:5', 'uint:7', 'int:2', 'uint:9', 
+										'uint:16', 'int:16', 'int:16', 'int:16', 
+										'uint:9', 'uint:9', 'uint:9', 
+										'int:3', 'uint:2', 'uint:9', 
+										'uint:5', 'uint:7', 'uint:8', 'bool', 'bool') ),
+		0x0C: ( "Adjust Hitbox Damage", 4, ('Hitbox ID', 'Damage'), ('uint:3', 'uint:23') ),
+		0x0D: ( "Adjust Hitbox Size", 4, ('Hitbox ID', 'New Size'), ('uint:3', 'uint:23') ),
+		0x0E: ( "Set Hitbox Flags", 4, ('Hitbox ID', 'Flags'), ('uint:24', 'uint:2'), ),
+		0x0F: ( "Remove Hitbox", 4, (), ('int',) ), # Should include hitbox ID?
+		0x10: ( "Clear Hitboxes", 4, (), ('int',) ), # Sound effect?
+		0x11: ( "Sound Effect", 0xC, ('Unknown 1', 'Unknown 2', 'Sound Effect ID', 'Offset'), 
+										('uint:32', 'uint:6', 'uint:20', 'uint:32') ),
+		0x12: ( "Random Smash SFX", 4, ('Unknown',), ('int',) ),
+		0x13: ( "Auto-cancel", 4, ('Flags', 'Padding'), ('uint:2', 'int:24') ),
+		0x14: ( "Reverse Direction", 4, (), ('int',) ),
+		0x15: ( "Unknown 0x15", 4, ('Unknown',), ('int',) ), # set flag
+		0x16: ( "Unknown 0x16", 4, ('Unknown',), ('int',) ), # set flag
+		0x17: ( "Allow Interrupt", 4, ('Unknown',), ('int',) ),
+		0x18: ( "Projectile Flag", 4, ('Unknown',), ('int',) ),
+		0x19: ( "Unknown 0x19", 4, ('Unknown',), ('int',) ), # related to ground air state
+		0x1A: ( "Set Body Collision State", 4, ('Padding', 'Body State'), ('int:24', 'int:2') ),
+		0x1B: ( "Body Collision Status", 4, ('Padding',), ('int',) ), # Has value (used)?
+		0x1C: ( "Set Bone Collision State", 4, ('Bone ID', 'Collision State'), ('uint:8', 'uint:18') ),
+		0x1D: ( "Enable Jab Follow-up", 4, (), ('int',) ),
+		0x1E: ( "Toggle Jab Follow-up", 4, (), ('int',) ),
+		0x1F: ( "Changle Model State", 4, ('Struct ID', 'Padding', 'Object ID'), ('uint:6', 'uint:12', 'uint:8') ),
+		0x20: ( "Revert Models", 4, (), ('int',) ),
+		0x21: ( "Remove Models", 4, (), ('int',) ),
 
+		# https://smashboards.com/threads/melee-hacks-and-you-new-hackers-start-here-in-the-op.247119/page-49#post-10804377
+		0x22: ( "Throw", 0xC, ('Throw Type', 'Padding', 'Damage', 'Angle', 'Knockback Growth', 
+								'Weight Dependent Set Knockback', 'Padding', 'Base Knockback', 
+								'Element', 'Unknown 1', 'Unknown 2' 'Padding'), 
+								('uint:3', 'uint:14', 'uint:9', 'uint:9', 'uint:9', 
+								'uint:9', 'uint:5', 'uint:9', 
+								'uint:4', 'uint:3', 'uint:4', 'uint:12') ),
+
+		0x23: ( "Held Item Invisibility", 4, ('Padding', 'Flag'), ('uint:25', 'bool') ),
+		0x24: ( "Body Article Invisibility", 4, ('Padding', 'Flag'), ('uint:25', 'bool') ),
+		0x25: ( "Character Invisibility", 4, ('Padding', 'Flag'), ('uint:25', 'bool') ),
+		0x26: ( "Pseudo-Random Sound Effect", 0x1C, ('Unknown',), ('int',) ),
+		0x27: ( "Unknwon 0x27", 0x10, ('Unknown',), ('int',) ),
+		0x28: ( "Animate Texture", 4, ('Material Flag', 'Material Index', 'Frame Flags', 'Frame'), 
+										('bool', 'int:7', 'int:7', 'int:11') ),
+		0x29: ( "Animate Model", 4, ('Body Part', 'State', 'Unknown'), ('uint:10', 'uint:4', 'uint:12') ),
+		0x2A: ( "Unknown 0x2A", 4, ('Unknown',), ('int',) ),
+		0x2B: ( "Rumble", 4, ('Unknown',), ('int',) ),
+		0x2C: ( "Unknown 0x2C", 4, ('Padding', 'Flag'), ('uint:25', 'bool') ), # set flag
+		0x2D: ( "Body Aura", 4, ('Aura ID', 'Duration'), ('uint:8', 'uint:18') ),
+		0x2E: ( "Remove Color Overlay", 4, ('Unknown',), ('int',) ),
+		0x2F: ( "Unknown 0x2F", 4, ('Unknown',), ('int',) ),
+		0x30: ( "Sword Trail", 4, ('Use Beam Sword Trail', 'Padding', 'Render Status'), ('bool', 'int:17', 'uint:8') ),
+		0x31: ( "Enable Ragdoll Physics", 4, ('Bone ID',), ('uint') ),
+		0x32: ( "Self Damage", 4, ('Padding', 'Damage'), ('uint:10', 'uint:16') ),
+		0x33: ( "Continuation Control", 4, ('Unknown',), ('int',) ),
+		0x34: ( "Unknown 0x34", 4, ('Unknown',), ('int',) ), # set flag
+		0x35: ( "Footstep Effect (SFX+VFX)", 8, ('Unknown',), ('int',) ),
+		0x36: ( "Landing Effect (SFX+VFX)", 0xC, ('Unknown',), ('int',) ),
+		0x37: ( "Start Smash Charge", 8, ('Padding', 'Charge Frames', 'Charge Rate', 'Visual Effect', 'Padding'), 
+											('uint:2', 'uint:8', 'uint:16', 'uint:8', 'uint:24') ),
+		0x38: ( "Unknown 0x38", 4, ('Unknown',), ('int',) ),
+		0x39: ( "Aesthetic Wind Effect", 0x10, ('Unknown',), ('int',) ),
+		0x3A: ( "Unknown 0x3A", 4, ('Unknown',), ('int',) )
 	}
 
 	def __init__( self, *args, **kwargs ):
@@ -493,15 +597,49 @@ class SubAction( DataBlock ):
 		self.name = 'SubAction ' + uHex( 0x20 + args[1] )
 		# self.length = self.dat.getStructLength( self.offset )
 		# self.formatting = '>' + 'B' * self.length
-		self.events = []
+		self.events = [] # List of tuples, of the form (eventName, )
 
-	# def parse( self ):
+	def parse( self ):
 
-	# 	position = 0
-	# 	byte = self.data[0]
+		""" Parses this subAction's data into a list of subAction events (self.data -> self.events). """
 
-	# 	while byte:
+		if self.events:
+			return
 
+		position = 0
+		byte = self.data[0]
+
+		while True:
+			# Check the op code of this event and look up its info
+			eventCode = ( byte & 0xFC ) >> 2 # Filtering to just top 6 bits
+			eventDesc = self.eventDesc.get( eventCode )
+			if not eventDesc:
+				print( 'Unrecognized event opCode: 0x{:X} (0x{:X})'.format( eventCode, byte & 0xFC ) )
+				position += 1
+				byte = self.data[position]
+				continue
+			name, length, valueNames, bitFormats = eventDesc
+
+			# Create an event object and store it
+			eventData = self.data[position:position+length]
+			event = SubActionEvent( eventCode, name, length, valueNames, bitFormats, eventData )
+			self.events.append( event )
+
+			# End parsing once an End of Script event is reached or no more data
+			position += length
+			if eventCode == 0 or position >= len( self.data ):
+				break
+
+			# Jump to the next event
+			byte = self.data[position]
+
+		# End-of-SubActions marker
+		# name, length, valueNames, bitFormats = self.eventDesc.get( 0 )
+		# eventData = self.data[position:position+length]
+		# event = SubActionEvent( eventCode, name, length, valueNames, bitFormats, eventData )
+		# self.events.append( event )
+
+		assert event.values[0] == 0, 'SubActions parsing error: invalid End of Script event.'
 
 	def rebuild( self ):
 		pass
