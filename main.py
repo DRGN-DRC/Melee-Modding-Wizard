@@ -784,7 +784,7 @@ class MainMenuCanvas( Tk.Canvas ):
 		def noScroll( arg1, arg2 ): return
 		self.yview_scroll = noScroll
 
-		self.debugMode = True
+		self.debugMode = False
 		self.testSet = '' # For testing. Set to 'ABGxx' to test a specific character image, or to '' for no testing
 
 		self.mainMenuFolder = os.path.join( globalData.paths['imagesFolder'], 'Main Menu' )

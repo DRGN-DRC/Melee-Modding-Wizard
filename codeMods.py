@@ -390,7 +390,7 @@ class CodeMod( object ):
 		self.desc = desc				# Description
 		self.data = OrderedDict([])		# Keys=revision, values=list of "CodeChange" objects
 		self.path = srcPath				# Root folder path that contains this mod
-		self.type = 'static'
+		self.type = 'static'			# An overall type (matches change.types)
 		self.state = 'disabled'
 		self.category = ''
 		self.stateDesc = ''				# Describes reason for the state. Shows as a text status on the mod in the GUI
@@ -450,28 +450,24 @@ class CodeMod( object ):
 
 	def _normalizeCodeImport( self, customCode, annotation='' ):
 
-		""" Normalize custom code import (ensure it's a string), and 
-			create an annotation from the code if one isn't provided. """
+		""" Normalize custom code import; ensure it's a string, removing
+			leading and trailing whitespace, and create an annotation 
+			from the code if one isn't provided. """
 
 		if customCode:
-			if annotation:
-				if isinstance( customCode, list ):
-					customCode = '\n'.join( customCode )
-				else:
-					customCode = customCode.strip()
-			else:
-				# Collapse the list of collected code lines into one string, removing leading & trailing whitespace
-				if isinstance( customCode, list ):
-					firstLine = customCode[0]
-					customCode = '\n'.join( customCode )
-				else:
-					firstLine = customCode.splitlines()[0]
-					customCode = customCode
+			# Collapse the list of collected code lines into one string, removing leading & trailing whitespace
+			if isinstance( customCode, list ):
+				customCode = '\n'.join( customCode )
+			customCode = customCode.strip()
 
-				if firstLine.lstrip().startswith( '#' ):
-					annotation = firstLine.strip( '# ' )
-				
-		else: # Could still be an empty list...
+			# See if we can get an annotation
+			if not annotation:
+				firstLine = customCode.splitlines()[0].rstrip()
+
+				if firstLine.startswith( '#' ):
+					annotation = firstLine.strip( '#' ).lstrip()
+
+		else: # Could still be an empty list. Make sure it's a string
 			customCode = ''
 
 		return customCode, annotation
@@ -664,7 +660,7 @@ class CodeMod( object ):
 		try:
 			dol = globalData.getVanillaDol()
 		except Exception as err:
-			printStatus( 'Unable to assess code offsets/addresses; {}'.format(err.message), warning=True )
+			printStatus( 'Unable to get DOL to assess code offsets/addresses; {}'.format(err.message), warning=True )
 			dol = None
 
 		for codeChanges in self.data.values():
@@ -678,6 +674,66 @@ class CodeMod( object ):
 				
 				# Check for assembly errors
 				change.evaluate( True )
+
+	def assessForConflicts( self ):
+
+		""" Evaluates this mod's changes to look for overwrite conflicts 
+			(i.e. more than one change that affects the same code space). 
+			Returns True or False on whether a conflict was detected. """
+
+		dol = globalData.getVanillaDol()
+		conflictDetected = False
+		modifiedRegions = []
+
+		for revision, codeChanges in self.data.items():
+
+			for change in codeChanges:
+				# Filter out SAs and Gecko codes
+				if change.type == 'standalone' or change.type == 'gecko':
+					continue
+
+				ramAddress, errorMsg = dol.normalizeRamAddress( change.offset )
+				if ramAddress == -1:
+					warningMsg = 'Unable to get a RAM Address for the code change at {} ({});{}.'.format( change.offset, revision, errorMsg.split(';')[1] )
+					msg( warningMsg, 'Invalid DOL Offset or RAM Address', warning=True )
+					break
+				addressEnd = ramAddress + change.getLength()
+		
+				# Check if this change overlaps other regions collected so far
+				for regionStart, codeLength in modifiedRegions:
+					regionEnd = regionStart + codeLength
+
+					if ramAddress < regionEnd and regionStart < addressEnd: # The regions overlap by some amount.
+						conflictDetected = True
+						break
+
+				# No overlap, store this region this change affects for the next iterations
+				modifiedRegions.append( (ramAddress, change.length) )
+				
+				if conflictDetected:
+					break
+			
+			if conflictDetected:
+				break
+
+		if conflictDetected:
+
+			# Construct a warning message to the user
+			if regionStart == ramAddress:
+				dolOffset = dol.normalizeDolOffset( change.offset, 'string' )
+				warningMsg = '{} has code that conflicts with itself. More than one code change modifies code at 0x{:X} ({}).'.format( self.name, ramAddress, dolOffset )
+			else:
+				oldChangeRegion = 'Code Start: 0x{:X},  Code End: 0x{:X}'.format( regionStart, regionEnd )
+				newChangeRegion = 'Code Start: 0x{:X},  Code End: 0x{:X}'.format( ramAddress + addressEnd )
+
+				warningMsg = ('{} has code that conflicts with itself. These two code changes '
+							'overlap with each other:\n\n{}\n{}').format( self.name, oldChangeRegion, newChangeRegion )
+			
+			msg( warningMsg, 'Code Conflicts Detected', warning=True )
+			self.stateDesc = 'Code Conflicts Detected'
+			self.errors.add( 'One or more code changes overlap with one another.' )
+
+		return conflictDetected
 
 	def validateWebLink( self, origUrlString ):
 
@@ -1139,9 +1195,8 @@ class CodeMod( object ):
 					continue
 
 				if addSourceFile:
-					# Create a file name for the assembly or bin file
-					#fileName = self.filenameForChange( change )
-					sourcePath = os.path.join( self.path, change.name ) # No extension
+					# Create a relative file path for the assembly or bin file
+					sourcePath = os.path.join( '.', change.name ) # No extension
 
 					# Create the file(s)
 					success = self.writeCustomCodeFiles( change, sourcePath, saveCache=saveCodeCache )
@@ -1150,7 +1205,7 @@ class CodeMod( object ):
 
 					changeDict['sourceFile'] = sourcePath + '.asm'
 
-				# Add a revision if dealing with multiple of them
+				# Add a revision for this change if dealing with multiple of them
 				if len( self.data ) > 1:
 					changeDict['revision'] = revision
 
@@ -1161,7 +1216,6 @@ class CodeMod( object ):
 			jsonPath = os.path.join( self.path, 'codes.json' )
 			with open( jsonPath, 'w' ) as jsonFile:
 				json.dump( jsonData, jsonFile, cls=CodeModEncoder, indent=4 )
-			print( 'wrote new json')
 		except Exception as err:
 			print( 'Unable to create "codes.json" file; ' )
 			print( err )
@@ -2141,7 +2195,6 @@ class CodeLibraryParser():
 							
 							if codeType == 'replace': # Static Overwrite; basically an 02/04 Gecko codetype (hex from json)
 								mod.addStaticOverwrite( codeChangeDict['address'], codeChangeDict['value'].splitlines(), annotation=annotation )
-								#self.parseAmfsReplace( codeChangeDict, mod )
 
 							elif codeType == 'inject': # Standard code injection (hex from file)
 								self.parseAmfsInject( codeChangeDict, mod, annotation )
@@ -2257,29 +2310,6 @@ class CodeLibraryParser():
 			sourceModifiedTime = os.path.getmtime( fullAsmFilePath )
 
 		except IOError as err: # File couldn't be found
-			# baseFilePath = os.path.splitext( fullAsmFilePath )[0]
-
-			# # Check for a text file with pre-processed code with custom syntax
-			# if os.path.exists( baseFilePath + '.txt' ):
-			# 	return self.getCustomCodeFromFile( baseFilePath + '.txt', mod, parseHeader, annotation )
-
-			# # Check for assembled binary data
-			# elif os.path.exists( baseFilePath + '.bin' ):
-			# 	with open( baseFilePath + '.bin', 'rb' ) as binaryFile:
-			# 		contents = binaryFile.read()
-
-			# 	hexString = hexlify( contents )
-			# 	hexString = globalData.codeProcessor.beautifyHex( hexString, 4 )
-
-			# 	return 0, '', '', hexString, '', annotation # Converting from a byte array to a hex string
-
-			# print( err )
-			# mod.parsingError = True
-			# mod.stateDesc = 'Missing source files'
-			# mod.errors.add( "Unable to find the file " + os.path.basename(fullAsmFilePath) )
-			# return 4, '', '', '', '', annotation
-			#print( 'Error reading source; {}'.format(err) )
-			print( 'No source .asm found for ' + os.path.basename(fullAsmFilePath) )
 			sourceModifiedTime = 0
 			offset = ''
 			author = ''
@@ -2339,6 +2369,13 @@ class CodeLibraryParser():
 			except Exception as err:
 				preProcessedCode = ''
 
+		# Verify custom code was collected
+		if not customCode and not preProcessedCode:
+			filename = os.path.basename(baseFilePath) # Name only; no extension
+			mod.parsingError = True
+			print( 'Unable to find custom code for ' + filename )
+			mod.errors.add( 'Missing custom for "{}"'.format(filename) )
+
 		return 0, offset, author, customCode, preProcessedCode, foundBin, annotation
 
 	def getAddressAndSourceFile( self, codeChangeDict, mod ):
@@ -2385,36 +2422,23 @@ class CodeLibraryParser():
 
 		return '', '', ''
 
-	# def parseAmfsReplace( self, codeChangeDict, mod ):
-		
-	# 	# Place annotations with the custom code, as a comment
-	# 	annotation = codeChangeDict.get( 'annotation' )
-	# 	if annotation:
-	# 		customCode = [ '# ' + annotation ]
-	# 		customCode.extend( codeChangeDict['value'].splitlines() )
-	# 	else:
-	# 		customCode = codeChangeDict['value'].splitlines()
-
-	# 	mod.addStaticOverwrite( codeChangeDict['address'], customCode )
-
-	def parseAmfsInject( self, codeChangeDict, mod, annotation, sourceFile='' ):
+	def parseAmfsInject( self, codeChangeDict, mod, annotation, fullAsmFilePath='' ):
 
 		""" AMFS Injection; custom code sourced from an assembly file. """
 
 		parseHeader = True
 
 		# There will be no codeChangeDict if a source file was provided (i.e. an inject folder is being processed)
-		if codeChangeDict:
+		if fullAsmFilePath: # Processing from 'injectFolder'; get address from file
+			address = ''
+			sourceFile = os.path.basename( fullAsmFilePath )
+			changeName = ''
+		else:
 			address, sourceFile, changeName = self.getAddressAndSourceFile( codeChangeDict, mod )
 			#fullAsmFilePath = os.path.join( mod.path, sourceFile )
 			fullAsmFilePath = '\\\\?\\' + os.path.normpath( os.path.join(mod.path, sourceFile) )
-			#annotation = codeChangeDict.get( 'annotation', '' )
 			if address:
 				parseHeader = False
-		else: # Processing from 'injectFolder'; get address from file
-			address = ''
-			fullAsmFilePath = sourceFile # This will be a full path in this case
-			#annotation = ''
 
 		# Read the file for info and the custom code
 		returnCode, address, _, customCode, preProcCode, rawBin, anno = self.getCustomCodeFromFile( fullAsmFilePath, mod, parseHeader, annotation )

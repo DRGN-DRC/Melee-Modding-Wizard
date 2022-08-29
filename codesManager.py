@@ -1012,12 +1012,13 @@ class CodeManagerTab( ttk.Frame ):
 			
 				0: Success; all selected codes installed or uninstalled
 				1: Unable to restore the DOL (likely no vanilla disc reference)
-				2: One or more selected codes could not installed or uninstalled
+				2: One or more selected codes could not be installed or uninstalled
 				3: No selected codes could be installed or uninstalled	"""
 
 		modsToInstall = []
 		modsToUninstall = []
 		geckoCodesToInstall = []
+		conflictedMods = []
 		newModsToInstall = False
 
 		# Scan the library for mods to be installed or uninstalled
@@ -1037,12 +1038,23 @@ class CodeManagerTab( ttk.Frame ):
 						geckoCodesToInstall.append( mod )
 						continue
 
-				modsToInstall.append( mod )
-				newModsToInstall = True
+				if mod.assessForConflicts():
+					conflictedMods.append( mod )
+				else:
+					modsToInstall.append( mod )
+					newModsToInstall = True
 
 			elif mod.state == 'enabled':
-				modsToInstall.append( mod )
+				if mod.assessForConflicts():
+					conflictedMods.append( mod )
+				else:
+					modsToInstall.append( mod )
 		
+		if conflictedMods:
+			proceed = tkMessageBox.askyesno( 'Proceed with Save?', 'Would you like to proceed with the save without the following codes?\n\n{}'.format('\n'.join(conflictedMods)) )
+			if not proceed:
+				return 2
+
 		modsNotUninstalled = []
 		modsNotInstalled = []
 		geckoCodesNotInstalled = []
@@ -1446,7 +1458,7 @@ class CodeConstructor( Tk.Frame ):
 			self.addWebLinks()
 			self.webLinksFrame.grid( column=2, row=0 )
 
-		row2.pack( fill='x', expand=True, padx=20, pady=(7, 0), anchor='n' )
+		row2.pack( fill='x', expand=False, padx=20, pady=(7, 0), anchor='n' )
 		
 		# Configure the description/code-changes row, so it centers itself and expands properly on window-resize
 		row2.columnconfigure( 0, weight=3 )

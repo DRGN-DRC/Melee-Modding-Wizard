@@ -2003,7 +2003,7 @@ class Disc( object ):
 					# 		msg( 'Warning! Invalid hex was found in the original code for "' + mod.name + '". The original code from a vanilla DOL was used instead.')
 
 					# Remove from modified regions list (todo if this is kept)
-					# for regionStart, codeLength, modPurpose in self.modifiedRegions:
+					# for regionStart, codeLength, priorModName in self.modifiedRegions:
 					# 	address = 
 					# 	if regionStart == address:
 					
@@ -2046,7 +2046,7 @@ class Disc( object ):
 		newCodeEnd = address + newCodeLength
 		conflictDetected = False
 
-		for regionStart, codeLength, modPurpose in self.modifiedRegions:
+		for regionStart, codeLength, priorModName in self.modifiedRegions:
 			regionEnd = regionStart + codeLength
 
 			if address < regionEnd and regionStart < newCodeEnd: # The regions overlap by some amount.
@@ -2063,13 +2063,13 @@ class Disc( object ):
 				warningMsg = ( 'A conflict (writing overlap) was detected between the {} and a '
 								'code change for {}: {}'
 								'\n\nThe latter has been partially overwritten and will likely no longer function correctly. '
-								"It's recommended to be uninstalled.".format(modName, modPurpose, oldChangeRegion) )
+								"It's recommended to be uninstalled.".format(modName, priorModName, oldChangeRegion) )
 			else:
 				warningMsg = ( 'A conflict (writing overlap) was detected between these two changes:\n\n"' + \
-								modPurpose + '"\n\t' + oldChangeRegion + '\n\n"' + \
+								priorModName + '"\n\t' + oldChangeRegion + '\n\n"' + \
 								modName + '"\n\t' + newChangeRegion + \
 								'\n\nThese cannot both be enabled. "' + modName + '" will not be enabled. "' + \
-								modPurpose + '" may need to be reinstalled.' )
+								priorModName + '" may need to be reinstalled.' )
 			
 			msg( warningMsg, 'Conflicting Changes Detected' )
 		
