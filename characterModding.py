@@ -11,6 +11,7 @@
 
 # External Dependencies
 import ttk
+import bitstring
 import Tkinter as Tk
 
 from binascii import hexlify
@@ -19,7 +20,7 @@ from basicFunctions import msg, printStatus
 # Internal Dependencies
 import globalData
 from FileSystem.charFiles import CharDataFile, SubAction
-from guiSubComponents import DDList, HexEditEntry, ToolTip, VerticalScrolledFrame
+from guiSubComponents import ColoredLabelButton, DDList, HexEditEntry, LabelButton, ToggleButton, ToolTip, VerticalScrolledFrame
 
 
 class CharModding( ttk.Notebook ):
@@ -143,7 +144,7 @@ class CharModding( ttk.Notebook ):
 		
 		propertiesTab = ttk.Frame( parent )
 
-		ttk.Label( propertiesTab, text='General Fighter Properties' ).grid( column=0, row=0, pady=10 )
+		ttk.Label( propertiesTab, text='General Fighter Properties' ).grid( column=0, row=0, pady=12 )
 		ttk.Label( propertiesTab, text='Special Character Attributes' ).grid( column=1, row=0 )
 
 		# Collect general properties
@@ -159,9 +160,9 @@ class CharModding( ttk.Notebook ):
 		structTable = VerticalScrolledFrame( propertiesTab )
 		offset = 0
 		row = 0
-		for name, propType, value in zip( propStruct.fields, propStruct.formatting[1:], propertyValues ):
+		for name, formatting, value in zip( propStruct.fields, propStruct.formatting[1:], propertyValues ):
 			propertyName = name.replace( '_', ' ' )
-			absoluteFieldOffset = 0x20 + propStruct.offset + offset
+			absoluteFieldOffset = propStruct.offset + offset
 			if offset == 0x180:
 				fieldByteLength = 1
 			else:
@@ -175,27 +176,27 @@ class CharModding( ttk.Notebook ):
 
 			fieldLabel = ttk.Label( structTable.interior, text=propertyName + ':', wraplength=200 )
 			fieldLabel.grid( column=0, row=row, padx=(25, 10), sticky='e', pady=verticalPadding )
-			if propType == 'I':
+			if formatting == 'I':
 				typeName = 'Integer'
 			else:
 				typeName = 'Float'
-			ToolTip( fieldLabel, text='Offset in struct: 0x{:X}\nOffset in file: 0x{:X}\nType: {}'.format(offset, absoluteFieldOffset, typeName), delay=300 )
+			ToolTip( fieldLabel, text='Offset in struct: 0x{:X}\nOffset in file: 0x{:X}\nType: {}'.format(offset, 0x20 + absoluteFieldOffset, typeName), delay=300 )
 
 			# Add an editable field for the raw hex data
-			hexEntry = HexEditEntry( structTable.interior, parent.charFile, absoluteFieldOffset, fieldByteLength, propType, propertyName )
+			hexEntry = HexEditEntry( structTable.interior, parent.charFile, absoluteFieldOffset, fieldByteLength, format, propertyName )
 			rawData = propStruct.data[offset:offset+fieldByteLength]
 			hexEntry.insert( 0, hexlify(rawData).upper() )
 			hexEntry.grid( column=1, row=row, pady=verticalPadding )
 			
 			# Add an editable field for this field's actual decoded value (and attach the hex edit widget for later auto-updating)
-			valueEntry = HexEditEntry( structTable.interior, parent.charFile, absoluteFieldOffset, fieldByteLength, propType, propertyName, valueEntry=True )
+			valueEntry = HexEditEntry( structTable.interior, parent.charFile, absoluteFieldOffset, fieldByteLength, format, propertyName, valueEntry=True )
 			valueEntry.insert( 0, value )
 			valueEntry.hexEntryWidget = hexEntry
 			hexEntry.valueEntryWidget = valueEntry
 			valueEntry.grid( column=2, row=row, pady=verticalPadding, padx=(5, 20) )
 
 			if offset == 0x180:
-				break # The only things next are padding
+				break # Only padding follows this
 
 			offset += 4
 			row += 1
@@ -215,36 +216,32 @@ class CharModding( ttk.Notebook ):
 		structTable = VerticalScrolledFrame( propertiesTab )
 		offset = 0
 		row = 0
-		for name, propType, value in zip( attrStruct.fields, attrStruct.formatting[1:], propertyValues ):
+		for name, formatting, value in zip( attrStruct.fields, attrStruct.formatting[1:], propertyValues ):
 			propertyName = name.replace( '_', ' ' )
-			absoluteFieldOffset = 0x20 + attrStruct.offset + offset
+			absoluteFieldOffset = attrStruct.offset + offset
+			verticalPadding = ( 0, 0 )
+
 			if offset == 0x180:
 				fieldByteLength = 1
 			else:
 				fieldByteLength = 4
-			
-			# Add a little bit of spacing before some items to group similar or related properties
-			# if offset in (0x16, 0x60):
-			# 	verticalPadding = ( 10, 0 )
-			# else:
-			verticalPadding = ( 0, 0 )
 
 			fieldLabel = ttk.Label( structTable.interior, text=propertyName + ':', wraplength=200 )
 			fieldLabel.grid( column=0, row=row, padx=(25, 10), sticky='e', pady=verticalPadding )
-			if propType == 'I':
+			if formatting == 'I':
 				typeName = 'Integer'
 			else:
 				typeName = 'Float'
-			ToolTip( fieldLabel, text='Offset in struct: 0x{:X}\nOffset in file: 0x{:X}\nType: {}'.format(offset, absoluteFieldOffset, typeName), delay=300 )
+			ToolTip( fieldLabel, text='Offset in struct: 0x{:X}\nOffset in file: 0x{:X}\nType: {}'.format(offset, 0x20 + absoluteFieldOffset, typeName), delay=300 )
 
 			# Add an editable field for the raw hex data
-			hexEntry = HexEditEntry( structTable.interior, parent.charFile, absoluteFieldOffset, fieldByteLength, propType, propertyName )
+			hexEntry = HexEditEntry( structTable.interior, parent.charFile, absoluteFieldOffset, fieldByteLength, format, propertyName )
 			rawData = attrStruct.data[offset:offset+fieldByteLength]
 			hexEntry.insert( 0, hexlify(rawData).upper() )
 			hexEntry.grid( column=1, row=row, pady=verticalPadding )
 			
 			# Add an editable field for this field's actual decoded value (and attach the hex edit widget for later auto-updating)
-			valueEntry = HexEditEntry( structTable.interior, parent.charFile, absoluteFieldOffset, fieldByteLength, propType, propertyName, valueEntry=True )
+			valueEntry = HexEditEntry( structTable.interior, parent.charFile, absoluteFieldOffset, fieldByteLength, format, propertyName, valueEntry=True )
 			valueEntry.insert( 0, value )
 			valueEntry.hexEntryWidget = hexEntry
 			hexEntry.valueEntryWidget = valueEntry
@@ -271,16 +268,18 @@ class SubActionEditor( ttk.Frame, object ):
 		self.charFile = parent.charFile
 
 		# Add the action table pane's title
-		title = self.charFile.filename + ' Action Table Entries - ' + hex( self.actionTable.offset + 0x20 )
+		title = '{} Action Table  (0x{:X})'.format( self.charFile.filename, self.actionTable.offset + 0x20 )
 		ttk.Label( self, text=title ).grid( columnspan=2, column=0, row=0, pady=4 )
 
 		# Add the action table list and its scrollbar
 		subActionScrollBar = Tk.Scrollbar( self, orient='vertical' )
-		self.subActionList = Tk.Listbox( self, yscrollcommand=subActionScrollBar.set )
+		self.subActionList = Tk.Listbox( self, yscrollcommand=subActionScrollBar.set, activestyle='none', selectbackground='#78F' )
 		subActionScrollBar.config( command=self.subActionList.yview )
 		for i, values in self.actionTable.iterateEntries():
-			self.subActionList.insert( i, '  ' + self.getSubActionName(values[0], i) )
-		self.subActionList.bind('<<ListboxSelect>>', self.subActionSelected )
+			gameName = self.getSubActionName( values[0], i )
+			translatedName = self.charFile.subActionTranslations.get( gameName, gameName ) # Defaults to gameName if translation not found
+			self.subActionList.insert( i, '  ' + translatedName )
+		self.subActionList.bind( '<<ListboxSelect>>', self.subActionSelected )
 		self.subActionList.grid( column=0, row=1, sticky='nsew' )
 		subActionScrollBar.grid( column=1, row=1, sticky='ns' )
 
@@ -288,6 +287,7 @@ class SubActionEditor( ttk.Frame, object ):
 		ttk.Label( self, text='Event Display:' ).grid( column=2, row=0 )
 		scrollPane = VerticalScrolledFrame( self )
 		self.displayPane = DDList( scrollPane.interior, 500, 40, item_borderwidth=2, offset_x=2, offset_y=2, gap=2 )
+		self.displayPaneMessage = None
 		self.displayPane.pack( fill='both', expand=True )
 		scrollPane.grid( column=2, row=1, sticky='nsew' )
 
@@ -297,21 +297,33 @@ class SubActionEditor( ttk.Frame, object ):
 		generalInfoBox = ttk.Labelframe( infoPane, labelwidget=emptyWidget, padding=(20, 5) )
 		self.subActionId = Tk.StringVar( value='SubAction ID:' )
 		self.subActionIndex = Tk.StringVar( value='SubAction Table Index:' )
+		self.subActionSize = Tk.StringVar( value='SubAction Table Size:' )
 		self.subActionFlags = Tk.StringVar( value='SubAction Flags:' )
 		self.subActionAnimOffset = Tk.StringVar( value='Animation Offset:' )
 		self.subActionAnimSize = Tk.StringVar( value='Animation Size:' )
 		self.subActionEventsOffset = Tk.StringVar( value='Events Offset:' )
 		ttk.Label( generalInfoBox, textvariable=self.subActionId ).pack()
 		ttk.Label( generalInfoBox, textvariable=self.subActionIndex ).pack()
+		ttk.Label( generalInfoBox, textvariable=self.subActionSize ).pack()
 		ttk.Label( generalInfoBox, textvariable=self.subActionFlags ).pack()
 		ttk.Label( generalInfoBox, textvariable=self.subActionAnimOffset ).pack()
 		ttk.Label( generalInfoBox, textvariable=self.subActionAnimSize ).pack()
 		ttk.Label( generalInfoBox, textvariable=self.subActionEventsOffset ).pack()
 		generalInfoBox.pack( fill='x', expand=True )
 		
-		flagsBox = ttk.Labelframe( infoPane, text=' Flags ', padding=(20, 5) )
+		flagsBox = ttk.Labelframe( infoPane, text=' SubAction Flags ', padding=(20, 5) )
 		ttk.Label( flagsBox, text='TEST' ).pack()
 		flagsBox.pack( fill='x', expand=True, pady=20 )
+
+		buttonsFrame = ttk.Frame( infoPane )
+		ColoredLabelButton( buttonsFrame, 'delete', None, 'Delete Event', '#f04545' ).grid( column=0, row=0, pady=4, padx=4 )
+		# ColoredLabelButton( buttonsFrame, 'save', None, 'Expand All' ).grid( column=1, row=0, pady=4, padx=4 )
+		# ColoredLabelButton( buttonsFrame, 'save', None, 'Collapse All' ).grid( column=1, row=0, pady=4, padx=4 )
+		ColoredLabelButton( buttonsFrame, 'save', None, 'Save Changes', '#292' ).grid( column=1, row=0, pady=4, padx=4 )
+		ColoredLabelButton( buttonsFrame, 'insert', None, 'Insert New Event' ).grid( column=2, row=0, pady=4, padx=4 )
+		buttonsFrame.columnconfigure( 'all', weight=1 )
+		buttonsFrame.pack( fill='x', expand=True, pady=20 )
+
 		infoPane.grid( column=3, row=1, padx=20, pady=10 )
 
 		# Configure row/column stretch and resize behavior
@@ -331,7 +343,10 @@ class SubActionEditor( ttk.Frame, object ):
 	def subActionSelected( self, event ):
 
 		# Get the subAction index and values from the subaction entry
-		index = self.subActionList.curselection()[0]
+		selection = self.subActionList.curselection()
+		if not selection:
+			return
+		index = selection[0]
 		entry = self.actionTable.getEntryValues( index )
 		
 		# Update general info display
@@ -349,55 +364,79 @@ class SubActionEditor( ttk.Frame, object ):
 		try:
 			subActionStruct = self.charFile.initDataBlock( SubAction, entry[3], self.actionTable.offset )
 			subActionStruct.parse()
+			self.subActionSize.set( 'SubAction Table Size:  0x{:X}'.format(subActionStruct.getLength()) )
 		except Exception as err:
 			subActionName = self.getSubActionName( entry[0], index )
 			printStatus( 'Unable to parse {} subAction (index {}); {}'.format(subActionName, index, err) )
+			self.subActionSize.set( 'SubAction Table Size:  N/A' )
 			return
 
-		# Populate the events display pane
-		self.displayPane.update_width()
-		for event in subActionStruct.events:
-			# Exit on End of Script event
-			if event.id == 0:
-				break
+		# Show that there are no events to display if there are none (i.e. only has an End of Script event)
+		if len( subActionStruct.events ) == 1 and subActionStruct.events[0].id == 0:
+			if not self.displayPaneMessage:
+				self.displayPaneMessage = ttk.Label( self, text='No events' )
+				self.displayPaneMessage.grid( column=2, row=1, sticky='n', pady=150 )
+		else:
+			if self.displayPaneMessage:
+				self.displayPaneMessage.destroy()
+				self.displayPaneMessage = None
 
-			# Create a GUI module for the event
-			item = self.displayPane.create_item()
-			eM = EventModule( item, event, self.displayPane )
-			eM.pack( fill='both', expand=True )
+			# Populate the events display pane
+			self.displayPane.update_width()
+			for event in subActionStruct.events:
+				# Exit on End of Script event
+				if event.id == 0:
+					break
 
-			# Add the GUI module to the display panel
-			self.displayPane.add_item( item )
-			eM.lastIndex = self.displayPane._position[item]
+				# Create a GUI module for the event
+				item = self.displayPane.create_item()
+				helpMessage = self.charFile.eventNotes.get( '0x{:02X}'.format(event.id), '' )
+				eM = EventModule( item, event, self.displayPane, helpMessage )
+				eM.pack( fill='both', expand=True )
+
+				# Add the GUI module to the display panel
+				self.displayPane.add_item( item )
+				#eM.lastIndex = self.displayPane._position[item]
+			self.displayPane.master.master.event_generate( '<Configure>' )
 
 
 class EventModule( ttk.Frame, object ):
 
-	def __init__( self, parentItem, event, displayPane ):
+	def __init__( self, parentItem, event, displayPane, helpMessage ):
 		super( EventModule, self ).__init__( parentItem )
 
 		self.name = event.name
 		self.event = event
 		self.expanded = False
 		self.ddList = displayPane
-		self.lastIndex = -1
+		#self.lastIndex = -1
+		self.helpMsg = helpMessage
 
-		label = ttk.Label( self, text=self.name )
-		label.pack( anchor='w', padx=(12,0), pady=(4,0) )
-
-		label.bind( '<Double-Button-1>', self.eventClicked )
-		self.bind( '<Double-Button-1>', self.eventClicked )
+		headerRow = ttk.Frame( self )
+		label = ttk.Label( headerRow, text=self.name )
+		label.pack( side='left', padx=(12,0), pady=(4,0) )
 		
-	def eventClicked( self, tkEvent=None ):
+		if self.event.fields:
+			self.expandBtn = ToggleButton( headerRow, 'expandArrow', self.toggleState )
+			self.expandBtn.pack( side='left', padx=(12,0), pady=(3, 0) )
+
+		if self.helpMsg:
+			helpBtn = LabelButton( headerRow, 'question', self.showHelp, 'Info' )
+			helpBtn.pack( side='right', padx=12, pady=(1, 0) )
+		headerRow.pack( fill='x', expand=True )
+
+		if self.event.fields:
+			label.bind( '<Double-Button-1>', self.expandBtn.toggle )
+			headerRow.bind( '<Double-Button-1>', self.expandBtn.toggle )
+			self.bind( '<Double-Button-1>', self.expandBtn.toggle )
+		
+	def toggleState( self, tkEvent=None ):
 
 		# Check if the item has been moved (user just wants to drag-and-drop)
-		currentIndex = self.ddList._position[self.master]
-		if self.lastIndex != currentIndex:
-			self.lastIndex = currentIndex
-			return
-		elif not self.event.fields: # todo: move check to before adding binding
-			print( 'no fields' )
-			return
+		# currentIndex = self.ddList._position[self.master]
+		# if self.lastIndex != currentIndex:
+		# 	self.lastIndex = currentIndex
+		# 	return
 
 		# Not moved. Toggle state
 		if self.expanded:
@@ -406,31 +445,56 @@ class EventModule( ttk.Frame, object ):
 			self.expand()
 
 	def expand( self ):
-		item = self.master
+		# Construct the event details labels
+		containingFrame = ttk.Frame( self )
+		index = 0
 
-		# Construct the event details label
-		stringParts = []
-		for valueName, format, value in zip( self.event.fields, self.event.formats, self.event.values ):
-			if valueName == 'Padding': continue
-			elif valueName in ( 'Pointer', 'Offset' ):
-				stringParts.append( '{}:  0x{:X}'.format(valueName, value) )
-			# elif format == 'bool':
-			# 	stringParts.append( '{}:  {}'.format(valueName, value) )
-			else:
-				stringParts.append( '{}:  {}'.format(valueName, value) )
+		for valueName, value in zip( self.event.fields, self.event.values ):
+			if valueName == 'Padding':
+				index += 1
+				continue
 
-		detailsLabel = ttk.Label( self, text='\n'.join(stringParts) )
-		detailsLabel.pack( anchor='w', padx=(24,0), pady=(4,0) )
-		detailsLabel.bind( '<Double-Button-1>', self.eventClicked )
+			title = ttk.Label( containingFrame, text=valueName + ' :' )
+			title.grid( column=0, row=index )
+			if self.event.fields:
+				title.bind( '<Double-Button-1>', self.expandBtn.toggle )
+
+			entry = Tk.Entry( containingFrame, width=12, justify='center', relief='flat', 
+				highlightbackground='#b7becc', 	# Border color when not focused
+				borderwidth=1, highlightthickness=1, highlightcolor='#78F' )
+			entry.bind( '<Return>', self.updateValue )
+			entry.index = index
+			entry.insert( 0, value )
+			entry.grid( column=1, row=index, padx=15 )
+			index += 1
+
+		containingFrame.pack( anchor='w', padx=(42,0), pady=(4,6) )
+		if self.event.fields:
+			containingFrame.bind( '<Double-Button-1>', self.expandBtn.toggle )
 
 		# Adjust height of the widget
+		item = self.master
 		item.update_idletasks()
 		currentHeight = item.winfo_height()
-		targetHeight = currentHeight + detailsLabel.winfo_reqheight()
+		targetHeight = currentHeight + containingFrame.winfo_reqheight()
 
 		self.ddList.update_item_height( item, targetHeight )
 
 		self.expanded = True
+
+	def updateValue( self, event ):
+		widget = event.widget
+
+		try:
+			self.event.updateValue( widget.index, widget.get() )
+		except bitstring.CreationError as err:
+			if err.startswith( 'bool token' ):
+				message = 'A ' + err
+			else:
+				message = message[0].upper() + message[1:]
+			msg( message, 'Invalid Value', warning=True )
+		except Exception as err:
+			msg( err, 'Value Encoding Error', error=True )
 
 	def contract( self ):
 
@@ -439,6 +503,11 @@ class EventModule( ttk.Frame, object ):
 		for widget in self.winfo_children()[1:]:
 			widget.destroy()
 
-		self.ddList.update_item_height( item, 50 )
+		self.ddList.update_item_height( item, self.ddList._item_height )
 
 		self.expanded = False
+
+	def showHelp( self, event ):
+		title, message = self.helpMsg.split( '|' )
+		msg( message, title )
+

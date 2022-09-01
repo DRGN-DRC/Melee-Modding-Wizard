@@ -1830,6 +1830,7 @@ class Disc( object ):
 			for fileObj in filesToSave:
 				fileObj.source = 'disc'
 				fileObj.unsavedChanges = []
+				fileObj.offsetsModified.clear()
 
 		return returnCode, updatedFiles
 

@@ -210,6 +210,15 @@ class StructBase( object ):
 			if childStructOffset not in self.dat.structs:
 				self.dat.structs[childStructOffset] = classIdentity
 
+	def getLength( self ):
+
+		""" This uses principles of the relocation table to determine structure starts, 
+			thus padding may be included in the returned value. """
+
+		if self.length == -1:
+			self.length = self.dat.getStructLength( self.offset )
+		return self.length
+
 	def getValues( self, specificValue='' ):
 
 		""" Unpacks the data for this structure, according to the struct's formatting.

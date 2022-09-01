@@ -53,6 +53,7 @@ class FileBase( object ):
 		self._shortDescription = description
 		self._longDescription = description
 		self.unsavedChanges = []		# Detailed list of all specific changes to this file
+		self.offsetsModified = set()	# A list of offsets for data that has been modified but not yet saved (used for GUI indications)
 
 		if isoPath:
 			self.filename = os.path.basename( isoPath )		# Includes file extension
@@ -855,7 +856,7 @@ class DatFile( FileBase ):
 
 		# Validation; make sure a struct begins at the given offset
 		elif structOffset not in self.structureOffsets:
-			print 'Unable to create a struct object; invalid offset given:', hex(0x20 + structOffset)
+			print( 'Unable to create a struct object; invalid offset given: ' + hex(0x20 + structOffset) )
 			return None
 
 		# Get parent struct offsets, to attempt to use them to determine this struct 
@@ -874,7 +875,7 @@ class DatFile( FileBase ):
 		# Get information on this struct
 		deducedStructLength = self.getStructLength( structOffset ) # May include padding
 		if deducedStructLength < 0:
-			print 'Unable to create a struct object; unable to get a struct length for', hex(0x20 + structOffset)
+			print( 'Unable to create a struct object; unable to get a struct length for ' + hex(0x20 + structOffset) )
 			return None
 
 		# Look at the available structures, and determine whether this structure matches any of them
@@ -960,14 +961,14 @@ class DatFile( FileBase ):
 				
 				else: # If the struct has already been initialized as something else, return None
 					if printWarnings:
-						print 'Attempted to initialize a {} for Struct 0x{:X}, but a {} already existed'.format( newStructClass.__name__, 0x20+offset, existingStruct.__class__.__name__)
+						print( 'Attempted to initialize a {} for Struct 0x{:X}, but a {} already existed'.format(newStructClass.__name__, 0x20+offset, existingStruct.__class__.__name__) )
 					return None
 
 		# Create the new structure
 		try:
 			newStructure = newStructClass( self, offset, parentOffset, structDepth )
 		except Exception as err:
-			print 'Unable to initSpecificStruct;', err
+			print( 'Unable to initSpecificStruct; {}'.format(err) )
 			return None
 
 		# Validate it

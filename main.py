@@ -1170,7 +1170,7 @@ class MainMenuCanvas( Tk.Canvas ):
 		originY = ( int(self['height']) - self.mainBorderHeight ) / 2
 
 		# Calculate position of this menu option
-		optOriginX = originX + 46 # 70 (offset from main border left origin) - 24 (width of option bg left +4)
+		optOriginX = originX + 90
 		verticalSpace = self.mainBorderHeight - 80 # -48 - 32
 		leftoverSpace = verticalSpace - ( 30 * self.menuOptionCount )
 		if leftoverSpace > 310: # Make the grouping a little tighter if there's a ton of extra space
@@ -1542,27 +1542,11 @@ class MainMenuCanvas( Tk.Canvas ):
 
 class MainGui( Tk.Frame, object ):
 
-	def inspectStyle( self, styleName ):
-		layout = self.style.layout( styleName )
-		print( 'Layout:' )
-		print( layout )
-		print( '' )
-
-		for element in layout:
-			print( '{} options:'.format(element[0]) )
-			print( self.style.element_options(element[0]) )
-
 	def __init__( self, showPrimaryMenu=True ): # Build the interface
 
 		self.root = Tk.Tk()
 		self.root.withdraw() # Keeps the GUI minimized until it is fully generated
 		self.style = ttk.Style()
-		#self.style.configure( "Item.DDList.TFrame", relief='raised' )
-		#self.style.configure( 'Edited.TMenubutton', background='#faa' ) # For OptionMenu widgets
-
-		#print(self.style.layout('TFrame'))
-		# print(self.style.element_options('TFrame') )
-		#self.inspectStyle( 'TFrame') 
 
 		globalData.loadProgramSettings( True ) # Load using BooleanVars. Must be done after creating Tk.root
 
@@ -1627,6 +1611,7 @@ class MainGui( Tk.Frame, object ):
 		# Set up the scroll handler. Unbinding native scroll functionality on some classes to prevent problems when scrolling on top of other widgets
 		self.root.unbind_class( 'Text', '<MouseWheel>' ) # Allows onMouseWheelScroll below to handle this
 		self.root.unbind_class( 'Treeview', '<MouseWheel>' ) # Allows onMouseWheelScroll below to handle this
+		self.root.unbind_class( 'Listbox', '<MouseWheel>' ) # Allows onMouseWheelScroll below to handle this
 		self.root.bind_all( "<MouseWheel>", self.onMouseWheelScroll )
 		#self.root.bind( '<<ProgressUpdate>>', self.updateProgressDisplay )
 		
@@ -1877,18 +1862,21 @@ class MainGui( Tk.Frame, object ):
 		# Traverse upwards through the parent widgets, looking for a scrollable widget
 		while widget:
 			# Check for a scrollable frame (winfo_class sees this as a regular Frame)
-			if widget.__class__.__name__ == 'VerticalScrolledFrame':
-				widget = widget.canvas
-				break
+			# if widget.__class__.__name__ == 'VerticalScrolledFrame':
+			# 	widget = widget.canvas
+			# 	break
 
-			elif widget.winfo_class() in ( 'Text', 'Treeview', 'Canvas' ):
+			if widget.winfo_class() in ( 'Text', 'Treeview', 'Canvas', 'Listbox' ):
 				break
 
 			widget = widget.master
 
 		# If the above loop didn't break (no scrollable found), "widget" will reach the top level item and become 'None'.
 		if widget:
+			print( 'scrolling', widget.winfo_class() )
 			widget.yview_scroll( -1*(event.delta/30), "units" )
+
+		return 'break'
 
 	def selectAll( self, event ):
 

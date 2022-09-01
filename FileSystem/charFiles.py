@@ -81,6 +81,8 @@ class CharDataFile( CharFileBase, DatFile ):
 	""" Pl__.dat (ftData_) """
 
 	specialAttrNames = {}
+	subActionTranslations = {}
+	eventNotes = {}
 	
 	def __init__( self, *args, **kwargs ):
 		super( CharDataFile, self ).__init__( *args, **kwargs )
@@ -134,26 +136,35 @@ class CharDataFile( CharFileBase, DatFile ):
 		else:
 			self._shortDescription = 'Data file'
 
-	def getAttributeNames( self ):
+	def getCharDataTranslations( self ):
 
-		""" Read the JSON file containing attribute names, if it has not already been read, 
-			and return the attribute names and formatting for this character. """
+		""" Retrieves various human-readable names and notes for character data files from a JSON file. """
 		
 		if not self.specialAttrNames:
-			if self.specialAttrNames == 'ERR': # Prevent multiple reports of the error if there's something wrong
+			# Prevent multiple attempts and reports of the error if there's something wrong
+			if self.specialAttrNames == 'ERR':
 				return ''
 
 			# Open the Properties.json file and get its file contents
 			try:
-				jsonPath = globalData.paths['properties']
+				jsonPath = globalData.paths['charDataTranslations']
 				with open( jsonPath, 'r' ) as jsonFile:
 					jsonContents = json.load( jsonFile )
 					self.specialAttrNames = jsonContents['specialAttributes']
+					self.subActionTranslations = jsonContents['subActionTranslation']
+					self.eventNotes = jsonContents['eventNotes']
 			except Exception as err:
 				self.specialAttrNames = 'ERR'
 				errMsg = 'Encountered an error when attempting to open "{}" (likely due to incorrect formatting); {}'.format( jsonPath, err )
 				msg( errMsg )
 				return ''
+
+	def getAttributeName( self ):
+
+		""" Read the JSON file containing attribute names, if it has not already been read, 
+			and return the attribute names and formatting for this character. """
+		
+		self.getCharDataTranslations()
 
 		# Get and return the attribute names/formats for this character
 		return self.specialAttrNames.get( self.charAbbr )
@@ -187,7 +198,7 @@ class CharDataFile( CharFileBase, DatFile ):
 		propFormatting = list( propStruct.formatting[1:] ) # Excludes '>' character
 
 		# Update field names and formatting for this struct if info on it is available
-		attrInfo = self.getAttributeNames()
+		attrInfo = self.getAttributeName()
 		if attrInfo:
 			offsetsFound = set()
 			for offset, name, attrType in attrInfo[1:]: # Excludes first entry (character name)
@@ -322,8 +333,8 @@ class GeneralFighterProperties( DataBlock ):
 						'Ground-to-Air_Jump_Momentum_Multiplier',
 						'Max_Shorthop_Horizontal_Velocity',
 						'Max_Shorthop_Vertical_Velocity',
-						'Double_Jump_Vertical_Multiplier',	# 0x50
-						'Double_Jump_Horizontal_Multiplier',
+						'Double_Jump_Horizontal_Multiplier', # 0x50
+						'Double_Jump_Vertical_Multiplier',
 
 						'Number_of_Jumps', # Int
 						'Gravity',
@@ -487,40 +498,75 @@ class SubActionEvent( object ):
 	def __init__( self, eventCode, name, length, valueNames, bitFormats, data ):
 
 		self.id = eventCode
-		self.name = name
-		self.length = length
-		self.fields = valueNames
-		self.formats = bitFormats
-		self.data = data			# Still a bytearray here
+		self.name = name			# From the SubAction class' event descriptions
+		self.length = length		# Length of this event's data in bytes
+		self.fields = valueNames	# A tuple of names
+		self.formats = bitFormats	# A tuple of formats from the SubAction class event descriptions
 		self.modified = False
 		
-		# Convert the event's data from a bytearray to a stream of bits
-		self.dataBits = bitstring.ConstBitStream( bytes=self.data, offset=6 ) # Skips the event ID (top 6 bits)
-		self.values = self.dataBits.readlist( bitFormats )
+		# Convert the event's data from a bytearray to a stream of bits (a BitStream)
+		self._data = data			# Still a bytearray here
+		self._dataBits = bitstring.ConstBitStream( bytes=data, offset=6 ) # Skips the event ID (top 6 bits)
+		self.values = self.dataBits.readlist( bitFormats )		# A list
 
 		if not self.fields and self.values[0] != 0:
 			print( 'Unexpectedly found a non-zero value for a {} subAction event with no fields.'.format(name) )
+
+	@property
+	def dataBits( self ):
+		if self.modified:
+			self._dataBits = bitstring.pack( self.formats, *self.values )
+
+			# Pad to length
+			padding = self.length * 8 - self._dataBits.length # Padding in number of bits
+			assert padding > -1, 'Invalid length of packed bits; {} should be {} bytes long.'.format( self.formats, self.length )
+			if padding > 0:
+				self._dataBits.append( bitstring.Bits(length=padding) )
+		return self._dataBits
+
+	@property
+	def data( self ):
+		# Repack the bit stream into a new bytearray if the values have been updated
+		if self.modified:
+			self._data = self.dataBits.tobytes()
+			self.modified = False
+		return self._data
+
+	def updateValue( self, valueIndex, value ):
+		# Validate the value (this will raise an exception on invalid encoding)
+		# try:
+		valueFormat = self.formats[valueIndex]
+		formatting = '{}={}'.format( valueFormat, value )
+		bitstring.Bits( formatting )
+		# except Exception as err:
+		# 	raise err
+		# 	return
+
+		self.values[valueIndex] = value
+		self.modified = True
 
 
 class SubAction( DataBlock ):
 
 	eventDesc = { # Defines [EventID]: ( name, length, valueNames, bitFormats )
-		0x00: ( 'End of Script', 4, (), ('int',) ),
-		0x01: ( "Synchronous Timer", 4, ('Frame',), ('uint',) ),
-		0x02: ( "Asynchronous Timer", 4, ('Frame',), ('uint',) ),
-		0x03: ( "Set Loop", 4, ('Loop Count',), ('uint',) ),
-		0x04: ( "Execute Loop", 4, (), ('int',) ),
+		0x00: ( 'End of Script', 4, (), ('int:26',) ),
+		0x01: ( "Synchronous Timer", 4, ('Frame',), ('uint:26',) ),
+		0x02: ( "Asynchronous Timer", 4, ('Frame',), ('uint:26',) ),
+		0x03: ( "Set Loop", 4, ('Loop Count',), ('uint:26',) ),
+		0x04: ( "Execute Loop", 4, (), ('int:26',) ),
 		0x05: ( "Subroutine", 8, ('Padding', 'Pointer'), ('uint:26', 'uint:32')), # First param is "Target"?
-		0x06: ( "Return", 4, (), ('int',) ),
+		0x06: ( "Return", 4, (), ('int:26',) ),
 		0x07: ( "GoTo", 8, ('Padding', 'Pointer'), ('uint:26', 'uint:32')), # First param is "Target"?
-		0x08: ( "Set Loop Animation Timer", 4, (), ('int',) ),
-		0x09: ( "Unknown 0x09", 4, ('Unknown',), ('int',) ),
+		0x08: ( "Set Loop Animation Timer", 4, (), ('int:26',) ),
+		0x09: ( "Unknown 0x09", 4, ('Unknown',), ('int:26',) ),
 		0x0A: ( "Graphic Effect", 0x14, ('Padding', 'Graphic ID', 'Bone ID', 
 										'Padding', 'Z Offset', 'Y Offset', 'X Offset', 
 										'Z Range', 'Y Range', 'X Range'), 
 										('uint:26', 'uint:10', 'uint:6',		# First padding may be two params as: 'uint:8', 'uint:18'
 										'uint:16', 'int:16', 'int:16', 'int:16', 
 										'int:16', 'int:16', 'int:16') ),
+
+		# https://smashboards.com/threads/melee-hacks-and-you-new-hackers-start-here-in-the-op.247119/page-48#post-10769744
 		0x0B: ( "Create Hitbox", 0x14, ('Hitbox ID', 'Padding', 'Bone Attachment', 'Padding', 'Damage', 
 										'Size', 'Z Offset', 'Y Offset', 'X Offset', 
 										'Knockback Angle', 'Knockback Growth', 'Weight Dependent Set Knockback', 
@@ -538,22 +584,22 @@ class SubAction( DataBlock ):
 		0x10: ( "Clear Hitboxes", 4, (), ('int',) ), # Sound effect?
 		0x11: ( "Sound Effect", 0xC, ('Unknown 1', 'Unknown 2', 'Sound Effect ID', 'Offset'), 
 										('uint:32', 'uint:6', 'uint:20', 'uint:32') ),
-		0x12: ( "Random Smash SFX", 4, ('Unknown',), ('int',) ),
+		0x12: ( "Random Smash SFX", 4, ('Unknown',), ('int:26',) ),
 		0x13: ( "Auto-cancel", 4, ('Flags', 'Padding'), ('uint:2', 'int:24') ),
-		0x14: ( "Reverse Direction", 4, (), ('int',) ),
-		0x15: ( "Unknown 0x15", 4, ('Unknown',), ('int',) ), # set flag
-		0x16: ( "Unknown 0x16", 4, ('Unknown',), ('int',) ), # set flag
-		0x17: ( "Allow Interrupt", 4, ('Unknown',), ('int',) ),
-		0x18: ( "Projectile Flag", 4, ('Unknown',), ('int',) ),
-		0x19: ( "Unknown 0x19", 4, ('Unknown',), ('int',) ), # related to ground air state
+		0x14: ( "Reverse Direction", 4, (), ('int:26',) ),
+		0x15: ( "Unknown 0x15", 4, ('Unknown',), ('int:26',) ), # set flag
+		0x16: ( "Unknown 0x16", 4, ('Unknown',), ('int:26',) ), # set flag
+		0x17: ( "Allow Interrupt", 4, ('Unknown',), ('int:26',) ),
+		0x18: ( "Projectile Flag", 4, ('Unknown',), ('int:26',) ),
+		0x19: ( "Unknown 0x19", 4, ('Unknown',), ('int:26',) ), # related to ground air state
 		0x1A: ( "Set Body Collision State", 4, ('Padding', 'Body State'), ('int:24', 'int:2') ),
-		0x1B: ( "Body Collision Status", 4, ('Padding',), ('int',) ), # Has value (used)?
+		0x1B: ( "Body Collision Status", 4, ('Padding',), ('int:26',) ), # Has value (used)?
 		0x1C: ( "Set Bone Collision State", 4, ('Bone ID', 'Collision State'), ('uint:8', 'uint:18') ),
-		0x1D: ( "Enable Jab Follow-up", 4, (), ('int',) ),
-		0x1E: ( "Toggle Jab Follow-up", 4, (), ('int',) ),
+		0x1D: ( "Enable Jab Follow-up", 4, ('Unknown',), ('int:26',) ),
+		0x1E: ( "Toggle Jab Follow-up", 4, (), ('int:26',) ),
 		0x1F: ( "Changle Model State", 4, ('Struct ID', 'Padding', 'Object ID'), ('uint:6', 'uint:12', 'uint:8') ),
-		0x20: ( "Revert Models", 4, (), ('int',) ),
-		0x21: ( "Remove Models", 4, (), ('int',) ),
+		0x20: ( "Revert Models", 4, (), ('int:26',) ),
+		0x21: ( "Remove Models", 4, (), ('int:26',) ),
 
 		# https://smashboards.com/threads/melee-hacks-and-you-new-hackers-start-here-in-the-op.247119/page-49#post-10804377
 		0x22: ( "Throw", 0xC, ('Throw Type', 'Padding', 'Damage', 'Angle', 'Knockback Growth', 
@@ -566,29 +612,34 @@ class SubAction( DataBlock ):
 		0x23: ( "Held Item Invisibility", 4, ('Padding', 'Flag'), ('uint:25', 'bool') ),
 		0x24: ( "Body Article Invisibility", 4, ('Padding', 'Flag'), ('uint:25', 'bool') ),
 		0x25: ( "Character Invisibility", 4, ('Padding', 'Flag'), ('uint:25', 'bool') ),
-		0x26: ( "Pseudo-Random Sound Effect", 0x1C, ('Unknown',), ('int',) ),
-		0x27: ( "Unknwon 0x27", 0x10, ('Unknown',), ('int',) ),
+		0x26: ( "Pseudo-Random Sound Effect", 0x1C, ('Unknown',), ('int:218',) ),
+		0x27: ( "Unknwon 0x27", 0x10, ('Unknown',), ('int:122',) ),
 		0x28: ( "Animate Texture", 4, ('Material Flag', 'Material Index', 'Frame Flags', 'Frame'), 
 										('bool', 'int:7', 'int:7', 'int:11') ),
 		0x29: ( "Animate Model", 4, ('Body Part', 'State', 'Unknown'), ('uint:10', 'uint:4', 'uint:12') ),
-		0x2A: ( "Unknown 0x2A", 4, ('Unknown',), ('int',) ),
-		0x2B: ( "Rumble", 4, ('Unknown',), ('int',) ),
+		0x2A: ( "Unknown 0x2A", 4, ('Unknown',), ('int:26',) ),
+		0x2B: ( "Rumble", 4, ('Unknown',), ('int:26',) ),
 		0x2C: ( "Unknown 0x2C", 4, ('Padding', 'Flag'), ('uint:25', 'bool') ), # set flag
-		0x2D: ( "Body Aura", 4, ('Aura ID', 'Duration'), ('uint:8', 'uint:18') ),
-		0x2E: ( "Remove Color Overlay", 4, ('Unknown',), ('int',) ),
-		0x2F: ( "Unknown 0x2F", 4, ('Unknown',), ('int',) ),
-		0x30: ( "Sword Trail", 4, ('Use Beam Sword Trail', 'Padding', 'Render Status'), ('bool', 'int:17', 'uint:8') ),
-		0x31: ( "Enable Ragdoll Physics", 4, ('Bone ID',), ('uint') ),
-		0x32: ( "Self Damage", 4, ('Padding', 'Damage'), ('uint:10', 'uint:16') ),
-		0x33: ( "Continuation Control", 4, ('Unknown',), ('int',) ),
-		0x34: ( "Unknown 0x34", 4, ('Unknown',), ('int',) ), # set flag
-		0x35: ( "Footstep Effect (SFX+VFX)", 8, ('Unknown',), ('int',) ),
-		0x36: ( "Landing Effect (SFX+VFX)", 0xC, ('Unknown',), ('int',) ),
-		0x37: ( "Start Smash Charge", 8, ('Padding', 'Charge Frames', 'Charge Rate', 'Visual Effect', 'Padding'), 
+		0x2D: ( "Unknown 0x2D", 0xC, ('Unknown',), ('int:90',) ),
+
+		# https://smashboards.com/threads/changing-color-effects-in-melee.313177/page-2#post-14490878
+		0x2E: ( "Body Aura", 4, ('Aura ID', 'Duration'), ('uint:8', 'uint:18') ),
+		0x2F: ( "Remove Color Overlay", 4, ('Unknown',), ('int:26',) ),
+		0x30: ( "Unknown 0x30", 4, ('Unknown',), ('int:26',) ),
+		0x31: ( "Sword Trail", 4, ('Use Beam Sword Trail', 'Padding', 'Render Status'), ('bool', 'int:17', 'uint:8') ),
+		0x32: ( "Enable Ragdoll Physics", 4, ('Bone ID',), ('uint:26') ),
+		0x33: ( "Self Damage", 4, ('Padding', 'Damage'), ('uint:10', 'uint:16') ),
+		0x34: ( "Continuation Control", 4, ('Unknown',), ('int:26',) ),
+		0x35: ( "Footsnap Behavior", 4, ('Flags?',), ('int:26',) ), # set flag
+		0x36: ( "Footstep Effect (SFX+VFX)", 0xC, ('Unknown',), ('int:90',) ),
+		0x37: ( "Landing Effect (SFX+VFX)", 0xC, ('Unknown',), ('int:90',) ),
+
+		# https://smashboards.com/threads/changing-color-effects-in-melee.313177/#post-13616960
+		0x38: ( "Start Smash Charge", 8, ('Padding', 'Charge Frames', 'Charge Rate', 'Visual Effect', 'Padding'), 
 											('uint:2', 'uint:8', 'uint:16', 'uint:8', 'uint:24') ),
-		0x38: ( "Unknown 0x38", 4, ('Unknown',), ('int',) ),
-		0x39: ( "Aesthetic Wind Effect", 0x10, ('Unknown',), ('int',) ),
-		0x3A: ( "Unknown 0x3A", 4, ('Unknown',), ('int',) )
+		0x39: ( "Unknown 0x39", 4, ('Unknown',), ('int:26',) ),
+		0x3A: ( "Aesthetic Wind Effect", 0x10, ('Unknown',), ('int:122',) ),
+		0x3B: ( "Unknown 0x3B", 4, ('Unknown',), ('int:26',) )
 	}
 
 	def __init__( self, *args, **kwargs ):
@@ -597,7 +648,7 @@ class SubAction( DataBlock ):
 		self.name = 'SubAction ' + uHex( 0x20 + args[1] )
 		# self.length = self.dat.getStructLength( self.offset )
 		# self.formatting = '>' + 'B' * self.length
-		self.events = [] # List of tuples, of the form (eventName, )
+		self.events = [] # List of SubActionEvent objects
 
 	def parse( self ):
 
@@ -633,16 +684,15 @@ class SubAction( DataBlock ):
 			# Jump to the next event
 			byte = self.data[position]
 
-		# End-of-SubActions marker
-		# name, length, valueNames, bitFormats = self.eventDesc.get( 0 )
-		# eventData = self.data[position:position+length]
-		# event = SubActionEvent( eventCode, name, length, valueNames, bitFormats, eventData )
-		# self.events.append( event )
-
 		assert event.values[0] == 0, 'SubActions parsing error: invalid End of Script event.'
 
 	def rebuild( self ):
-		pass
+
+		""" Reassembles data for this subAction, based on current values in the events. """
+
+		self.data = bytearray()
+		for event in self.events:
+			self.data.extend( event.data )
 
 
 class CharAnimFile( CharFileBase, FileBase ):

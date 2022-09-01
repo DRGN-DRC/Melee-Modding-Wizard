@@ -781,10 +781,24 @@ class HexEditEntry( Tk.Entry ):
 		"dataOffsets" will typically be a single int value, but may also be a list of offsets. """
 
 	def __init__( self, parent, targetFile, dataOffsets, byteLength, formatting, updateName='', valueEntry=False ):
+		# Determine if the target data has already been modified, and set this widget's background color accordingly
+		if type( dataOffsets ) == list:
+			for offset in dataOffsets:
+				if offset in targetFile.offsetsModified:
+					bgColor = '#faa'
+					break
+			else: # The loop above didn't break; offset not found
+				bgColor = '#fff'
+		elif dataOffsets in targetFile.offsetsModified:
+			bgColor = '#faa'
+		else:
+			bgColor = '#fff'
+		
 		Tk.Entry.__init__( self, parent,
 			width=byteLength*2+2, 
 			justify='center', 
 			relief='flat', 
+			background=bgColor,
 			highlightbackground='#b7becc', 	# Border color when not focused
 			borderwidth=1, 
 			highlightthickness=1, 
@@ -822,10 +836,12 @@ class HexEditEntry( Tk.Entry ):
 				updateName = 'Offset ' + uHex( 0x20 + offset )
 				descriptionOfChange = updateName + ' modified in ' + self.fileObj.filename
 				self.fileObj.updateData( offset, newData, descriptionOfChange )
+				self.fileObj.offsetsModified.add( offset )
 		else:
 			# The offsets attribute is just a single value (the usual case)
 			descriptionOfChange = self.updateName + ' modified in ' + self.fileObj.filename
 			self.fileObj.updateData( self.offsets, newData, descriptionOfChange )
+			self.fileObj.offsetsModified.add( self.offsets )
 
 	def updateHex( self, event ):
 
@@ -1364,7 +1380,7 @@ class DisguisedEntry( Tk.Entry ):
 class LabelButton( Tk.Label ):
 
 	""" Basically a label that acts as a button, using an image and mouse click/hover events. 
-		Expects an RGBA images named '[name].png' and '[name]Gray.png' (if the default image 
+		Expects RGBA images named '[name].png' and '[name]Gray.png' (if the default image 
 		variation doesn't exist, the Gray variation will be used for both default and hover). 
 		The latter is used for the default visible state, and the former is used on mouse hover.
 		Example uses of this class are for a mod's edit/config buttons and web links. """
@@ -1373,7 +1389,7 @@ class LabelButton( Tk.Label ):
 		# Get the images needed
 		self.defaultImage = globalData.gui.imageBank( imageName + 'Gray', showWarnings=False )
 		self.hoverImage = globalData.gui.imageBank( imageName )
-		assert self.hoverImage, 'Unable to get the {}Gray web link image.'.format( imageName )
+		assert self.hoverImage, 'Unable to get the {}Gray button image.'.format( imageName )
 		if not self.defaultImage:
 			self.defaultImage = self.hoverImage
 		self.callback = callback
@@ -1404,12 +1420,57 @@ class LabelButton( Tk.Label ):
 		else:
 			self.toolTipVar = Tk.StringVar( value=newText )
 			self.toolTip = ToolTip( self, textvariable=self.toolTipVar, delay=700, wraplength=800, justify='center' )
+			
+
+class ToggleButton( Tk.Label ):
+
+	""" Similar to a LabelButton, but toggles between states on click (indicated by images). 
+		Expects RGBA images named '[name]State1.png' and '[name]State2.png' (if the default image 
+		variation doesn't exist, the Gray variation will be used for both default and hover). 
+		The latter is used for the default visible state, and the former is used on mouse hover.
+		Example uses of this class are for a mod's edit/config buttons and web links. """
+
+	def __init__( self, parent, imageName, callback, hovertext='' ):
+		# Get the images needed
+		self.imageState1 = globalData.gui.imageBank( imageName + 'State1', showWarnings=False )
+		self.imageState2 = globalData.gui.imageBank( imageName + 'State2', showWarnings=False )
+		assert self.imageState1, 'Unable to get the {}State1 button image.'.format( imageName )
+		assert self.imageState2, 'Unable to get the {}State2 button image.'.format( imageName )
+		self.callback = callback
+		self.toolTip = None
+		self.enabled = False
+
+		# Initialize the label with one of the above images
+		Tk.Label.__init__( self, parent, image=self.imageState1, borderwidth=0, highlightthickness=0, cursor='hand2' )
+
+		# Bind click event
+		self.bind( '<1>', self.toggle )
+
+		if hovertext:
+			self.updateHovertext( hovertext )
+
+	def toggle( self, event=None ):
+		if self.enabled:
+			self.configure( image=self.imageState1 )
+		else:
+			self.configure( image=self.imageState2 )
+
+		self.enabled = not self.enabled
+		self.callback()
+
+	def updateHovertext( self, newText ):
+		if self.toolTip:
+			self.toolTipVar.set( newText )
+		else:
+			self.toolTipVar = Tk.StringVar( value=newText )
+			self.toolTip = ToolTip( self, textvariable=self.toolTipVar, delay=700, wraplength=800, justify='center' )
 
 
 class ColoredLabelButton( LabelButton ):
 
 	""" Like the LabelButton, but uses a single source image which is then 
-		programmatically colored for the hover state. """
+		programmatically colored for the hover state. The image should be an 8-bit 
+		grayscale image (single-channel with no alpha; "8bpc GRAY" in GIMP)."""
 
 	def __init__( self, parent, imageName, callback, hovertext='', color='#0099f0' ):
 
@@ -1543,7 +1604,6 @@ class VerticalScrolledFrame( Tk.Frame ):
 		self.rowconfigure( 0, weight=1 )
 		self.columnconfigure( 0, weight=1 )
 		self.columnconfigure( 1, weight=0 ) # Do not resize this column (for the scrollbar)
-		#print 'vsf init done'
 
 		# track changes to the canvas and frame width and sync them,
 		# also updating the scrollbar
