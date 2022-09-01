@@ -1,0 +1,11 @@
+bitstring==3.1.9
+cx-Freeze==5.1.1
+Pillow==6.2.2
+psutil==5.8.0
+PyAudio==0.2.11
+pypng==0.0.20
+pywin32==228
+ruamel.base==1.0.0
+ruamel.ordereddict==0.4.15
+ruamel.yaml==0.16.13
+ruamel.yaml.clib==0.2.2
