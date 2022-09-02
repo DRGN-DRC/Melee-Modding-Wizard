@@ -1584,6 +1584,7 @@ class CharacterColorConverter( BasicWindow ):
 
 		ttk.Button( row1RightCell, text='  Within a Disc  ', command=self.pointToDiscTab ).grid( column=0, row=0 )
 		ttk.Button( row1RightCell, text='  Standalone File  ', command=self.selectStandaloneSource ).grid( column=1, row=0 )
+
 		self.cccSourceCanvas = Tk.Canvas( row1RightCell, width=290, height=64, borderwidth=0, highlightthickness=0 )
 		self.cccIdentifiersXPos = 90
 		self.cccSourceCanvas.create_text( self.cccIdentifiersXPos, 20, anchor='w', font="-weight bold -size 10", fill=self.fontColor, text='Character: ' )
@@ -1644,7 +1645,7 @@ class CharacterColorConverter( BasicWindow ):
 		self.loadStandalone( filepaths[0], role )
 
 	def cancel( self ):
-		globalData.cccWindow = None
+		#globalData.cccWindow = None
 		self.close()
 
 	def pointToDiscTab( self ):

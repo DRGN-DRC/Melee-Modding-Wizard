@@ -977,9 +977,9 @@ class DatFile( FileBase ):
 			if hintPresent and existingStruct == newStructClass.__name__:
 				del self.structs[offset] # Assume the hint is bad and remove it
 				if printWarnings:
-					print 'Failed to init hinted', newStructClass.__name__, 'for offset', hex(0x20+offset) + '; appears to have been a bad hint'
+					print( 'Failed to init hinted {} for offset 0x{:X}; appears to have been a bad hint.'.format(newStructClass.__name__, 0x20+offset) )
 			elif printWarnings:
-				print 'Failed to init', newStructure.__class__.__name__, 'for offset', hex(0x20+offset)
+				print( 'Failed to init {} for offset 0x{:X}'.format(newStructure.__class__.__name__, 0x20+offset) )
 
 			return None
 
@@ -1023,7 +1023,7 @@ class DatFile( FileBase ):
 		deducedStructLength = self.getStructLength( offset ) # This length will include any padding too
 		newStructure = newDataClass( self, offset, parentOffset, structDepth )
 
-		# Check if the struct already has its length defined internally
+		# Check if the struct already has its length defined from its class
 		if newStructure.length != -1:
 			newStructure.data = self.getData( offset, newStructure.length )
 
@@ -1053,8 +1053,6 @@ class DatFile( FileBase ):
 			newStructure.branchSize = dataLength
 			newStructure.formatting = '>' + 'B' * dataLength
 			newStructure.padding = deducedStructLength - dataLength
-			# newStructure._siblingsChecked = True
-			# newStructure._childrenChecked = True
 
 		# Add this struct to the DAT's structure dictionary
 		self.structs[offset] = newStructure
@@ -1063,7 +1061,7 @@ class DatFile( FileBase ):
 
 	# def findDataSectionRoot( self, offset ):
 
-	# 	""" Seeks upwards through structures towards the first/root entry point into the data section, for the given offset. """
+	# 	""" Seeks upwards through structures towards the first/root entry point into the data section, from the given offset. """
 
 	# 	# Check if there's only one option
 	# 	if len( self.rootStructNodes ) == 1 and len( self.refStructNodes ) == 0:

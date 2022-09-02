@@ -425,14 +425,6 @@ class GeneralFighterProperties( DataBlock ):
 					)
 		self.length = 0x184
 		self.structDepth = ( 3, 0 )
-		# self._siblingsChecked = True
-		# self._childrenChecked = True
-		
-	# def validated( self, *args, **kwargs ): return True
-	# def getSiblings( self, nextOnly=False ): return []
-	# def isSibling( self, offset ): return False
-	# def getChildren( self, includeSiblings=True ): return []
-	# def initDescendants( self ): return
 
 
 class SpecialCharacterAttributes( DataBlock ):
@@ -455,14 +447,6 @@ class SpecialCharacterAttributes( DataBlock ):
 		self.fields = tuple( 'Unknown 0x' + hex( o )[2:].upper().rstrip( 'L' ) for o in fieldOffsets )
 
 		self.structDepth = ( 3, 0 )
-	# 	self._siblingsChecked = True
-	# 	self._childrenChecked = True
-		
-	# def validated( self, *args, **kwargs ): return True
-	# def getSiblings( self, nextOnly=False ): return []
-	# def isSibling( self, offset ): return False
-	# def getChildren( self, includeSiblings=True ): return []
-	# def initDescendants( self ): return
 
 
 class ActionTable( TableStruct ):
@@ -479,21 +463,26 @@ class ActionTable( TableStruct ):
 						'SubAction_ID',				# 0x10 (byte)
 						'Flags',					# 0x11 (halfword)
 						'Internal_Character_ID',	# 0x13 (byte)
-						'Padding'					# ARAM animation pointer placeholder (used when loaded into RAM)
+						'Padding'					# ARAM animation pointer placeholder (used when loaded into memory)
 					)
 		self.length = 0x18
 		self.structDepth = ( 3, 0 )
-		self.childClassIdentities = {}
-		self._childrenChecked = True
-		tableLength = self.dat.getStructLength( args[1] )
+		tableLength = self.dat.getStructLength( self.offset )
 		self.entryCount = tableLength // self.length
 
 		# Reinitialize this as a Table Struct to duplicate this entry struct for all enties in this table
 		TableStruct.__init__( self )
 		#super( ActionTable, self ).__init__( self ) # probably should use this instead
 
+		self.childClassIdentities = {}
+		for i in range( 3, len(self.fields), 8 ):
+			self.childClassIdentities[i] = 'SubAction'
+
 
 class SubActionEvent( object ):
+
+	""" Doesn't represent a full structure, but a logical part of one; 
+		a SubAction structure is composed of these events. """
 
 	def __init__( self, eventCode, name, length, valueNames, bitFormats, data ):
 
@@ -511,6 +500,8 @@ class SubActionEvent( object ):
 
 		if not self.fields and self.values[0] != 0:
 			print( 'Unexpectedly found a non-zero value for a {} subAction event with no fields.'.format(name) )
+		elif self.id == 0 and self.values[0] != 0:
+			raise Exception( 'SubActions parsing error: invalid End of Script event.' )
 
 	@property
 	def dataBits( self ):
@@ -533,14 +524,10 @@ class SubActionEvent( object ):
 		return self._data
 
 	def updateValue( self, valueIndex, value ):
-		# Validate the value (this will raise an exception on invalid encoding)
-		# try:
+		# Validate the value (this will raise an exception upon invalid encoding)
 		valueFormat = self.formats[valueIndex]
 		formatting = '{}={}'.format( valueFormat, value )
 		bitstring.Bits( formatting )
-		# except Exception as err:
-		# 	raise err
-		# 	return
 
 		self.values[valueIndex] = value
 		self.modified = True
@@ -646,8 +633,6 @@ class SubAction( DataBlock ):
 		StructBase.__init__( self, *args, **kwargs )
 
 		self.name = 'SubAction ' + uHex( 0x20 + args[1] )
-		# self.length = self.dat.getStructLength( self.offset )
-		# self.formatting = '>' + 'B' * self.length
 		self.events = [] # List of SubActionEvent objects
 
 	def parse( self ):
@@ -683,8 +668,6 @@ class SubAction( DataBlock ):
 
 			# Jump to the next event
 			byte = self.data[position]
-
-		assert event.values[0] == 0, 'SubActions parsing error: invalid End of Script event.'
 
 	def rebuild( self ):
 

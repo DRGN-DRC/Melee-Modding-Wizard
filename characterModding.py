@@ -297,30 +297,31 @@ class SubActionEditor( ttk.Frame, object ):
 		generalInfoBox = ttk.Labelframe( infoPane, labelwidget=emptyWidget, padding=(20, 5) )
 		self.subActionId = Tk.StringVar( value='SubAction ID:' )
 		self.subActionIndex = Tk.StringVar( value='SubAction Table Index:' )
-		self.subActionSize = Tk.StringVar( value='SubAction Table Size:' )
-		self.subActionFlags = Tk.StringVar( value='SubAction Flags:' )
-		self.subActionAnimOffset = Tk.StringVar( value='Animation Offset:' )
-		self.subActionAnimSize = Tk.StringVar( value='Animation Size:' )
+		#self.subActionFlags = Tk.StringVar( value='SubAction Flags:' )
+		self.subActionAnimOffset = Tk.StringVar( value='Animation (AJ) Offset:' )
+		self.subActionAnimSize = Tk.StringVar( value='Animation (AJ) Size:' )
 		self.subActionEventsOffset = Tk.StringVar( value='Events Offset:' )
+		self.subActionEventsSize = Tk.StringVar( value='Events Table Size:' )
 		ttk.Label( generalInfoBox, textvariable=self.subActionId ).pack()
 		ttk.Label( generalInfoBox, textvariable=self.subActionIndex ).pack()
-		ttk.Label( generalInfoBox, textvariable=self.subActionSize ).pack()
-		ttk.Label( generalInfoBox, textvariable=self.subActionFlags ).pack()
-		ttk.Label( generalInfoBox, textvariable=self.subActionAnimOffset ).pack()
+		#ttk.Label( generalInfoBox, textvariable=self.subActionFlags ).pack()
+		ttk.Label( generalInfoBox, textvariable=self.subActionAnimOffset ).pack( pady=(6, 0) )
 		ttk.Label( generalInfoBox, textvariable=self.subActionAnimSize ).pack()
-		ttk.Label( generalInfoBox, textvariable=self.subActionEventsOffset ).pack()
+		ttk.Label( generalInfoBox, textvariable=self.subActionEventsOffset ).pack( pady=(6, 0) )
+		ttk.Label( generalInfoBox, textvariable=self.subActionEventsSize ).pack()
 		generalInfoBox.pack( fill='x', expand=True )
 		
 		flagsBox = ttk.Labelframe( infoPane, text=' SubAction Flags ', padding=(20, 5) )
+		#self.subActionIndex = Tk.StringVar( value='SubAction Table Index:' )
 		ttk.Label( flagsBox, text='TEST' ).pack()
 		flagsBox.pack( fill='x', expand=True, pady=20 )
 
 		buttonsFrame = ttk.Frame( infoPane )
 		ColoredLabelButton( buttonsFrame, 'delete', None, 'Delete Event', '#f04545' ).grid( column=0, row=0, pady=4, padx=4 )
-		# ColoredLabelButton( buttonsFrame, 'save', None, 'Expand All' ).grid( column=1, row=0, pady=4, padx=4 )
-		# ColoredLabelButton( buttonsFrame, 'save', None, 'Collapse All' ).grid( column=1, row=0, pady=4, padx=4 )
-		ColoredLabelButton( buttonsFrame, 'save', None, 'Save Changes', '#292' ).grid( column=1, row=0, pady=4, padx=4 )
-		ColoredLabelButton( buttonsFrame, 'insert', None, 'Insert New Event' ).grid( column=2, row=0, pady=4, padx=4 )
+		ColoredLabelButton( buttonsFrame, 'expand', self.expandAll, 'Expand All' ).grid( column=1, row=0, pady=4, padx=4 )
+		ColoredLabelButton( buttonsFrame, 'collapse', self.collapseAll, 'Collapse All' ).grid( column=2, row=0, pady=4, padx=4 )
+		ColoredLabelButton( buttonsFrame, 'save', None, 'Save Changes', '#292' ).grid( column=3, row=0, pady=4, padx=4 )
+		ColoredLabelButton( buttonsFrame, 'insert', None, 'Insert New Event' ).grid( column=4, row=0, pady=4, padx=4 )
 		buttonsFrame.columnconfigure( 'all', weight=1 )
 		buttonsFrame.pack( fill='x', expand=True, pady=20 )
 
@@ -352,23 +353,23 @@ class SubActionEditor( ttk.Frame, object ):
 		# Update general info display
 		self.subActionId.set( 'SubAction ID:  0x{:X}'.format(entry[4]) )
 		self.subActionIndex.set( 'SubAction Table Index:  0x{:X}'.format(index) )
-		self.subActionFlags.set( 'SubAction Flags:  0x{:X}'.format(entry[5]) )
-		self.subActionAnimOffset.set( 'Animation Offset:  0x{:X}'.format(0x20+entry[1]) )
-		self.subActionAnimSize.set( 'Animation Size:  0x{:X}'.format(entry[2]) )
+		#self.subActionFlags.set( 'SubAction Flags:  0x{:X}'.format(entry[5]) )
+		self.subActionAnimOffset.set( 'Animation (AJ) Offset:  0x{:X}'.format(0x20+entry[1]) )
+		self.subActionAnimSize.set( 'Animation (AJ) Size:  0x{:X}'.format(entry[2]) )
 		self.subActionEventsOffset.set( 'Events Offset:  0x{:X}'.format(0x20+entry[3]) )
 
 		# Clear the events display pane
 		self.displayPane.delete_all_items()
 
-		# Update the subAction events display list
+		# Get the subAction events structure and parse it
 		try:
 			subActionStruct = self.charFile.initDataBlock( SubAction, entry[3], self.actionTable.offset )
 			subActionStruct.parse()
-			self.subActionSize.set( 'SubAction Table Size:  0x{:X}'.format(subActionStruct.getLength()) )
+			self.subActionEventsSize.set( 'Events Table Size:  0x{:X}'.format(subActionStruct.getLength()) )
 		except Exception as err:
 			subActionName = self.getSubActionName( entry[0], index )
 			printStatus( 'Unable to parse {} subAction (index {}); {}'.format(subActionName, index, err) )
-			self.subActionSize.set( 'SubAction Table Size:  N/A' )
+			self.subActionEventsSize.set( 'Events Table Size:  N/A' )
 			return
 
 		# Show that there are no events to display if there are none (i.e. only has an End of Script event)
@@ -393,11 +394,26 @@ class SubActionEditor( ttk.Frame, object ):
 				helpMessage = self.charFile.eventNotes.get( '0x{:02X}'.format(event.id), '' )
 				eM = EventModule( item, event, self.displayPane, helpMessage )
 				eM.pack( fill='both', expand=True )
+				item.eventModule = eM # Useful for the expand/collapse methods below
 
 				# Add the GUI module to the display panel
 				self.displayPane.add_item( item )
-				#eM.lastIndex = self.displayPane._position[item]
-			self.displayPane.master.master.event_generate( '<Configure>' )
+
+	def expandAll( self, event ):
+		for item in self.displayPane._list_of_items:
+			eM = item.eventModule
+			
+			# Use the method on the expand/collapse button to expand
+			if eM.expandBtn and not eM.expanded:
+				eM.expandBtn.toggle()
+
+	def collapseAll( self, event ):
+		for item in self.displayPane._list_of_items:
+			eM = item.eventModule
+			
+			# Use the method on the expand/collapse button to collapse
+			if eM.expanded: # No need to check for button; can't be expanded without it
+				eM.expandBtn.toggle()
 
 
 class EventModule( ttk.Frame, object ):
@@ -409,16 +425,18 @@ class EventModule( ttk.Frame, object ):
 		self.event = event
 		self.expanded = False
 		self.ddList = displayPane
-		#self.lastIndex = -1
 		self.helpMsg = helpMessage
 
+		# Add the title, expand button, and info button
 		headerRow = ttk.Frame( self )
-		label = ttk.Label( headerRow, text=self.name )
+		label = ttk.Label( headerRow, text=self.name, font=('Palatino Linotype', 11, 'bold') )
 		label.pack( side='left', padx=(12,0), pady=(4,0) )
 		
 		if self.event.fields:
 			self.expandBtn = ToggleButton( headerRow, 'expandArrow', self.toggleState )
 			self.expandBtn.pack( side='left', padx=(12,0), pady=(3, 0) )
+		else:
+			self.expandBtn = None
 
 		if self.helpMsg:
 			helpBtn = LabelButton( headerRow, 'question', self.showHelp, 'Info' )
@@ -431,20 +449,15 @@ class EventModule( ttk.Frame, object ):
 			self.bind( '<Double-Button-1>', self.expandBtn.toggle )
 		
 	def toggleState( self, tkEvent=None ):
-
-		# Check if the item has been moved (user just wants to drag-and-drop)
-		# currentIndex = self.ddList._position[self.master]
-		# if self.lastIndex != currentIndex:
-		# 	self.lastIndex = currentIndex
-		# 	return
-
-		# Not moved. Toggle state
 		if self.expanded:
-			self.contract()
+			self.collapse()
 		else:
 			self.expand()
 
 	def expand( self ):
+		if self.expanded or not self.event.fields:
+			return
+
 		# Construct the event details labels
 		containingFrame = ttk.Frame( self )
 		index = 0
@@ -496,7 +509,9 @@ class EventModule( ttk.Frame, object ):
 		except Exception as err:
 			msg( err, 'Value Encoding Error', error=True )
 
-	def contract( self ):
+	def collapse( self ):
+		if not self.expanded:
+			return
 
 		item = self.master
 

@@ -310,13 +310,13 @@ class BasicWindow( object ):
 	def __init__( self, topLevel, windowTitle='', dimensions='auto', offsets='auto', resizable=False, topMost=True, minsize=(-1, -1), unique=False ):
 
 		# If utilized, unique windows will be referenceable in a dictionary on the topLevel window
-		self.uniqueWindowName = self.__class__.__name__ + windowTitle
+		self.className = self.__class__.__name__
 		if unique:
 			assert topLevel, 'Only windows with a parent may be unique!'
 
 			# Bring into view an existing instance of this window, if already present
 			if hasattr( topLevel, 'uniqueWindows' ):
-				existingWindow = topLevel.uniqueWindows.get( self.uniqueWindowName )
+				existingWindow = topLevel.uniqueWindows.get( self.className )
 				if existingWindow:
 					try:
 						# The window already exist. Make sure it's not minimized, and bring it to the foreground
@@ -324,7 +324,7 @@ class BasicWindow( object ):
 						existingWindow.window.lift()
 						return False # Can use this to determine whether child classes using 'unique' should continue with their init method
 					except: # Failsafe against bad window name (existing window somehow destroyed without proper clean-up); move on to create new instance
-						topLevel.uniqueWindows[self.uniqueWindowName] = None
+						topLevel.uniqueWindows[self.className] = None
 			else:
 				topLevel.uniqueWindows = {}
 		
@@ -367,7 +367,7 @@ class BasicWindow( object ):
 			self.window.protocol( 'WM_DELETE_WINDOW', self.close )
 		
 		if unique:
-			topLevel.uniqueWindows[self.uniqueWindowName] = self
+			topLevel.uniqueWindows[self.className] = self
 
 		return True
 
@@ -375,7 +375,7 @@ class BasicWindow( object ):
 		# Delete reference to this window if it's meant to be a unique instance, and then destroy the window
 		topLevel = self.window.master
 		if hasattr( topLevel, 'uniqueWindows' ):
-			topLevel.uniqueWindows[self.uniqueWindowName] = None
+			topLevel.uniqueWindows[self.className] = None
 		self.window.destroy()
 
 
@@ -1387,11 +1387,15 @@ class LabelButton( Tk.Label ):
 
 	def __init__( self, parent, imageName, callback, hovertext='' ):
 		# Get the images needed
-		self.defaultImage = globalData.gui.imageBank( imageName + 'Gray', showWarnings=False )
-		self.hoverImage = globalData.gui.imageBank( imageName )
-		assert self.hoverImage, 'Unable to get the {}Gray button image.'.format( imageName )
-		if not self.defaultImage:
-			self.defaultImage = self.hoverImage
+		if imageName:
+			self.defaultImage = globalData.gui.imageBank( imageName + 'Gray', showWarnings=False )
+			self.hoverImage = globalData.gui.imageBank( imageName )
+			assert self.hoverImage, 'Unable to get the {}Gray button image.'.format( imageName )
+			if not self.defaultImage:
+				self.defaultImage = self.hoverImage
+		else:
+			self.defaultImage = None
+			self.hoverImage = None
 		self.callback = callback
 		self.toolTip = None
 		self.isHovered = False
@@ -1452,10 +1456,12 @@ class ToggleButton( Tk.Label ):
 	def toggle( self, event=None ):
 		if self.enabled:
 			self.configure( image=self.imageState1 )
+			self.enabled = False
 		else:
 			self.configure( image=self.imageState2 )
+			self.enabled = True
 
-		self.enabled = not self.enabled
+		#self.enabled = not self.enabled
 		self.callback()
 
 	def updateHovertext( self, newText ):
@@ -1474,7 +1480,7 @@ class ColoredLabelButton( LabelButton ):
 
 	def __init__( self, parent, imageName, callback, hovertext='', color='#0099f0' ):
 
-		LabelButton.__init__( self, parent, imageName, callback, hovertext )
+		LabelButton.__init__( self, parent, None, callback, hovertext )
 
 		self.imageName = imageName
 		self.origHovertext = hovertext
@@ -2303,7 +2309,7 @@ class DDList( ttk.Frame ):
 		globalData.gui.style.configure( 'SeletectedItem.TFrame', background='#78F', relief='flat' )
 		globalData.gui.style.configure( 'NonSeletectedItem.TFrame', relief='groove' )
 
-		self.master.bind( '<Configure>', self.update_width )
+		self.master.bind( '<Configure>', self.update_width, '+' )
 
 	def update_width(self, event=None):
 		containerWidth = self.master.winfo_width()
@@ -2336,6 +2342,7 @@ class DDList( ttk.Frame ):
 		# Adjust the height of this item list (container)
 		self._bottom += difference
 		self.configure(height=self._bottom + self._offset_y)
+		self.master.event_generate( '<Configure>' )
 
 	def create_item(self, value=None, **kwargs):
 		

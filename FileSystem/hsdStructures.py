@@ -1418,7 +1418,7 @@ class VertexAttributesArray( StructBase ):
 		self.fields = fields * self.entryCount
 		self.length = 0x18 * self.entryCount
 		self.childClassIdentities = {}
-		for i in range( 7, len(self.fields)+7, 8 ):
+		for i in range( 7, len(self.fields), 8 ):
 			self.childClassIdentities[i] = 'VertexDataBlock'
 		self._siblingsChecked = True
 
@@ -1480,7 +1480,7 @@ class EnvelopeObjDesc( StructBase ):
 		self.formatting = '>' + ( 'If' * self.entryCount )
 		self.fields = ( 'Joint_Pointer', 'Weight' ) * self.entryCount
 		self.childClassIdentities = {}
-		for i in range( 0, self.entryCount ):
+		for i in range( 0, self.entryCount*2, 2 ):
 			self.childClassIdentities[i] = 'JointObjDesc'
 
 
@@ -2038,8 +2038,6 @@ class MapCollAnimEnableArray( StructBase ):
 
 class MapAnimLoopEnableArray( StructBase ):
 
-	childClassIdentities = {}
-
 	def __init__( self, *args, **kwargs ):
 		StructBase.__init__( self, *args, **kwargs )
 
@@ -2057,8 +2055,6 @@ class MapAnimLoopEnableArray( StructBase ):
 
 
 class MapShadowEnableArray( StructBase ): # Only found in Ness' BTT stage?
-
-	childClassIdentities = {}
 
 	def __init__( self, *args, **kwargs ):
 		StructBase.__init__( self, *args, **kwargs )
@@ -2114,8 +2110,6 @@ class MapCollisionData( StructBase ):
 
 class MapSpotTable( StructBase ):
 
-	childClassIdentities = {}
-
 	def __init__( self, *args, **kwargs ):
 		StructBase.__init__( self, *args, **kwargs )
 
@@ -2143,7 +2137,6 @@ class MapSpotTable( StructBase ):
 
 class MapLinkTable( StructBase ):
 
-	childClassIdentities = {}
 	flags = { 'Physics_Interaction_Flags': OrderedDict([
 				( '1<<0', 'Top' ),		# 1
 				( '1<<1', 'Bottom' ), 	# 2
@@ -2264,8 +2257,6 @@ class ColCalcArea: # Areas are used in the game for fast collision calculations
 
 
 class MapAreaTable( StructBase ): # A.k.a. Line Groups
-
-	childClassIdentities = {}
 
 	def __init__( self, *args, **kwargs ):
 		StructBase.__init__( self, *args, **kwargs )
@@ -2444,7 +2435,6 @@ class MapMusicTable( TableStruct ):
 						'Padding'
 					)
 		self.length = 0x64
-		self.childClassIdentities = {}
 		self._childrenChecked = True
 
 		# Check the parent's Music_Table_Entry_Count to see how many entries should be in this table structure
@@ -2784,24 +2774,6 @@ class PaletteHeaderArray( StructBase ):
 		self.childClassIdentities = {}
 		for i in range( 0, self.entryCount ):
 			self.childClassIdentities[i] = 'PaletteObjDesc'
-
-
-class SwordColorsDesc( StructBase ):
-
-	def __init__( self, *args, **kwargs ):
-		StructBase.__init__( self, *args, **kwargs )
-
-		self.name = 'Sword Swing Colors ' + uHex( 0x20 + args[1] )
-		self.formatting = '>IBBBBBBBB'
-		self.fields = ( 'Identifier', 
-						'Ending_Alpha', 
-						'Starting_Alpha',
-						'Edge Red Channel', 'Edge Green Channel', 'Edge Blue Channel',
-						'Center Red Channel', 'Center Green Channel', 'Center Blue Channel' )
-		self.length = 0xC
-		self.childClassIdentities = {}
-		self._siblingsChecked = True
-		self._childrenChecked = True
 
 
 

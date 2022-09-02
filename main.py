@@ -303,7 +303,9 @@ class ToolsMenu( Tk.Menu, object ):
 		globalData.gui.codeManagerTab.saveCodeLibraryAs()
 
 	def characterColorConverter( self ):
-		globalData.cccWindow = CharacterColorConverter()
+		if not globalData.getUniqueWindow( CharacterColorConverter ):
+			# Create a new instance of the window
+			CharacterColorConverter()
 
 	def testStage( self ):
 
@@ -866,7 +868,7 @@ class MainMenuCanvas( Tk.Canvas ):
 			`private`     if True, other processes cannot see this font, and this 
 						font will be unloaded when the process dies.
 			`enumerable`  if True, this font will appear when enumerating fonts.
-						 (this is necessary if you want the font to appear with .families().)
+						 (this is necessary if you want the font to appear with tkFont.families().)
 
 			See https://msdn.microsoft.com/en-us/library/dd183327(VS.85).aspx
 		"""
@@ -1562,6 +1564,7 @@ class MainGui( Tk.Frame, object ):
 
 		# Font control/adjustments
 		default_font = tkFont.nametofont( "TkDefaultFont" )
+		#print(tkFont.families())
 		#print(default_font.actual())
 		self.defaultFontSize = default_font.actual()['size']
 		#default_font.configure( size=30 ) # Use negative values to specify in pixel height
@@ -1873,10 +1876,7 @@ class MainGui( Tk.Frame, object ):
 
 		# If the above loop didn't break (no scrollable found), "widget" will reach the top level item and become 'None'.
 		if widget:
-			print( 'scrolling', widget.winfo_class() )
 			widget.yview_scroll( -1*(event.delta/30), "units" )
-
-		return 'break'
 
 	def selectAll( self, event ):
 

@@ -1963,8 +1963,11 @@ class DiscMenu( Tk.Menu, object ):
 
 		""" Add character files from the disc to the CCC tool window. """
 
-		if not globalData.cccWindow:
-			globalData.cccWindow = CharacterColorConverter()
+		cccWindow = globalData.getUniqueWindow( CharacterColorConverter )
+
+		if not cccWindow:
+			# Create a new instance of the window
+			cccWindow = CharacterColorConverter()
 
 		# Create a copy of the file (wihtout making a disc copy) to send to the CCC, because it will be modified
 		disc = self.fileObj.disc
@@ -1973,4 +1976,4 @@ class DiscMenu( Tk.Menu, object ):
 		self.fileObj.disc = disc
 		fileCopy.disc = disc
 
-		globalData.cccWindow.updateSlotRepresentation( fileCopy, role )
+		cccWindow.updateSlotRepresentation( fileCopy, role )

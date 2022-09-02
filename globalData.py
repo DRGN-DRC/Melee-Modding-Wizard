@@ -43,7 +43,7 @@ def init( programArgs ):
 
 	global scriptHomeFolder, paths, defaultSettings, defaultBoolSettings, settings, boolSettings, overwriteOptions
 	global codeProcessor, dolphinController, gui, disc, dol, codeMods, standaloneFunctions, fileStructureClasses
-	global cccWindow, programEnding
+	global programEnding
 
 	scriptHomeFolder = os.path.abspath( os.path.dirname(programArgs[0]) ) # Can't use __file__; incompatible with cx_freeze process
 
@@ -109,7 +109,6 @@ def init( programArgs ):
 	gui = None
 	disc = None
 	dol = None # A vanilla DOL not associated with a disc
-	cccWindow = None
 
 	codeMods = []
 	standaloneFunctions = {} # Key='functionName', value=( functionRamAddress, codeChangeObj )
@@ -119,6 +118,32 @@ def init( programArgs ):
 	FileSystem.registerStructureClasses()
 
 	programEnding = False
+
+
+def getUniqueWindow( windowClass, topLevelWindow=None ):
+
+	""" Used to get an instance of a "unique" window, meant to be persistent or reused. 
+		These are created by the BasicWindow class when 'unique' is True. 
+		This will also make sure the window is not minimized and bring it to the foreground
+		if it's found. If that fails, this returns None and erases that className entry. """
+
+	if not topLevelWindow:
+		topLevelWindow = gui.root
+	
+	# Bring into view an existing instance of this window, if already present
+	if hasattr( topLevelWindow, 'uniqueWindows' ):
+		className = windowClass.__class__.__name__
+		existingWindow = topLevelWindow.uniqueWindows.get( className )
+
+		if existingWindow:
+			try:
+				# The window already exist. Make sure it's not minimized, and bring it to the foreground
+				existingWindow.window.deiconify()
+				existingWindow.window.lift()
+				return existingWindow
+			except: # Failsafe against bad window name (existing window somehow destroyed without proper clean-up); move on to create new instance
+				topLevelWindow.uniqueWindows[className] = None
+				return None
 
 
 def loadProgramSettings( useBooleanVars=False ):

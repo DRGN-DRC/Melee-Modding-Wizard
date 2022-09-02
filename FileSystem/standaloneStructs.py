@@ -17,7 +17,8 @@ from basicFunctions import uHex
 
 class StandaloneStruct( object ):
 
-	""" Base class to represents an abstract structure NOT within a HAL DAT file. """
+	""" Base class to represents an abstract structure NOT within a HAL DAT file. 
+		Thus, these do not have file or structure-traversing methods. """
 
 	# __slots__ = ( 'dat', 'offset', 'data', 'name', 'label', 'fields', 'length', 'entryCount', 'formatting',
 	# 			  'parents', 'siblings', 'children', 'values', 'branchSize', 'childClassIdentities',
@@ -29,7 +30,6 @@ class StandaloneStruct( object ):
 		self.offset 		= offset
 		self.data			= ()					# Will become a bytearray
 		self.name 			= 'Standalone Struct ' + uHex( 0x20 + offset )
-		#self.label 			= hostFile.getStructLabel( dataSectionOffset ) # From the DAT's string table
 		self.fields			= ()
 		self.length			= -1
 		self.entryCount 	= entryCount			# Used with array & table structures; -1 means it's not an array/table
@@ -38,14 +38,6 @@ class StandaloneStruct( object ):
 		self.siblings 		= [] 					# List of integers (offsets of other structs)
 		self.children 		= [] 					# List of integers (offsets of other structs)
 		self.values 		= () 					# Actual decoded values (ints/floats/etc) of the struct's data
-		#self.branchSize 	= -1
-		#self.childClassIdentities = {}
-
-		# self._parentsChecked = False
-		# self._siblingsChecked = False
-		# self._childrenChecked = False
-		# self._branchInitialized = False
-		#self.changesNeedSaving = False				# Indicates that some of the decoded values have been changed
 
 	def getData( self, dataOffset=0, dataLength=-1 ):
 
@@ -81,10 +73,10 @@ class StandaloneStruct( object ):
 
 		# Perform some validation on the input
 		elif not self.fields:
-			print 'Unable to get a specific value; struct lacks known fields.'
+			print( 'Unable to get a specific value; struct lacks known fields.' )
 			return None
 		elif specificValue not in self.fields:
-			print 'Unable to get a specific value; field name not found.'
+			print( 'Unable to get a specific value; field name not found.' )
 			return None
 
 		# Get a specific value by field name
@@ -201,3 +193,17 @@ class DebugMenuItem( StandaloneStruct ):
 
 		self.leftRightStrings = [ self.getString(pointer) for pointer in pointerList ]
 
+
+class SwordColorsDesc( StandaloneStruct ):
+
+	def __init__( self, *args, **kwargs ):
+		StandaloneStruct.__init__( self, *args, **kwargs )
+
+		self.name = 'Sword Swing Colors ' + uHex( 0x20 + args[1] )
+		self.formatting = '>IBBBBBBBB'
+		self.fields = ( 'Identifier', 
+						'Ending_Alpha', 
+						'Starting_Alpha',
+						'Edge Red Channel', 'Edge Green Channel', 'Edge Blue Channel',
+						'Center Red Channel', 'Center Green Channel', 'Center Blue Channel' )
+		self.length = 0xC
