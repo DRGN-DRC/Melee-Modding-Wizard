@@ -583,6 +583,12 @@ class CodeMod( object ):
 
 		return functionNames, missingFunctions # functionNames will also include those that are missing
 
+	def clearErrors( self ):
+		self.assemblyError = False
+		self.parsingError = False
+		self.stateDesc = ''
+		self.errors.clear()
+
 	def configure( self, name, value ):
 
 		""" Changes a given configuration option to the given value. """
@@ -717,21 +723,20 @@ class CodeMod( object ):
 				break
 
 		if conflictDetected:
-
 			# Construct a warning message to the user
 			if regionStart == ramAddress:
 				dolOffset = dol.normalizeDolOffset( change.offset, 'string' )
 				warningMsg = '{} has code that conflicts with itself. More than one code change modifies code at 0x{:X} ({}).'.format( self.name, ramAddress, dolOffset )
 			else:
 				oldChangeRegion = 'Code Start: 0x{:X},  Code End: 0x{:X}'.format( regionStart, regionEnd )
-				newChangeRegion = 'Code Start: 0x{:X},  Code End: 0x{:X}'.format( ramAddress + addressEnd )
+				newChangeRegion = 'Code Start: 0x{:X},  Code End: 0x{:X}'.format( ramAddress, addressEnd )
 
 				warningMsg = ('{} has code that conflicts with itself. These two code changes '
 							'overlap with each other:\n\n{}\n{}').format( self.name, oldChangeRegion, newChangeRegion )
 			
 			msg( warningMsg, 'Code Conflicts Detected', warning=True )
 			self.stateDesc = 'Code Conflicts Detected'
-			self.errors.add( 'One or more code changes overlap with one another.' )
+			self.errors.add( warningMsg )
 
 		return conflictDetected
 
@@ -2036,32 +2041,31 @@ class CodeLibraryParser():
 
 		""" Currently only supports Gecko code types 04, 06, and C2. Returns title, newAuthors, 
 			description, and codeChanges. 'codeChanges' will be a list of tuples, with each 
-			tuple of the form ( changeType, address, customCodeLines ). """
+			tuple of the form ( changeType, address, codeLength, customCodeLines ). """
 
 		title = authors = ''
 		description = []
 		codeChangeTuples = []
-		codeBuffer = [ '', -1, '', [], 0 ] # Temp staging area while code lines are collected, before they are submitted to the above codeChangeTuples list.
+		codeBuffer = [ '', -1, '', [], 0, '' ] # Temp staging area while code lines are collected before being submitted to the above codeChangeTuples list
 		processedHex = ''
 
-		# Load the DOL for this revision (if one is not already loaded), for original/vanilla code look-ups
-		#vanillaDol = loadVanillaDol( gameRevision )
-
 		for line in codeLines:
-			if not line.strip(): continue # Skip whitespace lines
+			line = line.strip()
+			if not line: continue # Skip whitespace lines
 
-			elif line.startswith( '*' ): # Another form of comment
+			elif line.startswith( '*' ): # A 'note' (a form of comment) that shows up in the Dolphin GUI for a description
 				description.append( line[1:] )
+				continue
 
 			elif line.startswith( '$' ) or ( '[' in line and ']' in line ):
 				line = line.lstrip( '$' )
 
 				# Sanity check; the buffer should be empty if a new code change is starting
 				if codeBuffer[0]:
-					# print 'Warning! Gecko code parsing ran into an error or an invalid code!'
-					# print 'The code buffer was not emptied before a new code was encountered.'
-					# codeBuffer = []
-					raise Exception( 'Code buffer not emptied before new code was encountered.' )
+					changeType, _, ramAddress, codeLines, codeLength, annotation = codeBuffer
+					codeChangeTuples.append( (changeType, ramAddress, codeLength, codeLines, annotation) )
+					print( 'Warning: the Gecko code change for address {:X} appears to be malformed!'.format(ramAddress) )
+					codeBuffer = [ '', -1, '', [], 0, '' ]
 
 				if title: # It's already been set, meaning this is another separate code
 					break
@@ -2074,57 +2078,113 @@ class CodeLibraryParser():
 				else:
 					title = line
 
-			elif codeBuffer[0]: # Multi-line code collection is in-progress
-				changeType, totalBytes, ramAddress, _, collectedCodeLength = codeBuffer
+				continue
 
-				processedHex = ''.join( line.split( '#' )[0].split() ) # Should remove all comments and whitespace
+			# Should be raw hex from this point on
+			lineParts = line.split( '#', 1 )
+			if len( lineParts ) == 2:
+				codeOnly, annotation = lineParts
+				annotation = annotation.strip()
+			else:
+				codeOnly = lineParts[0]
+				annotation = ''
+			processedHex = ''.join( codeOnly.split( '*' )[0].split() ) # Removes all comments and whitespace
+
+			if codeBuffer[0]: # Multi-line code collection is in-progress
+				changeType, totalBytes, ramAddress, _, collectedCodeLength, annotation = codeBuffer
+
 				newHexLength = len( processedHex ) / 2 # Divide by 2 to count by bytes rather than nibbles
+				codeBuffer[3].append( line )
+				codeBuffer[4] += newHexLength
 
-				if collectedCodeLength + newHexLength < totalBytes:
-					codeBuffer[3].append( line )
-					codeBuffer[4] += newHexLength
-
-				else: # Last line to collect from for this code change
-					# Collect the remaining new hex and consolidate it
-					#bytesRemaining = totalBytes - collectedCodeLength
-					codeBuffer[3].append( line )
-
+				# Check if this is the last line to collect from for this code change
+				if collectedCodeLength + newHexLength >= totalBytes:
 					# Add the finished code change to the list, and reset the buffer
-					#codeChangeTuples.append( (changeType, totalBytes, ramAddress, originalCode, customCode, rawCustomCode, 0) )
-					codeChangeTuples.append( (changeType, ramAddress, codeBuffer[3]) )
-					codeBuffer = [ '', -1, -1, [], 0 ]
+					codeChangeTuples.append( (changeType, ramAddress, codeBuffer[4], codeBuffer[3], annotation) )
+					codeBuffer = [ '', -1, '', [], 0, '' ]
 
-			elif line.startswith( '04' ): # A Static Overwrite
+				continue
+
+			# Processing a line of code for a new code change from this point on
+			nib1 = int( line[0], 16 )
+			nib2 = int( line[1], 16 )
+			if nib1 & 1 == 1: # ba/po bit is set
+				raise Exception( 'The ba/po bit is set for this code change (which is not supported): ' + processedHex[:8] )
+			opCode = ( (nib1 & 0b1110) << 4 ) + (nib2 & 0b1110)
+			if nib2 & 1 == 1: # First bit of address is set
+				ramAddress = '0x81' + line[2:8]
+			else:
 				ramAddress = '0x80' + line[2:8]
-				customCode = line.replace( ' ', '' )[8:16]
 
-				#codeChangeTuples.append( ('static', 4, ramAddress, originalCode, customCode, customCode, 0) )
-				codeChangeTuples.append( ('static', ramAddress, [customCode]) )
+			if opCode == 0: # A Static Overwrite (1-byte repeat)
+				byteCount = int( processedHex[8:12], 16 ) + 1
+				customCode = processedHex[14:16] * byteCount
+				codeChangeTuples.append( ('static', ramAddress, byteCount, [customCode], annotation) )
 
-			elif line.startswith( '06' ): # A Long Static Overwrite
-				ramAddress = '0x80' + line[2:8]
-				totalBytes = int( line.replace( ' ', '' )[8:16], 16 )
+			elif opCode == 2: # A Static Overwrite (half-word repeat)
+				halfwordCount = ( int(processedHex[8:12], 16) + 1 )
+				customCode = processedHex[12:16] * halfwordCount
+				codeChangeTuples.append( ('static', ramAddress, halfwordCount * 2, [customCode], annotation) )
 
-				# Set up the code buffer, which will be filled with data until it's gathered all the bytes
-				codeBuffer = [ 'static', totalBytes, ramAddress, [], 0 ]
+			elif opCode == 4: # A Static Overwrite (4 bytes)
+				customCode = processedHex[8:16]
+				codeChangeTuples.append( ('static', ramAddress, 4, [customCode], annotation) )
 
-			elif line.upper().startswith( 'C2' ): # An Injection
-				ramAddress = '0x80' + line[2:8]
-				totalBytes = int( line.replace( ' ', '' )[8:16], 16 ) * 8 # The count in the C2 line is a number of lines, where each line should be 8 bytes
+			elif opCode == 6: # A Long Static Overwrite
+				# Set up the code buffer, which will be filled with data until it's gathered all the bytes for this change
+				totalBytes = int( processedHex[8:16], 16 )
+				codeBuffer = [ 'static', totalBytes, ramAddress, [], 0, annotation ]
 
-				# Set up the code buffer, which will be filled with data until it's gathered all the bytes
-				codeBuffer = [ 'injection', totalBytes, ramAddress, [], 0 ]
+			elif opCode == 0xC2: # An Injection
+				# Set up the code buffer, which will be filled with data until it's gathered all the bytes for this change
+				totalBytes = int( processedHex[8:16], 16 ) * 8 # The count in the C2 line is a number of lines, where each line should be 8 bytes
+				codeBuffer = [ 'injection', totalBytes, ramAddress, [], 0, annotation ]
 
 			else:
-				raise Exception( 'Found an unrecognized Gecko opcode: ' + line.lstrip()[:2].upper() )
+				raise Exception( 'Found an unrecognized Gecko opCode: ' + line.lstrip()[:2].upper() )
 
 		# Check for any lingering code
-		if codeBuffer[0] and processedHex:
+		if codeBuffer[0]:
 			# Add the finished code change to the list
-			codeChangeTuples.append( (changeType, ramAddress, codeBuffer[3]) )
-			print( 'Warning: the Gecko code change for address {} appears to be malformed!'.format(ramAddress) )
+			changeType, _, ramAddress, codeLines, codeLength, annotation = codeBuffer
+			codeChangeTuples.append( (changeType, ramAddress, codeLength, codeLines, annotation) )
+			print( 'Warning: the Gecko code change for address {:X} appears to be malformed!'.format(ramAddress) )
 
-		return title, authors, '\n'.join( description ), codeChangeTuples
+		# Sort the changes by address
+		codeChangeTuples.sort( key=lambda codeChange: codeChange[1] )
+
+		# Combine contiguous static overwrites
+		condensedChangesList = []
+		for codeChange in codeChangeTuples:
+			# Add with no adjustments if this is an injection or the first code change
+			if codeChange[0] == 'injection' or len( condensedChangesList ) == 0:
+				condensedChangesList.append( codeChange )
+				continue
+
+			# Add with no adjustments if the last change was an injection
+			lastCodeChange = condensedChangesList[-1]
+			if lastCodeChange[0] == 'injection':
+				condensedChangesList.append( codeChange )
+				continue
+
+			# Assessing a static overwrite; check if it's contiguous with last added overwrite
+			thisRamAddress, thisCodeLength, thisCodeLines, thisAnnotation = codeChange[1:]
+			lastRamAddress, lastCodeLength, lastCodeLines, lastAnnotation = lastCodeChange[1:]
+			thisAddress = int( thisRamAddress, 16 )
+			lastAddress = int( lastRamAddress, 16 )
+			if lastAddress == thisAddress: # Duplicate!
+				print( 'Warning: Duplicate address modified by Gecko code: ' + thisRamAddress )
+				condensedChangesList.append( codeChange ) # Keep it for now; let the user remove one later
+			elif lastAddress + lastCodeLength == thisAddress:
+				# This change immediately follows the last and these two can be combined (replacing previous one)
+				newCodeLength = lastCodeLength + thisCodeLength
+				newCodeLines = lastCodeLines + thisCodeLines
+				newAnnotation = lastAnnotation + '\n' + thisAnnotation
+				condensedChangesList[-1] = ( 'static', lastRamAddress, newCodeLength, newCodeLines, newAnnotation )
+			else: # Non-contiguous; add this change unmodified
+				condensedChangesList.append( codeChange )
+
+		return title, authors, '\n'.join( description ), condensedChangesList
 
 	def parseAmfs( self, folderPath, includePaths, categoryDefault ):
 

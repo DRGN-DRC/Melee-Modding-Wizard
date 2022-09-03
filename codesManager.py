@@ -9,8 +9,6 @@
 #		╚═╝     ╚═╝ ╚═╝     ╚═╝  ╚══╝╚══╝ 			 ------                                                   ------
 #		  -  - Melee Modding Wizard -  -  
 
-from __future__ import print_function # Use print with (); preparation for moving to Python 3
-
 # External Dependencies
 import os
 import ttk
@@ -979,12 +977,12 @@ class CodeManagerTab( ttk.Frame ):
 						raise Exception( 'Unable to parse code changes for Gecko code' )
 
 					# Add new code change modules
-					for changeType, address, customCodeLines in codeChangeTuples:
+					for changeType, address, _, customCodeLines, annotation in codeChangeTuples:
 						# Create a new CodeChange object and attach it to the internal mod module
 						if changeType == 'static':
-							codeChange = mod.addStaticOverwrite( address, customCodeLines, '' )
+							codeChange = mod.addStaticOverwrite( address, customCodeLines, '', annotation=annotation )
 						elif changeType == 'injection':
-							codeChange = mod.addInjection( address, customCodeLines, '' )
+							codeChange = mod.addInjection( address, customCodeLines, '', annotation=annotation )
 						else:
 							raise Exception( 'Invalid code change type from Gecko code parser:', changeType )
 
@@ -1539,10 +1537,8 @@ class CodeConstructor( Tk.Frame ):
 		self.offsetViewBtn.pack( side='right', padx=6, ipadx=6 )
 
 		# Add the Open button
-		if self.mod.isAmfs:
-			LabelButton( self.buttonsFrame, 'folderIcon', self.openMod, 'Open Folder' ).pack( side='right', padx=6 )
-		else:
-			LabelButton( self.buttonsFrame, 'folderIcon', self.openMod, 'Open File' ).pack( side='right', padx=6 )
+		if self.mod.path:
+			self.addOpenButton()
 
 		self.revisionsNotebook = ttk.Notebook( self )
 		self.revisionsNotebook.pack( fill='both', expand=1, anchor='n', padx=12, pady=6 )
@@ -1589,6 +1585,14 @@ class CodeConstructor( Tk.Frame ):
 	def addErrorsButton( self ):
 		self.errorsButton = LabelButton( self.buttonsFrame, 'warningsButton', self.showErrors, "View parsing or assembly errors" )
 		self.errorsButton.pack( side='right', padx=5 )
+
+	def addOpenButton( self ):
+		if self.mod.isAmfs:
+			self.openButton = LabelButton( self.buttonsFrame, 'folderIcon', self.openMod, 'Open Folder' )
+			self.openButton.pack( side='right', padx=6 )
+		else:
+			self.openButton = LabelButton( self.buttonsFrame, 'folderIcon', self.openMod, 'Open File' )
+			self.openButton.pack( side='right', padx=6 )
 
 	def syncAllGuiChanges( self ):
 
@@ -1941,7 +1945,7 @@ class CodeConstructor( Tk.Frame ):
 
 	def importGeckoCode( self ):
 		# Prompt the user to enter the Gecko code
-		userMessage = "Copy and paste your Gecko code here.\nCurrently, only opCodes 04, 06, and C2 are supported."
+		userMessage = "Copy and paste your Gecko code here.\nCurrently, only opCodes 00 through 06 and C2 are supported."
 		entryWindow = PopupScrolledTextWindow( globalData.gui.root, title='Gecko Codes Import', message=userMessage, width=55, height=22, button1Text='Import' )
 		if not entryWindow.entryText: return # User canceled
 
@@ -1974,33 +1978,36 @@ class CodeConstructor( Tk.Frame ):
 			self.titleEntry.delete( 0, 'end' )
 			self.titleEntry.insert( 0, title )
 			self.updateTabName()
+			self.mod.name = title
 		if description:
 			if self.getInput( self.descScrolledText ): # If there is already some content, add a line break before the new description text
 				self.descScrolledText.insert( 'end', '\n' )
 			self.descScrolledText.insert( 'end', description )
+			self.mod.desc = description
 
 		# Add any authors not already added
 		if newAuthors:
-			currentAuthors = [ name.strip() for name in self.getInput( self.authorsEntry ).split(',') if name != '' ]
-			for name in newAuthors.split( ',' ):
-				if name and name.strip() not in currentAuthors:
-					currentAuthors.append( name.strip() )
+			currentAuthors = [ author.strip() for author in self.getInput( self.authorsEntry ).split(',') if author != '' ]
+			for author in newAuthors.split( ',' ):
+				if author and author.strip() not in currentAuthors:
+					currentAuthors.append( author.strip() )
 			self.authorsEntry.delete( 0, 'end' )
 			self.authorsEntry.insert( 'end', ', '.join(currentAuthors) )
+			self.mod.auth = ', '.join(currentAuthors)
 
 		# Ensure a data (code changes) list is present for this revision (might be a new mod)
 		if not self.mod.currentRevision in self.mod.data:
 			self.mod.data[self.mod.currentRevision] = []
 
 		# Add new code change modules
-		for changeType, address, customCodeLines in codeChanges:
+		for changeType, address, _, customCodeLines, annotation in codeChanges:
 			# Create a new CodeChange object and attach it to the internal mod module
 			if changeType == 'static':
-				codeChange = self.mod.addStaticOverwrite( address, customCodeLines, '' )
+				codeChange = self.mod.addStaticOverwrite( address, customCodeLines, '', annotation=annotation )
 			elif changeType == 'injection':
-				codeChange = self.mod.addInjection( address, customCodeLines, '' )
-			else: # Failsafe; shouldn't ever happen!
-				print( 'Invalid code change type from Gecko code parser:', changeType )
+				codeChange = self.mod.addInjection( address, customCodeLines, '', annotation=annotation )
+			else: # Failsafe; something is quite wrong if this happens!
+				print( 'Invalid code change type from Gecko code parser: ' + changeType )
 
 			# Create the code change's GUI element
 			self.addCodeChangeModule( changeType, codeChange, self.mod.currentRevision )
@@ -2011,6 +2018,7 @@ class CodeConstructor( Tk.Frame ):
 
 		# Evaluate the custom code and check for assembly errors
 		self.mod.assessForErrors()
+		self.mod.assessForConflicts()
 		self.updateErrorNotice()
 
 		globalData.gui.playSound( 'menuChange' )
@@ -2147,8 +2155,11 @@ class CodeConstructor( Tk.Frame ):
 		# Attempt to save the mod
 		saveSuccedded = self.saveModToLibrary()
 
+		if saveSuccedded and not self.openButton:
+			self.addOpenButton()
+
 		# If the save was canceled or failed, restore the previous save location & status
-		if not saveSuccedded:
+		elif not saveSuccedded:
 			self.mod.isAmfs = originalFormat
 			self.mod.isMini = originalMiniBool
 			self.mod.path = originalSourceFile
@@ -2298,6 +2309,15 @@ class CodeConstructor( Tk.Frame ):
 				analysisText += '\n\nThese functions are required, but are not packaged with this mod:\n' + '\n'.join( missingFunctions )
 
 		analysisText += '\n\n\tInclude Paths for assembly:\n' + '\n'.join( self.mod.includePaths )
+		
+		self.mod.assessForErrors()
+		self.mod.assessForConflicts()
+		self.updateErrorNotice()
+
+		if self.mod.errors:
+			analysisText += '\n\n\tErrors detected:\n' + '\n'.join( self.mod.errors )
+			# for error in self.mod.errors:
+			# 	analysisText += '\n' + error
 
 		# Present the analysis to the user in a new window
 		cmsg( analysisText, 'Info for "' + self.mod.name + '"', 'left' )

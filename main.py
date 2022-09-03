@@ -303,7 +303,7 @@ class ToolsMenu( Tk.Menu, object ):
 		globalData.gui.codeManagerTab.saveCodeLibraryAs()
 
 	def characterColorConverter( self ):
-		if not globalData.getUniqueWindow( CharacterColorConverter ):
+		if not globalData.getUniqueWindow( 'CharacterColorConverter' ):
 			# Create a new instance of the window
 			CharacterColorConverter()
 

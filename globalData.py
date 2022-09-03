@@ -120,7 +120,7 @@ def init( programArgs ):
 	programEnding = False
 
 
-def getUniqueWindow( windowClass, topLevelWindow=None ):
+def getUniqueWindow( className, topLevelWindow=None ):
 
 	""" Used to get an instance of a "unique" window, meant to be persistent or reused. 
 		These are created by the BasicWindow class when 'unique' is True. 
@@ -132,7 +132,6 @@ def getUniqueWindow( windowClass, topLevelWindow=None ):
 	
 	# Bring into view an existing instance of this window, if already present
 	if hasattr( topLevelWindow, 'uniqueWindows' ):
-		className = windowClass.__class__.__name__
 		existingWindow = topLevelWindow.uniqueWindows.get( className )
 
 		if existingWindow:
