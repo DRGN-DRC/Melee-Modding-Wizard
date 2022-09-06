@@ -1552,6 +1552,8 @@ class MainGui( Tk.Frame, object ):
 
 		globalData.loadProgramSettings( True ) # Load using BooleanVars. Must be done after creating Tk.root
 
+		self.loadVolume()
+
 		self._imageBank = {} # Repository for GUI related images
 		self._soundBank = {}
 		self.audioEngine = None
@@ -1714,7 +1716,27 @@ class MainGui( Tk.Frame, object ):
 
 		return image
 
+	def loadVolume( self ):
+
+		""" Validates program volume (for sound effects and music) from the settings.ini file; 
+			ensures it's a float between 0 and 1, and sets a default value instead if it's not. """
+
+		volume = globalData.checkSetting( 'volume' )
+		try:
+			self.volume = float( volume )
+			if self.volume < 0 or self.volume > 1.0:
+				raise Exception()
+		except:
+			self.volume = float( globalData.defaultSettings['volume'] )
+			message = ( 'The settings.ini file contails a bad value for "volume": {}. '
+						'The program volume should be set as a float between 0 (off) and 1.0 (full volume). The volume will be set to the default volume of {}.'.format(volume, self.volume) )
+			tkMessageBox.showwarning( message=message, title='Invalid Volume Setting', parent=self.root )
+
 	def playSound( self, soundName ):
+
+		# Cancel if sound is disabled
+		if self.volume == 0:
+			return
 
 		audioFilePath = self._soundBank.get( soundName )
 
@@ -1725,7 +1747,7 @@ class MainGui( Tk.Frame, object ):
 				return
 			self._soundBank[soundName] = audioFilePath
 
-		# Play the audio clip in a separate thread so that it's non-blocking
+		# Play the audio clip in a separate thread so that this function is non-blocking
 		audioThread = Thread( target=self._playSoundHelper, args=(audioFilePath,) )
 		audioThread.start()
 
@@ -1763,7 +1785,7 @@ class MainGui( Tk.Frame, object ):
 				unpackedData = struct.unpack( chunkFormat, data )
 
 				# Multiply each value by the current volume (0-1.0 value)
-				unpackedData = [sample * .8 for sample in unpackedData]
+				unpackedData = [sample * self.volume for sample in unpackedData]
 
 				# Re-pack the data as raw bytes and return it
 				data = struct.pack( chunkFormat, *unpackedData )
@@ -2103,6 +2125,9 @@ class MainGui( Tk.Frame, object ):
 
 		if not disc:
 			return -1
+
+		# Save any codes under construction, if that tab is focused
+		#if self.codeConstructionTab:
 
 		# Save code mods if that tab is open
 		if self.codeManagerTab:

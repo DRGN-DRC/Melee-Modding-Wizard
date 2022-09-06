@@ -1049,7 +1049,8 @@ class CodeManagerTab( ttk.Frame ):
 					modsToInstall.append( mod )
 		
 		if conflictedMods:
-			proceed = tkMessageBox.askyesno( 'Proceed with Save?', 'Would you like to proceed with the save without the following codes?\n\n{}'.format('\n'.join(conflictedMods)) )
+			modNames = '\n'.join( [mod.name for mod in conflictedMods] )
+			proceed = tkMessageBox.askyesno( 'Proceed with Save?', 'Would you like to proceed with the save without the following codes?\n\n{}'.format(modNames) )
 			if not proceed:
 				return 2
 
@@ -1144,6 +1145,8 @@ class CodeManagerTab( ttk.Frame ):
 
 			globalData.gui.updateProgramStatus( 'Restoration Successful' )
 			globalData.gui.playSound( 'menuChange' )
+
+			self.scanCodeLibrary( False )
 
 
 class ModModule( Tk.Frame, object ):
@@ -1347,6 +1350,9 @@ class ModModule( Tk.Frame, object ):
 				break
 
 		else: # Loop above didn't break; mod not found
+			self.mod.assessForErrors()
+			self.mod.assessForConflicts( silent=True )
+
 			newTab = CodeConstructor( mainGui.codeConstructionTab, self )
 			mainGui.codeConstructionTab.add( newTab, text=self.mod.name )
 
@@ -1394,9 +1400,10 @@ class CodeConstructor( Tk.Frame ):
 		self.saveStatus = Tk.StringVar()
 		self.saveStatus.set( '' )
 		self.dolVariations = []
-		self.undoableChanges = False 		# Flipped for changes that 'undo' doesn't work on. Only reverted by save operation.
+		self.undoableChanges = False 		# Set for changes that 'undo' doesn't work on. Only reverted by save operation.
 		self.revisionsNotebook = None
 		self.errorsButton = None
+		self.openButton = None
 
 		if modModule:
 			self.libGuiModule = modModule
@@ -2311,7 +2318,7 @@ class CodeConstructor( Tk.Frame ):
 		analysisText += '\n\n\tInclude Paths for assembly:\n' + '\n'.join( self.mod.includePaths )
 		
 		self.mod.assessForErrors()
-		self.mod.assessForConflicts()
+		self.mod.assessForConflicts( silent=True )
 		self.updateErrorNotice()
 
 		if self.mod.errors:

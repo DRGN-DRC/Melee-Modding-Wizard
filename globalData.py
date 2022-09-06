@@ -77,7 +77,8 @@ def init( programArgs ):
 		'maxFilesToRemember': '7',
 		'paddingBetweenFiles': '0x40',
 		'dolSource': 'vanilla',
-		'offsetView': 'ramAddress' # Alternate acceptable value=dolOffset (not case sensitive or affected by spaces)
+		'offsetView': 'ramAddress', # Alternate acceptable value=dolOffset (not case sensitive or affected by spaces)
+		'volume': '.7'
 	}
 	defaultBoolSettings = { # Same as above, but for bools, which are initialized slightly differently (must be strings of 0 or 1!)
 		'useDiscConvenienceFolders': '1',

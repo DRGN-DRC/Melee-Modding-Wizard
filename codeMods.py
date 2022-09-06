@@ -681,9 +681,9 @@ class CodeMod( object ):
 				# Check for assembly errors
 				change.evaluate( True )
 
-	def assessForConflicts( self ):
+	def assessForConflicts( self, silent=False ):
 
-		""" Evaluates this mod's changes to look for overwrite conflicts 
+		""" Evaluates this mod's changes to look for internal overwrite conflicts 
 			(i.e. more than one change that affects the same code space). 
 			Returns True or False on whether a conflict was detected. """
 
@@ -698,13 +698,18 @@ class CodeMod( object ):
 				if change.type == 'standalone' or change.type == 'gecko':
 					continue
 
+				# Ensure a RAM address is available or can be determined
 				ramAddress, errorMsg = dol.normalizeRamAddress( change.offset )
 				if ramAddress == -1:
 					warningMsg = 'Unable to get a RAM Address for the code change at {} ({});{}.'.format( change.offset, revision, errorMsg.split(';')[1] )
 					msg( warningMsg, 'Invalid DOL Offset or RAM Address', warning=True )
 					break
-				addressEnd = ramAddress + change.getLength()
-		
+
+				if change.type == 'injection':
+					addressEnd = ramAddress + 4
+				else:
+					addressEnd = ramAddress + change.getLength()
+					
 				# Check if this change overlaps other regions collected so far
 				for regionStart, codeLength in modifiedRegions:
 					regionEnd = regionStart + codeLength
@@ -714,7 +719,10 @@ class CodeMod( object ):
 						break
 
 				# No overlap, store this region this change affects for the next iterations
-				modifiedRegions.append( (ramAddress, change.length) )
+				if change.type == 'injection':
+					modifiedRegions.append( (ramAddress, 4) )
+				else: # Static overwrite
+					modifiedRegions.append( (ramAddress, change.length) )
 				
 				if conflictDetected:
 					break
@@ -725,7 +733,7 @@ class CodeMod( object ):
 		if conflictDetected:
 			# Construct a warning message to the user
 			if regionStart == ramAddress:
-				dolOffset = dol.normalizeDolOffset( change.offset, 'string' )
+				dolOffset = dol.normalizeDolOffset( change.offset, 'string' )[0]
 				warningMsg = '{} has code that conflicts with itself. More than one code change modifies code at 0x{:X} ({}).'.format( self.name, ramAddress, dolOffset )
 			else:
 				oldChangeRegion = 'Code Start: 0x{:X},  Code End: 0x{:X}'.format( regionStart, regionEnd )
@@ -734,7 +742,8 @@ class CodeMod( object ):
 				warningMsg = ('{} has code that conflicts with itself. These two code changes '
 							'overlap with each other:\n\n{}\n{}').format( self.name, oldChangeRegion, newChangeRegion )
 			
-			msg( warningMsg, 'Code Conflicts Detected', warning=True )
+			if not silent:
+				msg( warningMsg, 'Code Conflicts Detected', warning=True )
 			self.stateDesc = 'Code Conflicts Detected'
 			self.errors.add( warningMsg )
 
@@ -1200,15 +1209,16 @@ class CodeMod( object ):
 					continue
 
 				if addSourceFile:
-					# Create a relative file path for the assembly or bin file
-					sourcePath = os.path.join( '.', change.name ) # No extension
+					# Create filepaths for the json and for the file write operation
+					relativePath = os.path.join( '.', change.name ) # No extension
+					fullPath = os.path.join( self.path, change.name ) # No extension
 
 					# Create the file(s)
-					success = self.writeCustomCodeFiles( change, sourcePath, saveCache=saveCodeCache )
+					success = self.writeCustomCodeFiles( change, fullPath, saveCache=saveCodeCache )
 					if not success:
 						continue
 
-					changeDict['sourceFile'] = sourcePath + '.asm'
+					changeDict['sourceFile'] = relativePath + '.asm'
 
 				# Add a revision for this change if dealing with multiple of them
 				if len( self.data ) > 1:
@@ -2071,10 +2081,10 @@ class CodeLibraryParser():
 					break
 
 				elif '[' in line and ']' in line:
-					titleParts = line.split( '[' )
-					authors = titleParts[-1].split( ']' )[0]
+					titleParts = line.split( '[', 1 )
+					title = titleParts[0].strip()
+					authors = titleParts[-1].split( ']' )[0].strip()
 
-					title = '['.join( titleParts[:-1] )
 				else:
 					title = line
 
