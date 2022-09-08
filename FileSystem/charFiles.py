@@ -9,6 +9,7 @@
 #		╚═╝     ╚═╝ ╚═╝     ╚═╝  ╚══╝╚══╝ 			 ------                                                   ------
 #		  -  - Melee Modding Wizard -  -  
 
+from binascii import hexlify
 import json
 import struct
 import bitstring
@@ -460,8 +461,8 @@ class ActionTable( TableStruct ):
 						'Animation_Offset',			# Offset into the AJ files
 						'Animation_Size',
 						'SubAction_Events_Pointer',
-						'SubAction_ID',				# 0x10 (byte)
-						'Flags',					# 0x11 (halfword)
+						'Flags',					# 0x10 (byte)
+						'AdditionalBone_DisableBlendBoneIndex ',	# 0x11 (halfword)
 						'Internal_Character_ID',	# 0x13 (byte)
 						'Padding'					# ARAM animation pointer placeholder (used when loaded into memory)
 					)
@@ -554,10 +555,11 @@ class SubAction( DataBlock ):
 										'int:16', 'int:16', 'int:16') ),
 
 		# https://smashboards.com/threads/melee-hacks-and-you-new-hackers-start-here-in-the-op.247119/page-48#post-10769744
+		# Details on Rebound (Hitbox Interaction): https://smashboards.com/threads/official-ask-anyone-frame-things-thread.313889/post-17742200
 		0x0B: ( "Create Hitbox", 0x14, ('Hitbox ID', 'Padding', 'Bone Attachment', 'Padding', 'Damage', 
 										'Size', 'Z Offset', 'Y Offset', 'X Offset', 
 										'Knockback Angle', 'Knockback Growth', 'Weight Dependent Set Knockback', 
-										'Padding', 'Hitbox Interaction', 'Base Knockback', # Split hitbox interaction to air/ground?
+										'Padding', 'Hitbox Interaction', 'Base Knockback',
 										'Element', 'Shield Damage', 'Sound Effect', 'Hit Grounded Opponents', 'Hit Airborne Opponents'), 
 										('uint:3', 'uint:5', 'uint:7', 'int:2', 'uint:9', 
 										'uint:16', 'int:16', 'int:16', 'int:16', 
@@ -632,7 +634,7 @@ class SubAction( DataBlock ):
 	def __init__( self, *args, **kwargs ):
 		StructBase.__init__( self, *args, **kwargs )
 
-		self.name = 'SubAction ' + uHex( 0x20 + args[1] )
+		self.name = 'SubAction Events ' + uHex( 0x20 + self.offset )
 		self.events = [] # List of SubActionEvent objects
 
 	def parse( self ):
@@ -642,6 +644,7 @@ class SubAction( DataBlock ):
 		if self.events:
 			return
 
+		#index = 0
 		position = 0
 		byte = self.data[0]
 
@@ -659,15 +662,20 @@ class SubAction( DataBlock ):
 			# Create an event object and store it
 			eventData = self.data[position:position+length]
 			event = SubActionEvent( eventCode, name, length, valueNames, bitFormats, eventData )
+			#event.index = index
 			self.events.append( event )
 
 			# End parsing once an End of Script event is reached or no more data
+			#index += 1
 			position += length
 			if eventCode == 0 or position >= len( self.data ):
 				break
 
 			# Jump to the next event
 			byte = self.data[position]
+
+		print( 'orig data:' )
+		print( hexlify(self.data) )
 
 	def rebuild( self ):
 
@@ -676,6 +684,23 @@ class SubAction( DataBlock ):
 		self.data = bytearray()
 		for event in self.events:
 			self.data.extend( event.data )
+
+		self.length = len( self.data )
+			
+		print( 'new data:' )
+		print( hexlify(self.data) )
+
+	def deleteEvent( self, eventIndex ):
+
+		if isinstance( eventIndex, SubActionEvent ):
+			for i, event in enumerate( self.events ):
+				if event == eventIndex:
+					eventIndex = i
+					break
+			else: # Above loop didn't break; event object not found
+				raise Exception( 'Unable to find the given {} event!'.format(eventIndex.name) )
+
+		del self.events[eventIndex]
 
 
 class CharAnimFile( CharFileBase, FileBase ):

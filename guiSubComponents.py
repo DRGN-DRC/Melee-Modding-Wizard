@@ -558,7 +558,7 @@ class CopyableMessageWindow( BasicWindow ):
 		self.messageText.pack( fill='both', expand=1 )
 
 		# Add the buttons
-		self.buttonsFrame = Tk.Frame(self.window)
+		self.buttonsFrame = Tk.Frame( self.window )
 		ttk.Button( self.buttonsFrame, text='Close', command=self.close ).pack( side='right', padx=5 )
 		if buttons:
 			for buttonText, buttonCommand in buttons:
@@ -1377,7 +1377,7 @@ class DisguisedEntry( Tk.Entry ):
 		if self['state'] == 'normal': self.focus()
 
 
-class LabelButton( Tk.Label ):
+class LabelButton( ttk.Label ):
 
 	""" Basically a label that acts as a button, using an image and mouse click/hover events. 
 		Expects RGBA images named '[name].png' and '[name]Gray.png' (if the default image 
@@ -1385,7 +1385,7 @@ class LabelButton( Tk.Label ):
 		The latter is used for the default visible state, and the former is used on mouse hover.
 		Example uses of this class are for a mod's edit/config buttons and web links. """
 
-	def __init__( self, parent, imageName, callback, hovertext='' ):
+	def __init__( self, parent, imageName, callback, hovertext='', *args, **kwargs ):
 		# Get the images needed
 		if imageName:
 			self.defaultImage = globalData.gui.imageBank( imageName + 'Gray', showWarnings=False )
@@ -1401,7 +1401,7 @@ class LabelButton( Tk.Label ):
 		self.isHovered = False
 
 		# Initialize the label with one of the above images
-		Tk.Label.__init__( self, parent, image=self.defaultImage, borderwidth=0, highlightthickness=0, cursor='hand2' )
+		ttk.Label.__init__( self, parent, image=self.defaultImage, cursor='hand2', *args, **kwargs )
 
 		# Bind click and mouse hover events
 		self.bind( '<1>', self.callback )
@@ -1426,7 +1426,7 @@ class LabelButton( Tk.Label ):
 			self.toolTip = ToolTip( self, textvariable=self.toolTipVar, delay=700, wraplength=800, justify='center' )
 			
 
-class ToggleButton( Tk.Label ):
+class ToggleButton( ttk.Label ):
 
 	""" Similar to a LabelButton, but toggles between states on click (indicated by images). 
 		Expects RGBA images named '[name]State1.png' and '[name]State2.png' (if the default image 
@@ -1434,7 +1434,7 @@ class ToggleButton( Tk.Label ):
 		The latter is used for the default visible state, and the former is used on mouse hover.
 		Example uses of this class are for a mod's edit/config buttons and web links. """
 
-	def __init__( self, parent, imageName, callback, hovertext='' ):
+	def __init__( self, parent, imageName, callback, hovertext='', *args, **kwargs ):
 		# Get the images needed
 		self.imageState1 = globalData.gui.imageBank( imageName + 'State1', showWarnings=False )
 		self.imageState2 = globalData.gui.imageBank( imageName + 'State2', showWarnings=False )
@@ -1445,7 +1445,7 @@ class ToggleButton( Tk.Label ):
 		self.enabled = False
 
 		# Initialize the label with one of the above images
-		Tk.Label.__init__( self, parent, image=self.imageState1, borderwidth=0, highlightthickness=0, cursor='hand2' )
+		ttk.Label.__init__( self, parent, image=self.imageState1, cursor='hand2', *args, **kwargs )
 
 		# Bind click event
 		self.bind( '<1>', self.toggle )
@@ -1559,11 +1559,11 @@ class Dropdown( ttk.OptionMenu ):
 
 	def __init__( self, parent, options, default='', variable=None, command=None, **kwargs ):
 
-		self.command = command
 		if not default:
 			default = options[0]
 		if not variable:
 			variable = Tk.StringVar()
+		self.command = command
 
 		if command:
 			assert callable( command ), 'The given command is not callable! {}'.format( command )
@@ -2204,9 +2204,9 @@ class Item( ttk.Frame ):
 
 		self.place(in_=container, x=x, y=y, width=self._width, height=self._height)
 
-		self.bind_class(self._tag, "<ButtonPress-1>", self._on_selection)
-		self.bind_class(self._tag, "<B1-Motion>", self._on_drag)
-		self.bind_class(self._tag, "<ButtonRelease-1>", self._on_drop)
+		self.bind_class(self._tag, "<ButtonPress-1>", self._on_selection, '+')
+		self.bind_class(self._tag, "<B1-Motion>", self._on_drag, '+')
+		self.bind_class(self._tag, "<ButtonRelease-1>", self._on_drop, '+')
 
 		self._add_bindtag(self)
 		
@@ -2272,7 +2272,7 @@ class DDList( ttk.Frame ):
 
 		Source: https://code.activestate.com/recipes/580717-sortable-megawidget-in-tkinter-like-the-sortable-w/ """
 
-	def __init__(self, master, item_width, item_height, item_relief=None, item_borderwidth=None, item_padding=None, item_style=None, offset_x=0, offset_y=0, gap=0, **kwargs):
+	def __init__(self, master, item_width, item_height, item_relief=None, item_borderwidth=None, item_padding=None, item_style=None, reorder_callback=None, offset_x=0, offset_y=0, gap=0, **kwargs):
 		kwargs["width"] = item_width+offset_x*2
 		kwargs["height"] = offset_y*2
 
@@ -2282,6 +2282,7 @@ class DDList( ttk.Frame ):
 		self._item_relief = item_relief
 		self._item_padding = item_padding
 		self._item_style = item_style
+		self.reorder_callback = reorder_callback
 		self._item_width = item_width - offset_x
 		#self._item_width = item_width - offset_x * 2 - 4
 		self._item_height = item_height
@@ -2293,7 +2294,7 @@ class DDList( ttk.Frame ):
 		self._top = offset_y
 		#self._right = self._offset_x + self._item_width
 		self._right = self._offset_x * 2 + self._item_width
-		self._bottom = self._offset_y
+		self._bottom = self._offset_y * 2
 
 		self._gap = gap
 
@@ -2341,8 +2342,8 @@ class DDList( ttk.Frame ):
 		
 		# Adjust the height of this item list (container)
 		self._bottom += difference
-		self.configure(height=self._bottom + self._offset_y)
-		self.master.event_generate( '<Configure>' )
+		self.configure(height=self._bottom)
+		#self.master.event_generate( '<Configure>' )
 
 	def create_item(self, value=None, **kwargs):
 		
@@ -2361,6 +2362,8 @@ class DDList( ttk.Frame ):
 			kwargs.setdefault("padding", self._item_padding)
 
 		item = Item(self.master, value, self._item_width, self._item_height, self._on_item_selected, self._on_item_dragged, self._on_item_dropped, **kwargs)
+		item.selected = False
+
 		return item
 
 	def configure_items(self, **kwargs):
@@ -2393,7 +2396,10 @@ class DDList( ttk.Frame ):
 		else:
 			self._bottom += self._item_height + self._gap
 			
-		self.configure(height=self._bottom + self._offset_y)
+		self.configure(height=self._bottom)
+
+		if self.reorder_callback:
+			self.reorder_callback()
 
 		return item
 
@@ -2406,6 +2412,7 @@ class DDList( ttk.Frame ):
 				raise ValueError("Item index out of range")
 
 		item = self._list_of_items.pop(index)
+		shrinkAmount = item._height + self._gap
 		value = item.value
 
 		del self._position[item]
@@ -2414,15 +2421,18 @@ class DDList( ttk.Frame ):
 		
 		for i in range(index, len(self._list_of_items)):
 			_item = self._list_of_items[i]
-			_item.move(0, -(self._item_height+self._gap))
+			_item.move(0, -shrinkAmount)
 			self._position[_item] -= 1
 		
 		if len(self._list_of_items) == 0:
-			self._bottom -= self._item_height
+			self._bottom = self._offset_y*2
 		else:
-			self._bottom -= self._item_height + self._gap
+			self._bottom -= shrinkAmount
 
-		self.configure(height=self._bottom + self._offset_y)
+		self.configure(height=self._bottom)
+
+		if self.reorder_callback:
+			self.reorder_callback()
 		
 		return value
 
@@ -2436,8 +2446,11 @@ class DDList( ttk.Frame ):
 		self._list_of_items = []
 		self._position = {}
 
-		self._bottom = self._offset_y
-		self.configure(height=self._bottom + self._offset_y)
+		self._bottom = self._offset_y*2
+		self.configure(height=self._bottom)
+
+		if self.reorder_callback:
+			self.reorder_callback()
 	
 	def pop(self):
 		return self.delete_item(-1)
@@ -2464,11 +2477,10 @@ class DDList( ttk.Frame ):
 				_item.configure(style=self._item_style)
 			elif _item == item:
 				_item.configure(style='SeletectedItem.TFrame')
+				_item.selected = True
 			else:
 				_item.configure(style='NonSeletectedItem.TFrame')
-			_item.selected = False
-
-		self.selected = True
+				_item.selected = False
 
 		self._index_of_selected_item = self._position[item]
 		self._index_of_empty_container = self._index_of_selected_item
@@ -2478,7 +2490,7 @@ class DDList( ttk.Frame ):
 		if self._left < x < self._right and self._top < y < self._bottom:
 
 			quotient, remainder = divmod(y-self._offset_y, item.height + self._gap)
-			print( 'quotient', quotient, 'remainder', remainder)
+			#print( 'quotient', quotient, 'remainder', remainder)
 
 			if remainder < item.height:
 			
@@ -2526,10 +2538,18 @@ class DDList( ttk.Frame ):
 			y += _item.height + self._gap
 		
 		item.set_position(x,y)
+
+		lowestIndex = min( self._index_of_selected_item, self._index_of_empty_container )
+		highestIndex = max( self._index_of_selected_item, self._index_of_empty_container )
 		
-		for i in range(min(self._index_of_selected_item, self._index_of_empty_container),max(self._index_of_selected_item, self._index_of_empty_container)+1):
+		# reordered = False
+		for i in range(lowestIndex, highestIndex+1):
 			item = self._list_of_items[i]
 			self._position[item] = i
+			# reordered = True
 
 		self._index_of_empty_container = None
 		self._index_of_selected_item = None
+
+		# if reordered and self.reorder_callback:
+		# 	self.reorder_callback()

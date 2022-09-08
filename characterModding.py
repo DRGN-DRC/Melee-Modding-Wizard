@@ -12,6 +12,7 @@
 # External Dependencies
 import ttk
 import bitstring
+import tkMessageBox
 import Tkinter as Tk
 
 from binascii import hexlify
@@ -19,8 +20,8 @@ from basicFunctions import msg, printStatus
 
 # Internal Dependencies
 import globalData
-from FileSystem.charFiles import CharDataFile, SubAction
-from guiSubComponents import ColoredLabelButton, DDList, HexEditEntry, LabelButton, ToggleButton, ToolTip, VerticalScrolledFrame
+from FileSystem.charFiles import CharDataFile, SubAction, SubActionEvent
+from guiSubComponents import BasicWindow, ColoredLabelButton, DDList, HexEditEntry, LabelButton, ToggleButton, ToolTip, VerticalScrolledFrame
 
 
 class CharModding( ttk.Notebook ):
@@ -266,6 +267,8 @@ class SubActionEditor( ttk.Frame, object ):
 
 		self.actionTable = parent.charFile.getActionTable()
 		self.charFile = parent.charFile
+		self.subActionStruct = None
+		self.lastSelection = -1
 
 		# Add the action table pane's title
 		title = '{} Action Table  (0x{:X})'.format( self.charFile.filename, self.actionTable.offset + 0x20 )
@@ -273,12 +276,11 @@ class SubActionEditor( ttk.Frame, object ):
 
 		# Add the action table list and its scrollbar
 		subActionScrollBar = Tk.Scrollbar( self, orient='vertical' )
-		self.subActionList = Tk.Listbox( self, yscrollcommand=subActionScrollBar.set, activestyle='none', selectbackground='#78F' )
+		self.subActionList = Tk.Listbox( self, width=38, yscrollcommand=subActionScrollBar.set, activestyle='none', selectbackground='#78F' )
 		subActionScrollBar.config( command=self.subActionList.yview )
 		for i, values in self.actionTable.iterateEntries():
-			gameName = self.getSubActionName( values[0], i )
-			translatedName = self.charFile.subActionTranslations.get( gameName, gameName ) # Defaults to gameName if translation not found
-			self.subActionList.insert( i, '  ' + translatedName )
+			subActionName = self.getSubActionName( values[0], i )
+			self.subActionList.insert( i, '  ' + subActionName.replace(' (', '    (') )
 		self.subActionList.bind( '<<ListboxSelect>>', self.subActionSelected )
 		self.subActionList.grid( column=0, row=1, sticky='nsew' )
 		subActionScrollBar.grid( column=1, row=1, sticky='ns' )
@@ -286,7 +288,7 @@ class SubActionEditor( ttk.Frame, object ):
 		# Pane for showing subAction events (empty for now)
 		ttk.Label( self, text='Event Display:' ).grid( column=2, row=0 )
 		scrollPane = VerticalScrolledFrame( self )
-		self.displayPane = DDList( scrollPane.interior, 500, 40, item_borderwidth=2, offset_x=2, offset_y=2, gap=2 )
+		self.displayPane = DDList( scrollPane.interior, 500, 40, item_borderwidth=2, reorder_callback=self.reordered, offset_x=2, offset_y=2, gap=2 )
 		self.displayPaneMessage = None
 		self.displayPane.pack( fill='both', expand=True )
 		scrollPane.grid( column=2, row=1, sticky='nsew' )
@@ -295,37 +297,43 @@ class SubActionEditor( ttk.Frame, object ):
 		infoPane = ttk.Frame( self )
 		emptyWidget = Tk.Frame( relief='flat' ) # This is used as a simple workaround for the labelframe, so we can have no text label with no label gap.
 		generalInfoBox = ttk.Labelframe( infoPane, labelwidget=emptyWidget, padding=(20, 5) )
-		self.subActionId = Tk.StringVar( value='SubAction ID:' )
+		#self.subActionId = Tk.StringVar( value='SubAction ID:' )
 		self.subActionIndex = Tk.StringVar( value='SubAction Table Index:' )
-		#self.subActionFlags = Tk.StringVar( value='SubAction Flags:' )
 		self.subActionAnimOffset = Tk.StringVar( value='Animation (AJ) Offset:' )
 		self.subActionAnimSize = Tk.StringVar( value='Animation (AJ) Size:' )
 		self.subActionEventsOffset = Tk.StringVar( value='Events Offset:' )
 		self.subActionEventsSize = Tk.StringVar( value='Events Table Size:' )
-		ttk.Label( generalInfoBox, textvariable=self.subActionId ).pack()
+		#ttk.Label( generalInfoBox, textvariable=self.subActionId ).pack()
 		ttk.Label( generalInfoBox, textvariable=self.subActionIndex ).pack()
-		#ttk.Label( generalInfoBox, textvariable=self.subActionFlags ).pack()
-		ttk.Label( generalInfoBox, textvariable=self.subActionAnimOffset ).pack( pady=(6, 0) )
+		ttk.Label( generalInfoBox, textvariable=self.subActionAnimOffset ).pack( pady=(7, 0) )
 		ttk.Label( generalInfoBox, textvariable=self.subActionAnimSize ).pack()
-		ttk.Label( generalInfoBox, textvariable=self.subActionEventsOffset ).pack( pady=(6, 0) )
+		ttk.Label( generalInfoBox, textvariable=self.subActionEventsOffset ).pack( pady=(7, 0) )
 		ttk.Label( generalInfoBox, textvariable=self.subActionEventsSize ).pack()
 		generalInfoBox.pack( fill='x', expand=True )
 		
 		flagsBox = ttk.Labelframe( infoPane, text=' SubAction Flags ', padding=(20, 5) )
-		#self.subActionIndex = Tk.StringVar( value='SubAction Table Index:' )
-		ttk.Label( flagsBox, text='TEST' ).pack()
+		self.subActionFlags = Tk.StringVar( value='SubAction Flags:' )
+		ttk.Label( flagsBox, textvariable=self.subActionFlags ).pack()
 		flagsBox.pack( fill='x', expand=True, pady=20 )
 
 		buttonsFrame = ttk.Frame( infoPane )
-		ColoredLabelButton( buttonsFrame, 'delete', None, 'Delete Event', '#f04545' ).grid( column=0, row=0, pady=4, padx=4 )
+		ColoredLabelButton( buttonsFrame, 'delete', self.deleteEvent, 'Delete Event', '#f04545' ).grid( column=0, row=0, pady=4, padx=4 )
 		ColoredLabelButton( buttonsFrame, 'expand', self.expandAll, 'Expand All' ).grid( column=1, row=0, pady=4, padx=4 )
 		ColoredLabelButton( buttonsFrame, 'collapse', self.collapseAll, 'Collapse All' ).grid( column=2, row=0, pady=4, padx=4 )
-		ColoredLabelButton( buttonsFrame, 'save', None, 'Save Changes', '#292' ).grid( column=3, row=0, pady=4, padx=4 )
-		ColoredLabelButton( buttonsFrame, 'insert', None, 'Insert New Event' ).grid( column=4, row=0, pady=4, padx=4 )
+		ColoredLabelButton( buttonsFrame, 'save', self.saveEventChanges, 'Save Changes', '#292' ).grid( column=3, row=0, pady=4, padx=4 )
+		insertBtn = LabelButton( buttonsFrame, 'insert', self.insertEventBefore, 'Insert New Event\n\n(Before selection. Shift-click\nto insert after selection.)' )
+		insertBtn.bind( '<Shift-Button-1>', self.insertEventAfter )
+		insertBtn.grid( column=4, row=0, pady=4, padx=4 )
 		buttonsFrame.columnconfigure( 'all', weight=1 )
 		buttonsFrame.pack( fill='x', expand=True, pady=20 )
 
-		infoPane.grid( column=3, row=1, padx=20, pady=10 )
+		self.noteStringFrame = ttk.Frame( infoPane )
+		self.noteStringVar = Tk.StringVar( value='TEST' )
+		ttk.Label( self.noteStringFrame, textvariable=self.noteStringVar, foreground='#a34343' ).pack( side='left', pady=0 )
+		self.expandInfoBtn = None
+		self.noteStringFrame.pack( fill='x', expand=True, pady=0 )
+
+		infoPane.grid( column=3, row=1, sticky='ew', padx=20, pady=0 )
 
 		# Configure row/column stretch and resize behavior
 		self.columnconfigure( 0, weight=1 ) # SubAction Listbox
@@ -339,41 +347,74 @@ class SubActionEditor( ttk.Frame, object ):
 		if namePointer == 0:
 			return 'Entry ' + str( index + 1 )
 		else:
-			return self.charFile.getString( namePointer ).split( 'ACTION_' )[1].split( '_figatree' )[0]
+			gameName = self.charFile.getString( namePointer ).split( 'ACTION_' )[1].split( '_figatree' )[0] # e.g. 'WallDamage'
+			translatedName = self.charFile.subActionTranslations.get( gameName )
 
-	def subActionSelected( self, event ):
+			if translatedName:
+				return '{} ({})'.format( translatedName, gameName )
+			else:
+				return gameName
+
+	def hasUnsavedChanges( self ):
+		if not self.subActionStruct:
+			return False
+
+		self.subActionStruct.rebuild()
+
+		return ( self.subActionStruct.origData != self.subActionStruct.data )
+
+	def subActionSelected( self, guiEvent ):
+
+		# Check for unsaved changes that the user might want
+		if self.hasUnsavedChanges():
+			proceed = tkMessageBox.askyesno( 'Unsaved Changes Detected', 'It appears there are unsaved changes with these events.\n\nDo you want to discard these changes?' )
+			if proceed: # Discard changes
+				self.subActionStruct.events = []
+				self.subActionStruct.data = self.subActionStruct.origData
+				self.subActionStruct.length = -1
+			else:
+				# Do not proceed; keep the previous selection and do nothing
+				self.subActionList.selection_clear( 0, 'end' )
+				self.subActionList.selection_set( self.lastSelection )
+				return
 
 		# Get the subAction index and values from the subaction entry
 		selection = self.subActionList.curselection()
 		if not selection:
 			return
 		index = selection[0]
+		self.lastSelection = index
 		entry = self.actionTable.getEntryValues( index )
 		
 		# Update general info display
-		self.subActionId.set( 'SubAction ID:  0x{:X}'.format(entry[4]) )
+		#self.subActionId.set( 'SubAction ID:  0x{:X}'.format(entry[4]) )
 		self.subActionIndex.set( 'SubAction Table Index:  0x{:X}'.format(index) )
-		#self.subActionFlags.set( 'SubAction Flags:  0x{:X}'.format(entry[5]) )
 		self.subActionAnimOffset.set( 'Animation (AJ) Offset:  0x{:X}'.format(0x20+entry[1]) )
 		self.subActionAnimSize.set( 'Animation (AJ) Size:  0x{:X}'.format(entry[2]) )
 		self.subActionEventsOffset.set( 'Events Offset:  0x{:X}'.format(0x20+entry[3]) )
+
+		# Update flags display
+		self.subActionFlags.set( 'SubAction Flags:  0x{:X}'.format(entry[4]) )
 
 		# Clear the events display pane
 		self.displayPane.delete_all_items()
 
 		# Get the subAction events structure and parse it
 		try:
-			subActionStruct = self.charFile.initDataBlock( SubAction, entry[3], self.actionTable.offset )
-			subActionStruct.parse()
-			self.subActionEventsSize.set( 'Events Table Size:  0x{:X}'.format(subActionStruct.getLength()) )
+			self.subActionStruct = self.charFile.initDataBlock( SubAction, entry[3], self.actionTable.offset )
+			self.subActionStruct.parse()
+			#self.subActionStruct.unsavedChanges = False
+			self.subActionStruct.origData = self.subActionStruct.data
+			self.subActionEventsSize.set( 'Events Table Size:  0x{:X}'.format(self.subActionStruct.getLength()) )
 		except Exception as err:
+			self.subActionStruct = None
 			subActionName = self.getSubActionName( entry[0], index )
 			printStatus( 'Unable to parse {} subAction (index {}); {}'.format(subActionName, index, err) )
 			self.subActionEventsSize.set( 'Events Table Size:  N/A' )
 			return
 
 		# Show that there are no events to display if there are none (i.e. only has an End of Script event)
-		if len( subActionStruct.events ) == 1 and subActionStruct.events[0].id == 0:
+		if len( self.subActionStruct.events ) == 1 and self.subActionStruct.events[0].id == 0:
 			if not self.displayPaneMessage:
 				self.displayPaneMessage = ttk.Label( self, text='No events' )
 				self.displayPaneMessage.grid( column=2, row=1, sticky='n', pady=150 )
@@ -384,7 +425,7 @@ class SubActionEditor( ttk.Frame, object ):
 
 			# Populate the events display pane
 			self.displayPane.update_width()
-			for event in subActionStruct.events:
+			for event in self.subActionStruct.events:
 				# Exit on End of Script event
 				if event.id == 0:
 					break
@@ -399,7 +440,26 @@ class SubActionEditor( ttk.Frame, object ):
 				# Add the GUI module to the display panel
 				self.displayPane.add_item( item )
 
-	def expandAll( self, event ):
+	def deleteEvent( self, guiEvent ):
+
+		# Sanity checks; ensure there's something to delete and the GUI is still in sync (just in case)
+		if len( self.displayPane._list_of_items ) == 0:
+			return
+		elif self.subActionStruct.events[-1].id == 0: # Last item is End of Script (not shown in GUI)
+			assert len( self.displayPane._list_of_items ) == len( self.subActionStruct.events ) - 1, 'Mismatch between self.subActionStruct.events and GUI!'
+		else:
+			assert len( self.displayPane._list_of_items ) == len( self.subActionStruct.events ), 'Mismatch between self.subActionStruct.events and GUI!'
+
+		# Check for a selected item and delete it from the GUI and the events list structure
+		for i, item in enumerate( self.displayPane._list_of_items ):
+			if item.selected:
+				self.subActionStruct.deleteEvent( i )
+				self.displayPane.delete_item( item )
+				#self.subActionStruct.unsavedChanges = True
+				self.updateExpansionWarning()
+				break
+
+	def expandAll( self, guiEvent ):
 		for item in self.displayPane._list_of_items:
 			eM = item.eventModule
 			
@@ -407,7 +467,7 @@ class SubActionEditor( ttk.Frame, object ):
 			if eM.expandBtn and not eM.expanded:
 				eM.expandBtn.toggle()
 
-	def collapseAll( self, event ):
+	def collapseAll( self, guiEvent ):
 		for item in self.displayPane._list_of_items:
 			eM = item.eventModule
 			
@@ -415,11 +475,126 @@ class SubActionEditor( ttk.Frame, object ):
 			if eM.expanded: # No need to check for button; can't be expanded without it
 				eM.expandBtn.toggle()
 
+	def saveEventChanges( self, guiEvent ):
+		if not self.subActionStruct:
+			globalData.gui.updateProgramStatus( 'No subAction events struct has been loaded.' )
+			return
+		
+		# Construct a new bytearray for .data based on the current events
+		self.subActionStruct.rebuild()
+		if self.subActionStruct.origData == self.subActionStruct.data:
+			globalData.gui.updateProgramStatus( 'No subAction data needs to be saved.' )
+			return
+		self.subActionStruct.origData = self.subActionStruct.data
+
+		# Save this new data to the file
+		entry = self.actionTable.getEntryValues( self.lastSelection )
+		subActionName = self.getSubActionName( entry[0], self.lastSelection )
+		self.charFile.updateStruct( self.subActionStruct, 'SubAction event data for {} updated'.format(subActionName) )
+
+	def reordered( self ):
+		print( 'reordered' )
+
+	def insertEventBefore( self, guiEvent ):
+		# Get the index to insert above
+		for i, item in enumerate( self.displayPane._list_of_items ):
+			if item.selected:
+				index = i
+				break
+		else: # No selected item
+			index = 0
+
+		self.insertEvent( index )
+
+	def insertEventAfter( self, guiEvent ):
+		# Get the index to insert above
+		for i, item in enumerate( self.displayPane._list_of_items ):
+			if item.selected:
+				index = i + 1
+				break
+		else: # No selected item
+			index = len( self.displayPane._list_of_items )
+
+		self.insertEvent( index )
+
+	def insertEvent( self, index ):
+		# Prompt the user for the kind of event to add
+		window = EventChooser( self.charFile, index )
+		if not window.event: # User canceled
+			return
+		
+		# Create a GUI module for the event
+		item = self.displayPane.create_item()
+		helpMessage = self.charFile.eventNotes.get( '0x{:02X}'.format(window.event.id), '' )
+		eM = EventModule( item, window.event, self.displayPane, helpMessage, True )
+		eM.pack( fill='both', expand=True )
+		item.eventModule = eM # Useful for the expand/collapse methods below
+
+		# Add the GUI module to the display panel
+		self.displayPane.add_item( item, index )
+		self.displayPane._on_item_selected( item )
+
+		# Add the event to the subAction/events data struct
+		window.event.modified = True # Flag that its data needs to be packed
+		self.subActionStruct.events.insert( index, window.event )
+
+		# Expand the selection if editable fields are present (using the method on the expand/collapse button to expand)
+		if eM.expandBtn:
+			eM.expandBtn.toggle()
+
+		#self.subActionStruct.unsavedChanges = True
+		self.updateExpansionWarning()
+
+	def updateExpansionWarning( self ):
+		# Determine the length of the events struct as it is now
+		newLength = 0
+		for event in self.subActionStruct.events:
+			newLength += event.length
+
+		if newLength > self.subActionStruct.length:
+			self.noteStringVar.set( 'Expansion required.' )
+
+			# Add the info button if it's not there
+			if not self.expandInfoBtn:
+				self.expandInfoBtn = LabelButton( self.noteStringFrame, 'question', self.showExpansionInfo, 'Details' )
+				self.expandInfoBtn.pack( side='right' )
+		else:
+			self.noteStringVar.set( '' )
+			
+			# Remove the info button if it's there
+			if self.expandInfoBtn:
+				self.expandInfoBtn.destroy()
+				self.expandInfoBtn = None
+
+	def showExpansionInfo( self, guiEvent ):
+		# Determine the length of the events struct as it is now
+		newLength = 0
+		for event in self.subActionStruct.events:
+			newLength += event.length
+
+		diff = newLength - self.subActionStruct.length
+		msg( ('The data for this structure is larger than the original, which means that saving '
+			'it back into the file will require expanding the space at offset 0x{:X}. Data after '
+			'this offset will be shifted forward by 0x{:X} bytes, and pointers following this '
+			'offset will be recalculated.').format(self.subActionStruct.offset, diff), 'File Expansion Warning', warning=True )
+
 
 class EventModule( ttk.Frame, object ):
 
-	def __init__( self, parentItem, event, displayPane, helpMessage ):
-		super( EventModule, self ).__init__( parentItem )
+	def __init__( self, parentItem, event, displayPane, helpMessage, newItem=False ):
+		
+		if newItem:
+			# Define a slightly different appearance for new items
+			globalData.gui.style.configure( 'NewEventItem.TFrame', background='#d7f0d7' )
+			globalData.gui.style.configure( 'NewEventItem.TLabel', background='#d7f0d7' )
+
+			self.frameStyle = 'NewEventItem.TFrame'
+			self.labelStyle = 'NewEventItem.TLabel'
+		else:
+			self.frameStyle = None
+			self.labelStyle = None
+		
+		super( EventModule, self ).__init__( parentItem, style=self.frameStyle )
 
 		self.name = event.name
 		self.event = event
@@ -428,25 +603,28 @@ class EventModule( ttk.Frame, object ):
 		self.helpMsg = helpMessage
 
 		# Add the title, expand button, and info button
-		headerRow = ttk.Frame( self )
-		label = ttk.Label( headerRow, text=self.name, font=('Palatino Linotype', 11, 'bold') )
+		headerRow = ttk.Frame( self, style=self.frameStyle )
+		label = ttk.Label( headerRow, text=self.name, font=('Palatino Linotype', 11, 'bold'), style=self.labelStyle )
 		label.pack( side='left', padx=(12,0), pady=(4,0) )
 		
 		if self.event.fields:
-			self.expandBtn = ToggleButton( headerRow, 'expandArrow', self.toggleState )
+			self.expandBtn = ToggleButton( headerRow, 'expandArrow', self.toggleState, style=self.labelStyle )
 			self.expandBtn.pack( side='left', padx=(12,0), pady=(3, 0) )
 		else:
 			self.expandBtn = None
 
 		if self.helpMsg:
-			helpBtn = LabelButton( headerRow, 'question', self.showHelp, 'Info' )
+			helpBtn = LabelButton( headerRow, 'question', self.showHelp, 'Info', style=self.labelStyle )
 			helpBtn.pack( side='right', padx=12, pady=(1, 0) )
 		headerRow.pack( fill='x', expand=True )
 
+		# Bind button release events to check for event drag-and-drop reordering
+		#parentItem.bind_class( parentItem._tag, "<ButtonRelease-1>", self.dropped )
+
 		if self.event.fields:
+			self.bind( '<Double-Button-1>', self.expandBtn.toggle )
 			label.bind( '<Double-Button-1>', self.expandBtn.toggle )
 			headerRow.bind( '<Double-Button-1>', self.expandBtn.toggle )
-			self.bind( '<Double-Button-1>', self.expandBtn.toggle )
 		
 	def toggleState( self, tkEvent=None ):
 		if self.expanded:
@@ -459,7 +637,7 @@ class EventModule( ttk.Frame, object ):
 			return
 
 		# Construct the event details labels
-		containingFrame = ttk.Frame( self )
+		containingFrame = ttk.Frame( self, style=self.frameStyle )
 		index = 0
 
 		for valueName, value in zip( self.event.fields, self.event.values ):
@@ -467,8 +645,8 @@ class EventModule( ttk.Frame, object ):
 				index += 1
 				continue
 
-			title = ttk.Label( containingFrame, text=valueName + ' :' )
-			title.grid( column=0, row=index )
+			title = ttk.Label( containingFrame, text=valueName + ' :', style=self.labelStyle )
+			title.grid( column=0, row=index, padx=15 )
 			if self.event.fields:
 				title.bind( '<Double-Button-1>', self.expandBtn.toggle )
 
@@ -478,7 +656,7 @@ class EventModule( ttk.Frame, object ):
 			entry.bind( '<Return>', self.updateValue )
 			entry.index = index
 			entry.insert( 0, value )
-			entry.grid( column=1, row=index, padx=15 )
+			entry.grid( column=1, row=index )
 			index += 1
 
 		containingFrame.pack( anchor='w', padx=(42,0), pady=(4,6) )
@@ -526,3 +704,82 @@ class EventModule( ttk.Frame, object ):
 		title, message = self.helpMsg.split( '|' )
 		msg( message, title )
 
+
+class EventChooser( BasicWindow ):
+
+	def __init__( self, charFile, index=None ):
+
+		windowWidth = 320
+
+		BasicWindow.__init__( self, globalData.gui.root, 'Add Event', resizable=True, minsize=(windowWidth, 600) )
+
+		self.charFile = charFile
+		self.event = None
+
+		ttk.Label( self.window, text='Choose the type of event to add:' ).pack( pady=12 )
+		
+		# Add the events list and its scrollbar
+		eventsListFrame = ttk.Frame( self.window )
+		eventsScrollBar = Tk.Scrollbar( eventsListFrame, orient='vertical' )
+		self.eventsList = Tk.Listbox( eventsListFrame, yscrollcommand=eventsScrollBar.set, activestyle='none', selectbackground='#78F' )
+		eventsScrollBar.config( command=self.eventsList.yview )
+		for eventId in range( 1, 0x3C ):
+			eventName = SubAction.eventDesc[eventId][0]
+			self.eventsList.insert( eventId, '{}    (0x{:02X} | 0x{:02X})'.format(eventName, eventId, eventId * 4) )
+		self.eventsList.bind( '<<ListboxSelect>>', self.eventSelected )
+		self.eventsList.grid( column=0, row=1, sticky='nsew' )
+		eventsScrollBar.grid( column=1, row=1, sticky='ns' )
+		eventsListFrame.pack( fill='both', expand=True, padx=8 )
+		
+		eventsListFrame.columnconfigure( 0, weight=1 )
+		eventsListFrame.columnconfigure( 1, weight=0 ) # Scrollbar
+		eventsListFrame.rowconfigure( 1, weight=1 )
+
+		self.helpText = Tk.StringVar()
+		ttk.Label( self.window, textvariable=self.helpText, wraplength=windowWidth-20 ).pack( padx=10, pady=(14, 0) )
+
+		buttonsFrame = ttk.Frame( self.window )
+		ttk.Button( buttonsFrame, text='Cancel', command=self.cancel ).pack( side='left', padx=20 )
+		ttk.Button( buttonsFrame, text='Submit', command=self.submit ).pack( side='left', padx=20 )
+		buttonsFrame.pack( expand=False, pady=14 )
+
+		# Make this window modal (will not allow the user to interact with main GUI until this is closed)
+		self.window.grab_set()
+		globalData.gui.root.wait_window( self.window )
+
+	def getEventCode( self ):
+		# Get the selection and its index
+		selection = self.eventsList.curselection()
+		if not selection:
+			return None
+		else:
+			return selection[0] + 1 # Need to add 1 since EoS event is excluded from list
+
+	def eventSelected( self, guiEvent ):
+
+		""" Pulls from the CharDataTranslations.json file, which also contains notes on events purposes. """
+
+		eventCode = self.getEventCode()
+		if not eventCode: return
+
+		eventNote = self.charFile.eventNotes.get( '0x{:02X}'.format(eventCode), '' )
+		if eventNote:
+			self.helpText.set( eventNote.split( '|' )[1] ) # Removes title
+		else:
+			self.helpText.set( '' )
+
+	def cancel( self ):
+		self.event = None
+		self.close()
+
+	def submit( self ):
+		eventCode = self.getEventCode()
+		if not eventCode: return
+
+		# Create an event object
+		eventDesc = SubAction.eventDesc[eventCode]
+		length = eventDesc[1]
+		eventData = bytearray( length )
+		self.event = SubActionEvent( eventCode, eventDesc[0], length, eventDesc[2], eventDesc[3], eventData )
+		
+		self.close()

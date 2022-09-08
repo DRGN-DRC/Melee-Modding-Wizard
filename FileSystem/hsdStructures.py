@@ -44,6 +44,7 @@ class StructBase( object ):
 		self.dat 			= datSource				# Host DAT File object
 		self.offset 		= dataSectionOffset
 		self.data			= ()					# Will become a bytearray
+		self.padding		= 0
 		self.name 			= 'Struct ' + uHex( 0x20 + dataSectionOffset )
 		self.label 			= datSource.getStructLabel( dataSectionOffset ) # From the DAT's string table
 		self.fields			= ()
@@ -90,7 +91,7 @@ class StructBase( object ):
 
 		# Separate the actual struct data from any padding, and perform some basic validation
 		structData = self.dat.getData( self.offset, deducedStructLength )
-		paddingData = structData[ self.offset + self.length:]
+		paddingData = structData[self.offset + self.length:]
 		structData = structData[:self.length] # Trim off any padding
 		if not any( structData ):
 			# Check if there's a class hint for this struct
@@ -107,7 +108,7 @@ class StructBase( object ):
 
 		# Invalidate based on the expectation of children
 		if not self.childClassIdentities and self.hasChildren():
-			print 'Invalidating Struct ', hex(0x20+self.offset), 'as', self.__class__, 'since it has children'
+			print( 'Invalidating {} as {} since it has children'.format(self.name, self.__class__.__name__) )
 			return False
 
 		try:
@@ -136,7 +137,7 @@ class StructBase( object ):
 				for i, fieldFormat in enumerate( self.formatting[1:] ): # Skips the endianess indicator
 
 					if self.fields[i] == 'Padding' and fieldValues[i] != 0:
-						print 'Disqualifying {} as {} due to non-empty padding at {}: {}'.format( self.name, self.__class__.__name__, self.valueIndexToOffset(i), hex(fieldValues[i]) )
+						print( 'Invalidating {} as {} due to non-empty padding at 0x{:X}: 0x{:X}'.format(self.name, self.__class__.__name__, self.valueIndexToOffset(i), fieldValues[i]) )
 						isValid = False
 						break
 
@@ -188,7 +189,7 @@ class StructBase( object ):
 						raise ValueError( 'Unrecognized field formatting: ' + fieldFormat )
 
 		except Exception as err:
-			print err
+			print( err )
 			return False
 
 		if isValid:
@@ -232,10 +233,10 @@ class StructBase( object ):
 
 		# Perform some validation on the input
 		elif not self.fields:
-			print 'Unable to get a specific value; struct lacks known fields.'
+			print( 'Unable to get a specific value; struct lacks known fields.' )
 			return None
 		elif specificValue not in self.fields:
-			print 'Unable to get a specific value; field name not found.'
+			print( 'Unable to get a specific value; field name not found.' )
 			return None
 
 		# Get a specific value by field name
@@ -248,6 +249,7 @@ class StructBase( object ):
 		""" Resets this structure data and its values back to the data residing in the file. """
 
 		self.data = self.dat.getData( self.offset, self.length )
+		self.values = ()
 		self.getValues()
 
 	def getAnyDataSectionParent( self ):
@@ -465,7 +467,7 @@ class StructBase( object ):
 					allSiblingStructs.append( nextStruct )
 				else:
 					nextStruct = None
-					print 'Unable to init sibling of {}; failed at sibling offset 0x{:X}'.format( self.name, 0x20+siblingOffset )
+					print( 'Unable to init sibling of {}; failed at sibling offset 0x{:X}'.format(self.name, 0x20+siblingOffset) )
 
 					# Structure series invalidated. Re-initialize all structures encountered for this sibling set
 					for structure in allSiblingStructs:
@@ -714,7 +716,7 @@ class StructBase( object ):
 				break
 
 		if not self.structDepth:
-			print 'unable to get a struct depth for', self.name
+			print( 'Unable to get a struct depth for ' + self.name )
 
 		return self.structDepth
 

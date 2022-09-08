@@ -438,7 +438,7 @@ class DatFile( FileBase ):
 		self.rtData = bytearray()			# Relocation Table data
 		self.nodeTableData = bytearray()	# Root Nodes and Reference Nodes
 		self.stringTableData = bytearray()	# String Table data
-		self.tailData = bytearray()			# Extra custom/hacked data appearing after then normal end of the file
+		self.tailData = bytearray()			# Extra custom/hacked data appearing after then normal end of the file. (Support for old mods)
 
 		# Parsing determinations
 		self.headerInfo = {}
@@ -597,7 +597,7 @@ class DatFile( FileBase ):
 		try:
 			rootNodes = []; referenceNodes = []
 			nodePointerOffset = self.headerInfo['rtEnd']
-			nodesTable = [ self.nodeTableData[i:i+8] for i in xrange(0, len(self.nodeTableData), 8) ] # separates the data into groups of 8 bytes
+			nodesTable = [ self.nodeTableData[i:i+8] for i in range(0, len(self.nodeTableData), 8) ] # separates the data into groups of 8 bytes
 
 			for i, entry in enumerate( nodesTable ):
 				structOffset, stringOffset = struct.unpack( '>II', entry ) # Struct offset is the first 4 bytes; string offset is the second 4 bytes
@@ -1246,6 +1246,31 @@ class DatFile( FileBase ):
 
 			self.recordChange( description )
 
+	def updateStruct( self, structure, description='', trackChange=True ):
+
+		""" Saves changes made to a given struct to this file. """
+
+		# Add more space to the file, if needed
+		determinedLength = self.getStructLength( structure.offset ) # i.e. The current file space
+		if structure.length > determinedLength:
+			amountNeeded = structure.length - determinedLength
+			amountAdded = self.extendDataSpace( structure.offset, amountNeeded ) # Amount added may be larger than the amount needed
+			padding = determinedLength + amountAdded - structure.length
+			if padding > 0:
+				structure.padding = padding
+		elif structure.length < determinedLength:
+			# Zero out extra space
+			padding = determinedLength - structure.length
+			self.setData( structure.offset + structure.length, bytearray(padding) )
+
+		self.setData( structure.offset, structure.data )
+
+		# Record these changes
+		if trackChange:
+			if not description:
+				description = self.name + ' updated'
+			self.recordChange( description )
+
 	def updateStructValue( self, structure, valueIndex, newValue, description='', trackChange=True, entryIndex=0 ):
 		
 		""" Performs a similar function as the updateData method. However, this requires a known structure to exist, 
@@ -1364,9 +1389,9 @@ class DatFile( FileBase ):
 		try:
 			pointerValueIndex = self.pointerOffsets.index( offset )
 		except ValueError:
-			print 'Invalid offset given to removePointer;', hex(0x20+offset), 'is not a valid pointer offset.'
+			print( 'Invalid offset given to removePointer; 0x{:X} is not a valid pointer offset.'.format(0x20+offset) )
 		except Exception as err:
-			print err
+			print( err )
 
 		# Update header values
 		self.headerInfo['filesize'] -= 4
@@ -1400,47 +1425,50 @@ class DatFile( FileBase ):
 		description = 'Pointer removed at 0x{:X}.'.format( 0x20 + offset )
 		self.recordChange( description )
 
-	def collapseDataSpace( self, collapseOffset, amount ):
+	def collapseDataSpace( self, collapseOffset, amount, trackChange=False ):
 
-		""" Erases data space, starting at the given offset, including pointers and structures (and their references) in the affected area. """
+		""" Erases data space, starting at the given offset, including pointers 
+			and structures (and their references) in the affected area. 
+			Returns the amount the file was reduced by. """
 
 		# Perform some validation on the input
-		if amount == 0: return
+		if amount == 0: return 0
 		elif collapseOffset > len( self.data ):
 			if not self.tailData:
-				print 'Invalid offset provided for collapse; offset is too large'
-				return
+				raise Exception( 'Invalid offset provided for collapse; offset is too large: 0x{:X}'.format(collapseOffset) )
 
 			tailDataStart = self.headerInfo['stringTableStart'] + self.getStringTableSize()
 			if collapseOffset < tailDataStart:
-				print 'Invalid collapse offset provided; offset falls within RT, node tables, or string table'
-				return
+				raise Exception( 'Invalid collapse offset provided; offset falls within the RT, node tables, or string table' )
+
 			elif collapseOffset + amount > self.headerInfo['filesize'] - 0x20:
 				amount = self.headerInfo['filesize'] - 0x20 - collapseOffset
-				print 'Collapse space falls outside of the range of the file! The amount to remove is being adjusted to', hex(amount)
+				printStatus( 'Collapse space falls outside of the range of the file! The amount to remove is being adjusted to 0x{:X}'.format(amount), warning=True )
 		elif collapseOffset < len( self.data ) and collapseOffset + amount > len( self.data ):
 			amount = len( self.data ) - collapseOffset
-			print 'Collapse space overlaps into the Relocation Table! The amount to remove is being adjusted to', hex(amount)
+			printStatus( 'Collapse space overlaps into the Relocation Table! The amount to remove is being adjusted to 0x{:X}'.format(amount), warning=True )
 			
 		# Reduce the amount, if necessary, to preserve file alignment
 		if amount < 0x20:
-			print 'Collapse amount should be >= 0x20 bytes, to preserve file alignment.'
-			return
+			raise Exception( 'Collapse amount should be >= 0x20 bytes, to preserve file alignment. Attempted: 0x{:X}.'.format(amount) )
+		
 		elif amount % 0x20 != 0:
 			adjustment = amount % 0x20
 			amount -= adjustment
-			print 'Collapse amount decreased by', hex(adjustment) + ', to preserve file alignment'
+			print( 'Collapse amount decreased by 0x{:X}, to preserve file alignment'.format(adjustment) )
 
-			if amount == 0: return
+			if amount == 0: return 0
 
 		# Make sure we're only removing space from one structure
 		targetStructOffset = self.getPointerOwner( collapseOffset, offsetOnly=True )
 		structSize = self.getStructLength( targetStructOffset )
 		if collapseOffset + amount > targetStructOffset + structSize:
-			print 'Unable to collapse file space. Amount is greater than structure size'
-			return
+			raise Exception( 'Unable to collapse file space. Amount is greater than structure size' )
 
-		print 'Collapsing file data at', hex(0x20+collapseOffset), 'by', hex(amount)
+		if trackChange:
+			printStatus( 'Collapsing file data at 0x{:X} by 0x{:X}'.format(0x20+collapseOffset, amount) )
+		else:
+			print( 'Collapsing file data at 0x{:X} by 0x{:X}'.format(0x20+collapseOffset, amount) )
 
 		# Adjust the values in the pointer offset and structure offset lists (these changes are later saved to the Relocation table)
 		rtEntryCount = self.headerInfo['rtEntryCount']
@@ -1460,7 +1488,7 @@ class DatFile( FileBase ):
 
 				# Null the pointer value in the file and structure data
 				if i < rtEntryCount: # Still within the data section; not looking at node table pointers
-					print 'Nullifying pointer at', hex( 0x20+pointerOffset ), 'as it pointed into the area to be removed'
+					print( 'Nullifying pointer at 0x{:X} as it pointed into the area to be removed'.format(0x20+pointerOffset) )
 					self.setData( pointerOffset, bytearray(4) ) # Bytearray initialized with 4 null bytes
 
 			elif pointerValue > collapseOffset:
@@ -1469,22 +1497,22 @@ class DatFile( FileBase ):
 
 				# Update the pointer value in the file and structure data
 				if i < rtEntryCount: # Still within the data section; not looking at node table pointers
-					print 'Set pointer value at', hex(0x20+pointerOffset), 'to', hex(newPointerValue)
+					print( 'Set pointer value at 0x{:X} to 0x{:X}'.format(0x20+pointerOffset, newPointerValue) )
 					self.setData( pointerOffset, struct.pack('>I', newPointerValue) )
 
 		# Remove pointers and their offsets from their respective lists, and remove structs that fall in the area to be removed
-		pointersToRemove.sort( reverse=True ) # Needed so we don't start removing the wrong indices after the first
 		if pointersToRemove:
-			print 'Removing', len(pointersToRemove), 'pointers:'
-			print [ hex(0x20+self.pointerOffsets[i]-amount) for i in pointersToRemove ]
-		for pointerIndex in pointersToRemove:
-			del self.pointerOffsets[pointerIndex]
-			del self.pointerValues[pointerIndex]
+			pointersToRemove.sort( reverse=True ) # Needed so we don't start removing the wrong indices after the first
+			print( 'Removing {} pointers:'.format(len(pointersToRemove)) )
+			print( [ hex(0x20+self.pointerOffsets[i]-amount) for i in pointersToRemove ] )
+			for pointerIndex in pointersToRemove:
+				del self.pointerOffsets[pointerIndex]
+				del self.pointerValues[pointerIndex]
 		self.structs = {}
 		self.hintRootClasses()
 		self.rtNeedsRebuilding = True
 
-		# Update root nodes
+		# Update affected root nodes
 		newRootNodes = []
 		nodesModified = False
 		for structOffset, string in self.rootNodes:
@@ -1494,17 +1522,17 @@ class DatFile( FileBase ):
 			# Skip nodes that point to within the affected area, since they no longer point to anything
 			elif structOffset >= collapseOffset and structOffset < collapseOffset + amount:
 				self.stringDict = { key: val for key, val in self.stringDict.items() if val != string }
-				print 'Removing root node,', string
+				print( 'Removing root node, ' + string )
 				nodesModified = True
 			else: # Struct offset is past the affected area; just needs to be reduced
 				newRootNodes.append( (structOffset - amount, string) )
 				nodesModified = True
 		if nodesModified:
-			print 'Modified root nodes'
+			print( 'Modified root nodes' )
 			self.rootNodes = newRootNodes
 			self.nodesNeedRebuilding = True
 
-		# Update reference nodes
+		# Update affected reference nodes
 		newRefNodes = []
 		nodesModified = False
 		for structOffset, string in self.referenceNodes:
@@ -1514,13 +1542,13 @@ class DatFile( FileBase ):
 			# Skip nodes that point to within the affected area, since they no longer point to anything
 			elif structOffset >= collapseOffset and structOffset < collapseOffset + amount:
 				self.stringDict = { key: val for key, val in self.stringDict.items() if val != string }
-				print 'Removing reference node,', string
+				print( 'Removing reference node, ' + string )
 				nodesModified = True
 			else: # Struct offset is past the affected area; just needs to be reduced
 				newRefNodes.append( (structOffset - amount, string) )
 				nodesModified = True
 		if nodesModified:
-			print 'Modified reference nodes'
+			print( 'Modified reference nodes' )
 			self.referenceNodes = newRefNodes
 			self.nodesNeedRebuilding = True
 
@@ -1544,7 +1572,7 @@ class DatFile( FileBase ):
 		self.headerNeedsRebuilding = True
 		self.size -= ( amount + rtSizeReduction )
 
-		# Rebuild the and structure offsets and pointers lists
+		# Rebuild the structure offsets and pointers lists
 		self.evaluateStructs()
 
 		# Remove the data
@@ -1554,31 +1582,35 @@ class DatFile( FileBase ):
 			self.tailData = self.tailData[ :collapseOffset ] + self.tailData[ collapseOffset+amount: ]
 
 		# Record this change
-		description = '0x{:X} bytes of data removed at 0x{:X}.'.format( amount, 0x20 + collapseOffset )
-		self.recordChange( description )
+		if trackChange:
+			description = '0x{:X} bytes of data removed at 0x{:X}.'.format( amount, 0x20 + collapseOffset )
+			self.recordChange( description )
 
-	def extendDataSpace( self, extensionOffset, amount ):
+		return amount
+
+	def extendDataSpace( self, extensionOffset, amount, trackChange=False ):
 
 		""" Increases the amount of file/data space at the given offset. 
-			This will also clear the .structs dictionary, since their data will be bad. """
+			This will also clear the .structs dictionary, since their data will be bad. 
+			Returns the amount the file was increased by. """
 
 		# Perform some validation on the input
-		if amount == 0: return
+		if amount == 0: return 0
 		elif extensionOffset >= len( self.data ):
 			if not self.tailData:
-				print 'Invalid offset provided for file extension; offset is too large'
-				return
+				print( 'Invalid offset provided for file extension; offset is too large' )
+				return 0
 
 			tailDataStart = self.headerInfo['stringTableStart'] + self.getStringTableSize()
 			if extensionOffset < tailDataStart:
-				print 'Invalid extension offset provided; offset falls within RT, node tables, or string table'
-				return
+				print( 'Invalid extension offset provided; offset falls within RT, node tables, or string table' )
+				return 0
 
 		# Adjust the amount, if necessary, to preserve file alignment (rounding up)
 		if amount % 0x20 != 0:
 			amountAdjustment = 0x20 - ( amount % 0x20 )
 			amount += amountAdjustment
-			print 'Exension amount increased by', hex(amountAdjustment) + ' bytes, to preserve other potential structure alignments'
+			print( 'Exension amount increased by 0x{:X} bytes, to preserve other potential structure alignments'.format(amountAdjustment) )
 
 		# Adjust the values in the pointer offset and structure offset lists (these changes are later saved to the Relocation table)
 		rtEntryCount = self.headerInfo['rtEntryCount']
@@ -1644,7 +1676,7 @@ class DatFile( FileBase ):
 		# Rebuild the structure offset and pointer lists
 		self.evaluateStructs()
 
-		# Add the new bytes to .data
+		# Add the new [null] bytes to .data (or .tailData)
 		newBytes = bytearray( amount )
 		if extensionOffset < len( self.data ):
 			self.data = self.data[ :extensionOffset ] + newBytes + self.data[ extensionOffset: ]
@@ -1652,8 +1684,11 @@ class DatFile( FileBase ):
 			self.tailData = self.tailData[ :extensionOffset ] + newBytes + self.tailData[ extensionOffset: ]
 
 		# Record this change
-		description = '0x{:X} bytes of data added at 0x{:X}.'.format( amount, 0x20 + extensionOffset )
-		self.recordChange( description )
+		if trackChange:
+			description = '0x{:X} bytes of data added at 0x{:X}.'.format( amount, 0x20 + extensionOffset )
+			self.recordChange( description )
+
+		return amount
 
 	def identifyTextures( self ):
 
@@ -1766,7 +1801,7 @@ class DatFile( FileBase ):
 					break
 
 			else: # The loop above didn't break; unable to find the header!
-				print 'Unable to find an image data header for the imageDataOffset', hex( imageDataOffset+0x20 )
+				print( 'Unable to find an image data header for the imageDataOffset 0x{:X}'.format(imageDataOffset+0x20) )
 				return None
 
 		# Should have details on the texture by now; calculate length if still needed

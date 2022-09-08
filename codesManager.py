@@ -101,13 +101,13 @@ class CodeManagerTab( ttk.Frame ):
 
 		selectBtnsContainer.selectAllBtn = ttk.Button( selectBtnsContainer, text='Select All', width=12 )
 		selectBtnsContainer.selectAllBtn.pack( side='left', padx=6, pady=0 )
-		ToolTip( selectBtnsContainer.selectAllBtn, delay=600, justify='center', text='Shift-Click to select\nwhole library' )
+		ToolTip( selectBtnsContainer.selectAllBtn, delay=600, justify='center', text='Shift-click to select\nwhole library' )
 		selectBtnsContainer.selectAllBtn.bind( '<Button-1>', self.selectAllMods )
 		selectBtnsContainer.selectAllBtn.bind( '<Shift-Button-1>', self.selectWholeLibrary )
 		
 		selectBtnsContainer.deselectAllBtn = ttk.Button( selectBtnsContainer, text='Deselect All', width=12 )
 		selectBtnsContainer.deselectAllBtn.pack( side='left', padx=6, pady=0 )
-		ToolTip( selectBtnsContainer.deselectAllBtn, delay=600, justify='center', text='Shift-Click to deselect\nwhole library' )
+		ToolTip( selectBtnsContainer.deselectAllBtn, delay=600, justify='center', text='Shift-click to deselect\nwhole library' )
 		selectBtnsContainer.deselectAllBtn.bind( '<Button-1>', self.deselectAllMods )
 		selectBtnsContainer.deselectAllBtn.bind( '<Shift-Button-1>', self.deselectWholeLibrary )
 
