@@ -814,8 +814,12 @@ class TriCspCreator( object ):
 			return
 
 	def getGimpProgramVersion( self ):
-		_, versionText = cmdChannel( '"{}\{}" --version'.format(self.gimpDir, self.gimpExe) )
-		return versionText.split()[-1]
+		returnCode, versionText = cmdChannel( '"{}\{}" --version'.format(self.gimpDir, self.gimpExe) )
+		if returnCode == 0:
+			return versionText.split()[-1]
+		else:
+			print( versionText ) # Should be an error message in this case
+			return '-1'
 		
 	def getGimpPluginDirectory( self, gimpVersion ):
 
@@ -1169,7 +1173,7 @@ class DolphinController( object ):
 		if not self.exePath:
 			return '' # User may have canceled the prompt
 
-		returnCode, output = cmdChannel( '{} --version'.format(self.exePath) )
+		returnCode, output = cmdChannel( '"{}" --version'.format(self.exePath) )
 
 		if returnCode == 0:
 			return output

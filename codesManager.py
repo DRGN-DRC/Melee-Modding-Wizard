@@ -1279,17 +1279,17 @@ class ModModule( Tk.Frame, object ):
 			self.statusText.set( '' )
 
 		# Change module background and text colors (adjusting the background color of all associated frames and labels)
-		self['bg'] = stateColor
+		self['background'] = stateColor
 		for widget in self.winfo_children():
-			widget['bg'] = stateColor
+			widget['background'] = stateColor
 
 			if widget.winfo_class() == 'Label' and widget != self.authorLabel:
-				widget['fg'] = textColor
+				widget['foreground'] = textColor
 			else: # Frame
 				for label in widget.winfo_children():
-					label['bg'] = stateColor
+					label['background'] = stateColor
 					if label != self.statusLabel:
-						label['fg'] = textColor
+						label['foreground'] = textColor
 
 		self.mod.state = state
 
@@ -2869,7 +2869,7 @@ class CodeConfigWindow( BasicWindow ):
 			optType = optionDict.get( 'type' )
 			currentValue = optionDict.get( 'value' )
 			if not optType or currentValue == None: # Failsafe; should have been validated by now
-				globalData.gui.updateProgramStatus( '{} missing critical configuration details!'.format(optionName) )
+				globalData.gui.updateProgramStatus( '{} is missing critical configuration details!'.format(optionName) )
 				continue
 
 			# Optional parameters
@@ -3087,9 +3087,12 @@ class CodeConfigWindow( BasicWindow ):
 			for optionName, value in changesToSave.items():
 				self.mod.configurations[optionName]['value'] = value
 
-			self.close()
+			if self.mod.state == 'enabled':
+				self.mod.setState( 'pendingEnable', 'Configuration changed' )
 
 			globalData.gui.playSound( 'menuSelect' )
+
+			self.close()
 
 	def setToDefaults( self ):
 
