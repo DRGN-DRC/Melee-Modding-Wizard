@@ -644,7 +644,6 @@ class SubAction( DataBlock ):
 		if self.events:
 			return
 
-		#index = 0
 		position = 0
 		byte = self.data[0]
 
@@ -662,11 +661,9 @@ class SubAction( DataBlock ):
 			# Create an event object and store it
 			eventData = self.data[position:position+length]
 			event = SubActionEvent( eventCode, name, length, valueNames, bitFormats, eventData )
-			#event.index = index
 			self.events.append( event )
 
 			# End parsing once an End of Script event is reached or no more data
-			#index += 1
 			position += length
 			if eventCode == 0 or position >= len( self.data ):
 				break

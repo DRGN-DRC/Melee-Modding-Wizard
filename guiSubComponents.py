@@ -11,7 +11,6 @@
 
 # External dependencies
 import os
-from turtle import width
 import ttk
 import time
 import struct
@@ -2267,13 +2266,13 @@ class Item( ttk.Frame ):
 class DDList( ttk.Frame ):
 
 	""" Used to create a list interface with drag-and-drop ordering capability. 
-		Originally created by Miguel Martinez. Modified to allow height resizing 
-		after initialization and items added.
+		Originally created by Miguel Martinez. Modified to allow width/height 
+		resizing after initialization and items added, as well as other features.
 
 		Source: https://code.activestate.com/recipes/580717-sortable-megawidget-in-tkinter-like-the-sortable-w/ """
 
 	def __init__(self, master, item_width, item_height, item_relief=None, item_borderwidth=None, item_padding=None, item_style=None, reorder_callback=None, offset_x=0, offset_y=0, gap=0, **kwargs):
-		kwargs["width"] = item_width+offset_x*2
+		kwargs["width"] = item_width + offset_x*2
 		kwargs["height"] = offset_y*2
 
 		ttk.Frame.__init__(self, master, **kwargs)
@@ -2282,19 +2281,18 @@ class DDList( ttk.Frame ):
 		self._item_relief = item_relief
 		self._item_padding = item_padding
 		self._item_style = item_style
-		self.reorder_callback = reorder_callback
-		self._item_width = item_width - offset_x
-		#self._item_width = item_width - offset_x * 2 - 4
+		self._item_width = item_width
 		self._item_height = item_height
 		
+		self.reorder_callback = reorder_callback
+
 		self._offset_x = offset_x
 		self._offset_y = offset_y
 
 		self._left = offset_x
 		self._top = offset_y
-		#self._right = self._offset_x + self._item_width
-		self._right = self._offset_x * 2 + self._item_width
-		self._bottom = self._offset_y * 2
+		self._right = offset_x + self._item_width
+		self._bottom = offset_y
 
 		self._gap = gap
 
@@ -2303,9 +2301,6 @@ class DDList( ttk.Frame ):
 
 		self._list_of_items = []
 		self._position = {}
-
-		self._new_y_coord_of_selected_item = None
-		self.selected = False
 
 		globalData.gui.style.configure( 'SeletectedItem.TFrame', background='#78F', relief='flat' )
 		globalData.gui.style.configure( 'NonSeletectedItem.TFrame', relief='groove' )
@@ -2320,7 +2315,7 @@ class DDList( ttk.Frame ):
 			item.width = self._item_width
 			item.place_configure(width=item.width)
 
-		self._right = self._offset_x * 2 + self._item_width
+		self._right = self._offset_x + self._item_width
 
 		self.configure( width=containerWidth )
 
@@ -2336,14 +2331,12 @@ class DDList( ttk.Frame ):
 		index = self._position[item] + 1
 		if index < len( self._list_of_items ):
 			for item in self._list_of_items[index:]:
-				#item._y += difference
 				item._move_lasty = difference
 				item.move(0, difference)
 		
 		# Adjust the height of this item list (container)
 		self._bottom += difference
-		self.configure(height=self._bottom)
-		#self.master.event_generate( '<Configure>' )
+		self.configure(height=self._bottom+self._offset_y)
 
 	def create_item(self, value=None, **kwargs):
 		
@@ -2396,10 +2389,7 @@ class DDList( ttk.Frame ):
 		else:
 			self._bottom += self._item_height + self._gap
 			
-		self.configure(height=self._bottom)
-
-		if self.reorder_callback:
-			self.reorder_callback()
+		self.configure(height=self._bottom+self._offset_y)
 
 		return item
 
@@ -2425,14 +2415,11 @@ class DDList( ttk.Frame ):
 			self._position[_item] -= 1
 		
 		if len(self._list_of_items) == 0:
-			self._bottom = self._offset_y*2
+			self._bottom = self._offset_y
 		else:
 			self._bottom -= shrinkAmount
 
-		self.configure(height=self._bottom)
-
-		if self.reorder_callback:
-			self.reorder_callback()
+		self.configure(height=self._bottom+self._offset_y)
 		
 		return value
 
@@ -2446,11 +2433,8 @@ class DDList( ttk.Frame ):
 		self._list_of_items = []
 		self._position = {}
 
-		self._bottom = self._offset_y*2
-		self.configure(height=self._bottom)
-
-		if self.reorder_callback:
-			self.reorder_callback()
+		self._bottom = self._offset_y
+		self.configure(height=self._bottom+self._offset_y)
 	
 	def pop(self):
 		return self.delete_item(-1)
@@ -2489,26 +2473,27 @@ class DDList( ttk.Frame ):
 
 		if self._left < x < self._right and self._top < y < self._bottom:
 
-			quotient, remainder = divmod(y-self._offset_y, item.height + self._gap)
-			#print( 'quotient', quotient, 'remainder', remainder)
+			# Determine the current hovered index
+			distance_from_top = self._offset_y
+			for hovered_index, _item in enumerate( self._list_of_items ):
+				distance_from_top += _item.height + self._gap
+				if y < distance_from_top:
+					remainder = distance_from_top - y
+					break
+			else:
+				remainder = distance_from_top - y
 
-			if remainder < item.height:
-			
-				new_container = quotient
+			if remainder < item.height and hovered_index != self._index_of_empty_container:
+				if hovered_index > self._index_of_empty_container:
+					for index in range(self._index_of_empty_container+1, hovered_index+1, 1):
+						_item = self._get_item_of_virtual_list(index)
+						_item.move(0, -(item.height+self._gap))
+				else:
+					for index in range(self._index_of_empty_container-1, hovered_index-1, -1):
+						_item = self._get_item_of_virtual_list(index)
+						_item.move(0, item.height+self._gap)
 
-				if new_container != self._index_of_empty_container:
-					if new_container > self._index_of_empty_container:
-						print('new_container >', new_container, self._index_of_empty_container)
-						for index in range(self._index_of_empty_container+1, new_container+1, 1):
-							_item = self._get_item_of_virtual_list(index)
-							_item.move(0,-(item.height+self._gap))
-					else:
-						print('new_container <=', new_container, self._index_of_empty_container)
-						for index in range(self._index_of_empty_container-1, new_container-1, -1):
-							_item = self._get_item_of_virtual_list(index)
-							_item.move(0,item.height+self._gap)
-
-					self._index_of_empty_container = new_container
+				self._index_of_empty_container = hovered_index
 
 	def _get_item_of_virtual_list(self, index):
 		if self._index_of_empty_container == index:
@@ -2530,7 +2515,6 @@ class DDList( ttk.Frame ):
 		
 		# Calculate new coordinates for the item being dropped
 		x = self._offset_x
-		#y = self._offset_y + self._index_of_empty_container *(self._item_height + self._gap)
 		y = self._offset_y
 		for _item in self._list_of_items:
 			if _item == item:
@@ -2539,17 +2523,16 @@ class DDList( ttk.Frame ):
 		
 		item.set_position(x,y)
 
-		lowestIndex = min( self._index_of_selected_item, self._index_of_empty_container )
-		highestIndex = max( self._index_of_selected_item, self._index_of_empty_container )
+		lowerIndex = min( self._index_of_selected_item, self._index_of_empty_container )
+		higherIndex = max( self._index_of_selected_item, self._index_of_empty_container )
 		
-		# reordered = False
-		for i in range(lowestIndex, highestIndex+1):
+		for i in range(lowerIndex, higherIndex+1):
 			item = self._list_of_items[i]
 			self._position[item] = i
-			# reordered = True
+
+		# Call reorder callback if this item's index has changed
+		if self._index_of_selected_item != self._index_of_empty_container and self.reorder_callback:
+			self.reorder_callback()
 
 		self._index_of_empty_container = None
 		self._index_of_selected_item = None
-
-		# if reordered and self.reorder_callback:
-		# 	self.reorder_callback()

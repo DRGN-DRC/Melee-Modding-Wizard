@@ -276,7 +276,7 @@ class SubActionEditor( ttk.Frame, object ):
 
 		# Add the action table list and its scrollbar
 		subActionScrollBar = Tk.Scrollbar( self, orient='vertical' )
-		self.subActionList = Tk.Listbox( self, width=38, yscrollcommand=subActionScrollBar.set, activestyle='none', selectbackground='#78F' )
+		self.subActionList = Tk.Listbox( self, width=38, yscrollcommand=subActionScrollBar.set, activestyle='none', selectbackground='#78F', exportselection=0 )
 		subActionScrollBar.config( command=self.subActionList.yview )
 		for i, values in self.actionTable.iterateEntries():
 			subActionName = self.getSubActionName( values[0], i )
@@ -297,13 +297,11 @@ class SubActionEditor( ttk.Frame, object ):
 		infoPane = ttk.Frame( self )
 		emptyWidget = Tk.Frame( relief='flat' ) # This is used as a simple workaround for the labelframe, so we can have no text label with no label gap.
 		generalInfoBox = ttk.Labelframe( infoPane, labelwidget=emptyWidget, padding=(20, 5) )
-		#self.subActionId = Tk.StringVar( value='SubAction ID:' )
 		self.subActionIndex = Tk.StringVar( value='SubAction Table Index:' )
 		self.subActionAnimOffset = Tk.StringVar( value='Animation (AJ) Offset:' )
 		self.subActionAnimSize = Tk.StringVar( value='Animation (AJ) Size:' )
 		self.subActionEventsOffset = Tk.StringVar( value='Events Offset:' )
 		self.subActionEventsSize = Tk.StringVar( value='Events Table Size:' )
-		#ttk.Label( generalInfoBox, textvariable=self.subActionId ).pack()
 		ttk.Label( generalInfoBox, textvariable=self.subActionIndex ).pack()
 		ttk.Label( generalInfoBox, textvariable=self.subActionAnimOffset ).pack( pady=(7, 0) )
 		ttk.Label( generalInfoBox, textvariable=self.subActionAnimSize ).pack()
@@ -328,7 +326,7 @@ class SubActionEditor( ttk.Frame, object ):
 		buttonsFrame.pack( fill='x', expand=True, pady=20 )
 
 		self.noteStringFrame = ttk.Frame( infoPane )
-		self.noteStringVar = Tk.StringVar( value='TEST' )
+		self.noteStringVar = Tk.StringVar()
 		ttk.Label( self.noteStringFrame, textvariable=self.noteStringVar, foreground='#a34343' ).pack( side='left', pady=0 )
 		self.expandInfoBtn = None
 		self.noteStringFrame.pack( fill='x', expand=True, pady=0 )
@@ -340,8 +338,8 @@ class SubActionEditor( ttk.Frame, object ):
 		self.columnconfigure( 1, weight=0 ) # Scrollbar
 		self.columnconfigure( 2, weight=2 ) # Events display pane
 		self.columnconfigure( 3, weight=0 ) # Info display
-		self.rowconfigure( 0, weight=0 )
-		self.rowconfigure( 1, weight=1 )
+		self.rowconfigure( 0, weight=0 ) # Titles
+		self.rowconfigure( 1, weight=1 ) # Main content
 
 	def getSubActionName( self, namePointer, index ):
 		if namePointer == 0:
@@ -365,6 +363,20 @@ class SubActionEditor( ttk.Frame, object ):
 
 	def subActionSelected( self, guiEvent ):
 
+		""" Parses subAction events and updates the GUI. Called on selection of the subAction list. 
+		
+			Maybe a bug in Tkinter, but this may also be called upon ListboxSelect of other Listboxes, 
+			however it will not have a selection. Also, if debugging and breaking on this method it may appear 
+			to be called multiple times upon ListboxSelect, however prints show it only being called once. """
+
+		# Get the subAction index and values from the subaction entry
+		selection = self.subActionList.curselection()
+		if not selection:
+			return
+		index = selection[0]
+		if index == self.lastSelection: # No change!
+			return
+
 		# Check for unsaved changes that the user might want
 		if self.hasUnsavedChanges():
 			proceed = tkMessageBox.askyesno( 'Unsaved Changes Detected', 'It appears there are unsaved changes with these events.\n\nDo you want to discard these changes?' )
@@ -377,17 +389,12 @@ class SubActionEditor( ttk.Frame, object ):
 				self.subActionList.selection_clear( 0, 'end' )
 				self.subActionList.selection_set( self.lastSelection )
 				return
-
-		# Get the subAction index and values from the subaction entry
-		selection = self.subActionList.curselection()
-		if not selection:
-			return
-		index = selection[0]
+		
+		# Commiting to this selection
 		self.lastSelection = index
 		entry = self.actionTable.getEntryValues( index )
 		
 		# Update general info display
-		#self.subActionId.set( 'SubAction ID:  0x{:X}'.format(entry[4]) )
 		self.subActionIndex.set( 'SubAction Table Index:  0x{:X}'.format(index) )
 		self.subActionAnimOffset.set( 'Animation (AJ) Offset:  0x{:X}'.format(0x20+entry[1]) )
 		self.subActionAnimSize.set( 'Animation (AJ) Size:  0x{:X}'.format(entry[2]) )
@@ -403,7 +410,6 @@ class SubActionEditor( ttk.Frame, object ):
 		try:
 			self.subActionStruct = self.charFile.initDataBlock( SubAction, entry[3], self.actionTable.offset )
 			self.subActionStruct.parse()
-			#self.subActionStruct.unsavedChanges = False
 			self.subActionStruct.origData = self.subActionStruct.data
 			self.subActionEventsSize.set( 'Events Table Size:  0x{:X}'.format(self.subActionStruct.getLength()) )
 		except Exception as err:
@@ -441,7 +447,6 @@ class SubActionEditor( ttk.Frame, object ):
 				self.displayPane.add_item( item )
 
 	def deleteEvent( self, guiEvent ):
-
 		# Sanity checks; ensure there's something to delete and the GUI is still in sync (just in case)
 		if len( self.displayPane._list_of_items ) == 0:
 			return
@@ -455,7 +460,6 @@ class SubActionEditor( ttk.Frame, object ):
 			if item.selected:
 				self.subActionStruct.deleteEvent( i )
 				self.displayPane.delete_item( item )
-				#self.subActionStruct.unsavedChanges = True
 				self.updateExpansionWarning()
 				break
 
@@ -493,7 +497,17 @@ class SubActionEditor( ttk.Frame, object ):
 		self.charFile.updateStruct( self.subActionStruct, 'SubAction event data for {} updated'.format(subActionName) )
 
 	def reordered( self ):
-		print( 'reordered' )
+
+		""" This is called on drag-and-drop reordering of the GUI's event modules, 
+			and subsequently updates the order of events in the file structure. """
+		
+		# Determine the ordering change (these haven't been cleared by the time this is called)
+		oldIndex = self.displayPane._index_of_selected_item
+		newIndex = self.displayPane._index_of_empty_container
+
+		# Move the event to the new index
+		event = self.subActionStruct.events.pop( oldIndex )
+		self.subActionStruct.events.insert( newIndex, event )
 
 	def insertEventBefore( self, guiEvent ):
 		# Get the index to insert above
@@ -542,10 +556,13 @@ class SubActionEditor( ttk.Frame, object ):
 		if eM.expandBtn:
 			eM.expandBtn.toggle()
 
-		#self.subActionStruct.unsavedChanges = True
 		self.updateExpansionWarning()
 
 	def updateExpansionWarning( self ):
+
+		""" Adds (or removes) the label warning about the subAction events structure 
+			needing more file space, along with the button to provide details. """
+
 		# Determine the length of the events struct as it is now
 		newLength = 0
 		for event in self.subActionStruct.events:
