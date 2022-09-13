@@ -3700,6 +3700,8 @@ class CommandProcessor( object ):
 
 		isAssembly = False
 		onlySpecialSyntaxes = True
+		configSyntaxOnly = True
+		foundOtherCharacters = False
 
 		for wholeLine in codeLines:
 			# Strip off and ignore comments
@@ -3708,37 +3710,34 @@ class CommandProcessor( object ):
 
 			# Check for custom syntaxes (if one of these syntaxes is matched, it's for the whole line)
 			elif CodeLibraryParser.isSpecialBranchSyntax( line ) or CodeLibraryParser.containsPointerSymbol( line ):
-				continue # These will later be resolved to assembly
+				configSyntaxOnly = False
 
-			elif '[[' in line and ']]' in line: # Configuration option; code before/after these may be hex or asm
+			elif '[[' in line and ']]' in line: # Configuration option
+
+				# Check each chunk (excluding config name) for hex or assembly
 				for chunk in line.split( '[[' ):
 					if ']]' in chunk: # Contains a config/variable name and maybe other code
 						_, chunk = chunk.split( ']]' )
-
-						# Return True if there are any non-hex characters (meaning assembly was found)
-						# if not theRest: pass # Empty string
-						# elif all( char in hexdigits for char in theRest.replace(' ', '') ): # Only hex characters found
-						# 	onlySpecialSyntaxes = False
-						# else: # Found assembly
-						# 	return True
 					
 					# No config/variable name in this chunk; may be asm or hex.
 					# Return True if there are any non-hex characters (meaning assembly was found)
 					if not chunk: pass # Empty string
 					elif all( char in hexdigits for char in chunk.replace(' ', '') ): # Only hex characters found
 						onlySpecialSyntaxes = False
+						foundOtherCharacters = True
 					else: # Found assembly
 						return True
 
-				continue
-			
-			onlySpecialSyntaxes = False
+			else:
+				onlySpecialSyntaxes = False
+				configSyntaxOnly = False
 
-			# Strip whitespace and check for non-hex characters
-			if not all( char in hexdigits for char in ''.join(line.split()) ):
-				return True
+				# Strip whitespace and check for non-hex characters
+				if not all( char in hexdigits for char in ''.join(line.split()) ):
+					return True
 
 		if onlySpecialSyntaxes:
-			isAssembly = True
+			if not configSyntaxOnly or foundOtherCharacters:
+				isAssembly = True
 
 		return isAssembly

@@ -946,7 +946,6 @@ class Dol( FileBase ):
 
 			# If this section contains a configuration option, get the current value stored in the DOL
 			elif syntaxType == 'opt':
-				#optionOffset, optionWidth, _, names = codeChange.syntaxInfo[customSyntaxIndex]
 
 				# Parse the custom code line and compare its non-option parts to what's in the DOL
 				# codeMatches = self.compareCustomOptionCode( section, readOffset, freeSpaceCodeArea, codeChange.isAssembly, mod )
@@ -954,8 +953,14 @@ class Dol( FileBase ):
 				# 	matchOffset = -1
 				# 	break # Mismatch detected, meaning this is not the same (custom) code in the DOL.
 
-				absOffsetStart = startingOffset + syntaxOffset # Need an absolute DOL offset. The option offset is relative to the code start
-				codeInDol = freeSpaceCodeArea[absOffsetStart:absOffsetStart+length]
+				if codeChange.isAssembly:
+					absOffsetStart = startingOffset + syntaxOffset + 4 - length # Need an absolute DOL offset. The option offset is relative to the code start
+					codeInDol = freeSpaceCodeArea[absOffsetStart:absOffsetStart+length]
+					readOffset += 4
+				else:
+					absOffsetStart = startingOffset + syntaxOffset # Need an absolute DOL offset. The option offset is relative to the code start
+					codeInDol = freeSpaceCodeArea[absOffsetStart:absOffsetStart+length]
+					readOffset += length
 
 				if len( names ) == 1:
 					optionDict = mod.getConfiguration( names[0] )
@@ -1000,7 +1005,7 @@ class Dol( FileBase ):
 						print( 'method 2 value: ', value )
 						print( 'in', toc-tic )
 
-				readOffset += length
+				#readOffset += length
 
 			# else:
 			# 	sectionLength = len( section ) / 2

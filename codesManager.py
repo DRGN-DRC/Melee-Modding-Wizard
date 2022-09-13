@@ -80,21 +80,28 @@ class CodeManagerTab( ttk.Frame ):
 		self.openMcmFileBtn.pack( pady=4, padx=6, ipadx=8 )
 		ttk.Button( self.controlPanel, text='Open Mods Library Folder', command=self.openLibraryFolder ).pack( pady=4, padx=6, ipadx=8 )
 
-		ttk.Separator( self.controlPanel, orient='horizontal' ).pack( pady=7, ipadx=120 )
+		ttk.Separator( self.controlPanel, orient='horizontal' ).pack( pady=7, ipadx=100 )
+
+		saveButtonsContainer = ttk.Frame( self.controlPanel, padding="0 0 0 0" )
+		ttk.Button( saveButtonsContainer, text='Save', command=globalData.gui.save, width=14 ).pack( side='left', padx=6 )
+		#ttk.Button( saveButtonsContainer, text='Save As', command=self.saveGctFile, width=14 ).pack( side='left', padx=6 )
+		saveButtonsContainer.pack( pady=4 )
+
+		ttk.Separator( self.controlPanel, orient='horizontal' ).pack( pady=7, ipadx=110 )
 
 		createFileContainer = ttk.Frame( self.controlPanel, padding="0 0 0 0" )
-		ttk.Button( createFileContainer, text='Create INI', command=self.saveIniFile ).pack( side='left', padx=6 )
-		ttk.Button( createFileContainer, text='Create GCT', command=self.saveGctFile ).pack( side='left', padx=6 )
+		ttk.Button( createFileContainer, text='Create INI', command=self.saveIniFile, width=12 ).pack( side='left', padx=6 )
+		ttk.Button( createFileContainer, text='Create GCT', command=self.saveGctFile, width=12 ).pack( side='left', padx=6 )
 		createFileContainer.pack( pady=4 )
 
-		ttk.Separator( self.controlPanel, orient='horizontal' ).pack( pady=7, ipadx=140 )
+		ttk.Separator( self.controlPanel, orient='horizontal' ).pack( pady=7, ipadx=100 )
 
 		self.restoreBtn = ttk.Button( self.controlPanel, text='Restore Vanilla DOL', state='disabled', command=self.askRestoreDol, width=23 )
 		self.restoreBtn.pack( pady=4 )
 		self.exportBtn = ttk.Button( self.controlPanel, text='Export DOL', state='disabled', command=self.exportDOL, width=23 )
 		self.exportBtn.pack( pady=4 )
 
-		ttk.Separator( self.controlPanel, orient='horizontal' ).pack( pady=7, ipadx=120 )
+		ttk.Separator( self.controlPanel, orient='horizontal' ).pack( pady=7, ipadx=100 )
 
 		# Add the Select/Deselect All buttons
 		selectBtnsContainer = ttk.Frame( self.controlPanel, padding="0 0 0 0" )

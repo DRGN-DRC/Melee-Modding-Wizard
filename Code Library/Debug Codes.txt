@@ -19,28 +19,7 @@ PAL ------- 0x22C084 ---- 3800001E -> 38000006 ---- (li r0,30 -> li r0,6)
 
 	-==-
 
-
-Normal C-Stick Functionality in Develop Mode [Updated]
-- C-Stick additionally provides Master mode functionality while in Develop Mode
-- C-Stick no longer also toggles fixed camera mode
-[Magus (1st set) and achilles (2nd set)]
-Version -- DOL Offset ------ Hex to Replace ---------- ASM Code
-1.00 ------ 0x067918 ---- 800D9368 -> 38000000 ---- (lwz r0,-27800(r13) -> li r0,0)
-1.00 ------ 0x02CC04 ---- 38000008 -> 38000000 ---- (li r0,8 -> li r0,0)
-
-1.01 ------ 0x067A28 ---- 800D9368 -> 38000000 ---- (lwz r0,-27800(r13) -> li r0,0)
-1.01 ------ 0x02CC84 ---- 38000008 -> 38000000 ---- (li r0,8 -> li r0,0)
-
-1.02 ------ 0x067A70 ---- 800D9368 -> 38000000 ---- (lwz r0,-27800(r13) -> li r0,0)
-1.02 ------ 0x02CC84 ---- 38000008 -> 38000000 ---- (li r0,8 -> li r0,0)
-
-PAL ------- 0x068154 ---- 800D9388 -> 38000000 ---- (lwz r0,-27768(r13) -> li r0,0)
-PAL ------- 0x02D1B0 ---- 38000008 -> 38000000 ---- (li r0,8 -> li r0,0)
-
-
-	-==-
-
-
+!
 Debug Menu Default Language to English
 The default language in vanilla Melee is Japanese. As the name says, this changes it to English.
 (For PAL, you can edit the code in the text file library in the "Mods" folder to change what language this sets. The other options are UK English, German, French, Italian, or Spanish.)
@@ -63,6 +42,53 @@ PAL ------- 0x3F8003 ------- 02 -> 01
 
 	-==-
 
+!
+Boot to debug level 4
+[??]
+Revision ---- DOL Offset ---- Hex to Replace ---------- ASM Code -
+NTSC 1.02 --- 0x8015FDBC ---- 387F0000 -> 480000AC
+
+
+	-==-
+
+
+Boot with Debug Mode
+The game's normal default is Japanese. The default for this code is English.
+Configurations:
+    uint8 Language = 1; 0-5
+        0: Japanese
+        1: US English
+        2: UK English (PAL Only)
+        3: German (PAL Only)
+        4: French (PAL Only)
+        5: Italian (PAL Only)
+        6: Spanish (PAL Only)
+    uint8 Debug Level = 4; 0-4
+        0: Level 0 - Master
+        1: Level 1 - No-Debug-Rom
+        2: Level 2 - Debug-Develop
+        3: Level 3 - Debug-Rom
+        4: Level 4 - Develop
+[SypherPhoenix, tauKhan, DRGN]
+Revision ---- DOL Offset ---- Hex to Replace ---------- ASM Code -
+NTSC 1.02 --- 0x803FA25B ---------- 00 -> [[Language]]
+------------- 0x8015FDBC ---- 387F0000 -> 480000AC ---- (beq- -> b) # Skip normal checks for debug.ini
+------------- 0x8015FE68 ----
+
+38600004 38000000
+906D9368 900DB480
+
+ -> 
+
+# This is the target of the 480000AC branch added above.
+li	r3, [[Debug Level]]
+li	r0, 0
+stw	r3, -0x6C98 (r13)
+stw	r0, -0x4B80 (r13)
+
+
+	-==-
+
 
 Go to the CSS when leaving Debug Menu
 This mod can be modified to go to other screens by modifying the last byte with a different ID.
@@ -70,6 +96,27 @@ A list of different menu IDs can be found here: http://tinyurl.com/Menu-ID-Notes
 [Achilles]
 Version -- DOL Offset ------ Hex to Replace ---------- ASM Code
 1.02 ----- 0x1AD5F4 ---- 38600000 -> 38600002
+
+
+	-==-
+
+
+Normal C-Stick Functionality in Develop Mode [Updated]
+- C-Stick additionally provides Master mode functionality while in Develop Mode
+- C-Stick no longer also toggles fixed camera mode
+[Magus (1st set) and achilles (2nd set)]
+Version -- DOL Offset ------ Hex to Replace ---------- ASM Code
+1.00 ------ 0x067918 ---- 800D9368 -> 38000000 ---- (lwz r0,-27800(r13) -> li r0,0)
+1.00 ------ 0x02CC04 ---- 38000008 -> 38000000 ---- (li r0,8 -> li r0,0)
+
+1.01 ------ 0x067A28 ---- 800D9368 -> 38000000 ---- (lwz r0,-27800(r13) -> li r0,0)
+1.01 ------ 0x02CC84 ---- 38000008 -> 38000000 ---- (li r0,8 -> li r0,0)
+
+1.02 ------ 0x067A70 ---- 800D9368 -> 38000000 ---- (lwz r0,-27800(r13) -> li r0,0)
+1.02 ------ 0x02CC84 ---- 38000008 -> 38000000 ---- (li r0,8 -> li r0,0)
+
+PAL ------- 0x068154 ---- 800D9388 -> 38000000 ---- (lwz r0,-27768(r13) -> li r0,0)
+PAL ------- 0x02D1B0 ---- 38000008 -> 38000000 ---- (li r0,8 -> li r0,0)
 
 
 	-==-
