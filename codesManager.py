@@ -1005,6 +1005,29 @@ class CodeManagerTab( ttk.Frame ):
 			print( err )
 			return None
 
+	def summarizeChanges( self ):
+
+		""" Used for tracking codes pending installation or uninstallation. """
+
+		lines = []
+		modsToInstall = 0
+		modsToUninstall = 0
+
+		# Scan the library for mods to be installed or uninstalled
+		for mod in globalData.codeMods:
+			if mod.state == 'pendingEnable':
+				modsToInstall += 1
+			elif mod.state == 'pendingDisable':
+				modsToUninstall += 1
+
+		if not modsToInstall and not modsToUninstall:
+			lines.append( '0 code mods to install or uninstall\n' )
+		else:
+			lines.append( '{} code mods to install'.format(modsToInstall) )
+			lines.append( '{} code mods to uninstall\n'.format(modsToUninstall) )
+
+		return lines
+
 	def saveCodeChanges( self ):
 
 		""" Collects input from the GUI (user's choices on what mods should be enabled/disabled), 

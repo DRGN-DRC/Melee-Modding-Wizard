@@ -36,7 +36,7 @@ class CharModding( ttk.Notebook ):
 
 	def __init__( self, parent, mainGui ):
 
-		ttk.Notebook.__init__( self, parent ) #, padding="11 0 0 11" ) # Padding order: Left, Top, Right, Bottom.
+		ttk.Notebook.__init__( self, parent )
 
 		# Add this tab to the main GUI, and add drag-and-drop functionality
 		mainGui.mainTabFrame.add( self, text=' Character Modding ' )
@@ -69,17 +69,10 @@ class CharModding( ttk.Notebook ):
 		row = 0
 		for fileObj in globalData.disc.files.values():
 			# Filter to just the character data files
-			# if not len(fileObj.filename) == 8 or not fileObj.filename.startswith( 'Pl' ):
-			# 	continue
 			if not isinstance( fileObj, CharDataFile ) or not fileObj.filename.endswith( '.dat' ):
 				continue
 			elif fileObj.charAbbr == 'Nn': # Skip Nana
 				continue
-
-			# Get the character name
-			# character = globalData.charNameLookup.get( fileObj.filename[2:4], '' )
-			# if not character:
-			# 	continue
 
 			# Try to get the character's icon texture
 			if texturesInfo:
@@ -124,20 +117,24 @@ class CharModding( ttk.Notebook ):
 				return
 		
 		# Create a new character tab and add it to the character modder notebook
-		newChar = ttk.Notebook( self )
-		newChar.charFile = event.widget.charFile
-		self.add( newChar, text=newChar.charFile.charName )
+		newCharNotebook = ttk.Notebook( self )
+		newCharNotebook.charFile = event.widget.charFile
+		self.add( newCharNotebook, text=newCharNotebook.charFile.charName )
+
+		# # Add the fighter/character properties tab
+		# newTab = CharGeneralEditor( newCharNotebook )
+		# newCharNotebook.add( newTab, text=' General ' )
 
 		# Add the fighter/character properties tab
-		propTab = self.buildPropertiesTab( newChar )
-		newChar.add( propTab, text=' Properties ' )
+		newTab = self.buildPropertiesTab( newCharNotebook )
+		newCharNotebook.add( newTab, text=' Properties ' )
 
 		# Add the fighter/character properties tab
-		propTab = SubActionEditor( newChar )
-		newChar.add( propTab, text=' Moves (SubAction) Editor ' )
+		newTab = SubActionEditor( newCharNotebook )
+		newCharNotebook.add( newTab, text=' Moves (SubAction) Editor ' )
 
 		# Switch tabs to this character
-		self.select( newChar )
+		self.select( newCharNotebook )
 
 	def buildPropertiesTab( self, parent ):
 		
@@ -259,28 +256,80 @@ class CharModding( ttk.Notebook ):
 
 		return propertiesTab
 
+	def hasUnsavedChanges( self ):
+
+		modifiedCharacters = []
+
+		# Check for unsaved SubAction changes
+		for tabName in self.tabs():
+			tabWidget = globalData.gui.root.nametowidget( tabName )
+			if tabWidget.charFile and isinstance( tabWidget, SubActionEditor ):
+				if tabWidget.hasUnsavedChanges():
+					modifiedCharacters.append( tabWidget.charFile.filename )
+
+		return modifiedCharacters
+
+
+class CharGeneralEditor( ttk.Frame, object ):
+
+	def __init__( self, parent ):
+		super( CharGeneralEditor, self ).__init__( parent )
+
+		self.charFile = parent.charFile
+
+		# Add the CSP display
+		cspFrame = ttk.Frame( self )
+		self.cspIndex = 0
+		self.cspLabel = ttk.Label( cspFrame, relief='raised', borderwidth=3 )
+		self.cspLabel.image = None
+		self.cspLabel.grid( columnspan=4, column=0, row=0 )
+		self.updateCsp( 0 )
+
+		# Buttons for CSP display
+		ColoredLabelButton( cspFrame, 'expandArrowState1', self.prevCostume, 'Previous Costume' ).grid( column=0, row=1 )
+		ttk.Button( cspFrame, text='Import' ).grid( column=1, row=1 )
+		ttk.Button( cspFrame, text='Export' ).grid( column=2, row=1 )
+		ColoredLabelButton( cspFrame, 'expandArrowState2', self.nextCostume, 'Next Costume' ).grid( column=3, row=1 )
+		cspFrame.grid( column=0, row=0, sticky='nw' )
+
+	def prevCostume( self, event ):
+		pass
+
+	def nextCostume( self, event ):
+		pass
+
+	def updateCsp( self, newIndex ):
+		# Get the next or previous CSP image
+		cssFile = globalData.disc.css
+		cspImage = cssFile.getCsp( self.charFile.extCharId, newIndex )
+
+		# Update the GUI
+		self.cspLabel.configure( image=cspImage )
+		self.cspLabel.image = cspImage # Storing to prevent garbage collection
+
 
 class SubActionEditor( ttk.Frame, object ):
 
 	def __init__( self, parent ):
 		super( SubActionEditor, self ).__init__( parent )
 
-		self.actionTable = parent.charFile.getActionTable()
-		self.charFile = parent.charFile
-		self.subActionStruct = None
-		self.lastSelection = -1
+		# self.charFile = parent.charFile
+		# self.actionTable = parent.charFile.getActionTable()
+		# self.subActionStruct = None
+		# self.lastSelection = -1
 
 		# Add the action table pane's title
-		title = '{} Action Table  (0x{:X})'.format( self.charFile.filename, self.actionTable.offset + 0x20 )
-		ttk.Label( self, text=title ).grid( columnspan=2, column=0, row=0, pady=4 )
+		#self.tableTitleVar = Tk.StringVar( value='{} Action Table  (0x{:X})'.format(self.charFile.filename, self.actionTable.offset + 0x20) )
+		self.tableTitleVar = Tk.StringVar()
+		ttk.Label( self, textvariable=self.tableTitle ).grid( columnspan=2, column=0, row=0, pady=4 )
 
 		# Add the action table list and its scrollbar
 		subActionScrollBar = Tk.Scrollbar( self, orient='vertical' )
 		self.subActionList = Tk.Listbox( self, width=38, yscrollcommand=subActionScrollBar.set, activestyle='none', selectbackground='#78F', exportselection=0 )
 		subActionScrollBar.config( command=self.subActionList.yview )
-		for i, values in self.actionTable.iterateEntries():
-			subActionName = self.getSubActionName( values[0], i )
-			self.subActionList.insert( i, '  ' + subActionName.replace(' (', '    (') )
+		# for i, values in self.actionTable.iterateEntries():
+		# 	subActionName = self.getSubActionName( values[0], i )
+		# 	self.subActionList.insert( i, '  ' + subActionName.replace(' (', '    (') )
 		self.subActionList.bind( '<<ListboxSelect>>', self.subActionSelected )
 		self.subActionList.grid( column=0, row=1, sticky='nsew' )
 		subActionScrollBar.grid( column=1, row=1, sticky='ns' )
@@ -297,11 +346,11 @@ class SubActionEditor( ttk.Frame, object ):
 		infoPane = ttk.Frame( self )
 		emptyWidget = Tk.Frame( relief='flat' ) # This is used as a simple workaround for the labelframe, so we can have no text label with no label gap.
 		generalInfoBox = ttk.Labelframe( infoPane, labelwidget=emptyWidget, padding=(20, 5) )
-		self.subActionIndex = Tk.StringVar( value='SubAction Table Index:' )
-		self.subActionAnimOffset = Tk.StringVar( value='Animation (AJ) Offset:' )
-		self.subActionAnimSize = Tk.StringVar( value='Animation (AJ) Size:' )
-		self.subActionEventsOffset = Tk.StringVar( value='Events Offset:' )
-		self.subActionEventsSize = Tk.StringVar( value='Events Table Size:' )
+		self.subActionIndex = Tk.StringVar()
+		self.subActionAnimOffset = Tk.StringVar()
+		self.subActionAnimSize = Tk.StringVar()
+		self.subActionEventsOffset = Tk.StringVar()
+		self.subActionEventsSize = Tk.StringVar()
 		ttk.Label( generalInfoBox, textvariable=self.subActionIndex ).pack()
 		ttk.Label( generalInfoBox, textvariable=self.subActionAnimOffset ).pack( pady=(7, 0) )
 		ttk.Label( generalInfoBox, textvariable=self.subActionAnimSize ).pack()
@@ -310,7 +359,7 @@ class SubActionEditor( ttk.Frame, object ):
 		generalInfoBox.pack( fill='x', expand=True )
 		
 		flagsBox = ttk.Labelframe( infoPane, text=' SubAction Flags ', padding=(20, 5) )
-		self.subActionFlags = Tk.StringVar( value='SubAction Flags:' )
+		self.subActionFlags = Tk.StringVar()
 		ttk.Label( flagsBox, textvariable=self.subActionFlags ).pack()
 		flagsBox.pack( fill='x', expand=True, pady=20 )
 
@@ -318,10 +367,11 @@ class SubActionEditor( ttk.Frame, object ):
 		ColoredLabelButton( buttonsFrame, 'delete', self.deleteEvent, 'Delete Event', '#f04545' ).grid( column=0, row=0, pady=4, padx=4 )
 		ColoredLabelButton( buttonsFrame, 'expand', self.expandAll, 'Expand All' ).grid( column=1, row=0, pady=4, padx=4 )
 		ColoredLabelButton( buttonsFrame, 'collapse', self.collapseAll, 'Collapse All' ).grid( column=2, row=0, pady=4, padx=4 )
-		ColoredLabelButton( buttonsFrame, 'save', self.saveEventChanges, 'Save Changes', '#292' ).grid( column=3, row=0, pady=4, padx=4 )
+		ColoredLabelButton( buttonsFrame, 'save', self.saveEventChanges, 'Save Changes\nto Charcter File', '#292' ).grid( column=3, row=0, pady=4, padx=4 )
 		insertBtn = LabelButton( buttonsFrame, 'insert', self.insertEventBefore, 'Insert New Event\n\n(Before selection. Shift-click\nto insert after selection.)' )
 		insertBtn.bind( '<Shift-Button-1>', self.insertEventAfter )
 		insertBtn.grid( column=4, row=0, pady=4, padx=4 )
+		#ttk.Button( buttonsFrame, text='Restore to Vanilla', command=self.restoreEvents )
 		buttonsFrame.columnconfigure( 'all', weight=1 )
 		buttonsFrame.pack( fill='x', expand=True, pady=20 )
 
@@ -341,6 +391,37 @@ class SubActionEditor( ttk.Frame, object ):
 		self.rowconfigure( 0, weight=0 ) # Titles
 		self.rowconfigure( 1, weight=1 ) # Main content
 
+		self.populate( parent.charFile )
+
+	def populate( self, newCharFile ):
+		
+		self.charFile = newCharFile
+		self.actionTable = newCharFile.getActionTable()
+		self.subActionStruct = None
+		self.lastSelection = -1
+
+		title = '{} Action Table  (0x{:X})'.format( self.charFile.filename, self.actionTable.offset + 0x20 )
+		self.tableTitleVar.set( title )
+
+		# Repopulate the subAction list
+		self.actionTable.delete( 0, 'end' )
+		for i, values in self.actionTable.iterateEntries():
+			subActionName = self.getSubActionName( values[0], i )
+			self.subActionList.insert( i, '  ' + subActionName.replace(' (', '    (') )
+
+		# Clear the events display pane
+		self.displayPane.delete_all_items()
+
+		# Clear general info display
+		self.subActionIndex.set( 'SubAction Table Index:  ' )
+		self.subActionAnimOffset.set( 'Animation (AJ) Offset:  ' )
+		self.subActionAnimSize.set( 'Animation (AJ) Size:  ' )
+		self.subActionEventsOffset.set( 'Events Offset:  ' )
+		self.subActionEventsSize.set( 'Events Table Size:  ' )
+
+		# Clear flags display
+		self.subActionFlags.set( 'SubAction Flags:  ' )
+
 	def getSubActionName( self, namePointer, index ):
 		if namePointer == 0:
 			return 'Entry ' + str( index + 1 )
@@ -354,6 +435,7 @@ class SubActionEditor( ttk.Frame, object ):
 				return gameName
 
 	def hasUnsavedChanges( self ):
+		# If the subAction struct hasn't been initialized/parsed, there's nothing to save
 		if not self.subActionStruct:
 			return False
 
@@ -544,7 +626,7 @@ class SubActionEditor( ttk.Frame, object ):
 		eM.pack( fill='both', expand=True )
 		item.eventModule = eM # Useful for the expand/collapse methods below
 
-		# Add the GUI module to the display panel
+		# Add the GUI module to the display panel and select it
 		self.displayPane.add_item( item, index )
 		self.displayPane._on_item_selected( item )
 

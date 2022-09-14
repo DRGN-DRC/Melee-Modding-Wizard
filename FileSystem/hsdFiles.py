@@ -36,7 +36,7 @@ class CssFile( DatFile ):
 
 	""" Special subclass for the Character Select Screen. """
 
-	randomNeutralStageNameTables = { # Offsets for pointer tables (relative to data section start)
+	randomNeutralStageNameTables = { # Offsets for pointer tables (relative to data section start) used in 20XX
 			'GrNBa': 	0x3C10C0, 	# Battlefield
 			'GrNLa': 	0x3C1320, 	# Final Destination
 			'GrSt':		0x3C1580, 	# Yoshi's Story
@@ -44,33 +44,35 @@ class CssFile( DatFile ):
 			'GrOp':		0x3C1A40, 	# Dream Land
 			'GrP':		0x3C1CA0 } 	# Stadium
 
+	cspBaseOffset = 0x4CA40 # The start of the first CSP's data. Includes file header offset
+	cspStride = 0x6600 # Texture data size + palette data/header
 	cspIndexes = {	# key = External Char ID x 0x10 + Costume ID, value = CSP index
 		0x00: 33, 0x01: 62, 0x02: 81, 0x03: 102, 0x04: 43, 0x05: 10, 	# Captain Falcon - 0x0
-		0x10: 36, 0x11: 7, 0x12: 83, 0x13: 12, 0x14: 44, 	# DK
-		0x20: 40, 0x21: 87, 0x22: 15, 0x23: 48, 	# Fox
-		0x30: 5, 0x31: 80, 0x32: 4, 0x33: 42, 	# Game & Watch
+		0x10: 36, 0x11: 7, 0x12: 83, 0x13: 12, 0x14: 44, 		# DK
+		0x20: 40, 0x21: 87, 0x22: 15, 0x23: 48, 				# Fox
+		0x30: 5, 0x31: 80, 0x32: 4, 0x33: 42, 					# Game & Watch
 		0x40: 66, 0x41: 111, 0x42: 19, 0x43: 91, 0x44: 52, 0x45: 105, 	# Kirby
-		0x50: 67, 0x51: 92, 0x52: 20, 0x53: 1,	# Bowser
-		0x60: 68, 0x61: 93, 0x62: 21, 0x63: 2, 0x64: 106,	# Link
-		0x70: 69, 0x71: 107, 0x72: 22, 0x73: 94, 	# Luigi
-		0x80: 70, 0x81: 112, 0x82: 3, 0x83: 23, 0x84: 53, # Mario - 0x8
-		0x90: 38, 0x91: 85, 0x92: 46, 0x93: 0, 0x94: 104, 	# Marth
-		0xA0: 71, 0xA1: 95, 0xA2: 24, 0xA3: 54, 	# Mewtwo
-		0xB0: 72, 0xB1: 113, 0xB2: 25, 0xB3: 55, 	# Ness
-		0xC0: 74, 0xC1: 35, 0xC2: 108, 0xC3: 26, 0xC4: 56, 	# Peach
-		0xD0: 78, 0xD1: 97, 0xD2: 28, 0xD3: 58, 	# Pikachu
-		0xE0: 63, 0xE1: 50, 0xE2: 17, 0xE3: 89, 	# Ice Climbers
-		0xF0: 79, 0xF1: 98, 0xF2: 29, 0xF3: 59, 0xF4: 114, 	# Jigglypuff
-		0x100: 101, 0x101: 76, 0x102: 9, 0x103: 60, 0x104: 30, # Samus - 0x10
+		0x50: 67, 0x51: 92, 0x52: 20, 0x53: 1,					# Bowser
+		0x60: 68, 0x61: 93, 0x62: 21, 0x63: 2, 0x64: 106,		# Link
+		0x70: 69, 0x71: 107, 0x72: 22, 0x73: 94, 				# Luigi
+		0x80: 70, 0x81: 112, 0x82: 3, 0x83: 23, 0x84: 53, 		# Mario - 0x8
+		0x90: 38, 0x91: 85, 0x92: 46, 0x93: 0, 0x94: 104, 		# Marth
+		0xA0: 71, 0xA1: 95, 0xA2: 24, 0xA3: 54, 				# Mewtwo
+		0xB0: 72, 0xB1: 113, 0xB2: 25, 0xB3: 55, 				# Ness
+		0xC0: 74, 0xC1: 35, 0xC2: 108, 0xC3: 26, 0xC4: 56, 		# Peach
+		0xD0: 78, 0xD1: 97, 0xD2: 28, 0xD3: 58, 				# Pikachu
+		0xE0: 63, 0xE1: 50, 0xE2: 17, 0xE3: 89, 				# Ice Climbers
+		0xF0: 79, 0xF1: 98, 0xF2: 29, 0xF3: 59, 0xF4: 114, 		# Jigglypuff
+		0x100: 101, 0x101: 76, 0x102: 9, 0x103: 60, 0x104: 30, 	# Samus - 0x10
 		0x110: 116, 0x111: 99, 0x112: 31, 0x113: 115, 0x114: 77, 0x115: 65, 	# Yoshi
 		0x120: 117, 0x121: 100, 0x122: 32, 0x123: 61, 0x124: 109, 	# Zelda
-		#0x130: , 0x131: , 0x132: , 0x133: , 0x134: , 	# Sheik		# Someday :)
-		0x140: 39, 0x141: 86, 0x142: 14, 0x143: 47, 	# Falco
-		0x150: 34, 0x151: 82, 0x152: 11, 0x153: 103, 0x154: 6, # Young Link
-		0x160: 37, 0x161: 84, 0x162: 13, 0x163: 45, 0x164: 8, # Doc
-		0x170: 64, 0x171: 90, 0x172: 18, 0x173: 51, 0x174: 110, 	# Roy
-		0x180: 75, 0x181: 96, 0x182: 27, 0x183: 57, # Pichu - 0x18
-		0x190: 41, 0x191: 88, 0x192: 16, 0x193: 49, 0x194: 73 # Ganondorf
+		#0x130: , 0x131: , 0x132: , 0x133: , 0x134: , 			# Sheik		# Someday :)
+		0x140: 39, 0x141: 86, 0x142: 14, 0x143: 47, 			# Falco
+		0x150: 34, 0x151: 82, 0x152: 11, 0x153: 103, 0x154: 6, 	# Young Link
+		0x160: 37, 0x161: 84, 0x162: 13, 0x163: 45, 0x164: 8, 	# Doc
+		0x170: 64, 0x171: 90, 0x172: 18, 0x173: 51, 0x174: 110, # Roy
+		0x180: 75, 0x181: 96, 0x182: 27, 0x183: 57, 			# Pichu - 0x18
+		0x190: 41, 0x191: 88, 0x192: 16, 0x193: 49, 0x194: 73 	# Ganondorf
 	}
 
 	# These will be shared across CSS files; so if one file checks, they'll all know
@@ -158,15 +160,10 @@ class CssFile( DatFile ):
 
 	def setRandomNeutralName( self, filename, newStageName ):
 
-		""" Sets a new stage name string in the respective string table. May return the following codes:
-				0: Success; no problems
-				1: Not applicable to this disc (it's not 20XX or not the right version)
-				2: Not applicable to this filename 
-				3: Invalid stage name input """
+		""" Sets a new stage name string in the respective string table. Only used with 20XX. """
 
 		# Make sure this is applicable
 		if not self.hasRandomNeutralTables():
-			#return 1
 			raise Exception( 'Operation not applicable to this disc' )
 
 		# Parse the file name string for the custom stage index
@@ -179,7 +176,6 @@ class CssFile( DatFile ):
 			index = int( fileExt[1], 16 )
 			nameOffset = self.randomNeutralStageNameTables[fileName] + 0x50 + ( index * 0x20 )
 		else:
-			#return 2
 			raise Exception( 'Operation not applicable for this filename' )
 
 		# Convert the given string to bytes (should have already been validated)
@@ -189,17 +185,13 @@ class CssFile( DatFile ):
 			if len( nameBytes ) > 0x1F:
 				raise Exception( 'New stage name is too long after encoding (' + str(len(nameBytes)) + ' bytes).' )
 		except Exception as err:
-			print 'Unable to convert the stage name to bytes; ' + err
-			#return 3
-			raise Exception( 'Unable to convert the string to bytes' )
+			raise Exception( 'Unable to convert the string to bytes ({})'.format(err) )
 
 		# Add null data to fill the remaining space for this string (erasing pre-existing characters)
 		padding = bytearray( 0x20 - len(nameBytes) ) # +1 to byte limit to add the null byte
 
 		self.setData( nameOffset, nameBytes+padding )
 		self.recordChange( 'Random Neutral stage name updated for ' + newStageName )
-
-		#return 0
 
 	def checkMaxHexTrackNameLen( self, trackNumber, fileOffset=0 ):
 
@@ -212,7 +204,7 @@ class CssFile( DatFile ):
 			songs with extra padding following their strings, allowing for longer names. """
 
 		if trackNumber < 0 or trackNumber > 0xFF:
-			print 'Unrecognized track ID!', hex( trackNumber )
+			print( 'Unrecognized track ID! ' + hex(trackNumber) )
 			return -1
 
 		elif trackNumber < 49: # Original stage string; space for this varies
@@ -248,8 +240,8 @@ class CssFile( DatFile ):
 			previousAddress = toInt( self.getData(namePointerOffset-4, 4) ) # The address of the name string in RAM
 			assert previousAddress != 0, 'Illegal operation; must add hex tracks in order! 0x{:X} does not exist.'.format( trackNumber-1 )
 
-			print 'Adding new hex track song name pointer table entry'
 			# Add the new pointer to the table
+			print( 'Adding new hex track song name pointer table entry' )
 			nameAddress = previousAddress - 0x20
 			addressBytes = struct.pack( '>I', nameAddress )
 			self.setData( namePointerOffset, addressBytes )
@@ -304,7 +296,7 @@ class CssFile( DatFile ):
 			nameBytes = bytearray()
 			nameBytes.extend( newName )
 		except Exception as err:
-			print 'Unable to convert the song name to bytes; ' + str( err )
+			print( 'Unable to convert the song name to bytes; ' + str(err) )
 			raise Exception( 'Unable to convert the string to bytes' )
 
 		if len( nameBytes ) > byteLimit:
@@ -316,16 +308,29 @@ class CssFile( DatFile ):
 		self.setData( fileOffset, nameBytes+padding )
 		self.recordChange( 'Hex Track name updated for {} (track 0x{:02X})'.format(newName, trackNumber) )
 
+	def getCsp( self, charId, costumeId ):
+
+		""" Returns a CSP texture as an ImageTk.PhotoImage """
+
+		# Translate Sheik to Zelda
+		if charId == 0x13:
+			charId = 0x12
+
+		# Get the index of this Char/Costume CSP in the file
+		indexKey = charId * 0x10 | costumeId
+		cspIndex = self.cspIndexes[indexKey]
+
+		# Calculate the offset of the CSP texture and get the texture there
+		cspOffset = self.cspBaseOffset + ( cspIndex * self.cspStride ) - 0x20
+		return self.getTexture( cspOffset, 136, 188, 9 )
+
 	def importCsp( self, filepath, charId, costumeId, textureName='' ):
 
 		""" Use the character and costume IDs to look up the texture offset, 
 			and import the given texture to that location in the file. 
 			Same return information as .setTexture() """
 
-		baseOffset = 0x4CA40
-		stride = 0x6600 # Texture size + palette data/header
-
-		# Make sure Sheik isn't given
+		# Translate Sheik to Zelda
 		if charId == 0x13:
 			charId = 0x12
 
@@ -347,7 +352,7 @@ class CssFile( DatFile ):
 				textureName += "'s {} CSP".format( colorName )
 
 		# Calculate the offset of the CSP texture and import the texture there
-		cspOffset = ( baseOffset + cspIndex * stride ) - 0x20
+		cspOffset = self.cspBaseOffset + ( cspIndex * self.cspStride ) - 0x20
 		returnInfo = self.setTexture( cspOffset, None, filepath, textureName, 1 )
 
 		return returnInfo
@@ -619,7 +624,7 @@ class SisFile( DatFile ):
 		imageDataEnd = imageDataStart + imageDataStruct.length
 
 		for imageDataOffset in range( imageDataStart, imageDataEnd, 0x380 ):
-			print hex(imageDataOffset+0x20)
+			print( hex(imageDataOffset+0x20) )
 
 
 class StageFile( DatFile ):
@@ -808,20 +813,15 @@ class StageFile( DatFile ):
 				cssFile = self.disc.files[self.disc.gameId + '/MnSlChr.0sd']
 				self._shortDescription = cssFile.getRandomNeutralName( self.filename )
 
-				# if stageName and not inConvenienceFolder:
-				# 	# Get the vanilla stage name as a base for the descriptive name
-				# 	stageName = self.longName + ', ' + stageName
 				if self._shortDescription:
 					self._longDescription = self.longName + ', ' + self._shortDescription
 
 			except Exception as err:
-				print 'Unable to get Random Neutral stage name from CSS file;'
-				print err
+				print( 'Unable to get Random Neutral stage name from CSS file; {}'.format(err) )
 			
 			return
 		
 		# Check if there's a file explicitly defined in the file descriptions config file
-		#if not stageName:
 		stageName = self.yamlDescriptions.get( self.filename, '' )
 
 		# If this is a usd file, check if there's a dat equivalent description
@@ -837,7 +837,6 @@ class StageFile( DatFile ):
 			return
 
 		# Check for Target Test stages
-		#if not stageName and self.filename[2] == 'T':
 		elif self.filename[2] == 'T':
 			characterName = globalData.charNameLookup.get( self.filename[3:5], '' )
 
@@ -846,17 +845,9 @@ class StageFile( DatFile ):
 					stageName = characterName + "'"
 				else:
 					stageName = characterName + "'s"
-
-				# If convenience folders aren't turned on this name should have more detail
-				# if not inConvenienceFolder:
-				# 	stageName += " Target Test stage"
+				
 				self._shortDescription = stageName
 				self._longDescription = stageName + " Target Test stage"
-		
-		# if updateInternalRef:
-		# 	self.description = stageName
-
-		# return stageName
 
 	def setDescription( self, description, gameId='' ):
 
@@ -868,7 +859,6 @@ class StageFile( DatFile ):
 				3: Unable to save to the CSS file """
 
 		if self.isRandomNeutral() and self.disc:
-			#self.description = description
 			self._shortDescription = description
 			self._longDescription = description
 
@@ -898,7 +888,6 @@ class StageFile( DatFile ):
 
 		self.initialize()
 
-		#imageDataOffsetsFound = set()
 		texturesInfo = []
 		
 		# tic = time.clock()

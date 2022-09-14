@@ -74,8 +74,8 @@ def uHex( integer ):
 
 def toHex( number, padTo ):
 	
-	""" Casts an int to a hex string, and pads the result (zeros out)
-		to n characters (nibbles), the second parameter. """
+	""" Casts an int to a hex string without the 0x prefix, and pads the 
+		result (zeros out) to n characters/nibbles, the second parameter. """
 	
 	return "{0:0{1}X}".format( number, padTo )
 

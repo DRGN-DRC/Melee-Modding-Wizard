@@ -164,23 +164,11 @@ class FileMenu( Tk.Menu, object ):
 			msg( 'No disc has been loaded!' )
 			return
 
-		unsavedFiles = globalData.disc.getUnsavedChangedFiles()
-
-		# Scan for code-related changes
-		pendingCodeChanges = False
-		if globalData.gui.codeManagerTab:
-			for mod in globalData.codeMods:
-				if mod.state == 'pendingEnable':
-					pendingCodeChanges = True
-					break
-				elif mod.state == 'pendingDisable':
-					pendingCodeChanges = True
-					break
-		
-		if not pendingCodeChanges and not unsavedFiles and not globalData.disc.unsavedChanges and not globalData.disc.rebuildReason:
+		changes = globalData.gui.concatAllUnsavedChanges( True )
+		if not changes:
 			msg( 'There are no changes to be saved.', 'No Unsaved Changes' )
 		else:
-			msg( globalData.disc.concatUnsavedChanges(unsavedFiles, basicSummary=False), 'Unsaved Changes' )
+			msg( '\n'.join(changes), 'Unsaved Changes' )
 
 
 class SettingsMenu( Tk.Menu, object ):
@@ -1944,7 +1932,7 @@ class MainGui( Tk.Frame, object ):
 		elif os.path.isdir( filepath ):
 			if isExtractedDirectory( filepath, showError=False ):
 				# Check whether there are changes that the user wants to save for files that must be unloaded
-				if globalData.disc and globalData.disc.changesNeedSaving():
+				if self.changesNeedSaving( globalData.disc ):
 					return
 
 				self.loadRootOrDisc( filepath, updateDefaultDirectory )
@@ -1957,7 +1945,7 @@ class MainGui( Tk.Frame, object ):
 			extension = os.path.splitext( filepath )[1].lower()
 			if extension == '.iso' or extension == '.gcm':
 				# Check whether there are changes that the user wants to save for files that must be unloaded
-				if globalData.disc and globalData.disc.changesNeedSaving():
+				if self.changesNeedSaving( globalData.disc ):
 					return
 
 				self.loadRootOrDisc( filepath, updateDefaultDirectory )
@@ -2028,25 +2016,14 @@ class MainGui( Tk.Frame, object ):
 		# toc = time.clock()
 		# print( 'disc load time:', toc-tic )
 		
-		# Add/initialize the Disc File Tree tab
-		# if not self.discTab:
-		# 	self.discTab = DiscTab( self.mainTabFrame, self )
-			#self.mainTabFrame.update_idletasks()
-			#self.mainTabFrame.update()
+		# Update the Disc File Tree and Disc Details tabs
 		if self.discTab:
 			self.discTab.loadDisc( updateStatus=updateStatus, preserveTreeState=preserveTreeState, switchTab=switchTab, updatedFiles=updatedFiles )
 			self.mainTabFrame.update_idletasks()
-
-		# Add/initialize the Disc Details tab, and load the disc's info into it
-		# if not self.discDetailsTab:
-		# 	self.discDetailsTab = DiscDetailsTab( self.mainTabFrame, self )
-		# 	self.mainTabFrame.update_idletasks()
 		if self.discDetailsTab:
 			self.discDetailsTab.loadDiscDetails()
 
-		# if not self.codeManagerTab:
-		# 	self.codeManagerTab = CodeManagerTab( self.mainTabFrame, self )
-		# 	self.mainTabFrame.update_idletasks()
+		# Update the Code Manager
 		if self.codeManagerTab:
 			self.codeManagerTab.autoSelectCodeRegions()
 			self.codeManagerTab.scanCodeLibrary( playAudio=False )
@@ -2055,9 +2032,6 @@ class MainGui( Tk.Frame, object ):
 		if globalData.disc.isMelee:
 			# If this is 20XX, add/initialize the Debug Menu Editor tab
 			if globalData.disc.is20XX:
-				# if not self.menuEditorTab:
-				# 	self.menuEditorTab = DebugMenuEditor( self.mainTabFrame, self )
-				# 	self.mainTabFrame.update_idletasks()
 				if self.menuEditorTab:
 					self.menuEditorTab.loadTopLevel()
 
@@ -2066,19 +2040,14 @@ class MainGui( Tk.Frame, object ):
 				self.menuEditorTab.destroy()
 				self.menuEditorTab = None
 
-			# Load the stage info/editor
-			# if not self.stageManagerTab:
-			# 	self.stageManagerTab = StageManager( self.mainTabFrame, self )
-			# 	self.mainTabFrame.update_idletasks()
+			# Update Stage Manager
 			if self.stageManagerTab:
 				if globalData.disc.is20XX:
 					self.stageManagerTab.load20XXStageLists()
 				else:
 					self.stageManagerTab.loadVanillaStageLists()
 
-			# Load the audio tab
-			# if not self.audioManagerTab:
-			# 	self.audioManagerTab = AudioManager( self.mainTabFrame, self )
+			# Update Music Manager
 			if self.audioManagerTab:
 				self.audioManagerTab.loadFileList()
 
@@ -2199,9 +2168,56 @@ class MainGui( Tk.Frame, object ):
 		
 		return returnCode
 
+	def concatAllUnsavedChanges( self, basicSummary ):
+		
+		changes = []
+		unsavedFiles = globalData.disc.getUnsavedChangedFiles()
+
+		# Check for disc changes
+		if unsavedFiles or globalData.disc.unsavedChanges or globalData.disc.rebuildReason:
+			changes.extend( globalData.disc.concatUnsavedChanges(unsavedFiles, basicSummary) )
+
+		# Scan for code-related changes
+		if globalData.gui.codeManagerTab:
+			pendingCodeChanges = globalData.gui.codeManagerTab.summarizeChanges()
+			if len( pendingCodeChanges ) > 1:
+				changes.append( '' )
+				changes.extend( pendingCodeChanges )
+
+		# Check the Character Modding tab if it's open
+		#if self.charModTab:
+
+		return changes
+		
+	def changesNeedSaving( self, disc, programClosing=False ):
+
+		""" Asks the user if they would like to forget any unsaved disc changes. 
+			Used in order to close the program or load a new file. Returns a 
+			list of files that have unsaved changes. """
+
+		if not disc:
+			return False
+
+		changes = self.concatAllUnsavedChanges( False )
+		if not changes:
+			return False
+
+		# Changes have been recorded. Ask the user if they'd like to discard them
+		if programClosing:
+			warning = [ "The changes below haven't been saved to disc.", 'Are you sure you want to close?', '' ]
+		else:
+			warning = [ 'The changes below will be forgotten if you change or reload the disc before saving. Are you sure you want to do this?', '' ]
+		warning.extend( changes )
+
+		forgetChanges = tkMessageBox.askyesno( 'Unsaved Changes', '\n'.join(warning) )
+
+		return ( not forgetChanges )
+
 	def onProgramClose( self ):
 		globalData.saveProgramSettings()
-		self.root.destroy() # Stops the GUI's mainloop and destroys all widgets. https://stackoverflow.com/a/42928131/8481154
+
+		if not self.changesNeedSaving( globalData.disc, True ):
+			self.root.destroy() # Stops the GUI's mainloop and destroys all widgets. https://stackoverflow.com/a/42928131/8481154
 
 	def addCodeConstructionTab( self ):
 		
@@ -2230,7 +2246,7 @@ class MainGui( Tk.Frame, object ):
 
 		""" Saves current changes, and then runs the disc or root folder in Dolphin. """
 
-		# Shut down Dolphin in case the game is running (can't save ot it otherwise)
+		# Shut down Dolphin in case the game is running (can't save to it otherwise)
 		globalData.dolphinController.stopAllDolphinInstances()
 
 		# Save

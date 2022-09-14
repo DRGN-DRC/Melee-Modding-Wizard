@@ -43,7 +43,6 @@ def init( programArgs ):
 
 	global scriptHomeFolder, paths, defaultSettings, defaultBoolSettings, settings, boolSettings, overwriteOptions
 	global codeProcessor, dolphinController, gui, disc, dol, codeMods, standaloneFunctions, fileStructureClasses
-	global programEnding
 
 	scriptHomeFolder = os.path.abspath( os.path.dirname(programArgs[0]) ) # Can't use __file__; incompatible with cx_freeze process
 
@@ -117,8 +116,6 @@ def init( programArgs ):
 	# All internal file structure classes should be registered in this dictionary
 	fileStructureClasses = {}
 	FileSystem.registerStructureClasses()
-
-	programEnding = False
 
 
 def getUniqueWindow( className, topLevelWindow=None ):

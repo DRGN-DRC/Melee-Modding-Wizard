@@ -87,10 +87,10 @@ def getInterFilePaddingLength( totalFileSpace, totalNonSystemFiles ):
 			if '0x' in paddingSetting: interFilePaddingLength = int( paddingSetting, 16 )
 			else: interFilePaddingLength = int( paddingSetting )
 		except Exception as err: # Use the program's default
-			print 'Error interpreting paddingBetweenFiles setting:', paddingSetting
-			print err
+			print( 'Error interpreting paddingBetweenFiles setting: ' + str(paddingSetting) )
+			print( err )
 			interFilePaddingLength = int( globalData.defaultSettings['paddingBetweenFiles'], 16 )
-			print 'Switching to default value of', hex( interFilePaddingLength )
+			print( 'Switching to default value of ' + hex(interFilePaddingLength) )
 
 		# Undercut (reduce) the padding length, if necessary, to guarantee it is aligned to 4 bytes
 		# if not interFilePaddingLength % 4 == 0:
@@ -205,7 +205,6 @@ class Disc( object ):
 
 	def __init__( self, filePath ):
 
-		#self.dol = None
 		self.ext = os.path.splitext( filePath )[1]	# Includes '.'
 		self.filePath = filePath
 		self.files = ListDict([])		# System files will be first in this, while root files will be ordered by the FST, or the OS if opening a root
@@ -799,29 +798,28 @@ class Disc( object ):
 		
 		return '\n'.join( fileList )
 
-	# def getSize( self ):
+	def getSize( self ):
 
-	# 	""" Returns the expected size of the disc, taking into account disc changes if it needs to be rebuilt. """
+		""" Returns the expected size of the disc, taking into account disc changes if it needs to be rebuilt. """
 
-	# 	if not self.rebuildReason:
-	# 		# lastFile = next( reversed(self.files) )
-	# 		# return lastFile.offset + lastFile.size
-	# 		return os.path.getsize( self.filePath )
-
-	# 	else:
-	# 		return self.getDiscSizeCalculations()[0]
+		if not self.rebuildReason:
+			return os.path.getsize( self.filePath )
+		else:
+			return self.getDiscSizeCalculations()[0]
 
 	def getDiscSizeCalculations( self, ignorePadding=False ):
-		# Make sure this is up to date
-		#self.buildFstEntries()
+		
+		""" Totals sizes for all system files and regular disc files, determines padding to be added 
+			between files (taking into account the current 'paddingBetweenFiles' setting ), and returns 
+			the following: projectedDiscSize, totalSystemFileSpace, fstOffset, interFilePaddingLength, paddingSetting """
 		
 		# Calculate the FST file offset and size
 		fstOffset = self.getFstOffset()
 		fstStrings = [ entry[-2] for entry in self.fstEntries[1:] ] # Skips the root entry
 		fstFileSize = len( self.fstEntries ) * 0xC + len( '.'.join(fstStrings) ) + 1 # Final +1 to account for last stop byte
 
-		# Get space needed for all system files (ends at FST)
-		totalSystemFileSpace = roundTo32( fstOffset + fstFileSize ) # roundTo will round up, to make sure subsequent files are aligned
+		# Get space needed for all system files (ends after FST)
+		totalSystemFileSpace = roundTo32( fstOffset + fstFileSize ) # roundTo will round up, to ensure subsequent files are aligned
 		
 		# Determine file space for non-system files
 		totalNonSystemFiles = 0
@@ -854,7 +852,8 @@ class Disc( object ):
 
 	def concatUnsavedChanges( self, unsavedFiles=None, basicSummary=True ):
 
-		""" Concatenates changes throughout the disc into a string to be displayed to the user. """
+		""" Concatenates changes throughout the disc into a message to be displayed to the user. 
+			Returns a list of text lines. """
 
 		if unsavedFiles == None:
 			# Build a list of files that have unsaved changes
@@ -867,37 +866,11 @@ class Disc( object ):
 		elif not basicSummary:
 			lines.append( 'No file changes' )
 
-		#if self.rebuildRequired:
 		if self.rebuildReason:
 			lines.append( 'Rebuild required ' + self.rebuildReason )
 		elif not basicSummary:
 			lines.append( 'Rebuild not required' )
 		lines.append( '' )
-		
-		# Scan for code-related changes
-		if globalData.gui and globalData.gui.codeManagerTab:
-			modsToInstall = 0
-			modsToUninstall = 0
-
-			# Scan the library for mods to be installed or uninstalled
-			for mod in globalData.codeMods:
-				if mod.state == 'pendingEnable':
-					modsToInstall += 1
-				elif mod.state == 'pendingDisable':
-					modsToUninstall += 1
-
-			# Advanced Summary
-			if not basicSummary and not modsToInstall and not modsToUninstall:
-				lines.append( '0 code mods to install or uninstall\n' )
-			elif not basicSummary:
-				lines.append( '{} code mods to install'.format(modsToInstall) )
-				lines.append( '{} code mods to uninstall\n'.format(modsToUninstall) )
-
-			# Basic Summary
-			elif modsToInstall:
-				lines.append( '{} code mods to install'.format(modsToInstall) )
-			elif modsToUninstall:
-				lines.append( '{} code mods to uninstall\n'.format(modsToUninstall) )
 		
 		# Check disc changes not tied to an existing file
 		if self.unsavedChanges:
@@ -923,7 +896,7 @@ class Disc( object ):
 					lines.append( '    ' + fileChange )
 				lines.append( '' )
 
-		return '\n'.join( lines )
+		return lines
 
 	def getUnsavedChangedFiles( self ):
 
@@ -935,33 +908,6 @@ class Disc( object ):
 			if fileObj.unsavedChanges:
 				unsavedFiles.append( fileObj )
 
-		return unsavedFiles
-
-	def changesNeedSaving( self ):
-
-		""" Asks the user if they would like to forget any unsaved disc changes. 
-			Used in order to close the program or load a new file. Returns a 
-			list of files that have unsaved changes. """
-
-		# Build a list of files that have unsaved changes
-		unsavedFiles = self.getUnsavedChangedFiles()
-		if not unsavedFiles and not self.unsavedChanges and not self.rebuildReason:
-			return []
-
-		# Changes are recorded. Ask the user if they'd like to forget them
-		if globalData.programEnding:
-			warning = "The changes below haven't been saved to disc. Are you sure you \nwant to close?\n\n"
-		else: warning = 'The changes below will be forgotten if you change or reload the disc before saving. Are you sure you want to do this?\n\n'
-		warning += self.concatUnsavedChanges( unsavedFiles )
-		forgetChanges = tkMessageBox.askyesno( 'Unsaved Changes', warning )
-
-		if forgetChanges: # The disc should be reloaded (or program closed) if the user truly wishes to undo/discard changes
-			# self.unsavedChanges = []
-			# self.rebuildReason = ''
-			#self.rebuildRequired = False
-			return []
-
-		#return ( not forgetChanges )
 		return unsavedFiles
 
 	def alphabetize( self ):
@@ -1041,7 +987,7 @@ class Disc( object ):
 					
 					# Attempt to get the file data
 					if not fileObj:
-						print 'Unable to export {}; unable to find this ISO path in the disc.'.format( isoPath )
+						print( 'Unable to export {}; unable to find this ISO path in the disc.'.format(isoPath) )
 						failedExports.append( isoPath )
 						continue
 					elif fileObj.source == 'disc':
@@ -1063,7 +1009,7 @@ class Disc( object ):
 							newFile.write( fileData )
 
 					except Exception as err:
-						print 'Unable to export {}; {}'.format( pathEnd, err )
+						print( 'Unable to export {}; {}'.format(pathEnd, err) )
 						failedExports.append( isoPath )
 
 			return failedExports
@@ -1079,14 +1025,14 @@ class Disc( object ):
 		for isoPath, externalPath in zip( isoPaths, filePaths ):
 			# Validate the external filepath
 			if not os.path.exists( externalPath ):
-				print 'Unable to import {}; unable to find the target standalone file.'.format( isoPath )
+				print( 'Unable to import {}; unable to find the target standalone file.'.format(isoPath) )
 				failedImports.append( isoPath )
 				continue
 
 			# Get the file to replace
 			origFile = self.files.get( isoPath )
 			if not origFile:
-				print 'Unable to import {}; unable to find this ISO path in the disc.'.format( isoPath )
+				print( 'Unable to import {}; unable to find this ISO path in the disc.'.format(isoPath) )
 				failedImports.append( isoPath )
 				continue
 
@@ -1212,7 +1158,6 @@ class Disc( object ):
 			elif insertAfter:
 				self.files.insert_after( insertionKey, (fileObj.isoPath, fileObj) )
 			else:
-				print 'inserting file just before', insertionKey
 				self.files.insert_before( insertionKey, (fileObj.isoPath, fileObj) )
 			
 			fileObj.disc = self
@@ -1446,7 +1391,7 @@ class Disc( object ):
 				# Get the file's data
 				fileData = fileObj.getData()
 				if not fileData:
-					print 'Unable to update', fileObj.isoPath + '; unable to retrieve file data'
+					print( 'Unable to update {}; unable to retrieve file data'.format(fileObj.isoPath) )
 					continue
 
 				# Navigate to the location of the file in the disc and write the new data
@@ -1491,7 +1436,7 @@ class Disc( object ):
 				filesUpdated.add( fst.isoPath )
 
 		except Exception as err:
-			print 'Unrecognized error while writing the new disc files (rebuild required = False);', err
+			print( 'Unrecognized error while writing the new disc files (rebuild required = False); {}'.format(err) )
 			return 5, []
 
 		isoBinary.close()
@@ -1534,7 +1479,7 @@ class Disc( object ):
 		try:
 			newIsoBinary = tempfile.NamedTemporaryFile( mode='r+b', dir=os.path.dirname(self.filePath), suffix='.tmp', delete=False )
 		except Exception as err:
-			print 'Error creating new temporary file;', err
+			print( 'Error creating new temporary file; {}'.format(err) )
 			return 3, []
 
 		# Open the original disc file for reading if this isn't a root folder, to get its files
@@ -1544,7 +1489,7 @@ class Disc( object ):
 			try:
 				originalIsoBinary = open( self.filePath, 'rb' ) # Will only be referenced below when rebuilding an existing disc image.
 			except Exception as err:
-				print 'Error opening "{}";'.format(self.filePath), err
+				print( 'Error opening "{}"; {}'.format(self.filePath, err) )
 				if newIsoBinary:
 					newIsoBinary.close()
 					try: # Save not successful; delete the temp file if it's present
@@ -1644,7 +1589,7 @@ class Disc( object ):
 			fileWriteSuccessful = True
 
 		except Exception as err:
-			print 'Unrecognized error while writing the new disc files (rebuild required = True);', err
+			print( 'Unrecognized error while writing the new disc files (rebuild required = True); {}'.format(err) )
 		
 		# Close files
 		if newIsoBinary:
@@ -1715,9 +1660,6 @@ class Disc( object ):
 				5: Unrecognized error during file writing
 				6: Unable to overwrite existing file
 				7: Could not rename discs or remove original """
-
-		# self.files[self.gameId + '/Start.dol'] = self._dol
-		# self.files[self.gameId + '/Start.dol'] = self._dol
 
 		# Perform some clean-up operations for 20XXHP features
 		if self.is20XX:
@@ -1873,7 +1815,7 @@ class Disc( object ):
 			not correlate to the same number hps file. """
 
 		if musicId < 0:
-			print 'Invalid music ID given to disc.getMusicFile():', hex( musicId )
+			print( 'Invalid music ID given to disc.getMusicFile(): ' + hex(musicId) )
 			return None
 
 		isHexTrack = ( musicId & 0x10000 == 0x10000 )
@@ -1885,13 +1827,12 @@ class Disc( object ):
 
 		# Check for a vanilla file name for this ID using a table in the DOL
 		elif musicId < 0x63:
-			#dol = self.files.get( self.gameId + '/Start.dol' )
 			musicFilename = self.dol.getMusicFilename( musicId )
 			if not musicFilename:
 				return None
 
 		else:
-			print 'Invalid music ID given to disc.getMusicFile():', hex( musicId )
+			print( 'Invalid music ID given to disc.getMusicFile(): ' + hex(musicId) )
 			return None
 
 		musicFile = self.files.get( self.gameId + '/audio/' + musicFilename ) # May also be None, if it can't find the file
@@ -2993,7 +2934,7 @@ class MicroMelee( Disc ):
 		globalData.settings.set( 'General Settings', 'paddingBetweenFiles', origPadding )
 
 		toc = time.clock()
-		print 'Time to build micro melee:', toc-tic
+		print( 'Time to build micro melee: ' + str(toc-tic) )
 
 	def buildNewDisc( self, newFilePath='', buildMsg='Building the Micro Melee testing disc:' ):
 

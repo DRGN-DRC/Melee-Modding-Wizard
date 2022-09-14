@@ -1775,7 +1775,6 @@ class NeoTreeview( ttk.Treeview, object ):
 		except: # Prior selections might not exist
 			pass
 
-
 	def addTag( self, iid, tagToAdd ):
 
 		""" Adds the given tag to the given item, while preserving other tags it may have. """
