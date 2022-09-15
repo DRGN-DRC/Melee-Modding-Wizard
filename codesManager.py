@@ -2233,7 +2233,7 @@ class CodeConstructor( Tk.Frame ):
 					self.updateSaveStatus( True, 'Unable to Save' )
 					msg( ("This mod cannot be saved in AMFS format. It's a Gecko code with code changes "
 						"that cannot be converted to standard static overwrites and injections. Currently, "
-						"this conversion only includes Gecko codetypes 04, 06, and C2"), 'Unable to Save', warning=True )
+						"this conversion only includes Gecko codetypes 00 through 06, and C2. Please choose a different format to save in."), 'Unable to Save', warning=True )
 					return False
 
 			saveSuccessful = self.mod.saveInAmfsFormat()

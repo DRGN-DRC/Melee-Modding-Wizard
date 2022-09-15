@@ -394,8 +394,8 @@ class CodeMod( object ):
 		self.state = 'disabled'
 		self.category = ''
 		self.stateDesc = ''				# Describes reason for the state. Shows as a text status on the mod in the GUI
-		self.configurations = OrderedDict([])		# Will be a dict of option dictionaries.	  Required keys: type, value
-																		# Optional keys: annotation, default, range, mask, members, hidden
+		self.configurations = OrderedDict([])		# Will be a dict of option dictionaries.	  Required keys: type, value, default
+																					# Optional keys: annotation, range, mask, members, hidden
 		self.isAmfs = isAmfs
 		self.isMini = False				# todo; replace this and above bool with a storeFormat Enum if this format is kept
 		self.webLinks = []				# A list of tuples, with each of the form ( URL, comment )
@@ -589,6 +589,37 @@ class CodeMod( object ):
 		self.stateDesc = ''
 		self.errors.clear()
 
+	def validateConfigurations( self ):
+
+		""" Ensures all configurations options include at least 'type', 'value', and 'default' parameters. 
+			Removes the configuration option from the dictionary if any of these are missing. """
+
+		assert isinstance( self.configurations, dict ), 'Invalid mod configuration! The configurations property should be a dictionary.'
+
+		badConfigs = []
+
+		for configName, dictionary in self.configurations.items():
+			if 'type' not in dictionary:
+				self.parsingError = True
+				self.stateDesc = 'Configuration option "{}" missing type parameter'.format( configName )
+				self.errors.add( 'Configuration option "{}" missing type parameter'.format(configName) )
+				badConfigs.append( configName )
+			if 'value' not in dictionary:
+				self.parsingError = True
+				self.stateDesc = 'Configuration option "{}" missing value parameter'.format( configName )
+				self.errors.add( 'Configuration option "{}" missing value parameter'.format(configName) )
+				badConfigs.append( configName )
+			if 'default' not in dictionary:
+				self.parsingError = True
+				self.stateDesc = 'Configuration option "{}" missing default parameter'.format( configName )
+				self.errors.add( 'Configuration option "{}" missing default parameter'.format(configName) )
+				badConfigs.append( configName )
+
+		# Remove bad configurations to prevent creating other bugs in the program
+		if badConfigs:
+			for config in badConfigs:
+				del self.configurations[config]
+
 	def configure( self, name, value ):
 
 		""" Changes a given configuration option to the given value. """
@@ -612,7 +643,7 @@ class CodeMod( object ):
 		# else:
 		# 	raise Exception( '{} not found in configuration options.'.format(name) )
 
-		return self.configurations[name]
+		return self.configurations.get( name )
 
 	def getConfigValue( self, name ):
 		return self.configurations[name]['value']
@@ -633,9 +664,13 @@ class CodeMod( object ):
 				value = int( value )
 
 		return value
+	
+	def restoreConfigDefaults( self ):
 
-	# def backupConfiguration( self ): #todo; may be required during mod installation detection
-	# def restoreConfiguration( self ):
+		""" Restores all configuration values to the mod's default values. """
+
+		for dictionary in self.configurations.values():
+			dictionary['value'] = dictionary['default']
 
 	def assembleErrorMessage( self, includeStateDesc=False ):
 		
@@ -1066,7 +1101,7 @@ class CodeMod( object ):
 				if fileContents and self.fileIndex == -1: # Add to the end of the file
 					# Get the file index for this mod and prepend a separator
 					self.fileIndex = len( fileContents.split( '-==-' ) )
-					modString = fileContents + '\n\n\t-==-\n\n\n' + modString
+					modString = fileContents + '\n\n\n\t-==-\n\n\n' + modString
 
 				elif fileContents: # Replace the given index
 					mods = fileContents.split( '-==-' )
@@ -2072,8 +2107,8 @@ class CodeLibraryParser():
 
 				# Sanity check; the buffer should be empty if a new code change is starting
 				if codeBuffer[0]:
-					changeType, _, ramAddress, codeLines, codeLength, annotation = codeBuffer
-					codeChangeTuples.append( (changeType, ramAddress, codeLength, codeLines, annotation) )
+					changeType, _, ramAddress, lines, codeLength, annotation = codeBuffer
+					codeChangeTuples.append( (changeType, ramAddress, codeLength, lines, annotation) )
 					print( 'Warning: the Gecko code change for address {:X} appears to be malformed!'.format(ramAddress) )
 					codeBuffer = [ '', -1, '', [], 0, '' ]
 
@@ -2098,7 +2133,7 @@ class CodeLibraryParser():
 			else:
 				codeOnly = lineParts[0]
 				annotation = ''
-			processedHex = ''.join( codeOnly.split( '*' )[0].split() ) # Removes all comments and whitespace
+			processedHex = ''.join( codeOnly.split( '*' )[0].split() ).upper() # Removes all comments and whitespace
 
 			if codeBuffer[0]: # Multi-line code collection is in-progress
 				changeType, totalBytes, ramAddress, _, collectedCodeLength, annotation = codeBuffer
@@ -2156,8 +2191,8 @@ class CodeLibraryParser():
 		# Check for any lingering code
 		if codeBuffer[0]:
 			# Add the finished code change to the list
-			changeType, _, ramAddress, codeLines, codeLength, annotation = codeBuffer
-			codeChangeTuples.append( (changeType, ramAddress, codeLength, codeLines, annotation) )
+			changeType, _, ramAddress, lines, codeLength, annotation = codeBuffer
+			codeChangeTuples.append( (changeType, ramAddress, codeLength, lines, annotation) )
 			print( 'Warning: the Gecko code change for address {:X} appears to be malformed!'.format(ramAddress) )
 
 		# Sort the changes by address
@@ -2189,10 +2224,24 @@ class CodeLibraryParser():
 				# This change immediately follows the last and these two can be combined (replacing previous one)
 				newCodeLength = lastCodeLength + thisCodeLength
 				newCodeLines = lastCodeLines + thisCodeLines
-				newAnnotation = lastAnnotation + '\n' + thisAnnotation
+				newAnnotation = ( lastAnnotation + '\n' + thisAnnotation ).strip()
 				condensedChangesList[-1] = ( 'static', lastRamAddress, newCodeLength, newCodeLines, newAnnotation )
 			else: # Non-contiguous; add this change unmodified
 				condensedChangesList.append( codeChange )
+
+		# Reformat static overwrites longer than 4 bytes to 8 bytes per line (2 blocks of 4)
+		for i, codeChange in enumerate( condensedChangesList ):
+			if codeChange[2] > 4 and codeChange[0] == 'static':
+				newLines = []
+				for ii, line in enumerate( codeChange[3] ):
+					if ii % 2 == 0: # Iteration count is even
+						newLines.append( line )
+					else:
+						newLines[-1] = newLines[-1] + ' ' + line
+
+				codeChange = list( codeChange )
+				codeChange[3] = newLines
+				condensedChangesList[i] = tuple( codeChange )
 
 		return title, authors, '\n'.join( description ), condensedChangesList
 
@@ -2231,6 +2280,7 @@ class CodeLibraryParser():
 					mod = CodeMod( name, authors, description, folderPath, True )
 					mod.category = codeset.get( 'category', primaryCategory ) # Secondary definition, per-code dict basis
 					mod.configurations = codeset.get( 'configurations', OrderedDict([]) )
+					mod.validateConfigurations()
 
 					# Get paths for .include ASM import statements, and web links
 					mod.includePaths = includePaths

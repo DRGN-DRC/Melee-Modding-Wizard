@@ -830,24 +830,17 @@ class Dol( FileBase ):
 				return False
 
 		readOffset = 0
-		#customSyntaxIndex = 0
-		#matchOffset = 0
 
 		for syntaxOffset, length, _, _, _ in codeChange.syntaxInfo:
 
 			# Check for and process custom code preceding this custom syntax instance
 			if readOffset != syntaxOffset:
 				sectionLength = syntaxOffset - readOffset
-				# dolCodeStart = startingOffset + readOffset
-				# dolCodeEnd = dolCodeStart + sectionLength
-				assert sectionLength > 0, 'Read position error in .customCodeInDOL()! Read offset: {}, Next syntax offset: {}'.format( readOffset, syntaxOffset )
+				assert sectionLength > 0, 'Read position error in .findCustomCode()! Read offset: {}, Next syntax offset: {}'.format( readOffset, syntaxOffset )
 
 				codeSection = customCode[readOffset:syntaxOffset]
 				
 				matches = findAll( freeSpaceCodeArea, bytearray.fromhex(codeSection), charIncrement=1 ) # charIncrement set to 1 in order to increment by byte
-				
-				#codeInDol = freeSpaceCodeArea[dolCodeStart:dolCodeEnd]
-				#lastSyntaxOffset = syntaxOffset + length
 
 				# Iterate over the possible locations/matches, and check if each may be the code we're looking for (note that starting offsets will be known in these checks)
 				for matchingOffset in matches:
@@ -857,26 +850,8 @@ class Dol( FileBase ):
 						return codeStart
 				else: # Loop above didn't return; no matches for this section found in the given code area
 					return -1
-
-			# Skip matching custom syntaxes for now
-			#elif section.startswith( 'sbs__' ) or section.startswith( 'sym__' ) or section.startswith( 'opt__' ):
-				#offset += 4
-				#offset += getCustomSectionLength( section )
-				# readOffset += codeChange.syntaxInfo[customSyntaxIndex][1]
-				# customSyntaxIndex += 1
+			
 			readOffset += length
-
-			# else: # First section of non-special syntax found
-			# 	matches = findAll( freeSpaceCodeArea, bytearray.fromhex(section), charIncrement=2 ) # charIncrement set to 2 so we increment by byte rather than by nibble
-
-			# 	# Iterate over the possible locations/matches, and check if each may be the code we're looking for (note that starting offsets will be known in these checks)
-			# 	for matchingOffset in matches:
-			# 		subMatchOffset = self.customCodeInDOL( mod, codeChange, matchingOffset - readOffset, freeSpaceCodeArea ) # "- readOffset" accomodates for potential preceding special branches
-
-			# 		if subMatchOffset != -1: # The full code was found
-			# 			return subMatchOffset
-			# 	else: # Loop above didn't return; no matches for this section found in the given code area
-			# 		return matchOffset
 
 		return 0 # If this is reached, the custom code is entirely special syntaxes; going to have to assume installed. todo: fix
 
@@ -933,11 +908,10 @@ class Dol( FileBase ):
 				codeInDol = freeSpaceCodeArea[dolCodeStart:dolCodeEnd]
 				test = hexlify( codeInDol )
 
+				# Check whether the custom code is in the same as what's currently in the DOL
 				if bytearray.fromhex( codeSection ) != codeInDol: # Comparing via bytearrays rather than strings prevents worrying about upper/lower-case
-					# matchOffset = -1
-					# break # Mismatch detected, meaning this is not the same (custom) code in the DOL.
 					return False
-				else:
+				else: # Same so far...
 					readOffset += sectionLength
 
 			# Skip matching custom syntaxes
@@ -946,27 +920,22 @@ class Dol( FileBase ):
 
 			# If this section contains a configuration option, get the current value stored in the DOL
 			elif syntaxType == 'opt':
-
-				# Parse the custom code line and compare its non-option parts to what's in the DOL
-				# codeMatches = self.compareCustomOptionCode( section, readOffset, freeSpaceCodeArea, codeChange.isAssembly, mod )
-				# if not codeMatches:
-				# 	matchOffset = -1
-				# 	break # Mismatch detected, meaning this is not the same (custom) code in the DOL.
-
+				# If this source custom code is assembly, check bytes from the END of the instruction
 				if codeChange.isAssembly:
-					absOffsetStart = startingOffset + syntaxOffset + 4 - length # Need an absolute DOL offset. The option offset is relative to the code start
-					codeInDol = freeSpaceCodeArea[absOffsetStart:absOffsetStart+length]
-					readOffset += 4
+					valueOffset = startingOffset + syntaxOffset + 4 - length # Need an absolute DOL offset. The option offset is relative to the code start
+					readOffset += 4 # Move to the next instruction
 				else:
-					absOffsetStart = startingOffset + syntaxOffset # Need an absolute DOL offset. The option offset is relative to the code start
-					codeInDol = freeSpaceCodeArea[absOffsetStart:absOffsetStart+length]
+					valueOffset = startingOffset + syntaxOffset # Need an absolute DOL offset. The option offset is relative to the code start
 					readOffset += length
+
+				codeInDol = freeSpaceCodeArea[valueOffset:valueOffset+length]
 
 				if len( names ) == 1:
 					optionDict = mod.getConfiguration( names[0] )
 					optType = optionDict['type']
 					value = struct.unpack( ConfigurationTypes[optType], codeInDol )[0]
 					mod.configure( names[0], value )
+
 				else: # Multiple values were ANDed or ORed into this space
 					for name in names:
 						optionDict = mod.getConfiguration( name )
@@ -983,9 +952,10 @@ class Dol( FileBase ):
 						else:
 							value = struct.unpack( ConfigurationTypes[optType], codeInDol )[0]
 							
+						toc = time.clock()
+
 						mod.configure( name, value )
 						
-						toc = time.clock()
 						print( 'method 1 value: ', value )
 						print( 'in', toc-tic )
 						
@@ -998,6 +968,7 @@ class Dol( FileBase ):
 							i = 0
 							for dolByte, maskByte in zip( codeInDol, maskBytes ):
 								codeInDol[i] = dolByte & maskByte
+								i += 1
 						
 						value = struct.unpack( ConfigurationTypes[optType], codeInDol )[0]
 						
@@ -1017,7 +988,7 @@ class Dol( FileBase ):
 			# 	else:
 			# 		readOffset += sectionLength
 
-		# Test last section
+		# Test last section (or whole section if there was no custom syntax)
 		if readOffset != codeLength:
 			codeSection = customCode[readOffset*2:] # Splicing a string, so *2 to splice by bytes rather than nibbles
 			sectionLength = len( codeSection ) / 2
@@ -1026,8 +997,8 @@ class Dol( FileBase ):
 
 			codeInDol = freeSpaceCodeArea[dolCodeStart:dolCodeEnd]
 
+			# Check whether the custom code is in the same as what's currently in the DOL
 			if not bytearray.fromhex( codeSection ) == codeInDol: # Comparing via bytearrays rather than strings prevents worrying about upper/lower-case
-				# Mismatch detected, meaning this is not the same (custom) code in the DOL.
 				return False
 
 		return True
@@ -1250,8 +1221,12 @@ class Dol( FileBase ):
 				if mod.state != 'pendingEnable':
 					mod.state = 'pendingEnable'
 
-			elif mod.state != 'unavailable': # Might have been set to this in the loop above
-				mod.state = 'disabled'
+			else:
+				# Restore configuration values, as some could have been updated while checking for installation status
+				mod.restoreConfigDefaults()
+
+				if mod.state != 'unavailable': # Might have been set to this in the loop above
+					mod.state = 'disabled'
 
 		# Finished checking for mods (end of allMods loop).
 		toc = time.clock()
