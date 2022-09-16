@@ -1440,9 +1440,10 @@ class SisTextEditor( BasicWindow ):
 	""" Tool window to view and edit pre-made game text in Sd___.dat files. """
 
 	def __init__( self, sisFile ):
-		BasicWindow.__init__( self, globalData.gui.root, 'SIS Text Editor', resizable=True, topMost=False, minsize=(380, 350) )
+		BasicWindow.__init__( self, globalData.gui.root, 'SIS Text Editor', resizable=True, topMost=False, offsets=(180, 50), minsize=(380, 500) )
 
 		self.sisFile = sisFile
+		self.stringsPerPage = 400
 
 		# Get pointers for the text structures
 		sisFile.initialize()
@@ -1452,16 +1453,51 @@ class SisTextEditor( BasicWindow ):
 		# Add header string and a spacer
 		totalTextStructs = len( sisTablePointers ) - 2 # Skip first two structures
 		symbol = ', '.join( [node[1] for node in sisFile.rootNodes] ).encode( 'utf8' )
-		header = '\t\tEditing {}\n\t\tTotal Strings:  {}\n\t\tRoot Symbol:    {}\n\n      SIS Index:     Offset:'.format( self.sisFile.filename, totalTextStructs, symbol )
+		header = '\t\tBrowsing {}\n\t\tTotal Strings:  {}\n\t\tRoot Symbol:    {}\n\n      SIS Index:     Offset:'.format( self.sisFile.filename, totalTextStructs, symbol )
 		ttk.Label( self.window, text=header ).grid( column=0, row=0, sticky='w', pady=(10, 4) )
-		ttk.Separator( self.window ).grid( column=0, row=1, sticky='ew', padx=20 )
+		ttk.Separator( self.window ).grid( column=0, row=1, sticky='ew', padx=20, pady=2 )
 
 		# Build the main window interface
-		mainFrame = VerticalScrolledFrame( self.window )
+		self.mainFrame = VerticalScrolledFrame( self.window, height=700 )
+		self.populatePage( 2, sisTablePointers )
+		self.mainFrame.grid( column=0, row=2, sticky='nsew' )
 
-		for sisIndex in range( 2, len(sisTablePointers[:500]) ):
+		# Display page buttons if there are too many to display
+		if totalTextStructs > self.stringsPerPage:
+			pageCount = math.ceil( totalTextStructs / self.stringsPerPage ) # Rounds up
 
-			frame = ttk.Frame( mainFrame.interior )
+			# Add the page label
+			self.buttonsFrame = ttk.Frame( self.window )
+			label = ttk.Label( self.buttonsFrame, text='Page:' )
+			label.isButton = False
+			label.pack( side='left', padx=10 )
+
+			# Add the page "buttons"
+			for i in range( 1, int(pageCount)+1 ):
+				if i == 1: # Clicking not enabled (show disabled)
+					pageBtn = ttk.Label( self.buttonsFrame, text=i, foreground='#555', cursor='' )
+				else: # Set up as a clickable button
+					pageBtn = ttk.Label( self.buttonsFrame, text=i, foreground='#00F', cursor='hand2' )
+					pageBtn.bind( '<1>', self.loadPage )
+				pageBtn.isButton = True
+				pageBtn.startIndex = 2 + ( i * self.stringsPerPage )
+				pageBtn.pack( side='left', padx=8 )
+			self.buttonsFrame.grid( column=0, row=3, sticky='ew', padx=50, pady=4 )
+
+		# Configure space-fill and resize behavior
+		self.window.columnconfigure( 'all', weight=1 )
+		self.window.rowconfigure( 0, weight=0 )
+		self.window.rowconfigure( 1, weight=0 )
+		self.window.rowconfigure( 2, weight=1 ) # The vertical scrolled frame is the only row to expand
+		self.window.rowconfigure( 3, weight=0 )
+
+	def populatePage( self, startIndex, sisTablePointers ):
+
+		""" Adds strings from the SIS table to the GUI. """
+
+		for sisIndex in range( startIndex, len(sisTablePointers[:startIndex+self.stringsPerPage]) ):
+
+			frame = ttk.Frame( self.mainFrame.interior )
 
 			# Line number and file offset
 			structOffset = sisTablePointers[sisIndex] + 0x20
@@ -1469,7 +1505,7 @@ class SisTextEditor( BasicWindow ):
 			label.pack( side='left' )
 
 			# Text string
-			text = sisFile.getText( sisIndex )
+			text = self.sisFile.getText( sisIndex )
 			label = ttk.Label( frame, text=text )
 			label.pack( side='left', padx=25 )
 
@@ -1482,18 +1518,26 @@ class SisTextEditor( BasicWindow ):
 
 			frame.pack( fill='x', expand=True, padx=40, ipadx=40 )
 
-		mainFrame.grid( column=0, row=2, sticky='nsew' )
+	def loadPage( self, event ):
 
-		# Display Next/Previous buttons if there are too many to display
-		if totalTextStructs > 500:
-			ttk.Label( self.window, text='Too many text structs to display!' ).grid( column=0, row=3, sticky='ew', padx=(20, 80) ) #todo
+		""" Called by the page buttons, when available. """
 
-		# Configure space-fill and resize behavior
-		self.window.columnconfigure( 'all', weight=1 )
-		self.window.rowconfigure( 0, weight=0 )
-		self.window.rowconfigure( 1, weight=0 )
-		self.window.rowconfigure( 2, weight=1 )
-		self.window.rowconfigure( 3, weight=0 )
+		# Clear current GUI contents
+		self.mainFrame.clear()
+
+		# Repopulate
+		startIndex = event.widget.startIndex
+		sisTablePointers = self.sisTable.getValues()
+		self.populatePage( startIndex, sisTablePointers )
+
+		# Update button appearances and click callbacks
+		for label in self.buttonsFrame.winfo_children():
+			if label == event.widget: # This is the widget that called this method
+				label.configure( foreground='#555', cursor='' )
+				label.unbind( '<1>' )
+			elif label.isButton:
+				label.configure( foreground='#00F', cursor='hand2' )
+				label.bind( '<1>', self.loadPage )
 
 	def editText( self, event ):
 

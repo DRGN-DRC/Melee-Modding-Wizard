@@ -678,6 +678,11 @@ class SubAction( DataBlock ):
 
 		""" Reassembles data for this subAction, based on current values in the events. """
 
+		# Add a single End of Script event if there is nothing else
+		if len( self.events ) == 0:
+			name, length, valueNames, bitFormats = self.eventDesc.get( 0 )
+			self.events.append( SubActionEvent(0, name, length, valueNames, bitFormats, bytearray(4)) )
+
 		self.data = bytearray()
 		for event in self.events:
 			self.data.extend( event.data )

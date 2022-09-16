@@ -45,7 +45,7 @@ from tools import CharacterColorConverter, TriCspCreator, AsmToHexConverter, Cod
 from FileSystem import DatFile, CharDataFile, CharAnimFile, CharCostumeFile
 from FileSystem import CssFile, SssFile, StageFile, MusicFile
 from FileSystem.disc import Disc, isExtractedDirectory
-from basicFunctions import msg, openFolder
+from basicFunctions import grammarfyList, msg, openFolder
 from guiSubComponents import (
 		ToolTip, cmsg, importGameFiles, 
 		CharacterChooser
@@ -164,11 +164,11 @@ class FileMenu( Tk.Menu, object ):
 			msg( 'No disc has been loaded!' )
 			return
 
-		changes = globalData.gui.concatAllUnsavedChanges( True )
-		if not changes:
-			msg( 'There are no changes to be saved.', 'No Unsaved Changes' )
-		else:
-			msg( '\n'.join(changes), 'Unsaved Changes' )
+		changes = globalData.gui.concatAllUnsavedChanges( basicSummary=False )
+		# if not changes:
+		# 	msg( 'There are no changes to be saved.', 'No Unsaved Changes' )
+		# else:
+		msg( '\n'.join(changes), 'Unsaved Changes' )
 
 
 class SettingsMenu( Tk.Menu, object ):
@@ -2174,18 +2174,31 @@ class MainGui( Tk.Frame, object ):
 		unsavedFiles = globalData.disc.getUnsavedChangedFiles()
 
 		# Check for disc changes
-		if unsavedFiles or globalData.disc.unsavedChanges or globalData.disc.rebuildReason:
+		if unsavedFiles or globalData.disc.unsavedChanges or globalData.disc.rebuildReason or not basicSummary:
 			changes.extend( globalData.disc.concatUnsavedChanges(unsavedFiles, basicSummary) )
 
 		# Scan for code-related changes
 		if globalData.gui.codeManagerTab:
 			pendingCodeChanges = globalData.gui.codeManagerTab.summarizeChanges()
 			if len( pendingCodeChanges ) > 1:
-				changes.append( '' )
+				if changes:
+					changes.append( '' )
 				changes.extend( pendingCodeChanges )
 
 		# Check the Character Modding tab if it's open
-		#if self.charModTab:
+		if self.charModTab:
+			charsModified = self.charModTab.hasUnsavedChanges()
+			if charsModified:
+				if changes:
+					changes.append( '' )
+				if len( charsModified ) == 1:
+					changes.append( charsModified[0] + ' has unsaved subAction changes in the Character Modding tab.' )
+				elif len( charsModified ) < 5:
+					chars = grammarfyList( charsModified )
+					changes.append( chars + ' have unsaved subAction changes in the Character Modding tab.' )
+				else:
+					charCount = str( len(charsModified) )
+					changes.append( charCount + ' characters in the Character Modding tab have unsaved subAction changes.' )
 
 		return changes
 		
@@ -2198,13 +2211,13 @@ class MainGui( Tk.Frame, object ):
 		if not disc:
 			return False
 
-		changes = self.concatAllUnsavedChanges( False )
+		changes = self.concatAllUnsavedChanges( basicSummary=True )
 		if not changes:
 			return False
 
 		# Changes have been recorded. Ask the user if they'd like to discard them
 		if programClosing:
-			warning = [ "The changes below haven't been saved to disc.", 'Are you sure you want to close?', '' ]
+			warning = [ "It looks like the changes below haven't been saved to disc.", 'Are you sure you want to close?', '' ]
 		else:
 			warning = [ 'The changes below will be forgotten if you change or reload the disc before saving. Are you sure you want to do this?', '' ]
 		warning.extend( changes )

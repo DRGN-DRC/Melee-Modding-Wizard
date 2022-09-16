@@ -130,8 +130,8 @@ class CharModding( ttk.Notebook ):
 		newCharNotebook.add( newTab, text=' Properties ' )
 
 		# Add the fighter/character properties tab
-		newTab = SubActionEditor( newCharNotebook )
-		newCharNotebook.add( newTab, text=' Moves (SubAction) Editor ' )
+		newCharNotebook.subActionEditor = SubActionEditor( newCharNotebook )
+		newCharNotebook.add( newCharNotebook.subActionEditor, text=' Moves (SubAction) Editor ' )
 
 		# Switch tabs to this character
 		self.select( newCharNotebook )
@@ -260,12 +260,14 @@ class CharModding( ttk.Notebook ):
 
 		modifiedCharacters = []
 
-		# Check for unsaved SubAction changes
 		for tabName in self.tabs():
+			# Get the character tab
 			tabWidget = globalData.gui.root.nametowidget( tabName )
-			if tabWidget.charFile and isinstance( tabWidget, SubActionEditor ):
-				if tabWidget.hasUnsavedChanges():
-					modifiedCharacters.append( tabWidget.charFile.filename )
+			if not tabWidget.charFile: continue # Skip main selection tab
+
+			# Check the SubAction tab for changes
+			elif tabWidget.subActionEditor.hasUnsavedChanges():
+				modifiedCharacters.append( tabWidget.charFile.filename )
 
 		return modifiedCharacters
 
@@ -321,7 +323,7 @@ class SubActionEditor( ttk.Frame, object ):
 		# Add the action table pane's title
 		#self.tableTitleVar = Tk.StringVar( value='{} Action Table  (0x{:X})'.format(self.charFile.filename, self.actionTable.offset + 0x20) )
 		self.tableTitleVar = Tk.StringVar()
-		ttk.Label( self, textvariable=self.tableTitle ).grid( columnspan=2, column=0, row=0, pady=4 )
+		ttk.Label( self, textvariable=self.tableTitleVar ).grid( columnspan=2, column=0, row=0, pady=4 )
 
 		# Add the action table list and its scrollbar
 		subActionScrollBar = Tk.Scrollbar( self, orient='vertical' )
@@ -404,7 +406,7 @@ class SubActionEditor( ttk.Frame, object ):
 		self.tableTitleVar.set( title )
 
 		# Repopulate the subAction list
-		self.actionTable.delete( 0, 'end' )
+		self.subActionList.delete( 0, 'end' )
 		for i, values in self.actionTable.iterateEntries():
 			subActionName = self.getSubActionName( values[0], i )
 			self.subActionList.insert( i, '  ' + subActionName.replace(' (', '    (') )
@@ -471,38 +473,49 @@ class SubActionEditor( ttk.Frame, object ):
 				self.subActionList.selection_clear( 0, 'end' )
 				self.subActionList.selection_set( self.lastSelection )
 				return
-		
-		# Commiting to this selection
-		self.lastSelection = index
-		entry = self.actionTable.getEntryValues( index )
-		
-		# Update general info display
-		self.subActionIndex.set( 'SubAction Table Index:  0x{:X}'.format(index) )
-		self.subActionAnimOffset.set( 'Animation (AJ) Offset:  0x{:X}'.format(0x20+entry[1]) )
-		self.subActionAnimSize.set( 'Animation (AJ) Size:  0x{:X}'.format(entry[2]) )
-		self.subActionEventsOffset.set( 'Events Offset:  0x{:X}'.format(0x20+entry[3]) )
-
-		# Update flags display
-		self.subActionFlags.set( 'SubAction Flags:  0x{:X}'.format(entry[4]) )
 
 		# Clear the events display pane
 		self.displayPane.delete_all_items()
+		
+		# Commiting to this selection
+		self.lastSelection = index
+		namePointer, animOffset, animSize, eventsPointer, flags, _, _, _ = self.actionTable.getEntryValues( index )
+		
+		# Update general info display
+		self.subActionIndex.set( 'SubAction Table Index:  0x{:X}'.format(index) )
+		if animOffset == 0: # Assuming this is supposed to be null/no struct reference, rather than the struct at 0x20
+			self.subActionAnimOffset.set( 'Animation (AJ) Offset:  Null' )
+			self.subActionAnimSize.set( 'Animation (AJ) Size:  N/A' )
+		else:
+			self.subActionAnimOffset.set( 'Animation (AJ) Offset:  0x{:X}'.format(0x20+animOffset) )
+			self.subActionAnimSize.set( 'Animation (AJ) Size:  0x{:X}'.format(animSize) )
 
-		# Get the subAction events structure and parse it
-		try:
-			self.subActionStruct = self.charFile.initDataBlock( SubAction, entry[3], self.actionTable.offset )
-			self.subActionStruct.parse()
-			self.subActionStruct.origData = self.subActionStruct.data
-			self.subActionEventsSize.set( 'Events Table Size:  0x{:X}'.format(self.subActionStruct.getLength()) )
-		except Exception as err:
+		# Update flags display
+		self.subActionFlags.set( 'SubAction Flags:  0x{:X}'.format(flags) )
+
+		# Set the subActionStruct (and parse it) and the Events Offset/Size display
+		if eventsPointer == 0: # Assuming this is supposed to be null/no struct reference, rather than the struct at 0x20
 			self.subActionStruct = None
-			subActionName = self.getSubActionName( entry[0], index )
-			printStatus( 'Unable to parse {} subAction (index {}); {}'.format(subActionName, index, err) )
+			self.subActionEventsOffset.set( 'Events Offset:  Null' )
 			self.subActionEventsSize.set( 'Events Table Size:  N/A' )
-			return
+		else:
+			self.subActionEventsOffset.set( 'Events Offset:  0x{:X}'.format(0x20+eventsPointer) )
+
+			# Get the subAction events structure and parse it
+			try:
+				self.subActionStruct = self.charFile.initDataBlock( SubAction, eventsPointer, self.actionTable.offset )
+				self.subActionStruct.parse()
+				self.subActionStruct.origData = self.subActionStruct.data
+				self.subActionEventsSize.set( 'Events Table Size:  0x{:X}'.format(self.subActionStruct.getLength()) )
+			except Exception as err:
+				self.subActionStruct = None
+				subActionName = self.getSubActionName( namePointer, index )
+				printStatus( 'Unable to parse {} subAction (index {}); {}'.format(subActionName, index, err) )
+				self.subActionEventsSize.set( 'Events Table Size:  N/A' )
+				return
 
 		# Show that there are no events to display if there are none (i.e. only has an End of Script event)
-		if len( self.subActionStruct.events ) == 1 and self.subActionStruct.events[0].id == 0:
+		if not self.subActionStruct or ( len(self.subActionStruct.events) == 1 and self.subActionStruct.events[0].id == 0 ):
 			if not self.displayPaneMessage:
 				self.displayPaneMessage = ttk.Label( self, text='No events' )
 				self.displayPaneMessage.grid( column=2, row=1, sticky='n', pady=150 )
@@ -577,6 +590,8 @@ class SubActionEditor( ttk.Frame, object ):
 		entry = self.actionTable.getEntryValues( self.lastSelection )
 		subActionName = self.getSubActionName( entry[0], self.lastSelection )
 		self.charFile.updateStruct( self.subActionStruct, 'SubAction event data for {} updated'.format(subActionName) )
+
+		globalData.gui.updateProgramStatus( 'These subAction changes have been updated in the character file, but still need to be saved to the disc.' )
 
 	def reordered( self ):
 

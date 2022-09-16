@@ -870,7 +870,10 @@ class Disc( object ):
 			lines.append( 'Rebuild required ' + self.rebuildReason )
 		elif not basicSummary:
 			lines.append( 'Rebuild not required' )
-		lines.append( '' )
+
+		# Add a spacer if anything above was added
+		if lines:
+			lines.append( '' )
 		
 		# Check disc changes not tied to an existing file
 		if self.unsavedChanges:

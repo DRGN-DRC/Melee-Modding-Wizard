@@ -66,6 +66,8 @@ class DiscTab( ttk.Frame ):
 		ttk.Label( isoQuickLinks, text='Menus', foreground='#00F', cursor='hand2' ).pack( side='left', padx=4 )
 		ttk.Label( isoQuickLinks, text='|' ).pack( side='left', padx=4 )
 		ttk.Label( isoQuickLinks, text='Stages', foreground='#00F', cursor='hand2' ).pack( side='left', padx=4 )
+		ttk.Label( isoQuickLinks, text='|' ).pack( side='left', padx=4 )
+		ttk.Label( isoQuickLinks, text='Strings', foreground='#00F', cursor='hand2' ).pack( side='left', padx=4 )
 		for label in isoQuickLinks.winfo_children():
 			if label['text'] != '|': label.bind( '<1>', self.quickLinkClicked )
 		isoQuickLinks.pack( pady=1 )
@@ -577,7 +579,8 @@ class DiscTab( ttk.Frame ):
 			iid = rootParent + '/Start.dol'
 
 		elif target == 'Characters':
-			if self.isoFileTree.exists( 'pl' ): # Check for the complimentary folder
+			# Check for the complimentary folder
+			if self.isoFileTree.exists( 'pl' ):
 				iidTuple = self.isoFileTree.get_children( 'pl' )
 				if len( iidTuple ) > 0:
 					iid = iidTuple[0]
@@ -589,13 +592,23 @@ class DiscTab( ttk.Frame ):
 			indexOffset = 14
 
 		elif target == 'Stages':
-			if self.isoFileTree.exists( 'gr' ): # Check for the complimentary folder
+			# Check for the complimentary folder
+			if self.isoFileTree.exists( 'gr' ):
 				iidTuple = self.isoFileTree.get_children( 'gr' )
 				if len( iidTuple ) > 0:
 					iid = iidTuple[0]
 			else:
 				iid = self.scanDiscForFile( 'Gr' )
 				#if not iid: iid = self.scanDiscForFile( 'grcn.dat' )
+
+		elif target == 'Strings':
+			# Check for the complimentary folder
+			if self.isoFileTree.exists( 'sd' ):
+				iidTuple = self.isoFileTree.get_children( 'sd' )
+				if len( iidTuple ) > 0:
+					iid = iidTuple[0]
+			else:
+				iid = self.scanDiscForFile( 'Sd' )
 
 		elif self.isoFileTree.exists( target ):
 			iid = target
