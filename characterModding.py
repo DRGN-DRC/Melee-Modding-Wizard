@@ -103,7 +103,7 @@ class CharModding( ttk.Notebook ):
 	def repopulate( self ):
 		pass
 
-	def addCharacterTab( self, event ):
+	def addCharacterTab( self, tkEvent ):
 
 		""" Adds a new character to the main Character Modding notebook (if not already added). 
 			This includes populating all sub-tabs for that character. """
@@ -111,14 +111,14 @@ class CharModding( ttk.Notebook ):
 		# Check if this tab has already been created
 		for tabName in self.tabs():
 			tabWidget = globalData.gui.root.nametowidget( tabName )
-			if tabWidget.charFile and tabWidget.charFile.filename == event.widget.charFile.filename:
+			if tabWidget.charFile and tabWidget.charFile.filename == tkEvent.widget.charFile.filename:
 				# Found this tab already exists; select it
 				self.select( tabWidget )
 				return
 		
 		# Create a new character tab and add it to the character modder notebook
 		newCharNotebook = ttk.Notebook( self )
-		newCharNotebook.charFile = event.widget.charFile
+		newCharNotebook.charFile = tkEvent.widget.charFile
 		self.add( newCharNotebook, text=newCharNotebook.charFile.charName )
 
 		# # Add the fighter/character properties tab
@@ -294,10 +294,10 @@ class CharGeneralEditor( ttk.Frame, object ):
 		ColoredLabelButton( cspFrame, 'expandArrowState2', self.nextCostume, 'Next Costume' ).grid( column=3, row=1 )
 		cspFrame.grid( column=0, row=0, sticky='nw' )
 
-	def prevCostume( self, event ):
+	def prevCostume( self, tkEvent ):
 		pass
 
-	def nextCostume( self, event ):
+	def nextCostume( self, tkEvent ):
 		pass
 
 	def updateCsp( self, newIndex ):
@@ -765,7 +765,7 @@ class EventModule( ttk.Frame, object ):
 				title.bind( '<Double-Button-1>', self.expandBtn.toggle )
 
 			entry = Tk.Entry( containingFrame, width=12, justify='center', relief='flat', 
-				highlightbackground='#b7becc', 	# Border color when not focused
+				highlightbackground='#b7becc', # Border color when not focused
 				borderwidth=1, highlightthickness=1, highlightcolor='#78F' )
 			entry.bind( '<Return>', self.updateValue )
 			entry.index = index
@@ -787,11 +787,14 @@ class EventModule( ttk.Frame, object ):
 
 		self.expanded = True
 
-	def updateValue( self, event ):
-		widget = event.widget
+	def updateValue( self, tkEvent ):
+		widget = tkEvent.widget
 
 		try:
-			self.event.updateValue( widget.index, widget.get() )
+			self.tkEvent.updateValue( widget.index, widget.get() )
+
+			# Change the background color of the widget, to show that changes have been made to it and are pending saving.
+			self.configure( background='#faa' )
 		except bitstring.CreationError as err:
 			if err.startswith( 'bool token' ):
 				message = 'A ' + err
@@ -814,7 +817,7 @@ class EventModule( ttk.Frame, object ):
 
 		self.expanded = False
 
-	def showHelp( self, event ):
+	def showHelp( self, tkEvent ):
 		title, message = self.helpMsg.split( '|' )
 		msg( message, title )
 

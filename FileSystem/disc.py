@@ -207,7 +207,7 @@ class Disc( object ):
 
 		self.ext = os.path.splitext( filePath )[1]	# Includes '.'
 		self.filePath = filePath
-		self.files = ListDict([])		# System files will be first in this, while root files will be ordered by the FST, or the OS if opening a root
+		self.files = ListDict([])		# System files will be first in this, while root files will be ordered by the FST, or the OS if opening a root folder
 		self.gameId = ''
 		self.is20XX = ''				# Will be an empty string, or if 20XX, a string like '3.02' or 'BETA 04' (see method for details)
 		self.isMelee = ''				# Will be an empty string, or if Melee, a string of '02', '01', '00', or 'pal'
@@ -215,11 +215,10 @@ class Disc( object ):
 		self.imageName = ''				# A string; the contents of 0x20 to 0x400 of the disc.
 		self.countryCode = 1			# Determines the encoding used in the banner (BNR) file. 1 = 'latin_1', anything else = 'shift_jis'
 		self.isRootFolder = False
-		self.rebuildReason = ''
-		#self.rebuildRequired = False
+		self.rebuildReason = ''			# An empty string indicates no rebuild required
 		self.fstRebuildRequired = False
-		self.unsavedChanges = []		# Disc changes unrelated to a file, such as deleted files
-		self.fstEntries = []			# A list of lists, each of the form [ folderFlag, stringOffset, entryOffset, entrySize, entryName, isoPath ]
+		self.unsavedChanges = []		# Disc changes unrelated to a file, such as deleted or reordered files
+		self.fstEntries = []			# A list of lists; each of the form [ folderFlag, stringOffset, entryOffset, entrySize, entryName, isoPath ]
 
 		# self._dol = None
 		# self._css = None
@@ -320,7 +319,6 @@ class Disc( object ):
 				self.loadRootFile( itemPath, rootFilesFolder )
 
 		self.buildFstEntries()
-		#self.rebuildRequired = True
 		self.rebuildReason = 'to build from a root folder'
 		self.isRootFolder = True
 		self.fstRebuildRequired = True
@@ -1099,7 +1097,6 @@ class Disc( object ):
 							nextFileOffset = self.fstEntries[i+1][2]
 							if nextFileOffset < newFileObj.offset + newFileObj.size:
 								self.rebuildReason = 'to import files larger than their original'
-								#self.rebuildRequired = True
 							break
 
 				# Flag that the FST will need to be rebuilt upon saving
@@ -1639,7 +1636,6 @@ class Disc( object ):
 				return 7, []
 
 		self.rebuildReason = ''
-		#self.rebuildRequired = False
 		
 		# Warn the user if an ISO is too large for certain loaders
 		if os.path.getsize( self.filePath ) > defaultGameCubeMediaSize: # This is the default/standard size for GameCube discs.
@@ -2276,6 +2272,7 @@ class Disc( object ):
 		standaloneFunctions = globalData.standaloneFunctions
 		installCount = 0
 		useCodeCache = globalData.checkSetting( 'useCodeCache' )
+
 		print( '\nBeginning code installations...' )
 
 		tic = time.clock()
@@ -2736,6 +2733,22 @@ class Disc( object ):
 		self.replaceFile( self.dol, newDol, countAsNewFile=countAsNewFile )
 
 		return True
+
+	def copyFile( self, fileObj, newDisc=None ):
+
+		""" Copies the given file and returns the copy. This is necessary 
+			to prevent deepcopy from also copying the entire disc! 
+			
+			The newDisc argument if provided will be the disc for the new file. """
+		
+		fileObj.disc = None
+
+		fileCopy = copy.deepcopy( fileObj )
+
+		fileObj.disc = self
+		fileCopy.disc = newDisc
+
+		return fileCopy
 
 	def clearMapSymbols( self, regionStart, regionEnd=-1, regionName='' ):
 

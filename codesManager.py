@@ -70,8 +70,6 @@ class CodeManagerTab( ttk.Frame ):
 		if not globalData.disc:
 			self.overwriteOptionsBtn.disable( 'Load a disc to edit these settings.' )
 		self.overwriteOptionsBtn.pack( side='right', padx=6 )
-		#overwriteOptionsTooltip = 'Edit Code-Space Options'
-		#ToolTip( self.overwriteOptionsBtn, delay=900, justify='center', location='w', text=overwriteOptionsTooltip, wraplength=600, offset=-10 )
 		self.overwriteOptionsBtn.toolTip.configure( delay=900, justify='center', location='w', wraplength=600, offset=-10 )
 		buttonBar.pack( fill='x', pady=(5, 20) )
 
@@ -83,8 +81,10 @@ class CodeManagerTab( ttk.Frame ):
 		ttk.Separator( self.controlPanel, orient='horizontal' ).pack( pady=7, ipadx=100 )
 
 		saveButtonsContainer = ttk.Frame( self.controlPanel, padding="0 0 0 0" )
-		ttk.Button( saveButtonsContainer, text='Save', command=globalData.gui.save, width=14 ).pack( side='left', padx=6 )
-		#ttk.Button( saveButtonsContainer, text='Save As', command=self.saveGctFile, width=14 ).pack( side='left', padx=6 )
+		self.saveBtn = ttk.Button( saveButtonsContainer, text='Save', state='disabled', command=globalData.gui.save, width=14 )
+		self.saveBtn.pack( side='left', padx=6 )
+		self.saveAsBtn = ttk.Button( saveButtonsContainer, text='Save As', state='disabled', command=globalData.gui.saveAs, width=14 )
+		self.saveAsBtn.pack( side='left', padx=6 )
 		saveButtonsContainer.pack( pady=4 )
 
 		ttk.Separator( self.controlPanel, orient='horizontal' ).pack( pady=7, ipadx=110 )
@@ -129,10 +129,12 @@ class CodeManagerTab( ttk.Frame ):
 
 		self.bind( '<Configure>', self.alignControlPanel )
 
-	def updateControls( self ):
+	def enableControls( self ):
 
 		""" Set button enable/disable states. """
 
+		self.saveBtn['state'] = 'normal'
+		self.saveAsBtn['state'] = 'normal'
 		self.restoreBtn['state'] = 'normal'
 		self.exportBtn['state'] = 'normal'
 
@@ -169,7 +171,8 @@ class CodeManagerTab( ttk.Frame ):
 
 	def emptyModsPanels( self, notebook=None ):
 
-		""" Destroys all GUI elements (ModModules) for all Code Library tabs. """
+		""" Destroys all GUI elements (ModModules) for all Code Library tabs. 
+			Does not destroy their containers, so they can be repopulated on tab change. """
 
 		root = globalData.gui.root
 
@@ -197,20 +200,12 @@ class CodeManagerTab( ttk.Frame ):
 		if currentTab:
 			modsPanel = currentTab.winfo_children()[0]
 
-			# tic = time.clock()
-
 			for mod in modsPanel.mods:
 				module = ModModule( modsPanel.interior, mod )
 				module.pack( fill='x', expand=1 )
-				#module.event_generate( '<Configure>' )
 
 				if not mod.isAmfs:
 					foundMcmFormatting = True
-					
-			# toc = time.clock()
-			# print( 'modModule creation time:', toc-tic)
-
-			#modsPanel.event_generate( '<Configure>' )
 
 		# Enable or disable the 'Open this file' button
 		if foundMcmFormatting:
@@ -225,10 +220,10 @@ class CodeManagerTab( ttk.Frame ):
 			library tabs to span the entire width of the program, rather than just the left side. """
 
 		# Check if the Code Manager tab is selected (and thus if the control panel should be visible)
-		if globalData.gui.root.nametowidget( globalData.gui.mainTabFrame.select() ) != self:
-			self.controlPanel.place_forget() # Removes the control panel from GUI, without deleting it
-			#print( 'removing control panel' )
-			return
+		# if globalData.gui.root.nametowidget( globalData.gui.mainTabFrame.select() ) != self:
+		# 	self.controlPanel.place_forget() # Removes the control panel from GUI, without deleting it
+		# 	#print( 'removing control panel' )
+		# 	return
 
 		#print( 'aligning control panel; called with event:', (event) )
 
@@ -240,10 +235,10 @@ class CodeManagerTab( ttk.Frame ):
 			modsPanel = currentTab.winfo_children()[0]
 
 			# Get the new coordinates for the control panel frame
-			globalData.gui.root.update_idletasks() # Force the GUI to update in order to get correct new widget positions & sizes.
+			currentTab.update_idletasks() # Force the GUI to update in order to get correct new widget positions & sizes.
 			currentTabWidth = currentTab.winfo_width()
 
-			#print( 'placing control panel with current tab' )
+			#print( 'placing control panel with tab', currentTab )
 			self.controlPanel.place( in_=currentTab, x=currentTabWidth * .60, width=currentTabWidth * .40, height=modsPanel.winfo_height() )
 		else:
 			# Align and place according to the main library notebook instead
@@ -253,7 +248,7 @@ class CodeManagerTab( ttk.Frame ):
 	
 	def getModModules( self, tab ):
 
-		""" Get the GUI elements for mods on the current tab. """
+		""" Get the GUI elements/modules for mods on the given tab. """
 
 		scrollingFrame = tab.winfo_children()[0] # VerticalScrolledFrame widget
 		return scrollingFrame.interior.winfo_children()
@@ -268,9 +263,6 @@ class CodeManagerTab( ttk.Frame ):
 				print( '.updateInstalledModsTabLabel() unable to get a current tab.' )
 				return
 		
-		# Get the widget providing scrolling functionality (a VerticalScrolledFrame widget), and its children mod widgets
-		# scrollingFrame = currentTab.winfo_children()[0]
-		# scrollingFrameChildren = scrollingFrame.interior.winfo_children()
 		modules = self.getModModules( currentTab )
 
 		# print( '--' )
@@ -395,7 +387,7 @@ class CodeManagerTab( ttk.Frame ):
 			if found: # Select the current tab
 				notebook.select( tabWidget )
 
-				# If no 'last tab' is stored, this is the lowest-level tab
+				# If no 'last tab' is stored, this is the lowest-level tab (the target)
 				if not self.lastTabSelected:
 					self.lastTabSelected = tabWidget
 				break
@@ -496,8 +488,8 @@ class CodeManagerTab( ttk.Frame ):
 			if playAudio:
 				globalData.gui.playSound( 'menuSelect' )
 
-	# def TEST( self, string ):
-	# 	print string
+			if globalData.disc:
+				self.enableControls()
 
 	def populateCodeLibraryTabs( self, targetCategory='', sliderYPos=0 ):
 
@@ -595,10 +587,8 @@ class CodeManagerTab( ttk.Frame ):
 			self.selectCodeLibraryTab( modPanelToScroll.master )
 
 			# Update idle tasks so the modPanel's height and scroll position calculate correctly
-			# modPanelToScroll.update_idletasks()
-			# modPanelToScroll.canvas.yview_moveto( sliderYPos )
-			#self.after_idle( lambda y=sliderYPos: modPanelToScroll.canvas.yview_moveto( y ) )
-			self.after_idle( self._updateScrollPosition, modPanelToScroll, sliderYPos )
+			self.after_idle( lambda y=sliderYPos: modPanelToScroll.canvas.yview_moveto( y ) )
+			#self.after_idle( self._updateScrollPosition, modPanelToScroll, sliderYPos )
 
 			self.updateInstalledModsTabLabel( modPanelToScroll.master )
 
@@ -766,7 +756,6 @@ class CodeManagerTab( ttk.Frame ):
 
 		#for mod in globalData.codeMods:
 		for tab in self.getAllTabs():
-			#for mod in tab.winfo_children()[0].mods:
 			guiModules = self.getModModules( tab )
 
 			if guiModules:
@@ -1041,13 +1030,16 @@ class CodeManagerTab( ttk.Frame ):
 				0: Success; all selected codes installed or uninstalled
 				1: Unable to restore the DOL (likely no vanilla disc reference)
 				2: One or more selected codes could not be installed or uninstalled
-				3: No selected codes could be installed or uninstalled	"""
+				3: No selected codes could be installed or uninstalled	
+				4: Mods found with internal conflicts and user canceled operation """
 
 		modsToInstall = []
 		modsToUninstall = []
 		geckoCodesToInstall = []
 		conflictedMods = []
 		newModsToInstall = False
+
+		tic = time.clock()
 
 		# Scan the library for mods to be installed or uninstalled
 		for mod in globalData.codeMods:
@@ -1077,30 +1069,33 @@ class CodeManagerTab( ttk.Frame ):
 					conflictedMods.append( mod )
 				else:
 					modsToInstall.append( mod )
+
+		toc = time.clock()
+		print( 'time to check for conflicts:', toc-tic )
 		
 		if conflictedMods:
 			modNames = '\n'.join( [mod.name for mod in conflictedMods] )
-			proceed = tkMessageBox.askyesno( 'Proceed with Save?', 'Would you like to proceed with the save without the following codes?\n\n{}'.format(modNames) )
+			proceed = tkMessageBox.askyesno( 'Mod Internal Conflicts Detected', 'Some mods were found to have internal conflicts and will not '
+							'be installed. Would you like to proceed with the save without the following codes?\n\n{}'.format(modNames) )
 			if not proceed:
-				return 2
+				return 4
 
 		modsNotUninstalled = []
 		modsNotInstalled = []
 		geckoCodesNotInstalled = []
 		modInstallCount = 0
 		modUninstallCount = 0
-		
-		# Make sure the DOL has been initialized (header parsed and properties determined)
-		globalData.disc.dol.load()
 
 		# Install or uninstall selected code mods
 		if newModsToInstall:
+			# Restore the DOL to start fresh
 			if not globalData.disc.restoreDol( countAsNewFile=False ):
 				globalData.gui.updateProgramStatus( 'Unable to save code changes; the vanilla or source DOL could not be restored', warning=True )
 				return 1
 
 			globalData.gui.updateProgramStatus( 'Installing {} codes'.format(len(modsToInstall)) )
 
+			# Install the codes
 			modsNotInstalled = globalData.disc.installCodeMods( modsToInstall )
 			modInstallCount = len( modsToInstall ) - len( modsNotInstalled )
 			modUninstallCount = len( modsToUninstall )
@@ -1111,7 +1106,11 @@ class CodeManagerTab( ttk.Frame ):
 
 		elif modsToUninstall: # If installing new mods, all mods selected for uninstall will automatically be excluded
 			globalData.gui.updateProgramStatus( 'Uninstalling {} codes'.format(len(modsToUninstall)) )
+		
+			# Make sure the DOL has been initialized (header parsed and properties determined)
+			globalData.disc.dol.load()
 
+			# Uninstall the codes
 			modsNotUninstalled = globalData.disc.uninstallCodeMods( modsToUninstall )
 			modUninstallCount = len( modsToUninstall ) - len( modsNotUninstalled )
 
@@ -1476,14 +1475,14 @@ class CodeConstructor( Tk.Frame ):
 		descColumn.grid( column=0, row=0 )
 
 		# Add the mod-change adder
-		lineAdders = ttk.Labelframe(row2, text='  Add a type of code change:  ', padding=5)
-		ttk.Button( lineAdders, width=3, text='+', command=lambda: self.addCodeChangeModule( 'static' ) ).grid( row=0, column=0 )
+		lineAdders = ttk.Labelframe( row2, text='  Add a type of code change:  ', padding=5 )
+		ttk.Button( lineAdders, width=3, text='+', command=lambda: self.addCodeChangeModule( 'static' ) ).grid( row=0, column=0, padx=3 )
 		ttk.Label( lineAdders, width=21, text='Static Overwrite' ).grid( row=0, column=1 )
-		ttk.Button( lineAdders, width=3, text='+', command=lambda: self.addCodeChangeModule( 'injection' ) ).grid( row=1, column=0 )
+		ttk.Button( lineAdders, width=3, text='+', command=lambda: self.addCodeChangeModule( 'injection' ) ).grid( row=1, column=0, padx=3 )
 		ttk.Label( lineAdders, width=21, text='Injection Mod' ).grid( row=1, column=1 )
-		ttk.Button( lineAdders, width=3, text='+', command=lambda: self.addCodeChangeModule( 'gecko' ) ).grid(row=2, column=0)
-		ttk.Label( lineAdders, width=21, text='Gecko/WiiRD Code').grid(row=2, column=1 )
-		ttk.Button( lineAdders, width=3, text='+', command=lambda: self.addCodeChangeModule( 'standalone' ) ).grid( row=3, column=0 )
+		ttk.Button( lineAdders, width=3, text='+', command=lambda: self.addCodeChangeModule( 'gecko' ) ).grid( row=2, column=0, padx=3 )
+		ttk.Label( lineAdders, width=21, text='Gecko/WiiRD Code' ).grid( row=2, column=1 )
+		ttk.Button( lineAdders, width=3, text='+', command=lambda: self.addCodeChangeModule( 'standalone' ) ).grid( row=3, column=0, padx=3 )
 		ttk.Label( lineAdders, width=21, text='Standalone Function' ).grid( row=3, column=1 )
 		lineAdders.grid( column=1, row=0 )
 
@@ -1500,10 +1499,6 @@ class CodeConstructor( Tk.Frame ):
 		row2.columnconfigure( (1, 2), weight=1 )
 
 		# Add the game version tabs and code changes to this module.
-		# if self.mod.data: # This is a dict with keys=revision, values=list of "CodeChange" objects
-		# 	for revision, codeChanges in self.mod.data.items():
-		# 		for change in codeChanges:
-		# 			self.addCodeChangeModule( change.type, change, revision )
 		self.populateChanges()
 
 		# Add errors notice button
@@ -1521,6 +1516,11 @@ class CodeConstructor( Tk.Frame ):
 			for revision, codeChanges in self.mod.data.items():
 				for change in codeChanges:
 					self.addCodeChangeModule( change.type, change, revision )
+
+				# Ensure the VerticalScrolledFrame's width is set correctly
+				versionTab = self.addGameVersionTab( revision, False )[1] # This will only fetch it in this case
+				codeChangesListFrame, _ = versionTab.winfo_children()
+				codeChangesListFrame.configureCanvas()
 
 	def addWebLinks( self ):
 
@@ -1842,9 +1842,6 @@ class CodeConstructor( Tk.Frame ):
 		innerFrame = Tk.Frame( codeChangeModule ) # Used to create a thicker, orange border.
 		innerFrame.pack( fill='both', expand=0, padx=2, pady=1 )
 
-		# Process the offset value, based on the type of code change and current File/RAM offset display mode
-		#if ( changeType == 'static' or changeType == 'injection' ) and processedOffset:
-
 		# Top row; Change type, custom code length, and remove button
 		topRow = Tk.Frame( innerFrame )
 		topRow.pack( fill='x', padx=6, pady=4 )
@@ -1856,7 +1853,7 @@ class CodeConstructor( Tk.Frame ):
 		ToolTip( updateBtn, 'Use this button to update the byte count of custom code, or, once an offset is given, use it to look up and set the original '
 							'hex value. For static overwrites, both an offset and custom code must be provided to get the original hex value '
 							'(so that it can be determined how many bytes to look up, since static overwrites can be any length).', delay=1000, wraplength=400, follow_mouse=1 )
-		ttk.Label( topRow, textvariable=codeChangeModule.lengthDisplayVar ).pack( side='left', padx=7 )
+		ttk.Label( topRow, textvariable=codeChangeModule.lengthDisplayVar ).pack( side='left', padx=12 )
 
 		# Bottom row; offset and orig hex / injection site / function name
 		bottomRow = Tk.Frame( innerFrame )

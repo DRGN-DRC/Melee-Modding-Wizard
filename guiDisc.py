@@ -267,10 +267,6 @@ class DiscTab( ttk.Frame ):
 		# self.isoFileTree.heading( '#0', command=lambda: treeview_sort_column(self.isoFileTree, 'file', False) )
 		# self.isoFileTree.heading( '#0', command=self.sortTreeviewItems )
 
-		# if updateDetailsTab:
-		# 	self.update_idletasks() # Update the GUI's display (for slightly more instant results)
-		# 	globalData.gui.discDetailsTab.loadDiscDetails()
-
 	def addFolderToFileTree( self, isoPath ):
 
 		""" Adds the given folder to the disc file tree, and recursively adds all parent folders it may require. 
@@ -973,7 +969,6 @@ class DiscDetailsTab( ttk.Frame ):
 		
 		# Add this tab to the main GUI, and add drag-and-drop functionality
 		mainGui.mainTabFrame.add( self, text=' Disc Details ' )
-		#self.dnd.bindtarget( self.discDetailsTab, lambda event: mainGui.dndHandler( event, 'discTab' ), 'text/uri-list' ) # Drag-and-drop functionality treats this as the discTab
 		mainGui.dnd.bindtarget( self, mainGui.dndHandler, 'text/uri-list' )
 
 		self.mainGui = mainGui
@@ -1230,7 +1225,7 @@ class DiscDetailsTab( ttk.Frame ):
 			
 	def loadDiscDetails( self, discSize=0 ):
 
-		""" This primarily updates the Disc Details Tab using information from Boot.bin/ISO.hdr (so a disc should already be loaded); 
+		""" This primarily updates the Disc Details tab using information from Boot.bin/ISO.hdr (so a disc should already be loaded); 
 			it directly handles updating the fields for disc filepath, gameID (and its breakdown), region and version, image name,
 			20XX version (if applicable), and disc file size.
 
@@ -1983,9 +1978,6 @@ class DiscMenu( Tk.Menu, object ):
 
 		# Create a copy of the file (wihtout making a disc copy) to send to the CCC, because it will be modified
 		disc = self.fileObj.disc
-		self.fileObj.disc = None
-		fileCopy = copy.deepcopy( self.fileObj )
-		self.fileObj.disc = disc
-		fileCopy.disc = disc
+		fileCopy = disc.copyFile( self.fileObj, disc )
 
 		cccWindow.updateSlotRepresentation( fileCopy, role )

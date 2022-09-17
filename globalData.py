@@ -604,6 +604,10 @@ def getVanillaDol( skipCache=False ):
 		if not dol:
 			raise Exception( 'unable to load DOL from vanilla disc')
 
+		# No need for disc association anymore
+		dol.disc = None
+		dol.source = 'self'
+
 	elif not os.path.exists( dolPath ):
 		raise Exception( 'the source DOL could not be found' )
 

@@ -79,7 +79,7 @@ class FileMenu( Tk.Menu, object ):
 		#self.add_command( label='Save DAT As...', underline=9, command=globalData.gui.saveDatAs )									# A
 		# self.add_command( label='Save Banner As...', underline=5, command=saveBannerAs )											# B
 		self.add_command( label='Run in Emulator  (CTRL-R)', underline=0, command=self.runInEmulator )								# R
-		self.add_command( label='Save Disc As...', underline=10, command=self.saveDiscAs )											# A
+		self.add_command( label='Save Disc As...', underline=10, command=self.saveAs )											# A
 		self.add_command( label='Close', underline=0, command=self.closeProgram )													# C
 
 	@staticmethod
@@ -149,13 +149,12 @@ class FileMenu( Tk.Menu, object ):
 
 		mainGui.codeManagerTab.autoSelectCodeRegions()
 		mainGui.codeManagerTab.scanCodeLibrary()
-		mainGui.codeManagerTab.updateControls()
 
 		# Switch to the tab
 		mainGui.mainTabFrame.select( mainGui.codeManagerTab )
 
 	def save( self ):			globalData.gui.save()
-	def saveDiscAs( self ):		globalData.gui.saveDiscAs()
+	def saveAs( self ):		globalData.gui.saveAs()
 	def closeProgram( self ):	globalData.gui.onProgramClose()
 	def runInEmulator( self ):	globalData.gui.runInEmulator()
 
@@ -1580,14 +1579,14 @@ class MainGui( Tk.Frame, object ):
 		self.mainTabFrame = ttk.Notebook( self.root )
 		self.dnd.bindtarget( self.mainTabFrame, self.dndHandler, 'text/uri-list' )
 
-		self.discTab = None				# Frame
-		self.discDetailsTab = None		# Frame
-		self.codeManagerTab = None
-		self.codeConstructionTab = None # Notebook
-		self.menuEditorTab = None
-		self.stageManagerTab = None
-		self.audioManagerTab = None
-		self.charModTab = None
+		self.discTab = None				# ttk.Frame
+		self.discDetailsTab = None		# ttk.Frame
+		self.codeManagerTab = None		# ttk.Frame
+		self.codeConstructionTab = None # ttk.Frame
+		self.menuEditorTab = None		# ttk.Frame
+		self.stageManagerTab = None		# ttk.Frame
+		self.audioManagerTab = None		# ttk.Frame
+		self.charModTab = None			# ttk.Notebook
 
 		self.mainTabFrame.grid( column=0, row=0, sticky='nsew' )
 		self.mainTabFrame.bind( '<<NotebookTabChanged>>', self.onMainTabChanged )
@@ -1749,7 +1748,8 @@ class MainGui( Tk.Frame, object ):
 		stream = None
 
 		try:
-			# Prevent race conditions on multiple sounds playing at once (can cause a crash); only allow one file to begin playing at a time
+			# Prevent race conditions on multiple sounds playing at once (can cause a crash); 
+			# Only allow one file to begin playing (create a stream) at a time.
 			self.audioGate.wait() # Blocks until the following is done (event is re-set)
 			self.audioGate.clear()
 
@@ -1768,14 +1768,14 @@ class MainGui( Tk.Frame, object ):
 			# Continuously read/write data from the file to the stream until there is no data left
 			data = wf.readframes( 1024 )
 			while len( data ) > 0:
-				# Adjust volume level. Unpack the bytes data (series of halfwords)
+				# Unpack the bytes data (series of halfwords) so we can modify the values
 				chunkFormat = '<' + str( len(data)/2 ) + 'h'
 				unpackedData = struct.unpack( chunkFormat, data )
 
-				# Multiply each value by the current volume (0-1.0 value)
+				# Adjust the volume. Multiply each value by the current volume (0-1.0 value)
 				unpackedData = [sample * self.volume for sample in unpackedData]
 
-				# Re-pack the data as raw bytes and return it
+				# Re-pack the data as raw bytes
 				data = struct.pack( chunkFormat, *unpackedData )
 
 				stream.write( data )
@@ -1831,12 +1831,11 @@ class MainGui( Tk.Frame, object ):
 
 	def onMainTabChanged( self, event ):
 
-		""" This function adjusts the height of rows in the treeview widgets, since the two treeviews can't be individually configured.
+		""" This function adjusts the height of rows in the treeview widgets, since multiple treeviews can't be individually configured.
 			It also starts DAT file structural analysis or image searching when switching to the SA tab or DAT File Tree tab if a DAT file is loaded. 
 			If an attempt is made to switch to a tab that is already the current tab, this function will not be called. """
 
-		#global globalDatFile
-
+		# Get the widget of the currently selected tab (a ttk.Frame or ttk.Notebook)
 		currentTab = self.root.nametowidget( self.mainTabFrame.select() )
 		currentTab.focus() # Don't want keyboard/widget focus at any particular place yet
 
@@ -1845,6 +1844,8 @@ class MainGui( Tk.Frame, object ):
 			self.codeManagerTab.onTabChange()
 		elif self.codeManagerTab: # Not selected, but it exists
 			self.codeManagerTab.emptyModsPanels() # For improved GUI performance
+
+		# 		v  Keep for when these tabs are added.  v
 
 		# if currentTab == self.datTab:
 		# 	ttk.Style().configure( 'Treeview', rowheight=76 )
@@ -1923,8 +1924,8 @@ class MainGui( Tk.Frame, object ):
 		# Normalize the path (prevents discrepancies between paths with forward vs. back slashes, etc.)
 		filepath = os.path.normpath( filepaths[0] )
 
-		# Validate the path (make sure it's valid)
-		if not os.path.exists( filepath ):
+		# Validate the path
+		if not os.path.exists( filepath ): # Failsafe; unsure how this might happen
 			msg( 'The given path does not seem to exist!', 'File Import Error' )
 			self.updateProgramStatus( 'Invalid path provided.', error=True )
 
@@ -2019,7 +2020,7 @@ class MainGui( Tk.Frame, object ):
 		# Update the Disc File Tree and Disc Details tabs
 		if self.discTab:
 			self.discTab.loadDisc( updateStatus=updateStatus, preserveTreeState=preserveTreeState, switchTab=switchTab, updatedFiles=updatedFiles )
-			self.mainTabFrame.update_idletasks()
+			self.mainTabFrame.update_idletasks() # Update the GUI immediately before moving on to update other tabs
 		if self.discDetailsTab:
 			self.discDetailsTab.loadDiscDetails()
 
@@ -2027,7 +2028,6 @@ class MainGui( Tk.Frame, object ):
 		if self.codeManagerTab:
 			self.codeManagerTab.autoSelectCodeRegions()
 			self.codeManagerTab.scanCodeLibrary( playAudio=False )
-			self.codeManagerTab.updateControls()
 
 		if globalData.disc.isMelee:
 			# If this is 20XX, add/initialize the Debug Menu Editor tab
@@ -2059,44 +2059,127 @@ class MainGui( Tk.Frame, object ):
 
 		self.playSound( 'menuSelect' )
 
-	def saveDiscAs( self ):
+	def saveAs( self ):
 
 		""" Creates a new file (via dialog prompt to user), and then saves 
-			changes to the currently loaded ISO/GCM disc image or root folder. """
+			changes to the currently loaded ISO/GCM disc image or root folder. 
+			
+			If saving (exporting) the DOL, any changes made to it will not be saved to 
+			the current disc, and will only be saved to the new DOL file. """
 
-		origDiscName = os.path.basename( globalData.disc.filePath )
+		disc = globalData.disc
+		if not disc:
+			return -1
+
+		origDiscName = os.path.basename( disc.filePath )
 		fileNameWithoutExt, ext = origDiscName.rsplit( '.', 1 )
 		newFilenameSuggestion = '{} - Copy'.format( fileNameWithoutExt )
 
 		# Prompt the user for a save directory and filename
 		newPath = tkFileDialog.asksaveasfilename(
+			parent=self.root,
 			title="Where would you like to save the new disc?",
 			initialdir=globalData.getLastUsedDir( 'iso' ),
 			initialfile=newFilenameSuggestion,
 			defaultextension=ext[1:],
-			filetypes=[('Standard disc image', '*.iso'), ('GameCube disc image', '*.gcm'), ("All files", "*.*")]
+			filetypes=[('Standard disc image', '*.iso'), ('GameCube disc image', '*.gcm'), ('DOL files', '*.dol'), ("All files", "*.*")]
 			)
 		if not newPath: # User canceled the operation
 			return
 
-		# Normalize the path, and set the default program directory
-		globalData.setLastUsedDir( newPath, 'iso' )
+		# Check if saving the DOL (if so, save it to a new external file) or a disc
+		fileExt = newPath.rsplit( '.', 1 )[1]
+		if fileExt.lower() in ( 'dol' ):
+			# Set the default program directory
+			globalData.setLastUsedDir( newPath, 'dol' )
 
-		# Save the disc to a new path
-		self.save( newPath )
+			self.saveDol( disc, newPath )
+
+		else: # Assume it's a disc
+			# Set the default program directory
+			globalData.setLastUsedDir( newPath, 'iso' )
+
+			# Save the disc to a new path
+			self.save( newPath )
+
+	def saveDol( self, disc, savePath ):
+
+		""" Saves currently selected codes to the DOL if the Code Manager tab is open, 
+			and then saves the DOL to a new external file. The dol in the currently 
+			opened disc should be unaffected. """
+
+		# Check if the Codes Manager tab is open
+		if self.codeManagerTab:
+			# Make a backup copy of the DOL in the disc
+			origDol = disc.dol
+			dolBackup = disc.copyFile( origDol )
+
+			# Save codes to the current DOL
+			returnCode = self.codeManagerTab.saveCodeChanges()
+
+			# Check for an error, and ask whether to save other changes anyway
+			if not returnCode == 0:
+				if returnCode == 1:
+					message = ( 'Code changes could not be saved, because the DOL could not be restored ' 
+								'from a vanilla copy of the game. You may want to double check the file '
+								'paths for your current disc and the vanilla reference disc.' )
+					msg( message, 'Unable to Save Codes', error=True )
+					return
+				elif returnCode == 2:
+					message = ( 'Some code changes could not be saved to the DOL.' 
+								'\n\nWould you like to continue and save it anyway?' )
+					if not tkMessageBox.askyesno( 'Unable to Save Some Codes', message ):
+						return
+				elif returnCode == 3:
+					msg( 'No code changes could not be saved!', 'Unable to Save Codes', error=True )
+					return
+				elif returnCode == 4:
+					# Mod internal conflicts found; user was notified and aborted save operation
+					return
+				else:
+					Exception( 'Unrecognized return code from code manager save method! {}'.format(returnCode) )
+					return
+
+			# Restore the backed-up DOL
+			disc.replaceFile( origDol, dolBackup, False )
+
+			# Rescan for codes installed to reflect the current disc rather than the saved DOL
+			self.codeManagerTab.scanCodeLibrary( playAudio=False )
+
+		# Write the file to an external/standalone file
+		successful = disc.dol.export( savePath )
+
+		if successful:
+			# Attempt to save the codes.bin file with the DOL if successful and it's present
+			codesFile = disc.getFile( 'codes.bin' )
+
+			if codesFile:
+				# Save the codes file
+				saveDir = os.path.dirname( savePath )
+				codesPath = os.path.join( saveDir, 'codes.bin' )
+				successful = codesFile.export( codesPath )
+
+				if successful:
+					self.updateProgramStatus( 'DOL and codes.bin files saved successfully.', success=True )
+				else:
+					self.updateProgramStatus( 'DOL saved successfully; error saving codes.bin.', warning=True )
+			
+			# Only DOL file present, which was exported successfully
+			else:
+				self.updateProgramStatus( 'DOL saved successfully.', success=True )
+
+			self.playSound( 'menuChange' )
+		else:
+			self.updateProgramStatus( 'Unable to export. Check the error log file for details.', error=True )
 
 	def save( self, newPath='' ):
 
 		""" Saves changes to the currently loaded ISO/GCM disc image or root folder. 
-			If newPath is provided, e.g. from .saveAs() a new file is created. """
+			If newPath is provided, e.g. from .saveAs(), a new disc file is created. """
 
 		disc = globalData.disc
-
 		if not disc:
 			return -1
-
-		# Save any codes under construction, if that tab is focused
-		#if self.codeConstructionTab:
 
 		# Save code mods if that tab is open
 		if self.codeManagerTab:
@@ -2113,6 +2196,9 @@ class MainGui( Tk.Frame, object ):
 				elif returnCode == 3:
 					message = ( 'No code changes could not be saved.' 
 								'\n\nWould you like to continue and save other changes anyway?' )
+				elif returnCode == 4:
+					# Mod internal conflicts found; user was notified and aborted save operation
+					return -1
 				else:
 					Exception( 'Unrecognized return code from code manager save method! {}'.format(returnCode) )
 

@@ -2866,9 +2866,9 @@ class CommandProcessor( object ):
 			If beautify is False, no whitespace is included; otherwise, the output is formatted 
 			into 2 chunks of 4 bytes per line (like a Gecko code), for better readability. """
 
-		#tic = time.time()
 		errors = ''
 		code = []
+
 		for line in cmdOutput.splitlines()[1:]: # Excludes first header line ('GAS Listing   [filename] [page _]')
 			if not line: continue # Ignores empty lines
 			elif 'GAS LISTING' in line and 'page' in line: continue # Ignores page headers
@@ -2903,10 +2903,6 @@ class CommandProcessor( object ):
 					if len( code ) % 2 == 0: # An even number of blocks have been added (0 is even)
 						code.append( '\n' + hexCode )
 					else: code.append( ' ' + hexCode )
-
-		# ( ''.join( code ).lstrip(), errors )
-		# toc = time.time()
-		# print 'asm output parsing time:', toc - tic
 
 		return ( ''.join(code).lstrip(), errors ) # Removes first line break if present
 
