@@ -1424,6 +1424,8 @@ class MainMenuCanvas( Tk.Canvas ):
 		# self.mainGui.root.update() # Flush pending hover events that will try to change the program status
 		# globalData.gui.updateProgramStatus( 'Ready' )
 		self.mainGui.playSound( 'menuSelect' )
+		
+		self.mainGui.discTab.updateBanner( self.mainGui.discTab )
 
 	def loadStageEditor( self, event=None ):
 
@@ -2023,6 +2025,7 @@ class MainGui( Tk.Frame, object ):
 			self.mainTabFrame.update_idletasks() # Update the GUI immediately before moving on to update other tabs
 		if self.discDetailsTab:
 			self.discDetailsTab.loadDiscDetails()
+			self.discTab.updateBanner( self.discTab )
 
 		# Update the Code Manager
 		if self.codeManagerTab:
@@ -2058,6 +2061,9 @@ class MainGui( Tk.Frame, object ):
 		self.mainMenu.displayDiscOptions()
 
 		self.playSound( 'menuSelect' )
+		
+		if self.discTab:
+			self.discTab.updateBanner( self.discTab )
 
 	def saveAs( self ):
 

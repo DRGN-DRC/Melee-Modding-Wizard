@@ -202,6 +202,7 @@ def isExtractedDirectory( folderPath, showError=True ): # Not part of the disc c
 class Disc( object ):
 
 	systemFiles = ( 'Boot.bin', 'Bi2.bin', 'AppLoader.img', 'Start.dol', 'Game.toc' )
+	ntscRegions = ( 'A', 'E', 'J', 'K', 'R', 'W' )
 
 	def __init__( self, filePath ):
 
@@ -209,9 +210,10 @@ class Disc( object ):
 		self.filePath = filePath
 		self.files = ListDict([])		# System files will be first in this, while root files will be ordered by the FST, or the OS if opening a root folder
 		self.gameId = ''
+		self.region = ''				# NTSC or PAL
 		self.is20XX = ''				# Will be an empty string, or if 20XX, a string like '3.02' or 'BETA 04' (see method for details)
 		self.isMelee = ''				# Will be an empty string, or if Melee, a string of '02', '01', '00', or 'pal'
-		self.revision = 0				# Byte 7 of the disc
+		self.version = 0				# Byte 7 of the disc
 		self.imageName = ''				# A string; the contents of 0x20 to 0x400 of the disc.
 		self.countryCode = 1			# Determines the encoding used in the banner (BNR) file. 1 = 'latin_1', anything else = 'shift_jis'
 		self.isRootFolder = False
@@ -258,8 +260,8 @@ class Disc( object ):
 
 		# Get the Game ID and version
 		self.gameId = bootFileData[:6].decode( 'ascii' )
-		#self.revision = struct.unpack( 'B', bootFileData[7] )[0] # Reading just byte 7
-		self.revision = bootFileData[7]
+		self.checkRegion()
+		self.version = bootFileData[7]
 
 		# Double check that this is a gamecube disc image (checking for the disc's magic word)
 		if not bootFileData[0x1C:0x20] == b'\xC2\x33\x9F\x3D':
@@ -360,8 +362,9 @@ class Disc( object ):
 		with open( self.filePath, 'rb' ) as isoBinary:
 			# Get the Game ID and version, right at the start of the file
 			self.gameId = isoBinary.read( 6 ).decode( 'ascii' )
+			self.checkRegion()
 			isoBinary.seek( 7 )
-			self.revision = struct.unpack( 'B', isoBinary.read(1) )[0] # Reading just byte 7
+			self.version = ord( isoBinary.read(1) ) # Reading just byte 7
 
 			# Check the disc's magic word to verify it's a GC disc
 			isoBinary.seek( 0x1C )
@@ -478,6 +481,17 @@ class Disc( object ):
 		
 	# 	# Check if this is a root folder (folder of files rather than a disc), and get the system file paths
 	# 	systemFilePaths = isExtractedDirectory( self.filePath, showError=False )
+	
+	def checkRegion( self ):
+
+		""" Uses the Game ID for the region code, to check whether the region is NTSC or PAL.
+			See here for a full list of region codes:
+				https://wiki.dolphin-emu.org/index.php?title=GameIDs#Region_Code """
+
+		if self.gameId[3] in self.ntscRegions:
+			self.region = 'NTSC'
+		else:
+			self.region = 'PAL'
 
 	def getBannerFile( self, filename='' ):
 
@@ -488,9 +502,9 @@ class Disc( object ):
 			bannerFile = self.files.get( self.gameId + '/' + filename )
 		
 		else:
+			# Iterate over potential variations until one is found
 			for filename in ( '/opening.bnr', '/openingUS.bnr', '/openingEU.bnr', '/openingJP.bnr' ):
-				bannerIsoPath = self.gameId + filename
-				bannerFile = self.files.get( bannerIsoPath )
+				bannerFile = self.files.get( self.gameId + filename )
 				if bannerFile: break
 
 		if not bannerFile:
@@ -561,17 +575,6 @@ class Disc( object ):
 			else:
 				# Instantiate a disc object for this file
 				fileFactory( self, offset, size, isoPath )
-	
-	# def checkRegion( self ):
-
-	# 	""" Uses the Game ID for the region code, to check whether the region is NTSC or PAL.
-	# 		See here for a full list of region codes:
-	# 			https://wiki.dolphin-emu.org/index.php?title=GameIDs#Region_Code """
-
-	# 	if self.gameId[3] in ( 'A', 'E', 'J', 'K', 'R', 'W' ):
-	# 		self.region = 'NTSC'
-	# 	else:
-	# 		self.region = 'PAL'
 		
 	def checkMeleeVersion( self, dolData ):
 
@@ -755,7 +758,7 @@ class Disc( object ):
 		totalPadding = discSize - totalFilesSize
 
 		string =  'Game ID:                ' + self.gameId
-		string += '\nGame Version:           ' + str( self.revision )
+		string += '\nGame Version:           ' + str( self.version )
 		string += '\nCountry Code:           ' + str( self.countryCode )
 		string += '\nImage Name:             ' + self.imageName
 		string += '\nDisc Size:              {} ({:,} bytes)'.format( humansize(discSize), discSize)
@@ -930,25 +933,6 @@ class Disc( object ):
 	# 			self.unsavedChanges['disc'] = ( [], None )
 
 	# 		self.unsavedChanges['disc'][0].append( description )
-
-	# def makeChange( self, discFile, offset, newData, description='' ):
-
-	# 	""" Updates new data in a disc's internal file, and records those changes for later,
-	# 		either for saving purposes, or for undoing the change. """
-
-	# 	# Get the original data, to store it, in case the user would like to undo this later
-	# 	endOffset = offset + len( newData )
-	# 	originalData = discFile.getData( offset, len(newData) )
-
-	# 	assert offset < len( discFile.data ), 'Offset to makeChange is out of bounds: ' + uHex( offset )
-
-	# 	# Swap in the new data
-	# 	discFile.data[offset:endOffset] = newData
-
-	# 	# Remember this change
-	# 	if not description:
-	# 		description = discFile.filename + ' updated at offset ' + uHex( offset )
-	# 	self.unsavedChanges.append( UnsavedChange(discFile, offset, originalData, description ) )
 
 	def getConveniencePath( self ): pass
 
@@ -2876,7 +2860,7 @@ class MicroMelee( Disc ):
 	# 	self.gameId = 'GALE01'
 	# 	self.imageName = 'Micro Melee Test Disc'
 	# 	self.isMelee = '02'
-	# 	self.revision = 2
+	# 	self.version = 2
 
 	def buildFromVanilla( self, vanillaDiscPath ):
 
@@ -2941,7 +2925,7 @@ class MicroMelee( Disc ):
 		# Build a new disc (overwriting existing file, if present)
 		self.gameId = 'GALE01'
 		self.isMelee = '02'
-		self.revision = 2
+		self.version = 2
 		self.buildNewDisc( buildMsg='Building the Micro Melee testing disc:' )
 		self.setImageName( 'Micro Melee Test Disc' )
 

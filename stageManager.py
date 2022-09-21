@@ -1773,9 +1773,6 @@ class StageManager( ttk.Frame ):
 		if returnCode == 0:
 			selectedTabId = self.pagesNotebook.select() # This will be a tab ID, not the actual widget
 			tabName = self.pagesNotebook.tab( selectedTabId, 'text' ).strip()
-			#globalData.disc.unsavedChanges.append( (tabName + ' file updated', sssFile) )
-			#globalData.disc.recordChange( '' )
-			#sssFile.unsavedChanges.append( 'Preview text texture updated at offset 0x{:X}'.format(0x20+imageDataOffset) )
 			globalData.gui.updateProgramStatus( 'Preview text texture updated in the {} file ({}), at offset 0x{:X}'.format(tabName, sssFile.filename, 0x20+imageDataOffset), success=True )
 
 		else: # Probably don't need to be too specific; low chance of problems here

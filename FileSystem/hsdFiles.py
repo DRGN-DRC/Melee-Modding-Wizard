@@ -511,6 +511,11 @@ class SisFile( DatFile ):
 
 		textStruct = self.getTextStruct( sisId )
 
+		if self.ext == '.dat':
+			specialCharDict = globalData.SdCharacters_2
+		else: # For .usd files
+			specialCharDict = globalData.SdCharacters_1
+
 		# Parse the text struct's data for the text string
 		chars = []
 		byte = textStruct.data[0]
@@ -541,19 +546,27 @@ class SisFile( DatFile ):
 				position += 2
 			elif byte == 0x40: # Special characters (from this file)
 				key = '40{:02x}'.format( textStruct.data[position+1] )
-				char = globalData.SdCharacters_1.get( key, '?' )
+				char = specialCharDict.get( key, '?' )
 				chars.append( char )
 				position += 2
 			else:
 				position += 1
 			
-			byte = textStruct.data[position]
+			if position >= len( textStruct.data ):
+				break
+			else:
+				byte = textStruct.data[position]
 
 		return ''.join( chars )
 
 	def setText( self, sisId, newText, description='', endBytes=b'\x00' ):
 
 		textStruct = self.getTextStruct( sisId )
+
+		if self.ext == '.dat':
+			specialCharDict = globalData.SdCharacters_2
+		else: # For .usd files
+			specialCharDict = globalData.SdCharacters_1
 
 		# Convert the given stage menu text to bytes and add the ending bytes
 		byteStrings = []
@@ -562,7 +575,7 @@ class SisFile( DatFile ):
 
 			# Check special characters (defined in this file) if a normal one wasn't found (defined in the DOL)
 			if not sBytes:
-				sBytes = dictReverseLookup( globalData.SdCharacters_1, char, defaultValue='20eb' ) # Default to question mark
+				sBytes = dictReverseLookup( specialCharDict, char, defaultValue='20eb' ) # Default to question mark
 			
 			byteStrings.append( sBytes )
 		hexString = ''.join( byteStrings )

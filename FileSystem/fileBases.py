@@ -179,20 +179,55 @@ class FileBase( object ):
 		assert dataOffset + dataLength <= len( self.data ), '0x{:X} is too much data to set at offset 0x{:X}.'.format( dataLength, dataOffset )
 		self.data[dataOffset:dataOffset+dataLength] = newData # This will also work for bytearrays of length 1
 
-	def getString( self, offset, dataLength=0x40 ):
+		self.offsetsModified.add( dataOffset )
 
-		return self.getData( offset, dataLength ).split( b'\x00' )[0].decode( 'ascii' )
+	def getString( self, offset, dataLength=0x40, encoding='ascii' ):
 
-	def recordChange( self, description ):
+		return self.getData( offset, dataLength ).split( b'\x00' )[0].decode( encoding )
 
-		#self.source = 'self'
+	def recordChange( self, description, treeviewDescription='' ):
+
+		""" Records a change to this file by adding it to the self.unsavedChanges list. """
+
+		self.source = 'self'
 
 		if description not in self.unsavedChanges:
 			self.unsavedChanges.append( description )
 
 		# If the Disc File Tree is present, indicate this file has changes waiting to be saved there
 		if globalData.gui and globalData.gui.discTab:
-			globalData.gui.discTab.isoFileTree.item( self.isoPath, tags='changed' )
+			if treeviewDescription:
+				globalData.gui.discTab.isoFileTree.item( self.isoPath, values=(treeviewDescription, 'file'), tags='changed' )
+			else:
+				globalData.gui.discTab.isoFileTree.item( self.isoPath, tags='changed' )
+
+	def updateData( self, offset, newData, description='', treeviewDescription='', trackChange=True ):
+
+		""" Directly updates (replaces) data in this file. The data input should be a 
+			single int (if the data is only one byte) or a bytearray. This method will 
+			then also record that this change was made (updating self.unsavedChanges). """
+
+		# Perform a bit of validation on the input
+		if type( newData ) == int: # Just a single byte/integer value (0-255)
+			assert newData >= 0 and newData < 256, 'Invalid input to FileBase.updateData(): ' + str(newData)
+			dataLength = 1
+		else:
+			dataLength = len( newData )
+		self.setData( offset, newData )
+
+		# Record these changes
+		if trackChange:
+			# Create a description if one isn't provided. Amend it with e.g. ' at 0x1234'
+			if not description:
+				if dataLength == 1:
+					description = 'Single byte updated'
+				else:
+					description = '0x{:X} bytes of data updated'.format( dataLength )
+			elif not treeviewDescription and len( description ) <= 42:
+				treeviewDescription = description
+			description += ' at 0x{:X}.'.format( offset )
+
+			self.recordChange( description, treeviewDescription )
 
 	def export( self, savePath ):
 
@@ -341,7 +376,7 @@ class FileBase( object ):
 	def validate( self ):
 
 		""" Verifies whether this file is of a specific type.
-			Expected to be overridden by subclasses with specific checks. """
+			Expected to be overridden by subclasses for specific checks. """
 
 
 class BootBin( FileBase ):
@@ -394,8 +429,8 @@ class BannerFile( FileBase ):
 
 	@property
 	def shortMaker( self ):
-		titleBytes = self.getData( 0x1840, 0x20 ).split( '\x00' )[0]
-		return titleBytes.decode( self.encoding )
+		makerBytes = self.getData( 0x1840, 0x20 ).split( '\x00' )[0]
+		return makerBytes.decode( self.encoding )
 
 	@property
 	def longTitle( self ):
@@ -404,8 +439,13 @@ class BannerFile( FileBase ):
 
 	@property
 	def longMaker( self ):
-		titleBytes = self.getData( 0x18A0, 0x40 ).split( '\x00' )[0]
-		return titleBytes.decode( self.encoding )
+		makerBytes = self.getData( 0x18A0, 0x40 ).split( '\x00' )[0]
+		return makerBytes.decode( self.encoding )
+
+	@property
+	def comment( self ):
+		commentBytes = self.getData( 0x18E0, 0x80 ).split('\x00')[0]
+		return commentBytes.decode( self.encoding )
 
 	def validate( self ):
 
@@ -416,6 +456,34 @@ class BannerFile( FileBase ):
 		#return ( magicWord == bytearray(b'BNR1') or magicWord == bytearray(b'BNR2') )
 		if not magicWord == bytearray( b'BNR1' ) and not magicWord == bytearray( b'BNR2' ):
 			raise Exception( 'Invalid banner file; no magic word of BNR1|BNR2.' )
+
+	def getBanner( self, getAsPilImage=False ):
+
+		try:
+			imageData = self.getData( 0x20, 0x1800 )
+
+			newImg = TplDecoder( '', (96, 32), 5, None, imageData )
+			newImg.deblockify() # This decodes the image data, creating an rgbaPixelArray.
+
+			# Create an image with the decoded data
+			textureImage = Image.new( 'RGBA', (96, 32) )
+			textureImage.putdata( newImg.rgbaPixelArray )
+
+		except Exception as errMessage:
+			print( 'Unable to make out a texture for data at 0x20; ' + str(errMessage) )
+			return None
+
+		if getAsPilImage:
+			return textureImage
+		else:
+			return ImageTk.PhotoImage( textureImage )
+
+	def identifyTextures( self ):
+
+		""" Analagous to the DAT file's class to give just the one texture in this file. The returned tuple is of the following form: 
+				( imageDataOffset, imageHeaderOffset, paletteDataOffset, paletteHeaderOffset, width, height, imageType, mipmapCount ) """
+
+		return [ (0x20, -1, -1, -1, 96, 32, 5, 0) ]
 
 
 					# = ------------------------- = #
@@ -1206,7 +1274,9 @@ class DatFile( FileBase ):
 			assert tailOffset + dataLength <= len( self.tailData ), '0x{:X} is too much tail data to set at offset 0x{:X}.'.format( dataLength, tailOffset )
 			self.tailData[tailOffset:tailOffset+dataLength] = newData # This will also work for bytearrays of length 1
 
-	def updateData( self, offset, newData, description='', trackChange=True ):
+		self.offsetsModified.add( dataOffset )
+
+	def updateData( self, offset, newData, description='', treeviewDescription='', trackChange=True ):
 
 		""" Directly updates (replaces) data in this file, in either the data section or tail data. The 
 			data input should be a single int (if the data is only one byte) or a bytearray. The offset is 
@@ -1242,9 +1312,11 @@ class DatFile( FileBase ):
 					description = 'Single byte updated'
 				else:
 					description = '0x{:X} bytes of data updated'.format( dataLength )
+			elif not treeviewDescription and len( description ) <= 42:
+				treeviewDescription = description
 			description += ' at 0x{:X}.'.format( 0x20 + offset ) # Accounting for file header
 
-			self.recordChange( description )
+			self.recordChange( description, treeviewDescription )
 
 	def updateStruct( self, structure, description='', trackChange=True ):
 
@@ -1373,8 +1445,15 @@ class DatFile( FileBase ):
 			self.unsavedChanges = []
 
 			# If the Disc File Tree is present, remove indication that this file had changes waiting to be saved there
-			if globalData.gui and globalData.gui.discTab:
-				globalData.gui.discTab.isoFileTree.item( self.isoPath, tags=() )
+			if not programClosing and globalData.gui and globalData.gui.discTab:
+				# Revert back to the original file description
+				if globalData.checkSetting( 'useDiscConvenienceFolders' ):
+					# Add extra space to indent the name from the parent folder name
+					description = '     ' + self.shortDescription
+				else:
+					description = self.longDescription
+
+				globalData.gui.discTab.isoFileTree.item( self.isoPath, values=(description, 'file'), tags=() )
 
 		return noChangesNeedSaving
 

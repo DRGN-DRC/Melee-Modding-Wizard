@@ -835,12 +835,10 @@ class HexEditEntry( Tk.Entry ):
 				updateName = 'Offset ' + uHex( 0x20 + offset )
 				descriptionOfChange = updateName + ' modified in ' + self.fileObj.filename
 				self.fileObj.updateData( offset, newData, descriptionOfChange )
-				self.fileObj.offsetsModified.add( offset )
 		else:
 			# The offsets attribute is just a single value (the usual case)
 			descriptionOfChange = self.updateName + ' modified in ' + self.fileObj.filename
 			self.fileObj.updateData( self.offsets, newData, descriptionOfChange )
-			self.fileObj.offsetsModified.add( self.offsets )
 
 	def updateHex( self, event ):
 
@@ -1374,6 +1372,20 @@ class DisguisedEntry( Tk.Entry ):
 			self.config( background=self.initialBgColor )
 	def focusThisWid( self, event ):
 		if self['state'] == 'normal': self.focus()
+
+
+class ClickText( ttk.Label ):
+
+	""" Clickable text/label, colored blue with a hover cursor to indicate to the user it's clickable. """
+	
+	def __init__( self, parent, text, callback, *args, **kwargs ):
+
+		# Initialize the label with one of the above images
+		ttk.Label.__init__( self, parent, text=text, foreground='#00F', cursor='hand2', *args, **kwargs )
+
+		self.callback = callback
+
+		self.bind( '<1>', callback )
 
 
 class LabelButton( ttk.Label ):

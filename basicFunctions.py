@@ -228,7 +228,8 @@ def grammarfyList( theList ):
 
 def removeIllegalCharacters( string, replaceChar='-' ):
 	
-	""" Removes characters illegal in a Windows file path. """
+	""" Removes characters illegal in a Windows file path 
+		(replaces them with a dash or the given character). """
 
 	return ''.join( [replaceChar if c in ( '\\', '/', ':', '*', '?', '"', '<', '>', '|' ) else c for c in string] )
 

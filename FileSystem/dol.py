@@ -309,7 +309,7 @@ class Dol( FileBase ):
 			else:
 				regionSuggestion = 'PAL'
 
-			versionSuggestion = '{:02}'.format( self.disc.revision )
+			versionSuggestion = '{:02}'.format( self.disc.version )
 
 			userMessage = ( "The revision of the DOL within this disc is being predicted from the disc's details. Please verify them below. "
 							"(If this disc has not been altered, these predictions can be trusted.)" )

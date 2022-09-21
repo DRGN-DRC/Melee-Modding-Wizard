@@ -10,20 +10,19 @@
 #		  -  - Melee Modding Wizard -  -  
 
 # External logic dependencies
-from cProfile import label
 import os
 import time
-import copy
+import math
+import random
+import webbrowser
 from binascii import hexlify
-from tkMessageBox import askyesno
 
 # External GUI dependencies
 import ttk
 import tkFileDialog
 import Tkinter as Tk
-# from FileSystem.charFiles import CharCostumeFile
-# from FileSystem.fileBases import DatFile
-# from FileSystem.hsdStructures import DisplayObjDesc, InverseMatrixObjDesc, JointObjDesc
+from PIL import Image, ImageTk
+from tkMessageBox import askyesno
 
 # Internal dependencies
 import globalData
@@ -35,6 +34,7 @@ from basicFunctions import (
 		uHex, humansize, createFolders, saveAndShowTempFileData
 	)
 from guiSubComponents import (
+		ClickText,
 		cmsg,
 		exportSingleFileWithGui,
 		importSingleFileWithGui,
@@ -97,25 +97,27 @@ class DiscTab( ttk.Frame ):
 
 		isoFileTreeWrapper.pack( fill='both', expand=1 )
 		fileTreeColumn.pack( side='left', fill='both', expand=1 )
-		#fileTreeColumn.grid( column=0, row=0, sticky='ns' )
 
 				# ISO File Tree end, and ISO Information panel begins here
 
 		isoOpsPanel = ttk.Frame( self, padding='0 9 0 0' ) # Padding order: Left, Top, Right, Bottom.
 
-		self.isoOverviewFrame = Tk.Frame( isoOpsPanel ) # Contains the Game ID and banner image
+		# Display the Game ID and banner image
+		self.isoOverviewFrame = Tk.Frame( isoOpsPanel )
 		self.gameIdText = Tk.StringVar()
-		ttk.Label( self.isoOverviewFrame, textvariable=self.gameIdText, font="-weight bold" ).grid( column=0, row=0, padx=2 )
+		ttk.Label( self.isoOverviewFrame, textvariable=self.gameIdText, font="-weight bold" ).grid( column=0, row=0, padx=20, sticky='e' )
+		self.updatingBanner = False
+		self.stopAndReloadBanner = False
 		self.bannerCanvas = Tk.Canvas( self.isoOverviewFrame, width=96, height=32, borderwidth=0, highlightthickness=0 )
-		self.bannerCanvas.grid( column=1, row=0, padx=2 ) #, borderwidth=0, highlightthickness=0
 		self.bannerCanvas.pilImage = None
 		self.bannerCanvas.bannerGCstorage = None
 		self.bannerCanvas.canvasImageItem = None
+		self.bannerCanvas.grid( column=1, row=0, padx=20, sticky='w' )
 		self.isoOverviewFrame.columnconfigure( 0, weight=1 )
 		self.isoOverviewFrame.columnconfigure( 1, weight=1 )
-		self.isoOverviewFrame.pack( fill='x', padx=6, pady=11 )
+		self.isoOverviewFrame.pack( fill='x', ipadx=8, pady=(22, 18) )
 
-		# Display a short path
+		# Display a shortend disc path
 		self.isoPathShorthand = Tk.StringVar()
 		self.isoPathShorthandLabel = ttk.Label( isoOpsPanel, textvariable=self.isoPathShorthand )
 		self.isoPathShorthandLabel.pack()
@@ -160,7 +162,6 @@ class DiscTab( ttk.Frame ):
 			self.isoFileTree.delete( item )
 
 		# If desired, temporarily show the user that all items have been removed (Nice small indication that the iso is actually being loaded)
-		#if refreshGui: 
 		globalData.gui.root.update_idletasks()
 
 		# Disable buttons in the iso operations panel. They're re-enabled later if all goes well
@@ -172,7 +173,113 @@ class DiscTab( ttk.Frame ):
 		self.isoOffsetText.set( 'Disc Offset: ' )
 		self.internalFileSizeText.set( 'File Size: ' )
 		self.internalFileSizeLabelSecondLine.set( '' )
-		
+
+	def updateBanner( self, targetTab ):
+
+		""" Updates the displayed banner image on this tab or the Disc Details tab. 
+			If the targetTab is currently in-view/selected, an animation will be used to replace the image. """
+			
+		# Prevent conflicts with an instance of this function that may already be running (let that instance finish its current iteration and call this function again)
+		if targetTab.updatingBanner:
+			targetTab.stopAndReloadBanner = True
+			return
+		targetTab.updatingBanner = True
+
+		# Check current visibility to see if there's a canvas that should be animated
+		currentlySelectedTab = globalData.gui.root.nametowidget( globalData.gui.mainTabFrame.select() )
+		canvas = targetTab.bannerCanvas
+
+		# Remove the current banner image
+		if currentlySelectedTab == targetTab and canvas.bannerGCstorage:
+			# Remove the banner on the current disc tab using a vertical fade
+			width, height = canvas.pilImage.size
+			pixels = canvas.pilImage.load()
+			bandHeight = 30
+			for y in range( height + bandHeight ):
+
+				# Restart if this function is called while already in-progress
+				if targetTab.stopAndReloadBanner:
+					targetTab.updatingBanner = False
+					targetTab.stopAndReloadBanner = False
+					self.updateBanner( self )
+					return
+
+				for bandSegment in range( bandHeight ): # This will modify the current row, and then prior rows (up to the bandHeight)
+					targetRow = y - bandSegment
+					if targetRow >= 0 and targetRow < height:
+						for x in range( width ):
+							initialAlpha = pixels[x, targetRow][3]
+							newAlpha = int( initialAlpha - ( float(bandSegment)/bandHeight * initialAlpha ) )
+							#if x == 0: print 'row', targetRow, ':', initialAlpha, 'to', newAlpha
+							pixels[x, targetRow] = pixels[x, targetRow][:3] + (newAlpha,)
+						canvas.bannerGCstorage = ImageTk.PhotoImage( canvas.pilImage )
+						canvas.itemconfig( canvas.canvasImageItem, image=canvas.bannerGCstorage )
+						canvas.update() # update_idletasks
+						time.sleep( .0005 ) # 500 us
+			
+			canvas.delete( 'all' )
+			time.sleep( .4 )
+
+		else: # Banner not currently visible. Clear the canvas
+			canvas.delete( 'all' )
+
+		# Load the banner file and get the banner image
+		if targetTab == globalData.gui.discDetailsTab and globalData.gui.discTab.bannerCanvas.pilImage:
+			# The Disc Tree tab should have already been loaded/updated; so we can use that instead
+			bannerImage = globalData.gui.discTab.bannerCanvas.pilImage
+		else:
+			bannerFile = globalData.disc.getBannerFile()
+			bannerImage = bannerFile.getBanner( getAsPilImage=True )
+		canvas.pilImage = bannerImage
+		canvas.bannerGCstorage = ImageTk.PhotoImage( bannerImage )
+
+		# Add the new banner image to the canvas
+		if currentlySelectedTab == targetTab:
+			# Add the banner on the current tab using a dissolve fade.
+			# First, create a blank image on the canvas
+			width, height = 96, 32
+			dissolvingImage = Image.new( 'RGBA', (width, height), (0,0,0,0) )
+			canvas.canvasImageItem = canvas.create_image( 0, 0, image=ImageTk.PhotoImage(dissolvingImage), anchor='nw' )
+			dessolvingPixels = dissolvingImage.load()
+
+			# Display the converted image
+			bannerPixels = canvas.pilImage.load()
+			pixelsToUpdatePerPass = 172
+			pixelsNotShown = [ (x, y) for x in range(width) for y in range(height) ] # Creates a list of all possible pixel coordinates for the banner image
+			while pixelsNotShown:
+
+				# Restart if this function is called while already in-progress
+				if targetTab.stopAndReloadBanner:
+					targetTab.updatingBanner = False
+					targetTab.stopAndReloadBanner = False
+					self.updateBanner( self )
+					return
+
+				# Randomly pick out some pixels to show
+				pixelsToShow = []
+				while len( pixelsToShow ) < pixelsToUpdatePerPass and pixelsNotShown:
+					randomIndex = random.randint( 0, len(pixelsNotShown) - 1 )
+					pixelsToShow.append( pixelsNotShown[randomIndex] )
+					del pixelsNotShown[randomIndex]
+				if pixelsToUpdatePerPass > 2: pixelsToUpdatePerPass -= math.sqrt( pixelsToUpdatePerPass )/2
+
+				# Update the chosen pixels
+				for pixelCoords in pixelsToShow:
+					dessolvingPixels[pixelCoords] = bannerPixels[pixelCoords]
+
+				# Update the GUI
+				canvas.bannerGCstorage = ImageTk.PhotoImage( dissolvingImage )
+				canvas.itemconfig( canvas.canvasImageItem, image=canvas.bannerGCstorage )
+				canvas.update()
+				time.sleep( .022 )
+
+			canvas.canvasImageItem = canvas.create_image( 0, 0, image=canvas.bannerGCstorage, anchor='nw' )
+
+		else: # No animation; just add the banner to the GUI
+			canvas.canvasImageItem = canvas.create_image( 0, 0, image=canvas.bannerGCstorage, anchor='nw' )
+
+		targetTab.updatingBanner = False
+	
 	def updateIids( self, iids ): # Simple function to change the Game ID for all iids in a given list or tuple
 
 		""" Updates the Game ID for all isoPaths/iids in the given list or tuple. """
@@ -197,6 +304,8 @@ class DiscTab( ttk.Frame ):
 				- updatedFiles:			If provided, this will be a list of iids (isoPaths) that were updated during a save operation.
 										These files (and their parent folders) will be highlighted green to indicate changes. """
 
+		disc = globalData.disc
+
 		if preserveTreeState:
 			self.isoFileTree.saveState()
 
@@ -205,23 +314,38 @@ class DiscTab( ttk.Frame ):
 		if rootItems:
 			originalGameId = rootItems[0]
 		else:
-			originalGameId = globalData.disc.gameId
+			originalGameId = disc.gameId
 			
 		self.clear()
 
+		# Switch to this tab if it or the Disc Details tab are not currently selected
 		if switchTab:
 			currentlySelectedTab = globalData.gui.root.nametowidget( globalData.gui.mainTabFrame.select() )
 			if currentlySelectedTab != self and currentlySelectedTab != globalData.gui.discDetailsTab:
 				globalData.gui.mainTabFrame.select( self ) # Switch to the Disc File Tree tab
 
-		usingConvenienceFolders = globalData.checkSetting( 'useDiscConvenienceFolders' ) # Avoiding having to look this up many times
-		disc = globalData.disc
-		rootParent = disc.gameId
+		# Update the Game ID text and a shortened disc path string that will fit well in less space
+		self.gameIdText.set( disc.gameId )
+		self.isoOverviewFrame.update_idletasks()
+		frameWidth = self.isoOverviewFrame.winfo_width()
+		accumulatingName = ''
+		for character in reversed( disc.filePath ):
+			accumulatingName = character + accumulatingName
+			self.isoPathShorthand.set( accumulatingName )
+			if self.isoPathShorthandLabel.winfo_reqwidth() > frameWidth:
+				# Reduce the path to the closest folder (that fits in the given space)
+				normalizedPath = os.path.normpath( accumulatingName[1:] )
+				if '\\' in normalizedPath: self.isoPathShorthand.set( '\\' + '\\'.join( normalizedPath.split('\\')[1:] ) )
+				else: self.isoPathShorthand.set( '...' + normalizedPath[3:] ) # Filename is too long to fit; show as much as possible
+				break
+		ToolTip( self.isoPathShorthandLabel, disc.filePath, delay=500, wraplength=400, follow_mouse=1 )
 
 		# Add the root (GameID) entry
+		rootParent = disc.gameId
 		self.isoFileTree.insert( '', 'end', iid=rootParent, text=' ' + disc.gameId + '  (root)', open=True, image=globalData.gui.imageBank('meleeIcon'), values=('', 'cFolder') )
 		
 		# Add the disc's files to the Disc File Tree tab
+		usingConvenienceFolders = globalData.checkSetting( 'useDiscConvenienceFolders' ) # Avoiding having to look this up many times
 		if usingConvenienceFolders:
 			self.isoFileTree.insert( rootParent, 'end', iid=rootParent + '/sys', text=' System files', image=globalData.gui.imageBank('folderIcon'), values=('', 'cFolder') )
 		for discFile in disc.files.itervalues():
@@ -975,35 +1099,37 @@ class DiscDetailsTab( ttk.Frame ):
 		self.bannerFile = None
 		
 			# Row 1 | Disc file path entry
-		self.row1 = ttk.Frame( self, padding=12 )
-		ttk.Label( self.row1, text=" ISO / GCM:" ).pack( side='left' )
+		row1 = ttk.Frame( self, padding='20 20 20 10' ) # Padding order: Left, Top, Right, Bottom.
+		ttk.Label( row1, text=" ISO / GCM:" ).pack( side='left' )
 		self.isoDestination = Tk.StringVar()
-		isoDestEntry = ttk.Entry( self.row1, textvariable=self.isoDestination ) #, takefocus=False
+		isoDestEntry = ttk.Entry( row1, textvariable=self.isoDestination ) #, takefocus=False
 		isoDestEntry.pack( side='left', fill='x', expand=1, padx=12 )
 		isoDestEntry.bind( '<Return>', self.openIsoDestination )
-		self.row1.pack( fill='x' )
+		row1.grid( column=0, row=0, sticky='ew' )
 
 			# Row 2, Column 0 & 1 | Game ID
-		self.row2 = ttk.Frame( self, padding=0 )
+		self.row2 = ttk.Frame( self, padding='10 10 100 10' )
 		self.row2.padx = 5
 		self.row2.gameIdLabel = ttk.Label( self.row2, text='Game ID:' )
 		self.row2.gameIdLabel.grid( column=0, row=0, rowspan=4, padx=self.row2.padx )
+		self.gameIdText = Tk.StringVar()
 		self.gameIdTextEntry = DisguisedEntry( self.row2, respectiveLabel=self.row2.gameIdLabel, 
-												background=mainGui.defaultSystemBgColor, textvariable=mainGui.discTab.gameIdText, width=8 )
+												background=mainGui.defaultSystemBgColor, textvariable=self.gameIdText, width=8 )
 		self.gameIdTextEntry.grid( column=1, row=0, rowspan=4, padx=self.row2.padx )
 		self.gameIdTextEntry.offset = 0
 		self.gameIdTextEntry.maxByteLength = 6
 		self.gameIdTextEntry.updateName = 'Game ID'
-		self.gameIdTextEntry.bind( '<Return>', self.saveBootFileDetails )
+		self.gameIdTextEntry.file = 'boot.bin'
+		self.gameIdTextEntry.bind( '<Return>', self.saveImageDetails )
 
 			# Row 2, Column 2/3/4 | Game ID break-down
 		ttk.Label( self.row2, image=mainGui.imageBank('gameIdBreakdownImage') ).grid( column=2, row=0, rowspan=4, padx=self.row2.padx )
-		self.consoleIdText = Tk.StringVar()
+		self.consoleCodeText = Tk.StringVar()
 		self.gameCodeText = Tk.StringVar()
 		self.regionCodeText = Tk.StringVar()
 		self.makerCodeText = Tk.StringVar()
-		ttk.Label( self.row2, text='Console ID:' ).grid( column=3, row=0, sticky='e', padx=self.row2.padx )
-		ttk.Label( self.row2, textvariable=self.consoleIdText, width=3 ).grid( column=4, row=0, sticky='w', padx=self.row2.padx )
+		ttk.Label( self.row2, text='Console Code:' ).grid( column=3, row=0, sticky='e', padx=self.row2.padx )
+		ttk.Label( self.row2, textvariable=self.consoleCodeText, width=3 ).grid( column=4, row=0, sticky='w', padx=self.row2.padx )
 		ttk.Label( self.row2, text='Game Code:' ).grid( column=3, row=1, sticky='e', padx=self.row2.padx )
 		ttk.Label( self.row2, textvariable=self.gameCodeText, width=3 ).grid( column=4, row=1, sticky='w', padx=self.row2.padx )
 		ttk.Label( self.row2, text='Region Code:' ).grid( column=3, row=2, sticky='e', padx=self.row2.padx )
@@ -1011,63 +1137,73 @@ class DiscDetailsTab( ttk.Frame ):
 		ttk.Label( self.row2, text='Maker Code:' ).grid( column=3, row=3, sticky='e', padx=self.row2.padx )
 		ttk.Label( self.row2, textvariable=self.makerCodeText, width=3 ).grid( column=4, row=3, sticky='w', padx=self.row2.padx )
 
-		ttk.Separator( self.row2, orient='vertical' ).grid( column=5, row=0, sticky='ns', rowspan=4, padx=self.row2.padx, pady=6 )
+		ttk.Separator( self.row2, orient='vertical' ).grid( column=5, row=0, sticky='ns', rowspan=4, padx=self.row2.padx+4, pady=6 )
+
+		ClickText( self.row2, 'Code Reference', lambda event: webbrowser.open('https://wiki.dolphin-emu.org/index.php?title=GameIDs') ).grid( column=6, row=0 )
 
 			# Row 2, Column 6 | Banner Image
-		self.bannerCanvas2 = Tk.Canvas( self.row2, width=96, height=32, borderwidth=0, highlightthickness=0 )
-		self.bannerCanvas2.grid( column=6, row=1, rowspan=2, padx=self.row2.padx )
-		self.bannerCanvas2.pilImage = None
-		self.bannerCanvas2.bannerGCstorage = None
-		self.bannerCanvas2.canvasImageItem = None
+		self.bannerCanvas = Tk.Canvas( self.row2, width=96, height=32, borderwidth=0, highlightthickness=0 )
+		self.updatingBanner = False
+		self.stopAndReloadBanner = False
+		self.bannerCanvas.pilImage = None
+		self.bannerCanvas.bannerGCstorage = None
+		self.bannerCanvas.canvasImageItem = None
+		self.bannerCanvas.grid( column=6, row=1, rowspan=2, padx=self.row2.padx )
 
+			# Banner Export/Import buttons
 		bannerImportExportFrame = ttk.Frame( self.row2 )
-		bannerExportLabel = ttk.Label( bannerImportExportFrame, text='Export', foreground='#00F', cursor='hand2' )
-		#bannerExportLabel.bind( '<1>', exportBanner )
-		bannerExportLabel.pack( side='left' )
-		ttk.Label( bannerImportExportFrame, text=' | ' ).pack( side='left' )
-		bannerImportLabel = ttk.Label( bannerImportExportFrame, text='Import', foreground='#00F', cursor='hand2' )
-		#bannerImportLabel.bind( '<1>', importImageFiles )
-		bannerImportLabel.pack( side='left' )
+		ClickText( bannerImportExportFrame, 'Export', self.exportBanner ).pack( side='left', padx=(0, 6) )
+		ClickText( bannerImportExportFrame, 'Import', self.importBanner ).pack( side='left', padx=(6, 0) )
+		#ttk.Label( bannerImportExportFrame, text=' | ' ).pack( side='left' )
 		bannerImportExportFrame.grid( column=6, row=3, padx=self.row2.padx )
 
-		ttk.Separator( self.row2, orient='vertical' ).grid( column=7, row=0, sticky='ns', rowspan=4, padx=self.row2.padx, pady=6 )
+		ttk.Separator( self.row2, orient='vertical' ).grid( column=7, row=0, sticky='ns', rowspan=4, padx=self.row2.padx+4, pady=6 )
 
 			# Row 2, Column 8/9 | Disc Revision, 20XX Version, and Disc Size
-		self.isoVersionText = Tk.StringVar()
-		#twentyxxVersionText = Tk.StringVar()
+		self.isoRevisionText = Tk.StringVar()
+		self.projectLabelText = Tk.StringVar()
+		self.projectVerstionText = Tk.StringVar()
 		self.isoFileCountText = Tk.StringVar()
 		self.isoFilesizeText = Tk.StringVar()
 		self.isoFilesizeTextLine2 = Tk.StringVar()
 		ttk.Label( self.row2, text='Disc Revision:' ).grid( column=8, row=0, sticky='e', padx=self.row2.padx )
-		ttk.Label( self.row2, textvariable=self.isoVersionText ).grid( column=9, row=0, sticky='w', padx=self.row2.padx )
-		#ttk.Label( self.row2, text='20XX Version:' ).grid( column=8, row=1, sticky='e', padx=self.row2.padx )
-		#ttk.Label( self.row2, textvariable=twentyxxVersionText ).grid( column=9, row=1, sticky='w', padx=self.row2.padx )
+		ttk.Label( self.row2, textvariable=self.isoRevisionText ).grid( column=9, row=0, sticky='w', padx=self.row2.padx )
+		projectLabel = ttk.Label( self.row2, textvariable=self.projectLabelText )
+		projectLabel.grid( column=8, row=1, sticky='e', padx=self.row2.padx )
+		projectVersion = ttk.Label( self.row2, textvariable=self.projectVerstionText )
+		projectVersion.grid( column=9, row=1, sticky='w', padx=self.row2.padx )
 		ttk.Label( self.row2, text='Total File Count:' ).grid( column=8, row=2, sticky='e', padx=self.row2.padx )
 		ttk.Label( self.row2, textvariable=self.isoFileCountText ).grid( column=9, row=2, sticky='w', padx=self.row2.padx )
 		ttk.Label( self.row2, text='Disc Size:' ).grid( column=8, row=3, sticky='e', padx=self.row2.padx )
 		ttk.Label( self.row2, textvariable=self.isoFilesizeText ).grid( column=9, row=3, sticky='w', padx=self.row2.padx )
 		ttk.Label( self.row2, textvariable=self.isoFilesizeTextLine2 ).grid( column=8, row=4, columnspan=2, sticky='e', padx=self.row2.padx )
-
-		self.row2.pack( padx=15, pady=0, expand=1 )
+		self.row2.grid( column=0, row=1, padx=15 )
 
 		# Set cursor hover bindings for the help text
-		# previousLabelWidget = ( None, '' )
-		# for widget in self.row2.winfo_children(): # Widgets will be listed in the order that they were added to the parent
+		previousLabelWidget = ( None, '' )
+		for widget in self.row2.winfo_children(): # Widgets will be listed in the order that they were added to the parent
 
-		# 	if widget.winfo_class() == 'TLabel' and ':' in widget['text']: # Bindings for the preceding Label
-		# 		updateName = widget['text'].replace(':', '')
-		# 		widget.bind( '<Enter>', lambda event, helpTextName=updateName: setDiscDetailsHelpText(helpTextName) )
-		# 		widget.bind( '<Leave>', setDiscDetailsHelpText )
-		# 		previousLabelWidget = ( widget, updateName )
+			if widget.winfo_class() == 'TLabel' and ':' in widget['text']: # Bindings for the preceding Label
+				updateName = widget['text'].replace(':', '')
+				widget.bind( '<Enter>', lambda event, helpTextName=updateName: self.setHelpText(helpTextName) )
+				if updateName not in ( 'Console Code', 'Region Code', 'Maker Code' ):
+					widget.bind( '<Leave>', self.setHelpText )
+				previousLabelWidget = ( widget, updateName )
 
-		# 	elif previousLabelWidget[0]: # Bindings for the labels displaying the value/info
-		# 		widget.bind( '<Enter>', lambda event, helpTextName=previousLabelWidget[1]: setDiscDetailsHelpText(helpTextName) )
-		# 		widget.bind( '<Leave>', setDiscDetailsHelpText )
-		# 		previousLabelWidget = ( None, '' )
+			elif widget == projectLabel or widget == projectVersion:
+				if globalData.disc and globalData.disc.is20XX:
+					widget.bind( '<Enter>', lambda event: self.setHelpText('20XX Version') )
+					widget.bind( '<Leave>', self.setHelpText )
 
-		# 	elif widget.grid_info()['row'] == '4': # For the second label for isoFilesize
-		# 		widget.bind( '<Enter>', lambda event: setDiscDetailsHelpText('Disc Size') )
-		# 		widget.bind( '<Leave>', setDiscDetailsHelpText )
+			elif previousLabelWidget[0]: # Bindings for the entry widgets displaying the value/info
+				widget.bind( '<Enter>', lambda event, helpTextName=previousLabelWidget[1]: self.setHelpText(helpTextName) )
+				if updateName not in ( 'Console Code', 'Region Code', 'Maker Code' ):
+					widget.bind( '<Leave>', self.setHelpText )
+				previousLabelWidget = ( None, '' )
+
+			elif widget.grid_info()['row'] == '4': # For the second label for isoFilesize
+				widget.bind( '<Enter>', lambda event: self.setHelpText('Disc Size') )
+				widget.bind( '<Leave>', self.setHelpText )
 
 		# Enable resizing for the above grid columns
 		self.row2.columnconfigure( 2, weight=0 ) # Allows the middle column (the actual text input fields) to stretch with the window
@@ -1081,7 +1217,7 @@ class DiscDetailsTab( ttk.Frame ):
 		self.row2.columnconfigure( 9, weight=1, minsize=predictedComfortableWidth )
 
 				# The start of row 3
-		self.row3 = Tk.Frame( self ) # Uses a grid layout for its children
+		self.row3 = ttk.Frame( self, padding='10 0 10 10' ) # Uses a grid layout for its children
 		self.shortTitle = Tk.StringVar()
 		self.shortMaker = Tk.StringVar()
 		self.longTitle = Tk.StringVar()
@@ -1089,98 +1225,99 @@ class DiscDetailsTab( ttk.Frame ):
 
 		borderColor1 = '#b7becc'; borderColor2 = '#0099f0'
 		ttk.Label( self.row3, text='Image Name:' ).grid( column=0, row=0, sticky='e' )
-		self.gameName1Field = Tk.Text( self.row3, height=3, highlightbackground=borderColor1, highlightcolor=borderColor2, highlightthickness=1, borderwidth=0 )
-		gameName1FieldScrollbar = Tk.Scrollbar( self.row3, command=self.gameName1Field.yview ) # This is used instead of just a ScrolledText widget because getattr() won't work on the latter
-		self.gameName1Field['yscrollcommand'] = gameName1FieldScrollbar.set
-		self.gameName1Field.grid( column=1, row=0, columnspan=2, sticky='ew' )
+		self.imageNameTextField = Tk.Text( self.row3, height=3, highlightbackground=borderColor1, highlightcolor=borderColor2, highlightthickness=1, borderwidth=0 )
+		gameName1FieldScrollbar = Tk.Scrollbar( self.row3, command=self.imageNameTextField.yview ) # This is used instead of just a ScrolledText widget because getattr() won't work on the latter
+		self.imageNameTextField['yscrollcommand'] = gameName1FieldScrollbar.set
+		self.imageNameTextField.grid( column=1, row=0, columnspan=2, sticky='ew' )
 		gameName1FieldScrollbar.grid( column=3, row=0 )
-		self.gameName1Field.offset = 0x20; self.gameName1Field.maxByteLength = 992; self.gameName1Field.updateName = 'Image Name'
+		self.imageNameTextField.offset = 0x20; self.imageNameTextField.maxByteLength = 992; self.imageNameTextField.updateName = 'Image Name'; self.imageNameTextField.file = 'boot.bin'
 		ttk.Label( self.row3, text='992' ).grid( column=4, row=0, padx=5 )
-		textWidgetFont = self.gameName1Field['font']
+		textWidgetFont = self.imageNameTextField['font']
 
 		ttk.Label( self.row3, text='Short Title:' ).grid( column=0, row=1, sticky='e' )
 		gameName2Field = Tk.Entry( self.row3, width=32, textvariable=self.shortTitle, highlightbackground=borderColor1, highlightcolor=borderColor2, highlightthickness=1, borderwidth=0, font=textWidgetFont )
 		gameName2Field.grid( column=1, row=1, columnspan=2, sticky='w' )
-		gameName2Field.offset = 0x1820; gameName2Field.maxByteLength = 32; gameName2Field.updateName = 'Short Title'
+		gameName2Field.offset = 0x1820; gameName2Field.maxByteLength = 32; gameName2Field.updateName = 'Short Title'; gameName2Field.file = 'opening.bnr'
 		ttk.Label( self.row3, text='32' ).grid( column=4, row=1 )
 
 		ttk.Label( self.row3, text='Short Maker:' ).grid( column=0, row=2, sticky='e' )
 		developerField = Tk.Entry( self.row3, width=32, textvariable=self.shortMaker, highlightbackground=borderColor1, highlightcolor=borderColor2, highlightthickness=1, borderwidth=0, font=textWidgetFont )
 		developerField.grid( column=1, row=2, columnspan=2, sticky='w' )
-		developerField.offset = 0x1840; developerField.maxByteLength = 32; developerField.updateName = 'Short Maker'
+		developerField.offset = 0x1840; developerField.maxByteLength = 32; developerField.updateName = 'Short Maker'; developerField.file = 'opening.bnr'
 		ttk.Label( self.row3, text='32' ).grid( column=4, row=2 )
 
 		ttk.Label( self.row3, text='Long Title:' ).grid( column=0, row=3, sticky='e' )
 		fullGameTitleField = Tk.Entry( self.row3, width=64, textvariable=self.longTitle, highlightbackground=borderColor1, highlightcolor=borderColor2, highlightthickness=1, borderwidth=0, font=textWidgetFont )
 		fullGameTitleField.grid( column=1, row=3, columnspan=2, sticky='w' )
-		fullGameTitleField.offset = 0x1860; fullGameTitleField.maxByteLength = 64; fullGameTitleField.updateName = 'Long Title'
+		fullGameTitleField.offset = 0x1860; fullGameTitleField.maxByteLength = 64; fullGameTitleField.updateName = 'Long Title'; fullGameTitleField.file = 'opening.bnr'
 		ttk.Label( self.row3, text='64' ).grid( column=4, row=3 )
 
 		ttk.Label( self.row3, text='Long Maker:' ).grid( column=0, row=4, sticky='e' )
 		devOrDescField = Tk.Entry( self.row3, width=64, textvariable=self.longMaker, highlightbackground=borderColor1, highlightcolor=borderColor2, highlightthickness=1, borderwidth=0, font=textWidgetFont )
 		devOrDescField.grid( column=1, row=4, columnspan=2, sticky='w' )
-		devOrDescField.offset = 0x18a0; devOrDescField.maxByteLength = 64; devOrDescField.updateName = 'Long Maker'
+		devOrDescField.offset = 0x18a0; devOrDescField.maxByteLength = 64; devOrDescField.updateName = 'Long Maker'; devOrDescField.file = 'opening.bnr'
 		ttk.Label( self.row3, text='64' ).grid( column=4, row=4 )
 
 		ttk.Label( self.row3, text='Comment:' ).grid( column=0, row=5, sticky='e' )
 		self.gameDescField = Tk.Text( self.row3, height=2, highlightbackground=borderColor1, highlightcolor=borderColor2, highlightthickness=1, borderwidth=0 )
 		self.gameDescField.grid( column=1, row=5, columnspan=2, sticky='ew' )
-		self.gameDescField.offset = 0x18e0; self.gameDescField.maxByteLength = 128; self.gameDescField.updateName = 'Comment'
+		self.gameDescField.offset = 0x18e0; self.gameDescField.maxByteLength = 128; self.gameDescField.updateName = 'Comment'; self.gameDescField.file = 'opening.bnr'
 		self.gameDescField.bind( '<Shift-Return>', self.disallowLineBreaks )
 		ttk.Label( self.row3, text='128' ).grid( column=4, row=5 )
 
 		ttk.Label( self.row3, text='Encoding:' ).grid( column=0, row=6, sticky='e' )
 		self.encodingFrame = ttk.Frame( self.row3 )
-		self.countryCode = Tk.StringVar()
-		self.countryCode.set( 'us' ) # This is just a default. Officially set when a disc is loaded
-		Tk.Radiobutton( self.encodingFrame, text='English/EU (Latin_1)', variable=self.countryCode, value='us', command=self.reloadBanner ).pack( side='left', padx=(9,6) )
-		Tk.Radiobutton( self.encodingFrame, text='Japanese (Shift_JIS)', variable=self.countryCode, value='jp', command=self.reloadBanner ).pack( side='left', padx=6 )
+		self.encoding = Tk.StringVar()
+		self.encoding.set( 'latin_1' ) # This is just a default. Officially set when a disc is loaded
+		Tk.Radiobutton( self.encodingFrame, text=' English/EU  (Latin_1)', variable=self.encoding, value='latin_1', command=self.populateTexts ).pack( side='left', padx=(9,6) )
+		Tk.Radiobutton( self.encodingFrame, text=' Japanese  (Shift_JIS)', variable=self.encoding, value='shift_jis', command=self.populateTexts ).pack( side='left', padx=6 )
 		self.encodingFrame.grid( column=1, row=6, sticky='w' )
-		ttk.Label( self.row3, text='Max Characters/Bytes ^  ' ).grid( column=2, row=6, columnspan=3, sticky='e' )
+		ttk.Label( self.row3, text='Max Characters ^  ' ).grid( column=2, row=6, columnspan=3, sticky='e' )
 
 		# Add event handlers for the updating function and help/hover text (also sets x/y padding)
-		# children = self.row3.winfo_children()
-		# previousWidget = children[0]
-		# for widget in children: 
-		# 	widget.grid_configure( padx=4, pady=3 )
-		# 	updateName = getattr( widget, 'updateName', None )
+		children = self.row3.winfo_children()
+		previousWidget = children[0]
+		for widget in children:
+			widget.grid_configure( padx=4, pady=3 )
+			updateName = getattr( widget, 'updateName', None )
 
-		# 	if updateName:
-		# 		# Cursor hover bindings for the preceding Label
-		# 		previousWidget.bind( '<Enter>', lambda event, helpTextName=updateName: setDiscDetailsHelpText(helpTextName) )
-		# 		previousWidget.bind( '<Leave>', setDiscDetailsHelpText )
+			if updateName:
+				# Cursor hover bindings for the preceding Label
+				previousWidget.bind( '<Enter>', lambda event, helpTextName=updateName: self.setHelpText(helpTextName) )
+				previousWidget.bind( '<Leave>', self.setHelpText )
 
-		# 		# Data entry (pressing 'Enter') and cursor hover bindings for the text entry field
-		# 		if updateName == 'Image Name':
-		# 			widget.bind( '<Return>', self.saveBootFileDetails )
-		# 		else:
-		# 			widget.bind( '<Return>', self.saveBannerFileDetails )
-		# 		widget.bind( '<Enter>', lambda event, helpTextName=updateName: setDiscDetailsHelpText(helpTextName) )
-		# 		widget.bind( '<Leave>', setDiscDetailsHelpText )
-		# 	previousWidget = widget
+				# Data entry (pressing 'Enter') and cursor hover bindings for the text entry field
+				# if updateName == 'Image Name':
+				widget.bind( '<Return>', self.saveImageDetails )
+				# else:
+				# 	widget.bind( '<Return>', self.saveBannerFileDetails )
+				widget.bind( '<Enter>', lambda event, helpTextName=updateName: self.setHelpText(helpTextName) )
+				widget.bind( '<Leave>', self.setHelpText )
+			previousWidget = widget
 
 		self.row3.columnconfigure( 1, weight=1 ) # Allows the middle column (the actual text input fields) to stretch with the window
-		self.row3.pack( fill='both', expand=1, padx=15, pady=4 )
+		self.row3.grid( column=0, row=2, sticky='ew', padx=25 )
 
 				# The start of row 4
-		# self.textHeightAssementWidget = ttk.Label( mainGui.root, text=' \n \n \n ' )
-		# self.textHeightAssementWidget.pack( side='bottom' )
-		# self.textHeightAssementWidget.update()
-		# theHeightOf4Lines = self.textHeightAssementWidget.winfo_height() # A dynamic value for differing system/user font sizes
-		# self.textHeightAssementWidget.destroy()
-
-		ttk.Separator( self, orient='horizontal' ).pack( fill='x', expand=1, padx=30 )
+		ttk.Separator( self, orient='horizontal' ).grid( column=0, row=3, sticky='ew', padx=30, pady=10 )
 		self.row4 = ttk.Frame( self, padding='0 0 0 12' ) # Padding order: Left, Top, Right, Bottom., height=theHeightOf4Lines
-		self.discDetailsTabHelpText = Tk.StringVar()
-		self.discDetailsTabHelpText.set( "Hover over an item to view information on it.\nPress 'Enter' to submit changes in a text input field before saving." )
-		self.helpTextLabel = ttk.Label( self.row4, textvariable=self.discDetailsTabHelpText, wraplength=680 ) #, background='white'
+		self.helpText = Tk.StringVar()
+		self.helpText.set( "Hover over an item to view information on it.\nPress 'Enter' to submit changes in a text input field before saving." )
+		self.helpTextLabel = ttk.Label( self.row4, textvariable=self.helpText, wraplength=680 ) #, background='white'
 		self.helpTextLabel.pack( expand=1, pady=0 )
-		self.row4.pack( expand=1, fill='both' )
-		#self.row4.pack_propagate( False )
+		self.helpLink = None
+		self.row4.grid( column=0, row=4, sticky='nsew', padx=15, pady=4 )
+		
+		self.columnconfigure( 'all', weight=1 )
+		self.rowconfigure( 0, weight=0 )
+		self.rowconfigure( 1, weight=1 )
+		self.rowconfigure( 2, weight=1 )
+		self.rowconfigure( 3, weight=0 )
+		self.rowconfigure( 4, weight=1, minsize=120 )
 
 		# Establish character length validation (for all input fields on this tab), and updates between the GameID labels
-		mainGui.discTab.gameIdText.trace( 'w', lambda nm, idx, mode, var=mainGui.discTab.gameIdText: self.validateInput(var, 6) )
-		# self.consoleIdText.trace( 'w', lambda nm, idx, mode, var=self.consoleIdText: self.validateInput(var, 1) )
+		self.gameIdText.trace( 'w', lambda nm, idx, mode, var=self.gameIdText: self.validateInput(var, 6) )
+		# self.consoleCodeText.trace( 'w', lambda nm, idx, mode, var=self.consoleCodeText: self.validateInput(var, 1) )
 		# self.gameCodeText.trace( 'w', lambda nm, idx, mode, var=self.gameCodeText: self.validateInput(var, 2) )
 		# self.regionCodeText.trace( 'w', lambda nm, idx, mode, var=self.regionCodeText: self.validateInput(var, 1) )
 		# self.makerCodeText.trace( 'w', lambda nm, idx, mode, var=self.makerCodeText: self.validateInput(var, 2) )
@@ -1202,18 +1339,22 @@ class DiscDetailsTab( ttk.Frame ):
 			stringVar.set( enteredValue[:maxCharacters] )
 
 		# Update all of the game ID strings
-		elif stringVar == self.mainGui.discTab.gameIdText:
-			self.consoleIdText.set( '' )
+		elif stringVar == self.gameIdText:
+			self.consoleCodeText.set( '' )
 			self.gameCodeText.set( '' )
 			self.regionCodeText.set( '' )
 			self.makerCodeText.set( '' )
-			if len(enteredValue) > 0: self.consoleIdText.set( enteredValue[0] )
+			if len(enteredValue) > 0: self.consoleCodeText.set( enteredValue[0] )
 			if len(enteredValue) > 1: self.gameCodeText.set( enteredValue[1:3] )
 			if len(enteredValue) > 3: self.regionCodeText.set( enteredValue[3] )
 			if len(enteredValue) > 4: self.makerCodeText.set( enteredValue[4:7] )
-		
+
+	# def clear( self ):
+	# 	self.isoDestination.set( '' )
+
 	def disallowLineBreaks( self, event ):
-		return 'break' # Meant to halt event propagation for certain key presses
+		""" This prevents line breaks from being able to be entered in the widget. """
+		return 'break' # Halts event propagation
 
 	def openIsoDestination( self, event ):
 
@@ -1222,7 +1363,7 @@ class DiscDetailsTab( ttk.Frame ):
 
 		filepath = self.isoDestination.get().replace( '"', '' )
 		self.mainGui.fileHandler( [filepath] )
-			
+	
 	def loadDiscDetails( self, discSize=0 ):
 
 		""" This primarily updates the Disc Details tab using information from Boot.bin/ISO.hdr (so a disc should already be loaded); 
@@ -1237,106 +1378,64 @@ class DiscDetailsTab( ttk.Frame ):
 		disc = globalData.disc
 		discTab = self.mainGui.discTab
 
-		# Set the filepath field in the GUI, and create a shorthand string that will fit nicely on the Disc File Tree tab
+		# Set the Game ID (and associated components)
+		self.gameIdText.set( disc.gameId )
+
+		# Set the filepath field in the GUI
 		self.isoDestination.set( disc.filePath )
-		discTab.isoOverviewFrame.update_idletasks()
-		frameWidth = discTab.isoOverviewFrame.winfo_width()
-		accumulatingName = ''
-		for character in reversed( disc.filePath ):
-			accumulatingName = character + accumulatingName
-			discTab.isoPathShorthand.set( accumulatingName )
-			if discTab.isoPathShorthandLabel.winfo_reqwidth() > frameWidth:
-				# Reduce the path to the closest folder (that fits in the given space)
-				normalizedPath = os.path.normpath( accumulatingName[1:] )
-				if '\\' in normalizedPath: discTab.isoPathShorthand.set( '\\' + '\\'.join( normalizedPath.split('\\')[1:] ) )
-				else: discTab.isoPathShorthand.set( '...' + normalizedPath[3:] ) # Filename is too long to fit; show as much as possible
-				break
-		ToolTip( discTab.isoPathShorthandLabel, disc.filePath, delay=500, wraplength=400, follow_mouse=1 )
 
-		# Look up info within boot.bin (gameID, disc version, and disc region)
-		#bootBinData = getFileDataFromDiscTreeAsBytes( iid=scanDiscForFile('boot.bin') )
-		# bootBinData = disc.files[disc.gameId + '/Boot.bin'].getData()
-		# if not bootBinData: 
-		# 	missingFiles.append( 'boot.bin or ISO.hdr' )
-		# 	self.gameIdText.set( '' )
-		# 	self.isoVersionText.set( '' )
-		# 	imageName = ''
-		# else:
-		# 	gameId = bootBinData[:6].decode( 'ascii' ) # First 6 bytes
-		# 	self.gameIdText.set( gameId )
-		# 	versionHex = hexlify( bootBinData[7:8] ) # Byte 7
-		# 	ntscRegions = ( 'A', 'E', 'J', 'K', 'R', 'W' )
-		# 	if gameId[3] in ntscRegions: self.isoVersionText.set( 'NTSC 1.' + versionHex )
-		# 	else: self.isoVersionText.set( 'PAL 1.' + versionHex )
-		# 	imageName = bootBinData[0x20:0x20 + 0x3e0].split('\x00')[0].decode( 'ascii' ) # Splitting on the first stop byte
+		# Set the disc revision
+		self.isoRevisionText.set( '{} 1.{:02}'.format(disc.region, disc.version) )
 
-		discTab.gameIdText.set( disc.gameId )
-		ntscRegions = ( 'A', 'E', 'J', 'K', 'R', 'W' )
-		if disc.gameId[3] in ntscRegions:
-			self.isoVersionText.set( 'NTSC 1.{0:0{1}}'.format(disc.revision, 2) ) # Converts an int to string, padded to two zeros
-		else: self.isoVersionText.set( 'PAL 1.{0:0{1}}'.format(disc.revision, 2) )
-
-		# Get Bi2.bin and check the country code (used to determine encoding for the banner file)
-		# bi2Iid = scanDiscForFile( 'bi2.bin' ) # This will try for 'iso.hdr' if bi2 doesn't exist
-		# bi2Data = getFileDataFromDiscTreeAsBytes( iid=bi2Iid )
-		# if not bi2Data:
-		# 	missingFiles.append( 'bi2.bin or ISO.hdr' )
-		# else:
-		# 	# Depending on which file is used, get the location/offset of where the country code is in the file
-		# 	if bi2Iid.endswith( 'iso.hdr' ): countryCodeOffset = 0x458 # (0x440 + 0x18)
-		# 	else: countryCodeOffset = 0x18
-
-		# 	# Set the country code
-		# 	if toInt( bi2Data[countryCodeOffset:countryCodeOffset+4] ) == 1: self.mainGui.countryCode.set( 'us' )
-		# 	else: self.mainGui.countryCode.set( 'jp' )
-
+		# Set the country code (sourced in disc from Bi2.bin or iso.hdr)
 		if disc.countryCode == 1:
-			self.countryCode.set( 'us' )
-		else: self.countryCode.set( 'jp' )
+			self.encoding.set( 'latin_1' ) # Decode assuming English or other European countries
+		else: self.encoding.set( 'shift_jis' ) # For Japanese
 
-		# Remove the existing 20XX version label (the label displayed next to the StringVar, not the StringVar itself), if it's present.
-		for widget in self.row2.winfo_children():
-			thisWidgets = widget.grid_info()
-			if thisWidgets['row'] == '1' and ( thisWidgets['column'] == '8' or thisWidgets['column'] == '9' ):
-				widget.destroy()
-
-		# Update the 20XX version label
+		# Update the project version label (e.g. 20XX version)
 		if disc.is20XX:
-			twentyxxLabel = ttk.Label( self.row2, text='20XX Version:' )
-			twentyxxLabel.grid( column=8, row=1, sticky='e', padx=self.row2.padx )
-			# twentyxxLabel.bind( '<Enter>', lambda event: setDiscDetailsHelpText('20XX Version') )
-			# twentyxxLabel.bind( '<Leave>', setDiscDetailsHelpText )
-			twentyxxVersionLabel = ttk.Label( self.row2, text=disc.is20XX )
-			twentyxxVersionLabel.grid( column=9, row=1, sticky='w', padx=self.row2.padx )
-			# twentyxxVersionLabel.bind( '<Enter>', lambda event: setDiscDetailsHelpText('20XX Version') )
-			# twentyxxVersionLabel.bind( '<Leave>', setDiscDetailsHelpText )
+			self.projectLabelText.set( '20XX Version:' )
+			self.projectVerstionText.set( disc.is20XX )
+		else:
+			self.projectLabelText.set( '' )
+			self.projectVerstionText.set( '' )
 
-		# Load the banner and other info contained within the banner file
-		#missingFiles = updateBannerFileInfo( missingFiles, imageName=imageName )
-		# bannerIid = scanDiscForFile( 'opening.bnr' )
-		# if not bannerIid:
-		# 	missingFiles.append( 'opening.bnr' )
-		# else:
-		# 	global globalBannerFile
-		# 	globalBannerFile = hsdFiles.datFileObj( source='disc' )
-		# 	fileName = os.path.basename( self.fileTree.item( bannerIid, 'values' )[4] ) # Using isoPath (will probably be all lowercase anyway)
-		# 	globalBannerFile.load( bannerIid, fileData=getFileDataFromDiscTreeAsBytes( iid=bannerIid ), fileName=fileName )
-		# 	updateBannerFileInfo( imageName=imageName )
-		
+		# Get and display the disc's total files and total file size
 		self.isoFileCountText.set( "{:,}".format(len(disc.files)) )
-
-		# Get and display the disc's total file size
 		if discSize: # i.e. if it's a root folder that's been opened
 			isoByteSize = discSize
 		else: isoByteSize = os.path.getsize( disc.filePath )
 		self.isoFilesizeText.set( "{:,} bytes".format(isoByteSize) )
 		self.isoFilesizeTextLine2.set( '(i.e.: ' + "{:,}".format(isoByteSize/1048576) + ' MB, or ' + humansize(isoByteSize) + ')' )
 
-		# Alert the user of any problems detected
-		# if missingFiles:
-		# 	msg( 'Some details of the disc could not be determined, because the following files could not be found:\n\n' + '\n'.join(missingFiles) )
+		self.populateTexts()
 
-	def saveBootFileDetails( self, event ):
+		discTab.updateBanner( self )
+
+	def populateTexts( self ):
+
+		""" Loads all texts which depend on a certain encoding. """
+
+		disc = globalData.disc
+
+		bootFile = disc.files.get( disc.gameId + '/Boot.bin', disc.gameId + '/ISO.hdr' )
+
+		# Set image name
+		self.imageNameTextField.delete( '1.0', 'end' )
+		self.imageNameTextField.insert( '1.0', bootFile.imageName )
+
+		# Load the banner and the other text strings within it
+		bannerFile = globalData.disc.getBannerFile()
+		bannerFile.encoding = self.encoding.get()
+
+		self.shortTitle.set( bannerFile.shortTitle )
+		self.shortMaker.set( bannerFile.shortMaker )
+		self.longTitle.set( bannerFile.longTitle )
+		self.longMaker.set( bannerFile.longMaker )
+		self.gameDescField.delete( '1.0', 'end' )
+		self.gameDescField.insert( '1.0', bannerFile.comment )
+
+	def saveImageDetails( self, event ):
 
 		""" Takes certain text input from the GUI on the Disc Details Tab and 
 			saves it to the 'boot.bin' file within the currently loaded disc. """
@@ -1344,148 +1443,249 @@ class DiscDetailsTab( ttk.Frame ):
 		# Cancel if no disc appears to be loaded
 		if not globalData.disc: return 'break'
 
+		entryWidget = event.widget
+
 		# Return if the Shift key was held while pressing Enter (going to assume the user wants a line break).
 		modifierKeysState = event.state # An int. Check individual bits for mod key status'; http://infohost.nmt.edu/tcc/help/pubs/tkinter/web/event-handlers.html
 		shiftDetected = (modifierKeysState & 0x1) != 0 # Checks the first bit of the modifiers
-		if shiftDetected: return # Not using "break" on this one in order to allow event propagation
+		if shiftDetected: return # Not returning "break" on this one in order to allow event propagation
 
 		# Determine what encoding to use for saving text
-		if self.countryCode.get() == 'us': encoding = 'latin_1' # Decode assuming English or other European countries
-		else: encoding = 'shift_jis' # The country code is 'jp', for Japanese.
+		# if self.encoding.get() == 'us': encoding = 'latin_1' # Decode assuming English or other European countries
+		# else: encoding = 'shift_jis' # The country code is 'jp', for Japanese.
+		encoding = self.encoding.get()
 
 		# Get the currently entered text as hex
-		if event.widget.winfo_class() == 'TEntry' or event.widget.winfo_class() == 'Entry': 
-			inputBytes = event.widget.get().encode( encoding )
-		else: inputBytes = event.widget.get( '1.0', 'end' )[:-1].encode( encoding ) # "[:-1]" ignores trailing line break
+		if entryWidget.winfo_class() == 'TEntry' or entryWidget.winfo_class() == 'Entry': 
+			inputBytes = entryWidget.get().encode( encoding )
+		else: inputBytes = entryWidget.get( '1.0', 'end' )[:-1].encode( encoding ) # "[:-1]" ignores trailing line break
 		newStringHex = hexlify( inputBytes )
 
-		offset = event.widget.offset # In this case, these ARE counting the file header
-		maxLength = event.widget.maxByteLength
-
-		# Get the data for Boot.bin
+		# Get the data for the file
 		gameId = globalData.disc.gameId
-		targetFile = globalData.disc.files.get( gameId + '/Boot.bin', gameId + '/ISO.hdr' ) # Will fall back on ISO.hdr if Boot.bin is not present
-		targetFileData = targetFile.getData()
+		targetFile = entryWidget.file
+		if targetFile == 'boot.bin':
+			fileObj = globalData.disc.files.get( gameId + '/Boot.bin', gameId + '/ISO.hdr' ) # Fall back to ISO.hdr if Boot.bin is not present (might no longer be necessary)
+		else: # Get the banner file
+			fileObj = globalData.disc.files.getBannerFile()
+		targetFileData = fileObj.getData()
 		if not targetFileData:
-			msg( 'Unable to retrieve the Boot.bin file data!' )
+			msg( 'Unable to retrieve the {} file data!'.format( targetFile ) )
 			return 'break'
 
 		# Get the hex string of the current value/field in the file, including padding
+		offset = entryWidget.offset # In this case, these ARE counting the file header
+		maxLength = entryWidget.maxByteLength
 		currentHex = hexlify( targetFileData[offset:offset+maxLength] )
 
-		# Pad the end of the input string with empty space (up to the max string length), to ensure any other text in the file will be erased
+		# Pad the end of the newly input string with empty space (up to the max string length), to ensure any other text in the file will be erased
 		newPaddedStringHex = newStringHex + ( '0' * (maxLength * 2 - len(newStringHex)) )
 
 		# Check if the value is different from what is already saved.
 		if currentHex != newPaddedStringHex:
-			updateName = event.widget.updateName # Should be "Game ID" or "Image Name"
+			updateName = entryWidget.updateName # Should be "Game ID" or "Image Name"
 
-			if updateName == 'Game ID' and len( newStringHex ) != maxLength * 2: 
-				msg( 'The new value must be ' + str(maxLength) + ' characters long.' )
-			elif len( newStringHex ) > maxLength * 2: 
-				msg( 'The text must be less than ' + str(maxLength) + ' characters long.' )
+			if updateName == 'Game ID' and len( newStringHex ) != maxLength * 2:
+				msg( 'The new value must be ' + str(maxLength) + ' characters long.', warning=True )
+			elif len( newStringHex ) > maxLength * 2:
+				msg( 'The new text must be less than ' + str(maxLength) + ' characters long.', warning=True )
 			else:
 				# Change the background color of the widget, to show that changes have been made to it and are pending saving.
-				event.widget.configure( background="#faa" )
+				entryWidget.configure( background="#faa" )
 
-				# Add the widget to a list, to keep track of what widgets need to have their background restored to white when saving.
-				#editedBannerEntries.append( event.widget )
-
-				# if targetFile == 'opening.bnr':
-				# 	descriptionOfChange = updateName + ' modified in ' + globalBannerFile.fileName
-				# 	globalBannerFile.updateData( offset, bytearray.fromhex( newPaddedStringHex ), descriptionOfChange )
-				# else:
-				#global unsavedDiscChanges
-				#targetFileData[offset:offset+maxLength] = bytearray.fromhex( newPaddedStringHex )
-				# self.isoFileTree.item( targetFileIid, values=('Disc details updated', entity, isoOffset, fileSize, isoPath, 'ram', hexlify(targetFileData)), tags='changed' )
-				# unsavedDiscChanges.append( updateName + ' updated.' )
-				# targetFile.data = targetFileData
-				# globalData.disc.unsavedChanges.append(  )
-
-				globalData.disc.makeChange( targetFile, offset, bytearray.fromhex(newPaddedStringHex), updateName + ' updated.' )
-				self.mainGui.discTab.isoFileTree.item( targetFile.isoPath, values=('Disc details updated', 'file'), tags='changed' )
+				# Update the file
+				# if updateName == 'Image Name':
+				# 	fileObj.imageName = 
+				description = updateName + ' updated'
+				fileObj.updateData( offset, bytearray.fromhex(newPaddedStringHex), description )
 
 				self.mainGui.updateProgramStatus( updateName + ' updated. Press CRTL-S to save changes to file.' )
 
 		return 'break' # Prevents the 'Return' keystroke that called this from propagating to the widget and creating a line break
 
-	def saveBannerFileDetails( self, event ):
+	# def saveBannerFileDetails( self, event ):
 
-		""" Takes certain text input from the GUI on the Disc Details Tab, and saves it to the 'opening.bnr' file within the currently loaded disc. """
+	# 	""" Takes certain text input from the GUI on the Disc Details Tab, and saves it to the 'opening.bnr' file within the currently loaded disc. """
 
-		# Cancel if no banner file appears to be loaded
-		if not self.bannerFile: return 'break'
+	# 	# Cancel if no banner file appears to be loaded
+	# 	if not self.bannerFile: return 'break'
 
-		# Return if the Shift key was held while pressing Enter (going to assume the user wants a line break).
-		modifierKeysState = event.state # An int. Check individual bits for mod key status'; http://infohost.nmt.edu/tcc/help/pubs/tkinter/web/event-handlers.html
-		shiftDetected = (modifierKeysState & 0x1) != 0 # Checks the first bit of the modifiers
-		if shiftDetected: return # Not using "break" on this one in order to allow event propagation
+	# 	# Return if the Shift key was held while pressing Enter (going to assume the user wants a line break).
+	# 	modifierKeysState = event.state # An int. Check individual bits for mod key status'; http://infohost.nmt.edu/tcc/help/pubs/tkinter/web/event-handlers.html
+	# 	shiftDetected = (modifierKeysState & 0x1) != 0 # Checks the first bit of the modifiers
+	# 	if shiftDetected: return # Not using "break" on this one in order to allow event propagation
 
-		# Determine what encoding to use for saving text
-		if self.countryCode.get() == 'us': encoding = 'latin_1' # Decode assuming English or other European countries
-		else: encoding = 'shift_jis' # The country code is 'jp', for Japanese.
+	# 	# Determine what encoding to use for saving text
+	# 	if self.encoding.get() == 'us': encoding = 'latin_1' # Decode assuming English or other European countries
+	# 	else: encoding = 'shift_jis' # The country code is 'jp', for Japanese.
 
-		# Get the currently entered text as hex
-		if event.widget.winfo_class() == 'TEntry' or event.widget.winfo_class() == 'Entry': 
-			inputBytes = event.widget.get().encode( encoding )
-		else: inputBytes = event.widget.get( '1.0', 'end' )[:-1].encode( encoding ) # "[:-1]" ignores trailing line break
-		newStringHex = hexlify( inputBytes )
+	# 	# Get the currently entered text as hex
+	# 	if event.widget.winfo_class() == 'TEntry' or event.widget.winfo_class() == 'Entry': 
+	# 		inputBytes = event.widget.get().encode( encoding )
+	# 	else: inputBytes = event.widget.get( '1.0', 'end' )[:-1].encode( encoding ) # "[:-1]" ignores trailing line break
+	# 	newStringHex = hexlify( inputBytes )
 
-		offset = event.widget.offset # In this case, these ARE counting the file header
-		maxLength = event.widget.maxByteLength
-		#targetFile = event.widget.targetFile # Defines the file this disc detail resides in. Will be a string of either 'opening.bnr' or 'boot.bin'
+	# 	offset = event.widget.offset # In this case, these ARE counting the file header
+	# 	maxLength = event.widget.maxByteLength
+	# 	#targetFile = event.widget.targetFile # Defines the file this disc detail resides in. Will be a string of either 'opening.bnr' or 'boot.bin'
 
-		# Get the data for the target file (Could be for boot.bin or opening.bnr)
-		# if targetFile == 'opening.bnr':
-		# 	targetFileData = globalBannerFile.data
-		# else: # Updating to boot.bin, which must be from within a disc
-		# 	targetFileIid = scanDiscForFile( 'Boot.bin' )
-		# 	if not targetFileIid:
-		# 		msg( 'Boot.bin could not be found in the disc!' )
-		# 		return 'break'
-		# 	_, entity, isoOffset, fileSize, isoPath, _, _ = self.fileTree.item( targetFileIid, 'values' )
-		# 	targetFileData = getFileDataFromDiscTreeAsBytes( targetFileIid )
-		targetFileData = self.bannerFile.getData()
-		if not targetFileData:
-			msg( 'Unable to retrieve the opening.bnr file data!' )
-			return 'break'
+	# 	# Get the data for the target file (Could be for boot.bin or opening.bnr)
+	# 	# if targetFile == 'opening.bnr':
+	# 	# 	targetFileData = globalBannerFile.data
+	# 	# else: # Updating to boot.bin, which must be from within a disc
+	# 	# 	targetFileIid = scanDiscForFile( 'Boot.bin' )
+	# 	# 	if not targetFileIid:
+	# 	# 		msg( 'Boot.bin could not be found in the disc!' )
+	# 	# 		return 'break'
+	# 	# 	_, entity, isoOffset, fileSize, isoPath, _, _ = self.fileTree.item( targetFileIid, 'values' )
+	# 	# 	targetFileData = getFileDataFromDiscTreeAsBytes( targetFileIid )
+	# 	targetFileData = self.bannerFile.getData()
+	# 	if not targetFileData:
+	# 		msg( 'Unable to retrieve the opening.bnr file data!' )
+	# 		return 'break'
 
-		# Get the hex string of the current value/field in the file
-		currentHex = hexlify( targetFileData[offset:offset+maxLength] )
+	# 	# Get the hex string of the current value/field in the file
+	# 	currentHex = hexlify( targetFileData[offset:offset+maxLength] )
 
-		# Pad the end of the input string with empty space (up to the max string length), to ensure any other text in the file will be erased
-		newPaddedStringHex = newStringHex + ( '0' * (maxLength * 2 - len(newStringHex)) )
+	# 	# Pad the end of the input string with empty space (up to the max string length), to ensure any other text in the file will be erased
+	# 	newPaddedStringHex = newStringHex + ( '0' * (maxLength * 2 - len(newStringHex)) )
 
-		# Check if the value is different from what is already saved.
-		if currentHex != newPaddedStringHex:
-			updateName = event.widget.updateName
+	# 	# Check if the value is different from what is already saved.
+	# 	if currentHex != newPaddedStringHex:
+	# 		updateName = event.widget.updateName
 
-			if len( newStringHex ) > maxLength * 2: 
-				msg( 'The text must be less than ' + str(maxLength) + ' characters long.' )
-			else:
-				# Change the background color of the widget, to show that changes have been made to it and are pending saving.
-				event.widget.configure( background="#faa" )
+	# 		if len( newStringHex ) > maxLength * 2: 
+	# 			msg( 'The text must be less than ' + str(maxLength) + ' characters long.' )
+	# 		else:
+	# 			# Change the background color of the widget, to show that changes have been made to it and are pending saving.
+	# 			event.widget.configure( background="#faa" )
 
-				# Add the widget to a list, to keep track of what widgets need to have their background restored to white when saving.
-				# editedBannerEntries.append( event.widget )
+	# 			# Add the widget to a list, to keep track of what widgets need to have their background restored to white when saving.
+	# 			# editedBannerEntries.append( event.widget )
 
-				# if targetFile == 'opening.bnr':
-				# 	descriptionOfChange = updateName + ' modified in ' + globalBannerFile.fileName
-				# 	globalBannerFile.updateData( offset, bytearray.fromhex( newPaddedStringHex ), descriptionOfChange )
-				# else:
-				# 	global unsavedDiscChanges
-				# 	targetFileData[offset:offset+maxLength] = bytearray.fromhex( newPaddedStringHex )
-				# 	self.fileTree.item( targetFileIid, values=('Disc details updated', entity, isoOffset, fileSize, isoPath, 'ram', hexlify(targetFileData)), tags='changed' )
-				# 	unsavedDiscChanges.append( updateName + ' updated.' )
+	# 			# if targetFile == 'opening.bnr':
+	# 			# 	descriptionOfChange = updateName + ' modified in ' + globalBannerFile.fileName
+	# 			# 	globalBannerFile.updateData( offset, bytearray.fromhex( newPaddedStringHex ), descriptionOfChange )
+	# 			# else:
+	# 			# 	global unsavedDiscChanges
+	# 			# 	targetFileData[offset:offset+maxLength] = bytearray.fromhex( newPaddedStringHex )
+	# 			# 	self.fileTree.item( targetFileIid, values=('Disc details updated', entity, isoOffset, fileSize, isoPath, 'ram', hexlify(targetFileData)), tags='changed' )
+	# 			# 	unsavedDiscChanges.append( updateName + ' updated.' )
 
-				self.mainGui.discTab.isoFileTree.item( self.bannerFile.isoPath, values=('Disc details updated', 'file'), tags='changed' )
-				globalData.disc.makeChange( self.bannerFile, offset, bytearray.fromhex(newPaddedStringHex), updateName + ' updated.' )
+	# 			self.mainGui.discTab.isoFileTree.item( self.bannerFile.isoPath, values=('Disc details updated', 'file'), tags='changed' )
+	# 			globalData.disc.makeChange( self.bannerFile, offset, bytearray.fromhex(newPaddedStringHex), updateName + ' updated.' )
 
-				self.mainGui.updateProgramStatus( updateName + ' updated. Press CRTL-S to save changes to file.' )
+	# 			self.mainGui.updateProgramStatus( updateName + ' updated. Press CRTL-S to save changes to file.' )
 
-		return 'break' # Prevents the 'Return' keystroke that called this from propagating to the widget and creating a line break
+	# 	return 'break' # Prevents the 'Return' keystroke that called this from propagating to the widget and creating a line break
 
-	def reloadBanner( self ): pass
+	# def updateEncoding( self ):
+	#	# Todo: maybe should update the encoding byte in the disc?
+	# 	self.populateTexts()
+	
+	def setHelpText( self, updateName='' ):
+		alignment = 'center'
+		# additionalHelpText = ''
+		# link = ''
+
+		if updateName == 'Game ID':
+			helpText = ( "The game's primary identification code; this is what most applications and databases "
+						"use to determine what game the disc is. It's composed of the 4 parts shown to the right of the value. "
+						"You can change the Game ID for your own purposes, but be warned that many applications might no longer "
+						"recognize it as the original game. [Contained in boot.bin at 0x0]" )
+
+		elif updateName == 'Console Code':
+			alignment = 'left'
+			helpText = ( 'An identifier for the type of console or system the game was released for. For example, "G" for GameCube games, '
+						'"N" for Nintendo 64, and "R" or "S" for Wii games. See the "Code References" link above for a list of all console codes.' )
+			# additionalHelpText = 'Click here for a list of all Console Codes.'
+			# link = 'https://wiki.dolphin-emu.org/index.php?title=GameIDs#System_Code'
+
+		elif updateName == 'Game Code':
+			helpText = ( 'An ID/serial specific to just the game itself.' )
+
+		elif updateName == 'Region Code':
+			alignment = 'left'
+			helpText = ( '              A letter designating the intended region for the game. For example:'
+					   '\nNTSC Regions: A: All,\tE: USA,\tJ: Japan,\tK: Korea,\tR: Russia,\tW: Taiwan'
+					   '\nPAL Regions:  D: ?,\tF: France,\tH: ?,\tI: ?,\tP: Europe'
+					   '\n              U: Used by EU TLoZ:OoT(MQ)\tX: France/Germany?,\tY: ?,\tZ: ?'
+					   '\n\n            See the "Code References" link above for a list of all region codes.' )
+			# additionalHelpText = 'Click here for a list of all Region Codes.'
+			# link = 'https://wiki.dolphin-emu.org/index.php?title=GameIDs#Region_Code'
+
+		elif updateName == 'Maker Code':
+			alignment = 'left'
+			helpText = ( 'i.e. The publisher.\t\t01: Nintendo, 08: Capcom, 41: Ubisoft, 4F: Eidos, '
+					   '\n\t\t\t51: Acclaim, 52: Activision, 5D: Midway, 5G: Hudson, 64: Lucas Arts, '
+					   '\n\t\t\t69: Electronic Arts, 6S: TDK Mediactive, 8P: Sega, A4: Mirage Studios, AF: Namco, '
+					   '\n\t\t\tB2: Bandai, DA: Tomy, EM: Konami, WR: Warner Bros.'
+					   '\n\n\t\t\tSee the "Code References" link above for a list of all maker codes.' )
+			# additionalHelpText = 'Click here for a list of all Publisher Codes.'
+			# link = 'https://wiki.dolphin-emu.org/index.php?title=GameIDs#Publisher_Code'
+
+		elif updateName == 'Disc Revision':
+			helpText = ( 'Sometimes games have changes throughout the time of their release, such as bug '
+						'fixes or other minor updates. This number is often used to keep track of those revisions.' )
+
+		elif updateName == '20XX Version':
+			helpText = ( 'This can also be determined in-game in the Debug Menu, '
+						'or [beginning with v4.05] in the upper-right of the CSS.' )
+
+		elif updateName == 'Total File Count':
+			helpText = ( "The number of files in the disc's filesystem (excludes folders)." )
+		
+		elif updateName == 'Disc Size':
+			helpText = ( 'Full file size of the GCM/ISO disc image. This differs from clicking on the root item in the Disc File Tree tab because the latter '
+						'does not include padding (extra space) between files.\nThe standard for GameCube discs is ~1.36 GB, or 1,459,978,240 bytes.' )
+
+		elif updateName == 'Image Name':
+			helpText = ( 'Disc/Image Name. This is what Nintendont uses to populate its game list.\n'
+						'There is also a lot of free space here for a description or other notes.\n\n[Contained in boot.bin at 0x20.]' )
+
+		elif updateName == 'Short Title':
+			helpText = ( "The game's name.\n\n[Contained in opening.bnr at 0x1820.]" )
+
+		elif updateName == 'Short Maker':
+			helpText = ( 'The company/developer, game producer, and/or production date.\n\n[Contained in opening.bnr at 0x1840.]' )
+
+		elif updateName == 'Long Title':
+			helpText = ( "The game's full name. This is what Dolphin uses to display in its games list for the Title field. "
+						"Remember to delete the cache file under '\\Dolphin Emulator\\Cache' to get this to update, or use "
+						"the menu option in View -> Purge Game List Cache.\n\n[Contained in opening.bnr at 0x1860.]" )
+
+		elif updateName == 'Long Maker':
+			helpText = ( 'The company/developer, game producer, and/or production date. This is what Dolphin uses to display in '
+						"its games list for the Maker field. Remember to delete the cache file under '\\Dolphin Emulator\\Cache' to get "
+						"this to update, or use the menu option in View -> Purge Game List Cache.\n\n[Contained in opening.bnr at 0x18A0.]" )
+
+		elif updateName == 'Comment':
+			helpText = ( 'Known as "Description" in GCR, and simply "comment" in official Nintendo documentation. Originally, '
+						"this used to appear in the GameCube's BIOS (i.e. the IPL Main Menu; the menu you would see when booting the "
+						"system while holding 'A'), as a short description before booting the game.\n\n[Contained in opening.bnr at 0x18E0.]" )
+		else:
+			helpText = "Hover over an item to view information on it.\nPress 'Enter' to submit changes in a text input field before saving."
+
+		self.helpTextLabel['justify'] = alignment
+		self.helpText.set( helpText )
+
+		# if additionalHelpText:
+		# 	if self.helpLink: # Need to update the help link
+		# 		self.helpLink.link = link
+		# 	else: # Need to add the help link
+		# 		self.helpLink = ClickText( self.row4, additionalHelpText, self.additionalHelpClicked )
+		# 		self.helpLink.link = link
+		# 		#self.helpLink.grid( column=0, row=5, sticky='ew', padx=15, pady=4 )
+		# 		self.helpLink.pack(  )
+		# elif self.helpLink:
+		# 	self.helpLink.destroy()
+		# 	self.helpLink = None
+
+	# def additionalHelpClicked( self, event ):
+	# 	webbrowser.open( 'https://wiki.dolphin-emu.org/index.php?title=GameIDs' )
+
+	def exportBanner( self ): pass
+	def importBanner( self ): pass
 
 																			#===========================#
 																			# ~ ~   Context Menus   ~ ~ #
