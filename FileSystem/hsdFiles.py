@@ -598,7 +598,7 @@ class SisFile( DatFile ):
 
 		# Save the string data to file
 		if not description:
-			description = 'Updated "{}" text at 0x{:X} (SIS ID 0x{:X})'.format( newText, stringFileOffset, sisId )
+			description = u'Updated "{}" text at 0x{:X} (SIS ID 0x{:X})'.format( newText, stringFileOffset, sisId )
 		self.updateData( stringFileOffset, textData, description )
 
 	def getStageMenuName( self, intStageId ):

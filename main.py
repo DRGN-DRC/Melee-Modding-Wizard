@@ -2025,7 +2025,6 @@ class MainGui( Tk.Frame, object ):
 			self.mainTabFrame.update_idletasks() # Update the GUI immediately before moving on to update other tabs
 		if self.discDetailsTab:
 			self.discDetailsTab.loadDiscDetails()
-			self.discTab.updateBanner( self.discTab )
 
 		# Update the Code Manager
 		if self.codeManagerTab:

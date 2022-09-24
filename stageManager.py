@@ -28,7 +28,7 @@ from FileSystem import StageFile
 from FileSystem.hsdStructures import MapMusicTable
 from basicFunctions import uHex, validHex, humansize, msg, createFolders
 from guiSubComponents import (
-	LabelButton, getColoredShape, importGameFiles, exportSingleFileWithGui, importSingleFileWithGui, importSingleTexture,
+	LabelButton, exportSingleTexture, getColoredShape, importGameFiles, exportSingleFileWithGui, importSingleFileWithGui, importSingleTexture,
 	getNewNameFromUser, BasicWindow, HexEditDropdown, ToolTip, ToolTipEditor, ToolTipButton )
 from audioManager import AudioControlModule
 
@@ -945,9 +945,9 @@ class StageManager( ttk.Frame ):
 			#filename = globalData.stageFileNames.get( newIntStageId, 'Unknown' )
 			filename = self.dol.getStageFileName( newIntStageId )[1]
 			if stageName == 'Unknown':
-				print 'Unable to find a stage name for internal stage ID', hex(newIntStageId)
+				print( 'Unable to find a stage name for internal stage ID ' + hex(newIntStageId) )
 			elif filename == 'Unknown':
-				print 'Unable to find a stage filename for internal stage ID', hex(newIntStageId)
+				print( 'Unable to find a stage filename for internal stage ID ' + hex(newIntStageId) )
 			newBaseStage = '0x{:X} | {} ({})'.format( newIntStageId, stageName, filename )
 
 		# Check for stKind (external stage ID description)
@@ -1171,72 +1171,22 @@ class StageManager( ttk.Frame ):
 			Updates the default directory to search in when opening or exporting files. 
 			Also handles updating the GUI with the operation's success/failure status. """
 
-		canvas = self.getCurrentCanvas()
+		# Determine a filename default/suggestion
 		internalStageId = self.stageRightClickedOn
-		filename = '{} icon slot (page {}).png'.format( globalData.internalStageIds[internalStageId], canvas.pageNumber )
-
-		# Prompt for a place to save the file. (Excluding defaultextension option to give user more control, as it may silently append ext in some cases)
-		savePath = tkFileDialog.asksaveasfilename(
-			title="Where would you like to export the file?",
-			parent=globalData.gui.root,
-			initialdir=globalData.getLastUsedDir( 'dat' ),
-			initialfile=filename,
-			filetypes=[( "PNG files", '*.png' ), ("TPL files", '*.tpl' ), ( "All files", "*.*" )] )
-
-		# The above will return an empty string if the user canceled
-		if not savePath: return ''
-
-		# Make sure folders exist for the chosen destination
-		directoryPath = os.path.dirname( savePath ) # Used at the end of this function
-		createFolders( directoryPath )
+		if globalData.disc.is20XX:
+			filename = '{} icon slot (page {}).png'.format( globalData.internalStageIds[internalStageId], canvas.pageNumber )
+		else:
+			filename = '{} icon slot.png'.format( globalData.internalStageIds[internalStageId] )
 
 		# Get the image
 		iconTextureOffset = self.getTextureOffset( internalStageId, icon=True )[0]
+		canvas = self.getCurrentCanvas()
 		if internalStageId in ( 0x24, 0x25, 0x1C, 0x1D, 0x1E ):
 			texture = canvas.sssFile.getTexture( iconTextureOffset, 48, 48, 9, 0x900, getAsPilImage=True )
 		else:
 			texture = canvas.sssFile.getTexture( iconTextureOffset, 64, 56, 9, 0xE00, getAsPilImage=True )
 
-		if savePath.lower().endswith( '.tpl' ): # Convert the image into TPL format
-			texture = texture.convert( 'RGBA' ) # Returns a modified image without affecting the original
-
-			newImage = TplEncoder( '', texture.size, 0 )
-			newImage.imageDataArray = texture.getdata()
-			newImage.rgbaPaletteArray = texture.getpalette()
-
-			returnCode = newImage.createTplFile( savePath )
-		else:
-			try:
-				texture.save( savePath )
-				returnCode = 0
-			except ValueError as err:
-				returnCode = 3
-				print 'ValueError during PIL image saving;', err
-			except IOError as err:
-				print 'IOError during PIL image saving;', err
-				returnCode = 2
-			except Exception as err: # For everything else
-				print 'Exception during PIL image saving;', err
-				returnCode = -1
-
-		# Update the default directory to start in when opening or exporting files.
-		globalData.setLastUsedDir( directoryPath, 'dat' )
-
-		# Check status of the export, and give user feedback in the program's status bar
-		if returnCode == 0:
-			globalData.gui.updateProgramStatus( 'File exported successfully', success=True )
-		elif returnCode == 1:
-			msg( 'Unable to export due to a TPL encoding error. Check the error log file for details.', 'Export Error' )
-			globalData.gui.updateProgramStatus( 'Unable to encode the TPL image. Check the error log file for details', error=True )
-		elif returnCode == 2:
-			msg( 'Unable to save the image file. Be sure that this program has write permissions to the destination.', 'Export Error' )
-			globalData.gui.updateProgramStatus( 'Unable to save the image file. Be sure that this program has write permissions to the destination', error=True )
-		elif returnCode == 3:
-			msg( 'Unable to save the PIL image. This may be due to an unsupported image file format. Try using a different file extension.', 'Export Error' )
-			globalData.gui.updateProgramStatus( 'Unable to export. This may be due to an unsupported image file extension', error=True )
-		else: # Failsafe; not expected to be possible
-			msg( 'Unable to export the image due to an unknown error. Check the error log file for details.', 'Export Error' )
-			globalData.gui.updateProgramStatus( 'Unable to export the image due to an unknown error', error=True )
+		exportSingleTexture( filename, texture )
 	
 	def importIconTexture( self ):
 
@@ -1667,7 +1617,7 @@ class StageManager( ttk.Frame ):
 			topTextFont = ImageFont.FreeTypeFont( topTextFontPath, topTextFontSize )
 			bottomTextFont = ImageFont.FreeTypeFont( bottomTextFontPath, bottomTextFontSize )
 		except Exception as err:
-			print 'Unable to load fonts for preview text:', err
+			print( 'Unable to load fonts for preview text: ' + str(err) )
 			globalData.gui.updateProgramStatus( 'Unable to load fonts for preview text!', error=True )
 			return
 
@@ -1790,62 +1740,7 @@ class StageManager( ttk.Frame ):
 			globalData.gui.updateProgramStatus( 'No texture to export. Choose a stage to begin' )
 			return
 
-		# Prompt for a place to save the file. (Excluding defaultextension option to give user more control, as it may silently append ext in some cases)
-		savePath = tkFileDialog.asksaveasfilename(
-			title="Where would you like to export the file?",
-			parent=globalData.gui.root,
-			initialdir=globalData.getLastUsedDir( 'dat' ),
-			initialfile="Stage preview text.png",
-			filetypes=[( "PNG files", '*.png' ), ("TPL files", '*.tpl' ), ( "All files", "*.*" )] )
-
-		# The above will return an empty string if the user canceled
-		if not savePath: return ''
-
-		# Make sure folders exist for the chosen destination
-		directoryPath = os.path.dirname( savePath ) # Used at the end of this function
-		createFolders( directoryPath )
-
-		if savePath.lower().endswith( '.tpl' ): # Convert the image into TPL format
-			pilImage = self.previewTextCanvas.pilImage
-			pilImage = pilImage.convert( 'RGBA' ) # Does not modify the original image
-
-			newImage = TplEncoder( '', pilImage.size, 0 )
-			newImage.imageDataArray = pilImage.getdata()
-			newImage.rgbaPaletteArray = pilImage.getpalette()
-
-			returnCode = newImage.createTplFile( savePath )
-		else:
-			try:
-				self.previewTextCanvas.pilImage.save( savePath )
-				returnCode = 0
-			except ValueError as err:
-				returnCode = 3
-				print( 'ValueError during PIL image saving; {}'.format(err) )
-			except IOError as err:
-				print( 'IOError during PIL image saving; {}'.format(err) )
-				returnCode = 2
-			except Exception as err: # For everything else
-				print( 'Exception during PIL image saving; {}'.format(err) )
-				returnCode = -1
-
-		# Update the default directory to start in when opening or exporting files.
-		globalData.setLastUsedDir( directoryPath, 'dat' )
-
-		# Check status of the export, and give user feedback in the program's status bar
-		if returnCode == 0:
-			globalData.gui.updateProgramStatus( 'File exported successfully', success=True )
-		elif returnCode == 1:
-			msg( 'Unable to export due to a TPL encoding error. Check the error log file for details.', 'Export Error' )
-			globalData.gui.updateProgramStatus( 'Unable to encode the TPL image. Check the error log file for details', error=True )
-		elif returnCode == 2:
-			msg( 'Unable to save the image file. Be sure that this program has write permissions to the destination.', 'Export Error' )
-			globalData.gui.updateProgramStatus( 'Unable to save the image file. Be sure that this program has write permissions to the destination', error=True )
-		elif returnCode == 3:
-			msg( 'Unable to save the PIL image. This may be due to an unsupported image file format. Try using a different file extension.', 'Export Error' )
-			globalData.gui.updateProgramStatus( 'Unable to export. This may be due to an unsupported image file extension', error=True )
-		else: # Failsafe; not expected to be possible
-			msg( 'Unable to export the image due to an unknown error. Check the error log file for details.', 'Export Error' )
-			globalData.gui.updateProgramStatus( 'Unable to export the image due to an unknown error', error=True )
+		exportSingleTexture( "Stage preview text.png", self.previewTextCanvas.pilImage )
 
 	def importPreviewText( self ):
 

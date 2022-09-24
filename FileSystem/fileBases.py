@@ -98,17 +98,25 @@ class FileBase( object ):
 			Should only occur once; typically after a disc file or root folder has been instantiated as a disc,
 			but before the disc has been loaded into the GUI. """
 
-		descriptionsFile = os.path.join( globalData.scriptHomeFolder, 'File Descriptions', gameId + '.yaml' )
-		
+		descriptionsFolder = os.path.join( globalData.scriptHomeFolder, 'File Descriptions' )
+		descriptionsFile = os.path.join( descriptionsFolder, gameId + '.yaml' )
+
+		if not os.path.exists( descriptionsFile ):
+			# Try checking for a file of the same game but different region
+			for fileName in os.listdir( descriptionsFolder ):
+				if fileName.startswith( gameId[:3] ) and fileName.endswith( gameId[4:] + '.yaml' ):
+					descriptionsFile = os.path.join( descriptionsFolder, fileName )
+					print( 'Using an alternate file descriptions config file: {}'.format(fileName) )
+					break
 		try:
 			with codecs.open( descriptionsFile, 'r', encoding='utf-8' ) as stream: # Using a different read method to accommodate UTF-8 encoding
-			#with codecs.open( descriptionsFile, 'r' ) as stream: # Using a different read method to accommodate UTF-8 encoding
-				#cls.yamlDescriptions = ruamel.yaml.safe_load( stream ) # Vanilla yaml module method (loses comments when saving/dumping back to file)
-				cls.yamlDescriptions = ruamel.yaml.load( stream, Loader=ruamel.yaml.RoundTripLoader )
-		except IOError: # Couldn't find the file
+				cls.yamlDescriptions = ruamel.yaml.load( stream, Loader=ruamel.yaml.RoundTripLoader ) # Custom loader to preserve comments when dumping back to file
+		except IOError:
+			# Couldn't find the file
 			printStatus( "Couldn't find a yaml config file for " + gameId, warning=True )
-		except Exception as err: # Problem parsing the file
-			msg( 'There was an error while parsing the yaml config file:\n\n{}'.format(err) )
+		except Exception as err:
+			# Unknown problem parsing the file
+			msg( 'There was an error while parsing the {}.yaml config file:\n\n{}'.format(gameId, err) )
 
 	def getData( self, dataOffset=0, dataLength=-1 ):
 
@@ -197,6 +205,8 @@ class FileBase( object ):
 		# If the Disc File Tree is present, indicate this file has changes waiting to be saved there
 		if globalData.gui and globalData.gui.discTab:
 			if treeviewDescription:
+				if globalData.checkSetting( 'useDiscConvenienceFolders' ):
+					treeviewDescription = '     ' + treeviewDescription
 				globalData.gui.discTab.isoFileTree.item( self.isoPath, values=(treeviewDescription, 'file'), tags='changed' )
 			else:
 				globalData.gui.discTab.isoFileTree.item( self.isoPath, tags='changed' )
@@ -477,6 +487,45 @@ class BannerFile( FileBase ):
 			return textureImage
 		else:
 			return ImageTk.PhotoImage( textureImage )
+
+	def setBanner( self, pilImage=None, imagePath='', textureName='Game Banner' ):
+
+		""" Encodes image data into TPL format (if needed), and write it into the file at the given offset. 
+			Accepts a PIL image, or a filepath to a PNG or TPL texture file. 
+
+			Return/exit codes:
+				0: Success; no problems
+				1: The given image is not 96x32
+		"""
+
+		# Initialize a TPL image object (and create a new palette for it, if needed)
+		if pilImage:
+			pilImage = pilImage.convert( 'RGBA' )
+			newImage = TplEncoder( '', pilImage.size, 5 )
+			newImage.imageDataArray = pilImage.getdata()
+			newImage.rgbaPaletteArray = pilImage.getpalette()
+			width, height = pilImage.size
+
+		elif imagePath:
+			newImage = TplEncoder( imagePath, imageType=5 )
+			width, height = newImage.width, newImage.height
+			
+		else:
+			raise IOError( 'Invalid input to .setBanner(); no PIL image or texture filepath provided.' )
+
+		# Validate dimensions
+		if width != 96 or height != 32:
+			return 1
+
+		# Decode the image into TPL format
+		newImage.blockify()
+		newImageData = newImage.encodedImageData
+
+		# Update the texture image data in the file
+		self.updateData( 0x20, newImageData, trackChange=False )
+		self.recordChange( '{} updated at 0x20'.format(textureName) )
+
+		return 0
 
 	def identifyTextures( self ):
 
@@ -1685,27 +1734,26 @@ class DatFile( FileBase ):
 				print( 'Invalid extension offset provided; offset falls within RT, node tables, or string table' )
 				return 0
 
-		# Adjust the amount, if necessary, to preserve file alignment (rounding up)
+		# Adjust the amount, if necessary, to preserve file alignment (rounding up to nearest 0x20 bytes)
 		if amount % 0x20 != 0:
 			amountAdjustment = 0x20 - ( amount % 0x20 )
 			amount += amountAdjustment
-			print( 'Exension amount increased by 0x{:X} bytes, to preserve other potential structure alignments'.format(amountAdjustment) )
+			print( 'File exension amount increased from 0x{:X} to 0x{:X} bytes, to preserve other structure alignments'.format(amount-amountAdjustment, amount) )
 
 		# Adjust the values in the pointer offset and structure offset lists (these changes are later saved to the Relocation table)
-		rtEntryCount = self.headerInfo['rtEntryCount']
+		rtStart = self.headerInfo['rtStart']
 		for i, (pointerOffset, pointerValue) in enumerate( self.pointers ):
 			# Increase affected pointer offset values
 			if pointerOffset >= extensionOffset:
 				self.pointerOffsets[i] = pointerOffset + amount
 
 			# If the place that the pointer points to is after the space change, update the pointer value accordingly
-			if pointerValue >= extensionOffset:
+			if pointerValue > extensionOffset:
 				newPointerValue = pointerValue + amount
 				self.pointerValues[i] = newPointerValue
 
-				# Update the pointer value in the file and structure data
-				if i < rtEntryCount: # Still within the data section; not looking at node table pointers
-					#print 'Set pointer value at', hex(0x20+pointerOffset), 'to', hex(newPointerValue)
+				# Update pointer values in the data section
+				if pointerOffset < rtStart: # Still within the data section; not looking at node table pointers
 					self.setData( pointerOffset, struct.pack('>I', newPointerValue) )
 		self.structs = {}
 		self.hintRootClasses()
@@ -1716,7 +1764,7 @@ class DatFile( FileBase ):
 		nodesModified = False
 		for structOffset, string in self.rootNodes:
 			# Collect unaffected nodes
-			if structOffset < extensionOffset:
+			if structOffset <= extensionOffset:
 				newRootNodes.append( (structOffset, string) )
 			else: # Struct offset is past the affected area; needs to be increased
 				newRootNodes.append( (structOffset + amount, string) )
@@ -1730,7 +1778,7 @@ class DatFile( FileBase ):
 		nodesModified = False
 		for structOffset, string in self.referenceNodes:
 			# Collect unaffected nodes
-			if structOffset < extensionOffset:
+			if structOffset <= extensionOffset:
 				newRefNodes.append( (structOffset, string) )
 			else: # Struct offset is past the affected area; needs to be reduced
 				newRefNodes.append( (structOffset + amount, string) )

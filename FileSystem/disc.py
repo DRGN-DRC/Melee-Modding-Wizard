@@ -521,6 +521,53 @@ class Disc( object ):
 
 		return self.files.get( self.gameId + '/' + filename )
 
+	def getFiles( self, filenames ):
+
+		""" Works like the getFile (singular) method above, but gets multiple files. This is much more
+			efficient to get multiple files that each will need their data loaded, because the disc will 
+			only be opened once to fetch it. """
+
+		files = []
+
+		# Open the disc and fetch data ourselves so the disc doesn't have to be repeatedly opened
+		with open( self.filePath, 'rb' ) as discFile:
+		
+			# Iterate over the files needed
+			for filename in filenames:
+				# Get info on this file, and then get it from the disc
+				fileObj = self.files.get( self.gameId + '/' + filename ) # Will likely be uninitialized, so it won't have data
+				if not fileObj.data:					
+					try:
+						if fileObj.source == 'disc':
+							assert fileObj.offset != -1, 'Unable to get file data for {}; disc offset has not been set'.format( fileObj.filename )
+							
+							# Open the disc image and retrieve the binary for the target file.
+							discFile.seek( fileObj.offset )
+							fileObj.data = bytearray( discFile.read(fileObj.size) )
+
+						elif fileObj.source == 'file':
+							with open( fileObj.extPath, 'rb' ) as externalFile:
+								fileObj.data = bytearray( externalFile.read() )
+
+							# Set size & origSize if uninitialized
+							if fileObj.size == -1:
+								fileObj.size = len( fileObj.data )
+							if fileObj.origSize == -1:
+								fileObj.origSize = fileObj.size
+
+						else: # Source must be 'self'
+							return bytearray()
+					
+					except IOError:
+						msg( "Unable to read the source file. Be sure that the path to it is "
+							"correct and that the file hasn't been moved, renamed, or deleted." )
+					except Exception as err:
+						msg( "Unable to read the source file; {}".format(err) )
+
+				files.append( fileObj )
+
+		return files
+
 	def parseFST( self, fstData ):
 
 		""" Parses a GC disc's FST/TOC (File System Table/Table of Contents), and builds 
@@ -1401,6 +1448,14 @@ class Disc( object ):
 					
 					else: # The file is expected to be in the FST (other system file size changes aren't supported)
 						self.updateFstEntry( fileObj.offset, fileObj.size )
+						
+						# Determine padding to the next file todo: test this and replace above padding-adding code?
+						# for i, entry in enumerate( self.fstEntries ): # Entries are of the form [ folderFlag, stringOffset, entryOffset, entrySize, entryName, isoPath ]
+						# 	if entry[2] == fileObj.offset:
+						# 		nextFileOffset = self.fstEntries[i+1][2]
+						# 		break
+						# paddingLength = nextFileOffset - ( fileObj.offset + fileObj.size )
+						# isoBinary.write( bytearray(paddingLength) )
 
 					# Update the original size to the 'current' size, so further saves with this file don't add extra padding
 					fileObj.origSize = fileObj.size

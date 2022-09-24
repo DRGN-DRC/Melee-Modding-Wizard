@@ -1548,10 +1548,10 @@ class SisTextEditor( BasicWindow ):
 
 		if newText and newText != buttonWidget.origText:
 			endBytes = self.determineEndBytes( buttonWidget.sisIndex )
-			description = 'Text string in {} (SIS ID {}) changed to {}'.format( self.sisFile.filename, buttonWidget.sisIndex, newText )
-			self.sisFile.setText( buttonWidget.sisIndex, newText, description, endBytes )
+			self.sisFile.setText( buttonWidget.sisIndex, newText, endBytes=endBytes )
 
 			# Update the label in this window showing the edited text
+			buttonWidget.origText = newText
 			buttonWidget.label['text'] = newText
 
 	def determineEndBytes( self, sisIndex ):

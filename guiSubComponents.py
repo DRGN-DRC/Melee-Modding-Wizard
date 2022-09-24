@@ -25,7 +25,8 @@ import globalData
 import FileSystem
 
 from ScrolledText import ScrolledText
-from basicFunctions import grammarfyList, uHex, humansize, msg, getFileMd5, validHex
+from basicFunctions import createFolders, grammarfyList, printStatus, uHex, humansize, msg, getFileMd5, validHex
+from tplCodec import TplEncoder
 
 
 def getWindowGeometry( topLevelWindow ):
@@ -217,6 +218,79 @@ def importSingleFileWithGui( origFileObj, validate=True ):
 
 	return True
 
+
+def exportSingleTexture( defaultFilename, texture=None, fileObj=None, textureOffset=-1 ):
+
+	""" Exports a single texture, while prompting the user on where they'd like to save it. 
+		The 'defaultFilename' argument should include a file extension (typically .png). 
+		The 'texture' argument should be a PIL image, or a fileObject plus texture offset must be given. 
+		Updates the default directory to search in when opening or exporting files. 
+		Also handles updating the GUI with the operation's success/failure status. """	
+
+	# Prompt for a place to save the file. (Excluding defaultextension arg to give user more control, as it may silently append ext in some cases)
+	savePath = tkFileDialog.asksaveasfilename(
+		title="Where would you like to export the file?",
+		parent=globalData.gui.root,
+		initialdir=globalData.getLastUsedDir( 'dat' ), # Assuming this texture will be saved with its dat
+		initialfile=defaultFilename,
+		filetypes=[( "PNG files", '*.png' ), ("TPL files", '*.tpl' ), ( "All files", "*.*" )] )
+
+	# The above will return an empty string if the user canceled
+	if not savePath: return ''
+
+	# Update the default directory to start in when opening or exporting files.
+	globalData.setLastUsedDir( directoryPath, 'dat' )
+
+	# Make sure folders exist for the chosen destination
+	directoryPath = os.path.dirname( savePath ) # Used at the end of this function
+	createFolders( directoryPath )
+
+	# Get the texture if it wasn't provided
+	if not texture:
+		if not fileObj or textureOffset == -1:
+			raise Exception( 'Invalid input to exportSingleTexture; no texture or fileObj/textureOffset provided.' )
+
+		texture = fileObj.getTexture( textureOffset, getAsPilImage=True )
+
+	# Convert the image into TPL format or save it as-is
+	if savePath.lower().endswith( '.tpl' ):
+		texture = texture.convert( 'RGBA' ) # Returns a modified image without affecting the original
+
+		newImage = TplEncoder( '', texture.size, 0 )
+		newImage.imageDataArray = texture.getdata()
+		newImage.rgbaPaletteArray = texture.getpalette()
+
+		returnCode = newImage.createTplFile( savePath )
+	else:
+		try:
+			texture.save( savePath )
+			returnCode = 0
+		except ValueError as err:
+			returnCode = 3
+			print( 'ValueError during PIL image saving: ' + str(err) )
+		except IOError as err:
+			print( 'IOError during PIL image saving: ' + str(err) )
+			returnCode = 2
+		except Exception as err: # For everything else
+			print( 'Exception during PIL image saving: ' + str(err) )
+			returnCode = -1
+
+	if returnCode == 0:
+		globalData.gui.updateProgramStatus( 'File exported successfully', success=True )
+	elif returnCode == 1:
+		msg( 'Unable to export due to a TPL encoding error. Check the error log file for details.', 'Export Error' )
+		globalData.gui.updateProgramStatus( 'Unable to encode the TPL image. Check the error log file for details', error=True )
+	elif returnCode == 2:
+		msg( 'Unable to save the image file. Be sure that this program has write permissions to the destination.', 'Export Error' )
+		globalData.gui.updateProgramStatus( 'Unable to save the image file. Be sure that this program has write permissions to the destination', error=True )
+	elif returnCode == 3:
+		msg( 'Unable to save the PIL image. This may be due to an unsupported image file format. Try using a different file extension.', 'Export Error' )
+		globalData.gui.updateProgramStatus( 'Unable to export. This may be due to an unsupported image file extension', error=True )
+	else: # Failsafe; not expected to be possible
+		msg( 'Unable to export the image due to an unknown error. Check the error log file for details.', 'Export Error' )
+		globalData.gui.updateProgramStatus( 'Unable to export the image due to an unknown error', error=True )
+
+	return returnCode
 
 def importSingleTexture( title='Choose a texture file to import' ):
 
