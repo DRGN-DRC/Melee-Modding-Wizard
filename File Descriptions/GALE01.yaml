@@ -145,9 +145,10 @@ PlCo.dat: Textures & global data common to the cast
 usa.ini: Language indicator (tells game to use .usd)
 
 # UI / Menu text strings
+SdClr.dat: Target Test stage clear text
 SdDec.dat: Bonuses text
 SdIntro.dat: Bonus stage intro screen text
-SdMenu.dat: General menu text
+SdMenu.dat: Lots of general menu text
 SdMsgBox.dat: Memory card management text
 SdPrize.dat: Special messages and character/trophy names
 SdProge.dat: Enable progressive scan mode text

@@ -1045,17 +1045,12 @@ class Dol( FileBase ):
 				mod.state = 'unavailable'
 				continue
 
-			# if mod.category == 'TEST':
-			# #if mod.name == 'Dreamland - Disable Wind':
-			# 	pass
-
 			# Determine if the mod is in the DOL, and set the state of the module respectively.
 			included = True
 			functionsOnly = True
 			functionsIncluded = []
 			summaryReport = [] # Used to track and report installation locations/offsets to the Summary tab
 
-			#for change.type, change.length, change.offset, change.origCode, _, change.preProcessedCode, _ in mod.getCodeChanges():
 			for codeChange in mod.getCodeChanges():
 				if functionsOnly and not codeChange.type == 'standalone':
 					functionsOnly = False
@@ -1067,9 +1062,7 @@ class Dol( FileBase ):
 					# Validate the offset
 					if offset == -1:
 						userMessage = 'A problem was detected with an offset, {}, for the mod "{}";{}'.format( codeChange.offset, mod.name, errorMsg.split(';')[1] )
-						# msg( 'A problem was detected with the mod "' + mod.name + '"; an offset for one of its code changes (' + codeChange.offset + ') could '
-						# 	 "not be parsed or processed. If you're sure it's written correctly, it appears to fall out of range of this game's DOL." )
-						msg( userMessage )
+						msg( userMessage, 'Invalid DOL Offset or RAM Address', error=True )
 						mod.parsingError = True
 						mod.stateDesc = 'Parsing error; bad offset: {}'.format( codeChange.offset )
 						included = False

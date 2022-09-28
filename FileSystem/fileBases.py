@@ -49,7 +49,7 @@ class FileBase( object ):
 		self.offset = offset			# Disc offset. An offset of -1 indicates a file not yet given a location
 		self.isoPath = isoPath			# e.g. 'GALE01/audio/1padv.ssm' if this is for a file in a disc
 		self.extPath = extPath			# External path. I.e. a full (absolute) system file path if this is a standalone file
-		self.origSize = size			# Should always be the original size of the file (even if its data changes size)
+		self.origSize = size			# Should always be the original size of the file (even if its data changes size), until the disc is saved
 		self._shortDescription = description
 		self._longDescription = description
 		self.unsavedChanges = []		# Detailed list of all specific changes to this file
@@ -867,8 +867,8 @@ class DatFile( FileBase ):
 				structLength = offset - targetStructOffset
 				break
 
-		else: # The loop above did not break; no struct start offsets found beyond this offset. So the struct must end at the RT
-			print( 'ad-hoc struct detected in tail data (after string table); unable to calculate length for struct ' + hex(0x20+targetStructOffset) )
+		else: # The loop above did not break; no struct start offsets found beyond the given offset
+			print( 'Ad-hoc struct detected in tail data (after string table); unable to calculate proper length for struct ' + hex(0x20+targetStructOffset) )
 			structLength = self.headerInfo['filesize'] - 0x20 - targetStructOffset
 
 		return structLength
@@ -1120,7 +1120,7 @@ class DatFile( FileBase ):
 		""" Initializes a raw block of image/palette/etc. data without validation; these will have mostly 
 			the same methods as a standard struct and can be handled similarly. """
 
-		assert offset in self.structureOffsets, 'Invalid offset to initDataBlock; 0x{:x} does not appear to be a valid struct'.format( offset )
+		assert offset in self.structureOffsets, 'Invalid offset to initDataBlock; 0x{:x} does not appear to be a valid struct'.format( 0x20+offset )
 
 		# If the requested struct has already been created, return it
 		existingStruct = self.structs.get( offset, None )
@@ -1799,6 +1799,10 @@ class DatFile( FileBase ):
 		self.headerInfo['stringTableStart'] += amount
 		self.headerNeedsRebuilding = True
 		self.size += amount
+
+		# Update the file/FST entry, and check if the disc will need to be rebuilt
+		if self.disc:
+			self.disc.assessFileSizeChange( self, self )
 
 		# Rebuild the structure offset and pointer lists
 		self.evaluateStructs()

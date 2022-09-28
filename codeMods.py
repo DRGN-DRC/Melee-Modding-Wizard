@@ -432,7 +432,7 @@ class CodeMod( object ):
 
 		self.currentRevision = revision
 
-	def getCodeChanges( self, forAllRevisions=False ):
+	def getCodeChanges( self, forAllRevisions=False, revision='' ):
 
 		""" Gets all code changes required for a mod to be installed. """
 
@@ -441,8 +441,14 @@ class CodeMod( object ):
 		if forAllRevisions:
 			for changes in self.data.values():
 				codeChanges.extend( changes )
+
+		elif revision:
+			# Get code changes that are applicable to all revisions, as well as those applicable to just the requested revision
+			codeChanges.extend( self.data.get('ALL', []) )
+			codeChanges.extend( self.data.get(revision, []) )
+
 		else:
-			# Get code changes that are applicable to all revisions, as well as those applicable to just the currently loaded revision
+			# Get code changes that are applicable to all revisions, as well as those applicable to just the currently set revision
 			codeChanges.extend( self.data.get('ALL', []) )
 			codeChanges.extend( self.data.get(self.currentRevision, []) )
 
@@ -716,7 +722,7 @@ class CodeMod( object ):
 				# Check for assembly errors
 				change.evaluate( True )
 
-	def assessForConflicts( self, silent=False ):
+	def assessForConflicts( self, silent=False, revision='' ):
 
 		""" Evaluates this mod's changes to look for internal overwrite conflicts 
 			(i.e. more than one change that affects the same code space). 
@@ -726,41 +732,41 @@ class CodeMod( object ):
 		conflictDetected = False
 		modifiedRegions = []
 
-		for revision, codeChanges in self.data.items():
+		for change in self.getCodeChanges( revision=revision ):
+			# Filter out SAs and Gecko codes
+			if change.type == 'standalone' or change.type == 'gecko':
+				continue
 
-			for change in codeChanges:
-				# Filter out SAs and Gecko codes
-				if change.type == 'standalone' or change.type == 'gecko':
-					continue
-
-				# Ensure a RAM address is available or can be determined
-				ramAddress, errorMsg = dol.normalizeRamAddress( change.offset )
-				if ramAddress == -1:
-					warningMsg = 'Unable to get a RAM Address for the code change at {} ({});{}.'.format( change.offset, revision, errorMsg.split(';')[1] )
+			# Ensure a RAM address is available or can be determined
+			ramAddress, errorMsg = dol.normalizeRamAddress( change.offset )
+			if ramAddress == -1:
+				if not revision:
+					revision = self.currentRevision
+				warningMsg = 'Unable to get a RAM Address for the code change at {} ({});{}.'.format( change.offset, revision, errorMsg.split(';')[1] )
+				if not silent:
 					msg( warningMsg, 'Invalid DOL Offset or RAM Address', warning=True )
-					break
+				self.stateDesc = 'Invalid Offset or Address'
+				self.errors.add( warningMsg )
+				break
 
-				if change.type == 'injection':
-					addressEnd = ramAddress + 4
-				else:
-					addressEnd = ramAddress + change.getLength()
-					
-				# Check if this change overlaps other regions collected so far
-				for regionStart, codeLength in modifiedRegions:
-					regionEnd = regionStart + codeLength
-
-					if ramAddress < regionEnd and regionStart < addressEnd: # The regions overlap by some amount.
-						conflictDetected = True
-						break
-
-				# No overlap, store this region this change affects for the next iterations
-				if change.type == 'injection':
-					modifiedRegions.append( (ramAddress, 4) )
-				else: # Static overwrite
-					modifiedRegions.append( (ramAddress, change.length) )
+			if change.type == 'injection':
+				addressEnd = ramAddress + 4
+			else:
+				addressEnd = ramAddress + change.getLength()
 				
-				if conflictDetected:
+			# Check if this change overlaps other regions collected so far
+			for regionStart, codeLength in modifiedRegions:
+				regionEnd = regionStart + codeLength
+
+				if ramAddress < regionEnd and regionStart < addressEnd: # The regions overlap by some amount.
+					conflictDetected = True
 					break
+
+			# No overlap, store this region this change affects for the next iterations
+			if change.type == 'injection':
+				modifiedRegions.append( (ramAddress, 4) )
+			else: # Static overwrite
+				modifiedRegions.append( (ramAddress, change.length) )
 			
 			if conflictDetected:
 				break
@@ -783,6 +789,15 @@ class CodeMod( object ):
 			self.errors.add( warningMsg )
 
 		return conflictDetected
+
+	def diagnostics( self, level=1, silent=False ):
+
+		self.assessForErrors()
+
+		for revision in self.data.keys():
+			self.assessForConflicts( silent, revision )
+
+		#if level >= 2:
 
 	def validateWebLink( self, origUrlString ):
 
@@ -1071,15 +1086,16 @@ class CodeMod( object ):
 
 		return True
 
-	def saveInMcmFormat( self, savePath='', showErrors=True ):
+	def saveInMcmFormat( self, savePath='', showErrors=True, insert=False ):
 
-		""" Saves this mod to a text file in MCM's basic mod format. 
-			If the given file path already contains mods, the mod of the
-			current index (self.fileIndex) will be replaced. Or, if the 
-			current index is -1, this mod will be added to the end of it. """
+		""" Saves this mod to a text file in MCM's basic mod format. If the given file path 
+			already contains mods, the mod of the current index (self.fileIndex) will be replaced. 
+			If 'insert' is True, the mod will be inserted into that position instead (above existing index). 
+			If the current index is -1, this mod will be added at the end of the file. """
 		
 		# Set this mod's save location so that subsequent saves will automatically go to this same place
 		# Do this first in any case, in case this method fails
+		self.isMini = False
 		self.isAmfs = False
 		if savePath:
 			self.path = savePath
@@ -1097,19 +1113,31 @@ class CodeMod( object ):
 				# Get contents of an existing file
 				with open( self.path, 'r' ) as modFile:
 					fileContents = modFile.read()
-					
-				if fileContents and self.fileIndex == -1: # Add to the end of the file
+				
+				# Add to the end of the file
+				if fileContents and self.fileIndex == -1:
 					# Get the file index for this mod and prepend a separator
 					self.fileIndex = len( fileContents.split( '-==-' ) )
 					modString = fileContents + '\n\n\n\t-==-\n\n\n' + modString
 
-				elif fileContents: # Replace the given index
+				# Insert at the current index (preserves existing mod at that index)
+				elif fileContents and insert:
+					mods = fileContents.split( '-==-' )
+					
+					mods = mods[:self.fileIndex] + [modString] + mods[self.fileIndex:]
+					mods = [code.strip() for code in mods] # Removes the extra whitespace around mod strings.
+					modString = '\n\n\n\t-==-\n\n\n'.join( mods )
+
+				# Replace the current index
+				elif fileContents:
 					mods = fileContents.split( '-==-' )
 					
 					# Replace the old mod, reformat the space in-between mods, and recombine the file's text.
 					mods[self.fileIndex] = modString
 					mods = [code.strip() for code in mods] # Removes the extra whitespace around mod strings.
 					modString = '\n\n\n\t-==-\n\n\n'.join( mods )
+
+				# No prior file contents to save; just save the current mod
 				else:
 					self.fileIndex = 0
 
@@ -1138,6 +1166,7 @@ class CodeMod( object ):
 
 		# Set this mod's save location so that subsequent saves will automatically go to this same place
 		# Do this first in any case, in case this method fails
+		self.isMini = False
 		self.isAmfs = True
 		self.fileIndex = -1
 		if savePath:
@@ -1461,6 +1490,9 @@ class CodeMod( object ):
 		# Get the code changes
 		changes = revisions[0]
 		assert len( changes ) == 1, 'Invalid number of changes for saving as a standalone file: ' + str( len(changes) )
+
+		self.isMini = True
+		self.isAmfs = False
 
 		# Create the source and/or binary files
 		return self.writeCustomCodeFiles( changes[0], os.path.splitext(self.path)[0], True )
@@ -1879,13 +1911,13 @@ class CodeLibraryParser():
 
 				# Check if it's a Gecko codes header (the version or revision should be the only thing on that line), but don't set that flag yet
 				elif self.isGeckoCodeHeader( line ):
-					#isVersionHeader = True
-					#headerStringStart = line
-					changeType = 'gecko'
+					isVersionHeader = True
+					headerStringStart = line
+					#changeType = 'gecko'
 
 					# Remember the version that subsequent code lines are for
-					mod.setCurrentRevision( self.normalizeRegionString(line) )
-					continue
+					# mod.setCurrentRevision( self.normalizeRegionString(line) )
+					# continue
 
 				# If this is a header line (marking the start of a new code change), check for lingering collected codes that must first be added to the previous code change.
 				if ( isVersionHeader or '---' in line or self.isStandaloneFunctionHeader(line) ) and customCode != []:
@@ -1920,8 +1952,8 @@ class CodeLibraryParser():
 					# Remember the version that subsequent code lines are for
 					mod.setCurrentRevision( self.normalizeRegionString(headerStringStart) )
 
-					# if self.isGeckoCodeHeader( line ):
-					# 	changeType = 'gecko'
+					if self.isGeckoCodeHeader( line ):
+						changeType = 'gecko'
 
 				elif self.isStandaloneFunctionHeader( line ):
 					changeType = 'standalone'

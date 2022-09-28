@@ -84,6 +84,7 @@ class DiscTab( ttk.Frame ):
 		self.isoFileTree.column( 'description', anchor='w', minwidth=180, stretch=1, width=312 )
 		self.isoFileTree.tag_configure( 'changed', foreground='red' )
 		self.isoFileTree.tag_configure( 'changesSaved', foreground='#292' ) # The 'save' green color
+		self.isoFileTree.tag_configure( 'cFolder', foreground='#0084c9' ) # Blue, for convenience folders
 		self.isoFileTree.pack( side='left', fill='both', expand=1 )
 		self.isoFileScroller.config( command=self.isoFileTree.yview )
 		self.isoFileScroller.pack( side='left', fill='y' )
@@ -349,7 +350,7 @@ class DiscTab( ttk.Frame ):
 		# Add the disc's files to the Disc File Tree tab
 		usingConvenienceFolders = globalData.checkSetting( 'useDiscConvenienceFolders' ) # Avoiding having to look this up many times
 		if usingConvenienceFolders:
-			self.isoFileTree.insert( rootParent, 'end', iid=rootParent + '/sys', text=' System files', image=globalData.gui.imageBank('folderIcon'), values=('', 'cFolder') )
+			self.isoFileTree.insert( rootParent, 'end', iid=rootParent + '/sys', text=' System files', image=globalData.gui.imageBank('folderIcon'), values=('', 'cFolder'), tags=('cFolder',) )
 		for discFile in disc.files.itervalues():
 			self.addFileToFileTree( discFile, usingConvenienceFolders )
 
@@ -438,48 +439,48 @@ class DiscTab( ttk.Frame ):
 			# "Hex Tracks"; 20XX's custom tracks, e.g. 01.hps, 02.hps, etc.
 			elif discFile.__class__.__name__ == 'MusicFile' and discFile.isHexTrack:
 				if not self.isoFileTree.exists( 'hextracks' ):
-					self.isoFileTree.insert( parent, 'end', iid='hextracks', text=' Hex Tracks', values=('\t\t --< 20XX Custom Tracks >--', 'cFolder'), image=globalData.gui.imageBank('musicIcon') )
+					self.isoFileTree.insert( parent, 'end', iid='hextracks', text=' Hex Tracks', values=('\t\t --< 20XX Custom Tracks >--', 'cFolder'), image=globalData.gui.imageBank('musicIcon'), tags=('cFolder',) )
 				parent = 'hextracks'
 
 			# Original audio folder
 			elif parent.split('/')[-1] == 'audio' and entryName.startswith( 'ff_' ):
 				if not self.isoFileTree.exists( 'fanfare' ):
-					self.isoFileTree.insert( parent, 'end', iid='fanfare', text=' Fanfare', values=('\t\t --< Victory Audio Clips >--', 'cFolder'), image=globalData.gui.imageBank('audioIcon') )
+					self.isoFileTree.insert( parent, 'end', iid='fanfare', text=' Fanfare', values=('\t\t --< Victory Audio Clips >--', 'cFolder'), image=globalData.gui.imageBank('audioIcon'), tags=('cFolder',) )
 				parent = 'fanfare'
 
 			# Character Effect files
 			elif entryName.startswith( 'Ef' ):
 				if not self.isoFileTree.exists( 'ef' ):
-					self.isoFileTree.insert( parent, 'end', iid='ef', text=' Ef__Data.dat', values=('\t\t --< Character Graphical Effects >--', 'cFolder'), image=globalData.gui.imageBank('folderIcon') )
+					self.isoFileTree.insert( parent, 'end', iid='ef', text=' Ef__Data.dat', values=('\t\t --< Character Graphical Effects >--', 'cFolder'), image=globalData.gui.imageBank('folderIcon'), tags=('cFolder',) )
 				parent = 'ef'
 			
 			# Congratulations Screens
 			elif entryName.startswith( 'GmRegend' ):
 				if not self.isoFileTree.exists( 'gmregend' ):
-					self.isoFileTree.insert( parent, 'end', iid='gmregend', text=' GmRegend__.thp', values=("\t\t --< 'Congratulation' Screens (1P) >--", 'cFolder'), image=globalData.gui.imageBank('folderIcon') )
+					self.isoFileTree.insert( parent, 'end', iid='gmregend', text=' GmRegend__.thp', values=("\t\t --< 'Congratulation' Screens (1P) >--", 'cFolder'), image=globalData.gui.imageBank('folderIcon'), tags=('cFolder',) )
 				parent = 'gmregend'
 			elif entryName.startswith( 'GmRstM' ): # Results Screen Animations
 				if not self.isoFileTree.exists( 'gmrstm' ):
-					self.isoFileTree.insert( parent, 'end', iid='gmrstm', text=' GmRstM__.dat', values=('\t\t --< Results Screen Animations >--', 'cFolder'), image=globalData.gui.imageBank('folderIcon') )
+					self.isoFileTree.insert( parent, 'end', iid='gmrstm', text=' GmRstM__.dat', values=('\t\t --< Results Screen Animations >--', 'cFolder'), image=globalData.gui.imageBank('folderIcon'), tags=('cFolder',) )
 				parent = 'gmrstm'
 			elif globalData.disc.is20XX and entryName.startswith( 'IfCom' ): # 20XX HP Infographics (originally the "Coming Soon" screens)
 				if not self.isoFileTree.exists( 'infos' ):
-					self.isoFileTree.insert( parent, 'end', iid='infos', text=' IfCom__.dat', values=('\t\t --< Infographics >--', 'cFolder'), image=globalData.gui.imageBank('folderIcon') )
+					self.isoFileTree.insert( parent, 'end', iid='infos', text=' IfCom__.dat', values=('\t\t --< Infographics >--', 'cFolder'), image=globalData.gui.imageBank('folderIcon'), tags=('cFolder',) )
 				parent = 'infos'
 			elif discFile.__class__.__name__ == 'StageFile':
 				if not self.isoFileTree.exists( 'gr' ):
-					self.isoFileTree.insert( parent, 'end', iid='gr', text=' Gr__.dat', values=('\t\t --< Stage Files >--', 'cFolder'), image=globalData.gui.imageBank('stageIcon') )
+					self.isoFileTree.insert( parent, 'end', iid='gr', text=' Gr__.dat', values=('\t\t --< Stage Files >--', 'cFolder'), image=globalData.gui.imageBank('stageIcon'), tags=('cFolder',) )
 				parent = 'gr'
 				
 				# Check for Target Test stages (second case in parenthesis is for Luigi's, which ends in 0at in 20XX; last case is for the "TEST" stage)
 				if entryName[2] == 'T' and ( discFile.ext == '.dat' or entryName == 'GrTLg.0at' ) and entryName != 'GrTe.dat':
 					# Create a folder for target test stage files (if not already created)
 					if not self.isoFileTree.exists( 't' ):
-						self.isoFileTree.insert( parent, 'end', iid='t', text=' GrT__.dat', values=('\t - Target Test Stages', 'cFolder'), image=globalData.gui.imageBank('folderIcon') )
+						self.isoFileTree.insert( parent, 'end', iid='t', text=' GrT__.dat', values=('\t - Target Test Stages', 'cFolder'), image=globalData.gui.imageBank('folderIcon'), tags=('cFolder',) )
 					parent = 't'
 				elif entryName[2:5] in globalData.onePlayerStages: # For 1-Player modes,like 'Adventure'
 					if not self.isoFileTree.exists( '1p' ):
-						self.isoFileTree.insert( parent, 'end', iid='1p', text='Gr___.___', values=('\t - 1P-Mode Stages', 'cFolder'), image=globalData.gui.imageBank('folderIcon') )
+						self.isoFileTree.insert( parent, 'end', iid='1p', text='Gr___.___', values=('\t - 1P-Mode Stages', 'cFolder'), image=globalData.gui.imageBank('folderIcon'), tags=('cFolder',) )
 					parent = '1p'
 				elif discFile.isRandomNeutral():
 					# Modern versions of 20XX (4.06+) have multiple variations of each neutral stage, the 'Random Neutrals' (e.g. GrSt.0at through GrSt.eat)
@@ -490,22 +491,22 @@ class DiscTab( ttk.Frame ):
 						if discFile.shortName == 'GrP': # For Stadium
 							folderName = ' {}_.usd'.format( discFile.shortName )
 						else: folderName = ' {}._at'.format( discFile.shortName )
-						self.isoFileTree.insert( 'gr', 'end', iid=iid, text=folderName, values=(discFile.longName + ' (RN)', 'cFolder'), image=globalData.gui.imageBank('folderIcon') )
+						self.isoFileTree.insert( 'gr', 'end', iid=iid, text=folderName, values=(discFile.longName + ' (RN)', 'cFolder'), image=globalData.gui.imageBank('folderIcon'), tags=('cFolder',) )
 					parent = iid
 			elif discFile.ext == '.mth': # a video file
 				if entryName.startswith( 'MvEnd' ): # 1-P Ending Movie
 					if not self.isoFileTree.exists('mvend'):
-						self.isoFileTree.insert( parent, 'end', iid='mvend', text=' MvEnd__.dat', values=('\t\t --< 1P Mode Ending Movies >--', 'cFolder'), image=globalData.gui.imageBank('folderIcon') )
+						self.isoFileTree.insert( parent, 'end', iid='mvend', text=' MvEnd__.dat', values=('\t\t --< 1P Mode Ending Movies >--', 'cFolder'), image=globalData.gui.imageBank('folderIcon'), tags=('cFolder',) )
 					parent = 'mvend'
 			elif entryName.startswith( 'Pl' ) and entryName != 'PlCo.dat': # Character file
 				if not self.isoFileTree.exists( 'pl' ):
-					self.isoFileTree.insert( parent, 'end', iid='pl', text=' Pl__.dat', values=('\t\t --< Character Files >--', 'cFolder'), image=globalData.gui.imageBank('charIcon') )
+					self.isoFileTree.insert( parent, 'end', iid='pl', text=' Pl__.dat', values=('\t\t --< Character Files >--', 'cFolder'), image=globalData.gui.imageBank('charIcon'), tags=('cFolder',) )
 				character = globalData.charNameLookup.get( entryName[2:4], '' )
 				if character:
 					# Create a folder for the character (and the copy ability files if this is Kirby) if one does not already exist.
 					charFolderIid = 'pl' + character.replace(' ', '').replace('[','(').replace(']',')') # Spaces or brackets can't be used in the iid.
 					if not self.isoFileTree.exists( charFolderIid ):
-						self.isoFileTree.insert( 'pl', 'end', iid=charFolderIid, text=' ' + character, values=('', 'cFolder'), image=globalData.gui.imageBank('folderIcon') )
+						self.isoFileTree.insert( 'pl', 'end', iid=charFolderIid, text=' ' + character, values=('', 'cFolder'), image=globalData.gui.imageBank('folderIcon'), tags=('cFolder',) )
 					if entryName.endswith( 'DViWaitAJ.dat' ):
 						discFile.shortDescription = '1P mode wait animation'
 						if character.endswith( 's' ):
@@ -515,11 +516,11 @@ class DiscTab( ttk.Frame ):
 					parent = charFolderIid
 			elif entryName.startswith( 'Sd' ): # Menu text files
 				if not self.isoFileTree.exists( 'sd' ):
-					self.isoFileTree.insert( parent, 'end', iid='sd', text=' Sd__.dat', values=('\t\t --< UI Text Files >--', 'cFolder'), image=globalData.gui.imageBank('folderIcon') )
+					self.isoFileTree.insert( parent, 'end', iid='sd', text=' Sd__.dat', values=('\t\t --< UI Text Files >--', 'cFolder'), image=globalData.gui.imageBank('folderIcon'), tags=('cFolder',) )
 				parent = 'sd'
 			elif entryName.startswith( 'Ty' ): # Trophy file
 				if not self.isoFileTree.exists( 'ty' ):
-					self.isoFileTree.insert( parent, 'end', iid='ty', text=' Ty__.dat', values=('\t\t --< Trophies >--', 'cFolder'), image=globalData.gui.imageBank('folderIcon') )
+					self.isoFileTree.insert( parent, 'end', iid='ty', text=' Ty__.dat', values=('\t\t --< Trophies >--', 'cFolder'), image=globalData.gui.imageBank('folderIcon'), tags=('cFolder',) )
 				parent = 'ty'
 
 		# Add the file to the treeview (all files in the treeview should be added with the line below, but may be modified elsewhere)

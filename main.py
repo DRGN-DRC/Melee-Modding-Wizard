@@ -2120,7 +2120,7 @@ class MainGui( Tk.Frame, object ):
 			dolBackup = disc.copyFile( origDol )
 
 			# Save codes to the current DOL
-			returnCode = self.codeManagerTab.saveCodeChanges()
+			returnCode = self.codeManagerTab.saveCodesToDol()
 
 			# Check for an error, and ask whether to save other changes anyway
 			if not returnCode == 0:
@@ -2188,7 +2188,7 @@ class MainGui( Tk.Frame, object ):
 
 		# Save code mods if that tab is open
 		if self.codeManagerTab:
-			returnCode = self.codeManagerTab.saveCodeChanges()
+			returnCode = self.codeManagerTab.saveCodesToDol()
 
 			# Check for an error, and ask whether to save other changes anyway
 			if not returnCode == 0:

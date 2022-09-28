@@ -1462,7 +1462,7 @@ class SisTextEditor( BasicWindow ):
 		self.populatePage( 2, sisTablePointers )
 		self.mainFrame.grid( column=0, row=2, sticky='nsew' )
 
-		# Display page buttons if there are too many to display
+		# Display page buttons if there are too many strings to display on one
 		if totalTextStructs > self.stringsPerPage:
 			pageCount = math.ceil( totalTextStructs / self.stringsPerPage ) # Rounds up
 
