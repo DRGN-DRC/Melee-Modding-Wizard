@@ -804,7 +804,7 @@ class Disc( object ):
 		totalFilesSize = sum( [fileObj.size for fileObj in self.files.values()] )
 		totalPadding = discSize - totalFilesSize
 
-		string =  'Game ID:                ' + self.gameId
+		string =    'Game ID:                ' + self.gameId
 		string += '\nGame Version:           ' + str( self.version )
 		string += '\nCountry Code:           ' + str( self.countryCode )
 		string += '\nImage Name:             ' + self.imageName
@@ -1094,47 +1094,80 @@ class Disc( object ):
 		if countAsNewFile:
 			newFileObj.unsavedChanges.append( 'New file' )
 
-		# If this is a MusicFile, copy over extra properties
+		# If this is a MusicFile, copy over special properties
 		if newFileObj.__class__ == MusicFile:
 			newFileObj.musicId = origFileObj.musicId
 			newFileObj.isHexTrack = origFileObj.isHexTrack
 			newFileObj.trackNumber = origFileObj.trackNumber
 
-		# Refresh the description (may not have been retrievable during file initialization without a disc reference)
-		#newFileObj.getDescription()
-
 		# Update this file's entry size if it's changed, and check if the disc will need to be rebuilt
 		if newFileObj.size != origFileObj.size:
-			
-			if self.rebuildReason:
-				self.updateFstEntry( origFileObj.offset, newFileObj.size )
-			else:
-				if newFileObj.filename == 'Start.dol':
-					self.rebuildReason = 'to import a DOL of a different size'
-
-				elif newFileObj.filename in self.systemFiles:
-					self.rebuildReason = 'to import system files larger than their original' # probably should make this illegal?
-
-				# Check if it's the last file, in which case size its doesn't matter (also, the following loop would encounter an error if that's the case)
-				elif origFileObj.offset == self.fstEntries[-1][2]:
-					self.fstEntries[-1][3] = newFileObj.size
-
-				else: # Not the last file; check if the file following it needs to be moved
-					for i, entry in enumerate( self.fstEntries ): # Entries are of the form [ folderFlag, stringOffset, entryOffset, entrySize, entryName, isoPath ]
-						if entry[2] == origFileObj.offset:
-							self.fstEntries[i][3] = newFileObj.size
-
-							# Check if there is enough space for the new file
-							nextFileOffset = self.fstEntries[i+1][2]
-							if nextFileOffset < newFileObj.offset + newFileObj.size:
-								self.rebuildReason = 'to import files larger than their original'
-							break
-
-				# Flag that the FST will need to be rebuilt upon saving
-				self.fstRebuildRequired = True
+			self.assessFileSizeChange( origFileObj.offset, newFileObj )
 
 		if newFileObj.filename == 'Start.dol':
 			newFileObj.load()
+
+	def assessFileSizeChange( self, origFileObj, newFileObj ):
+
+		""" Checks if the disc will need to be rebuilt, based on file size changes 
+			and distance to the next file in the disc. """
+		
+		# If already rebuilding, the size doesn't matter
+		if self.rebuildReason:
+			self.updateFstEntry( origFileObj.offset, newFileObj.size )
+			return
+
+		elif newFileObj.filename == 'Start.dol':
+			self.rebuildReason = 'to import a DOL of a different size'
+			self.fstRebuildRequired = True # Flag this so it will be moved (offset needs to be updated)
+			return
+
+		elif newFileObj.filename in self.systemFiles:
+			self.rebuildReason = 'to import system files larger than their original' # probably should make this illegal?
+			self.fstRebuildRequired = True # Flag this so it will be moved (offset needs to be updated)
+			return
+
+		# Create a sorted list of disc file offsets. (Entries are of the form [ folderFlag, stringOffset, entryOffset, entrySize, entryName, isoPath ])
+		sortedOffsets = [ entry[2] for entry in self.fstEntries ]
+		sortedOffsets.sort()
+		#sortedOffsets = offsets.sorted( key=lambda entry: entry[2] ) # Sort by file/entry offset
+
+		# Check if it's the last file, in which case its size doesn't matter (also, the following loop would encounter an error if that's the case)
+		#if origFileObj.offset == self.fstEntries[-1][2]:
+		if origFileObj.offset == sortedOffsets[-1]:
+			#self.fstEntries[-1][3] = newFileObj.size
+			self.updateFstEntry( origFileObj.offset, newFileObj.size )
+
+		elif newFileObj.size < origFileObj.size:
+			self.updateFstEntry( origFileObj.offset, newFileObj.size )
+
+		else: # Not the last file; check if the file following it would need to be moved
+
+			# for i, entry in enumerate( self.fstEntries ): # Entries are of the form [ folderFlag, stringOffset, entryOffset, entrySize, entryName, isoPath ]
+			# 	if entry[2] == origFileObj.offset:
+			# 		self.fstEntries[i][3] = newFileObj.size
+
+			# 		# Check if there is enough space for the new file
+			# 		nextFileOffset = self.fstEntries[i+1][2]
+			# 		if nextFileOffset < origFileObj.offset + newFileObj.size:
+			# 			self.rebuildReason = 'to import files larger than their original'
+			# 		break
+
+			for i, offset in enumerate( sortedOffsets ):
+				if offset == origFileObj.offset:
+					#self.fstEntries[i][3] = newFileObj.size
+					self.updateFstEntry( offset, newFileObj.size )
+
+					# Check if there is enough space for the new file
+					nextFileOffset = sortedOffsets[i+1]
+					if nextFileOffset < offset + newFileObj.size:
+						self.rebuildReason = 'to import files larger than their original'
+					break
+			else: # Offset not found
+				raise Exception( 'Unable to find a file with offset 0x{:X} in the disc!'.format(origFileObj.offset) )
+
+		# Flag that the FST will need to be rebuilt upon saving
+		#self.fstRebuildRequired = True
 
 	def determineInsertionKey( self, newIsoPath ):
 
@@ -1950,7 +1983,6 @@ class Disc( object ):
 
 		for mod in codeMods:
 			# Process each code change tuple (each representing one change in the file) given for this mod for the current game version.
-			#for changeType, customCodeLength, offsetString, originalCode, _, preProcessedCode, _ in mod.getCodeChanges():
 			for codeChange in mod.getCodeChanges():
 				if codeChange.type == 'static' or codeChange.type == 'injection':
 					dolOffset = self.dol.normalizeDolOffset( codeChange.offset )[0]
@@ -2543,6 +2575,7 @@ class Disc( object ):
 		toc = time.clock()
 		print( '\nMod installation time: ' + str(toc-tic) )
 
+		# Update the install count shown on the Code Manager tab
 		if globalData.gui and globalData.gui.codeManagerTab:
 			globalData.gui.codeManagerTab.updateInstalledModsTabLabel()
 
