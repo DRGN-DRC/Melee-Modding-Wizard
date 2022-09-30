@@ -902,10 +902,10 @@ class DiscTab( ttk.Frame ):
 		# A disc or root folder path must have been loaded at this point (to populate the GUI); make sure its path is still valid
 		elif not os.path.exists( globalData.disc.filePath ):
 			if globalData.disc.isRootFolder:
-				globalData.gui.updateProgramStatus( 'Export Error. Unable to find the currently loaded root folder path.', error=True )
+				globalData.gui.updateProgramStatus( 'Export Error. Unable to find the currently loaded root folder path', error=True )
 				msg( "Unable to find the root folder path. Be sure that the path is correct and that the folder hasn't been moved or deleted.", 'Root Folder Not Found' )
 			else:
-				globalData.gui.updateProgramStatus( 'Export Error. Unable to find the currently loaded disc file path.', error=True )
+				globalData.gui.updateProgramStatus( 'Export Error. Unable to find the currently loaded disc file path', error=True )
 				msg( "Unable to find the disc image. Be sure that the file path is correct and that the file hasn't been moved or deleted.", 'Disc Not Found' )
 			return
 		
@@ -935,11 +935,11 @@ class DiscTab( ttk.Frame ):
 				exported, failedExports = self.exportItemsInSelection( iidSelections, isoBinary, directoryPath, exported, failedExports, addDolphinSubs )
 
 			if failedExports == 0:
-				globalData.gui.updateProgramStatus( 'Files exported successfully.', success=True )
+				globalData.gui.updateProgramStatus( 'Files exported successfully', success=True )
 			elif exported > 0: # Had some exports fail
-				globalData.gui.updateProgramStatus( '{} file(s) exported successfully. However, {} file(s) failed to export.'.format(exported, failedExports), error=True )
+				globalData.gui.updateProgramStatus( '{} file(s) exported successfully. However, {} file(s) failed to export'.format(exported, failedExports), error=True )
 			else:
-				globalData.gui.updateProgramStatus( 'Unable to export.', error=True )
+				globalData.gui.updateProgramStatus( 'Unable to export', error=True )
 
 			# Update the default directory to start in when opening or exporting files.
 			globalData.setLastUsedDir( directoryPath )
@@ -964,10 +964,10 @@ class DiscTab( ttk.Frame ):
 		# A disc or root folder path must have been loaded at this point (to populate the GUI); make sure its path is still valid
 		elif not os.path.exists( globalData.disc.filePath ):
 			if globalData.disc.isRootFolder:
-				globalData.gui.updateProgramStatus( 'Import Error. Unable to find the currently loaded root folder path.', error=True )
+				globalData.gui.updateProgramStatus( 'Import Error. Unable to find the currently loaded root folder path', error=True )
 				msg( "Unable to find the root folder path. Be sure that the path is correct and that the folder hasn't been moved or deleted.", 'Root Folder Not Found', error=True )
 			else:
-				globalData.gui.updateProgramStatus( 'Import Error. Unable to find the currently loaded disc file path.', error=True )
+				globalData.gui.updateProgramStatus( 'Import Error. Unable to find the currently loaded disc file path', error=True )
 				msg( "Unable to find the disc image. Be sure that the file path is correct and that the file hasn't been moved or deleted.", 'Disc Not Found', error=True )
 			return
 
@@ -989,17 +989,17 @@ class DiscTab( ttk.Frame ):
 		# A disc or root folder path must have been loaded at this point (to populate the GUI); make sure its path is still valid
 		elif not os.path.exists( currentDisc.filePath ):
 			if currentDisc.isRootFolder:
-				globalData.gui.updateProgramStatus( 'Restoration Error. Unable to find the currently loaded root folder path.', error=True )
+				globalData.gui.updateProgramStatus( 'Restoration Error. Unable to find the currently loaded root folder path', error=True )
 				msg( "Unable to find the root folder path. Be sure that the path is correct and that the folder hasn't been moved or deleted.", 'Root Folder Not Found', error=True )
 			else:
-				globalData.gui.updateProgramStatus( 'Restoration Error. Unable to find the currently loaded disc file path.', error=True )
+				globalData.gui.updateProgramStatus( 'Restoration Error. Unable to find the currently loaded disc file path', error=True )
 				msg( "Unable to find the disc image. Be sure that the file path is correct and that the file hasn't been moved or deleted.", 'Disc Not Found', error=True )
 			return
 
 		# Try to initialize the vanilla disc
 		vanillaDiscPath = globalData.getVanillaDiscPath()
 		if not vanillaDiscPath:
-			globalData.gui.updateProgramStatus( 'Unable to restore the file(s) without a vanilla disc to source from.', warning=True )
+			globalData.gui.updateProgramStatus( 'Unable to restore the file(s) without a vanilla disc to source from', warning=True )
 			return
 		vanillaDisc = Disc( vanillaDiscPath )
 		vanillaDisc.load()
@@ -1595,7 +1595,7 @@ class DiscDetailsTab( ttk.Frame ):
 				# Update the file
 				fileObj.updateData( offset, bytearray.fromhex(newPaddedStringHex), updateName + ' updated' )
 
-				self.mainGui.updateProgramStatus( updateName + ' updated. Press CRTL-S to save changes to file.' )
+				self.mainGui.updateProgramStatus( updateName + ' updated. Press CRTL-S to save changes to file' )
 
 		return 'break' # Prevents the 'Return' keystroke that called this from propagating to the widget and creating a line break
 

@@ -109,11 +109,11 @@ def exportSingleFileWithGui( fileObj, master=None ):
 	globalData.setLastUsedDir( savePath, 'auto' )
 
 	if successful:
-		globalData.gui.updateProgramStatus( 'File exported successfully.', success=True )
+		globalData.gui.updateProgramStatus( 'File exported successfully', success=True )
 		globalData.gui.playSound( 'menuChange' )
 		return savePath
 	else:
-		globalData.gui.updateProgramStatus( 'Unable to export. Check the error log file for details.', error=True )
+		globalData.gui.updateProgramStatus( 'Unable to export. Check the error log file for details', error=True )
 		return ''
 
 
@@ -986,7 +986,7 @@ class HexEditEntry( Tk.Entry ):
 
 		self.updateDataInFile( newData )
 
-		globalData.gui.updateProgramStatus( self.updateName + ' Updated' )
+		globalData.gui.updateProgramStatus( self.updateName + ' updated' )
 
 	def updateValue( self, event ):
 
@@ -1052,7 +1052,7 @@ class HexEditEntry( Tk.Entry ):
 		newData = bytearray.fromhex( newHex )
 		self.updateDataInFile( newData )
 
-		globalData.gui.updateProgramStatus( self.updateName + ' Updated' )
+		globalData.gui.updateProgramStatus( self.updateName + ' updated' )
 
 
 class SliderAndEntry( ttk.Frame ):

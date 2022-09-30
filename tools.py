@@ -2004,7 +2004,7 @@ class CharacterColorConverter( BasicWindow ):
 			globalData.gui.discTab.isoFileTree.item( destinationFile.isoPath, tags='changed' )
 			
 			# Update program status message
-			globalData.gui.updateProgramStatus( 'File converted successfully.', success=True )
+			globalData.gui.updateProgramStatus( 'File converted successfully', success=True )
 			globalData.gui.playSound( 'menuChange' )
 
 		elif guiParent: # Saving to an external file

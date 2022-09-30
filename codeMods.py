@@ -386,33 +386,30 @@ class CodeMod( object ):
 	def __init__( self, name, auth='', desc='', srcPath='', isAmfs=False ):
 
 		self.name = name
-		self.auth = auth				# Author(s)
-		self.desc = desc				# Description
-		self.data = OrderedDict([])		# Keys=revision, values=list of "CodeChange" objects
-		self.path = srcPath				# Root folder path that contains this mod
-		self.type = 'static'			# An overall type (matches change.types)
+		self.auth = auth					# Author(s)
+		self.desc = desc					# Description
+		self.data = OrderedDict([])			# Keys=revision, values=list of "CodeChange" objects
+		self.path = os.path.normpath( srcPath )		# Root folder path that contains this mod
+		self.type = 'static'				# An overall type (matches change.types)
 		self.state = 'disabled'
 		self.category = ''
-		self.stateDesc = ''				# Describes reason for the state. Shows as a text status on the mod in the GUI
+		self.stateDesc = ''					# Describes reason for the state. Shows as a text status on the mod in the GUI
 		self.configurations = OrderedDict([])		# Will be a dict of option dictionaries.	  Required keys: type, value, default
-																					# Optional keys: annotation, range, mask, members, hidden
+																								# Optional keys: annotation, range, mask, members, hidden
 		self.isAmfs = isAmfs
-		self.isMini = False				# todo; replace this and above bool with a storeFormat Enum if this format is kept
-		self.webLinks = []				# A list of tuples, with each of the form ( URL, comment )
-		self.fileIndex = -1				# Position within a .txt file; used only with MCM formatted mods (non-AMFS)
+		self.isMini = False					# todo; replace this and above bool with a storeFormat Enum if this format is kept
+		self.webLinks = []					# A list of tuples, with each of the form ( URL, comment )
+		self.fileIndex = -1					# Position within a .txt file; used only with MCM formatted mods (non-AMFS)
 		self.includePaths = []
-		self.currentRevision = ''		# Switch this to set the default revision used to add or get code changes
+		self.currentRevision = ''			# Switch this to set the default revision used to add or get code changes
 		self.guiModule = None
 
 		self.assemblyError = False
 		self.parsingError = False
-		#self.missingIncludes = []		# Include filesnames detected to be required by the assembler
+		#self.missingIncludes = []			# Include filesnames detected to be required by the assembler
 		self.errors = set()
 
 	def setState( self, newState, statusText='', updateControlPanelCounts=True ):
-
-		if self.state == newState:
-			return
 
 		self.state = newState
 
@@ -712,6 +709,10 @@ class CodeMod( object ):
 
 		for codeChanges in self.data.values():
 			for change in codeChanges:
+				# Filter out SAs and Gecko codes
+				if change.type == 'standalone' or change.type == 'gecko':
+					continue
+
 				# Check if the RAM Address or DOL Offset is valid
 				if dol:
 					error = dol.normalizeDolOffset( change.offset, 'string' )[1]
@@ -1127,6 +1128,11 @@ class CodeMod( object ):
 					mods = mods[:self.fileIndex] + [modString] + mods[self.fileIndex:]
 					mods = [code.strip() for code in mods] # Removes the extra whitespace around mod strings.
 					modString = '\n\n\n\t-==-\n\n\n'.join( mods )
+
+					# Update the index of other mods already loaded from this file
+					for mod in globalData.codeMods:
+						if mod.path == self.path and mod.fileIndex >= self.fileIndex:
+							mod.fileIndex += 1
 
 				# Replace the current index
 				elif fileContents:

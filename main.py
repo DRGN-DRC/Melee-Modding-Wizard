@@ -207,6 +207,8 @@ class SettingsMenu( Tk.Menu, object ):
 		# Code related options
 		self.add_checkbutton( label='Use Code Cache', underline=9, 																# C
 				variable=globalData.boolSettings['useCodeCache'], command=globalData.saveProgramSettings )
+		self.add_checkbutton( label='Offer to Convert Gecko Codes', underline=9, 												# G
+				variable=globalData.boolSettings['offerToConvertGeckoCodes'], command=globalData.saveProgramSettings )
 		self.add_checkbutton( label='Always Enable Crash Reports', underline=20, 												# R
 				variable=globalData.boolSettings['alwaysEnableCrashReports'], command=globalData.saveProgramSettings )
 
@@ -1152,14 +1154,14 @@ class MainMenuCanvas( Tk.Canvas ):
 			if menuOption.mouseHovered:
 				menuOption.unhovered()
 
-	def addMenuOption( self, text, borderColor, clickCallback, pause=False, hoverText='' ):
+	def addMenuOption( self, text, borderColor, xOffset, clickCallback, pause=False, hoverText='' ):
 		
 		# Calculate main menu border position (top-left edges of border)
 		originX = ( int(self['width']) - self.mainBorderWidth ) / 2
 		originY = ( int(self['height']) - self.mainBorderHeight ) / 2
 
 		# Calculate position of this menu option
-		optOriginX = originX + 90
+		optOriginX = originX + 90 + xOffset
 		verticalSpace = self.mainBorderHeight - 80 # -48 - 32
 		leftoverSpace = verticalSpace - ( 30 * self.menuOptionCount )
 		if leftoverSpace > 310: # Make the grouping a little tighter if there's a ton of extra space
@@ -1302,10 +1304,10 @@ class MainMenuCanvas( Tk.Canvas ):
 
 	def displayPrimaryMenu( self ):
 		self.menuOptionCount = 4
-		self.addMenuOption( 'Load Recent', '#394aa6', self.loadRecentMenu, hoverText='Return to your latest work.' ) # blue
-		self.addMenuOption( 'Load Disc', '#a13728', self.openDisc, hoverText='Load an ISO or GCM file.' ) # red
-		self.addMenuOption( 'Load Root Folder', '#077523', self.openRoot, hoverText='Load an extracted filesystem.' ) # green
-		self.addMenuOption( 'Browse Code Library', '#9f853b', self.browseCodes, hoverText='Browse code-related game mods.' ) # yellow
+		self.addMenuOption( 'Load Recent', '#394aa6', 25, self.loadRecentMenu, hoverText='Return to your latest work.' ) # blue
+		self.addMenuOption( 'Load Disc', '#a13728', -19, self.openDisc, hoverText='Load an ISO or GCM file.' ) # red
+		self.addMenuOption( 'Load Root Folder', '#077523', -47, self.openRoot, hoverText='Load an extracted filesystem.' ) # green
+		self.addMenuOption( 'Browse Code Library', '#9f853b', -35, self.browseCodes, hoverText='Browse code-related game mods.' ) # yellow
 
 	def removeOptions( self, showAnimations=True, callBack=None ):
 
@@ -1356,28 +1358,28 @@ class MainMenuCanvas( Tk.Canvas ):
 		# Add new options
 		if globalData.disc.isMelee and globalData.disc.is20XX:
 			self.menuOptionCount = 7
-			self.addMenuOption( 'Disc Management', '#394aa6', self.loadDiscManagement, showAnimations, 'Disc File Tree and Disc Details tabs.' ) # blue
-			self.addMenuOption( 'Code Manager', '#a13728', self.browseCodes, showAnimations, 'Make code-related modifications.' ) # red
-			self.addMenuOption( 'Stage Manager', '#077523', self.loadStageEditor, showAnimations, 'Configure stage loading.' ) # green
-			self.addMenuOption( 'Music Manager', '#9f853b', self.loadMusicManager, showAnimations, 'Listen to and configure music.' ) # yellow
-			self.addMenuOption( 'Sound Effect Editor', '#7b5467', self.loadDiscManagement, showAnimations, 'WIP!' ) # pinkish (blended)
-			self.addMenuOption( 'Character Modding', '#53c6b8', self.loadCharacterModder, showAnimations, 'Modify character properties.' ) # teal
-			self.addMenuOption( 'Debug Menu Editor', '#582493', self.loadDebugMenuEditor, showAnimations, 'View/edit the in-game Debug Menu.' ) # purple
+			self.addMenuOption( 'Disc Management', '#394aa6', 69, self.loadDiscManagement, showAnimations, 'Disc File Tree and Disc Details tabs.' ) # blue
+			self.addMenuOption( 'Code Manager', '#a13728', 21, self.browseCodes, showAnimations, 'Make code-related modifications.' ) # red
+			self.addMenuOption( 'Stage Manager', '#077523', -19, self.loadStageEditor, showAnimations, 'Configure stage loading.' ) # green
+			self.addMenuOption( 'Music Manager', '#9f853b', -40, self.loadMusicManager, showAnimations, 'Listen to and configure music.' ) # yellow
+			self.addMenuOption( 'Sound Effect Editor', '#7b5467', 0, self.loadDiscManagement, showAnimations, 'WIP!' ) # pinkish (blended)
+			self.addMenuOption( 'Character Modding', '#53c6b8', -35, self.loadCharacterModder, showAnimations, 'Modify character properties.' ) # teal
+			self.addMenuOption( 'Debug Menu Editor', '#582493', -22, self.loadDebugMenuEditor, showAnimations, 'View/edit the in-game Debug Menu.' ) # purple
 
 		elif globalData.disc.isMelee:
 			self.menuOptionCount = 6
-			self.addMenuOption( 'Disc Management', '#394aa6', self.loadDiscManagement, showAnimations, 'Disc File Tree and Disc Details tabs.' ) # blue
-			self.addMenuOption( 'Code Manager', '#a13728', self.browseCodes, showAnimations, 'Make code-related modifications.' ) # red
-			self.addMenuOption( 'Stage Manager', '#077523', self.loadStageEditor, showAnimations, 'Configure stage loading.' ) # green
-			self.addMenuOption( 'Music Manager', '#9f853b', self.loadMusicManager, showAnimations, 'Listen to and configure music.' ) # yellow
-			self.addMenuOption( 'Sound Effect Editor', '#7b5467', self.loadDiscManagement, showAnimations, 'WIP!' ) # pinkish (blended)
-			self.addMenuOption( 'Character Modding', '#53c6b8', self.loadCharacterModder, showAnimations, 'Modify character properties.' ) # teal
+			self.addMenuOption( 'Disc Management', '#394aa6', 60, self.loadDiscManagement, showAnimations, 'Disc File Tree and Disc Details tabs.' ) # blue
+			self.addMenuOption( 'Code Manager', '#a13728', 14, self.browseCodes, showAnimations, 'Make code-related modifications.' ) # red
+			self.addMenuOption( 'Stage Manager', '#077523', -22, self.loadStageEditor, showAnimations, 'Configure stage loading.' ) # green
+			self.addMenuOption( 'Music Manager', '#9f853b', -40, self.loadMusicManager, showAnimations, 'Listen to and configure music.' ) # yellow
+			self.addMenuOption( 'Sound Effect Editor', '#7b5467', 0, self.loadDiscManagement, showAnimations, 'WIP!' ) # pinkish (blended)
+			self.addMenuOption( 'Character Modding', '#53c6b8', -30, self.loadCharacterModder, showAnimations, 'Modify character properties.' ) # teal
 
 		else:
 			self.menuOptionCount = 3
-			self.addMenuOption( 'Disc Management', '#394aa6', self.loadDiscManagement, showAnimations, 'Disc File Tree and Disc Details tabs.' ) # blue
-			self.addMenuOption( 'Code Manager', '#a13728', self.browseCodes, showAnimations, 'Make code-related modifications.' ) # red
-			self.addMenuOption( 'Music Manager', '#9f853b', self.loadMusicManager, showAnimations, 'Listen to and configure music.' ) # yellow
+			self.addMenuOption( 'Disc Management', '#394aa6', 21, self.loadDiscManagement, showAnimations, 'Disc File Tree and Disc Details tabs.' ) # blue
+			self.addMenuOption( 'Code Manager', '#a13728', -34, self.browseCodes, showAnimations, 'Make code-related modifications.' ) # red
+			self.addMenuOption( 'Music Manager', '#9f853b', -14, self.loadMusicManager, showAnimations, 'Listen to and configure music.' ) # yellow
 
 		# Set the main menu bottom text
 		text = 'Choose a category to begin.'
@@ -1920,7 +1922,7 @@ class MainGui( Tk.Frame, object ):
 		if filepaths == [] or filepaths == ['']: return
 		elif len( filepaths ) > 1: # todo: allow for specific features later
 			msg( 'Please only provide one file to load at a time.', 'File Import Error' )
-			self.updateProgramStatus( 'Too many files recieved.', warning=True )
+			self.updateProgramStatus( 'Too many files recieved', warning=True )
 			return
 
 		# Normalize the path (prevents discrepancies between paths with forward vs. back slashes, etc.)
@@ -1929,7 +1931,7 @@ class MainGui( Tk.Frame, object ):
 		# Validate the path
 		if not os.path.exists( filepath ): # Failsafe; unsure how this might happen
 			msg( 'The given path does not seem to exist!', 'File Import Error' )
-			self.updateProgramStatus( 'Invalid path provided.', error=True )
+			self.updateProgramStatus( 'Invalid path provided', error=True )
 
 		# Check if it's a disc root directory.
 		elif os.path.isdir( filepath ):
@@ -1942,7 +1944,7 @@ class MainGui( Tk.Frame, object ):
 
 			else:
 				msg( 'Only extracted root directories are able to opened in this way.' )
-				self.updateProgramStatus( 'Invalid input.', error=True )
+				self.updateProgramStatus( 'Invalid input', error=True )
 
 		else: # Valid file path given
 			extension = os.path.splitext( filepath )[1].lower()
@@ -2141,9 +2143,11 @@ class MainGui( Tk.Frame, object ):
 				elif returnCode == 4:
 					# Mod internal conflicts found; user was notified and aborted save operation
 					return
-				else:
-					Exception( 'Unrecognized return code from code manager save method! {}'.format(returnCode) )
+				elif returnCode == 5:
+					# User aborted save operation (on Gecko code conversion prompt)
 					return
+				else:
+					raise Exception( 'Unrecognized return code from code manager save method! {}'.format(returnCode) )
 
 			# Restore the backed-up DOL
 			disc.replaceFile( origDol, dolBackup, False )
@@ -2165,17 +2169,17 @@ class MainGui( Tk.Frame, object ):
 				successful = codesFile.export( codesPath )
 
 				if successful:
-					self.updateProgramStatus( 'DOL and codes.bin files saved successfully.', success=True )
+					self.updateProgramStatus( 'DOL and codes.bin files saved successfully', success=True )
 				else:
-					self.updateProgramStatus( 'DOL saved successfully; error saving codes.bin.', warning=True )
+					self.updateProgramStatus( 'DOL saved successfully; error saving codes.bin', warning=True )
 			
 			# Only DOL file present, which was exported successfully
 			else:
-				self.updateProgramStatus( 'DOL saved successfully.', success=True )
+				self.updateProgramStatus( 'DOL saved successfully', success=True )
 
 			self.playSound( 'menuChange' )
 		else:
-			self.updateProgramStatus( 'Unable to export. Check the error log file for details.', error=True )
+			self.updateProgramStatus( 'Unable to export. Check the error log file for details', error=True )
 
 	def save( self, newPath='' ):
 
@@ -2204,8 +2208,11 @@ class MainGui( Tk.Frame, object ):
 				elif returnCode == 4:
 					# Mod internal conflicts found; user was notified and aborted save operation
 					return -1
+				elif returnCode == 5:
+					# User aborted save operation (on Gecko code conversion prompt)
+					return -1
 				else:
-					Exception( 'Unrecognized return code from code manager save method! {}'.format(returnCode) )
+					raise Exception( 'Unrecognized return code from code manager save method: {}'.format(returnCode) )
 
 				if not tkMessageBox.askyesno( 'Unable to Save Code Changes', message ):
 					return -1

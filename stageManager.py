@@ -166,7 +166,7 @@ class StageSwapTable( object ):
 
 		# Check if this is actually new (changed data)
 		if values == tuple( newValues ):
-			globalData.gui.updateProgramStatus( 'No changes to submit to the Stage Swap Table.' )
+			globalData.gui.updateProgramStatus( 'No changes to submit to the Stage Swap Table' )
 		else:
 			# Calculate the offset for the data, and pack the values to bytes
 			entryOffset = self.stageOffsets[internalStageId]
@@ -1760,13 +1760,13 @@ class StageManager( ttk.Frame ):
 		try:
 			newImage = Image.open( imagePath )
 		except Exception as err:
-			globalData.gui.updateProgramStatus( 'Unable to open the texture due to an unrecognized error. Check the log for details.' )
+			globalData.gui.updateProgramStatus( 'Unable to open the texture due to an unrecognized error. Check the log for details', error=True )
 			print( 'Unable to load image for preview text; {}'.format(err) )
 			return
 
 		# Ensure the image isn't too large (at least by dimensions)
 		if not newImage.size == ( 224, 56 ):
-			globalData.gui.updateProgramStatus( 'Invalid texture size. The preview text texture should be 224x56 pixels' )
+			globalData.gui.updateProgramStatus( 'Invalid texture size. The preview text texture should be 224x56 pixels', warning=True )
 			msg( 'The preview text texture should be 224x56 pixels.', 'Invalid texture size.' )
 			return
 
@@ -1881,7 +1881,7 @@ class StageManager( ttk.Frame ):
 			newFileObj = StageFile( None, -1, -1, newIsoPath, extPath=newFilePath, source='file' )
 			newFileObj.getData()
 		except Exception as err:
-			print 'Exception during file load;', err
+			print( 'Exception during file load; ' + str(err) )
 			globalData.gui.updateProgramStatus( 'Unable to load file; ' + str(err), error=True )
 			return None
 
@@ -1931,7 +1931,7 @@ class StageManager( ttk.Frame ):
 				msg( 'There are no open slots for this stage. You will need to import over or delete '
 					 'an existing variation. Or modify the stage Swap Details to allow for more variations '
 					 '(multiple variations for non-random-neutral stages are only available for pages 2 through 4).', 'No open stage slots' )
-			globalData.gui.updateProgramStatus( "No empty slots available.", warning=True )
+			globalData.gui.updateProgramStatus( "No empty slots available", warning=True )
 
 			return
 

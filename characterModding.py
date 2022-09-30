@@ -576,13 +576,13 @@ class SubActionEditor( ttk.Frame, object ):
 
 	def saveEventChanges( self, guiEvent ):
 		if not self.subActionStruct:
-			globalData.gui.updateProgramStatus( 'No subAction events struct has been loaded.' )
+			globalData.gui.updateProgramStatus( 'No subAction events struct has been loaded' )
 			return
 		
 		# Construct a new bytearray for .data based on the current events
 		self.subActionStruct.rebuild()
 		if self.subActionStruct.origData == self.subActionStruct.data:
-			globalData.gui.updateProgramStatus( 'No subAction data needs to be saved.' )
+			globalData.gui.updateProgramStatus( 'No subAction data needs to be saved' )
 			return
 		self.subActionStruct.origData = self.subActionStruct.data
 
@@ -591,7 +591,7 @@ class SubActionEditor( ttk.Frame, object ):
 		subActionName = self.getSubActionName( entry[0], self.lastSelection )
 		self.charFile.updateStruct( self.subActionStruct, 'SubAction event data for {} updated'.format(subActionName) )
 
-		globalData.gui.updateProgramStatus( 'These subAction changes have been updated in the character file, but still need to be saved to the disc.' )
+		globalData.gui.updateProgramStatus( 'These subAction changes have been updated in the character file, but still need to be saved to the disc' )
 
 	def reordered( self ):
 

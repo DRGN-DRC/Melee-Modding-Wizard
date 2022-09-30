@@ -183,7 +183,13 @@ class CodeManagerTab( ttk.Frame ):
 			tabWidget = root.nametowidget( tabName )
 
 			if tabWidget.winfo_class() == 'TFrame':
-				modsPanel = tabWidget.winfo_children()[0]
+				modsPanel = tabWidget.winfo_children()[0] # The VSF
+
+				# Detatch the GUI module from the mod object
+				for mod in modsPanel.mods:
+					mod.guiModule = None
+
+				# Delete the GUI module
 				for childWidget in modsPanel.interior.winfo_children(): # Avoiding .clear method to avoid resetting scroll position
 					childWidget.destroy()
 			else:
@@ -198,7 +204,7 @@ class CodeManagerTab( ttk.Frame ):
 		foundMcmFormatting = False
 
 		if currentTab:
-			modsPanel = currentTab.winfo_children()[0]
+			modsPanel = currentTab.winfo_children()[0] # The VSF
 
 			for mod in modsPanel.mods:
 				module = ModModule( modsPanel.interior, mod )
@@ -322,6 +328,7 @@ class CodeManagerTab( ttk.Frame ):
 	def getCurrentTab( self ):
 		
 		""" Returns the currently selected tab in the Mods Library tab, or None if one is not selected. 
+			Recursively scans nested folders (notebooks) until the lowest level tab (a frame) is found. 
 			The returned widget is the upper-most ttk.Frame in the tab (exists for placement purposes), 
 			not the VerticalScrolledFrame. To get that, use .winfo_children()[0] on the returned frame. """
 
@@ -331,7 +338,7 @@ class CodeManagerTab( ttk.Frame ):
 		root = globalData.gui.root
 		selectedTab = root.nametowidget( self.codeLibraryNotebook.select() ) # Will be the highest level tab (either a notebook or placementFrame)
 
-		# If the child widget is not a frame, it's a notebook, meaning this represents a directory, and contains more files/tabs within it.
+		# If the child widget is not a frame, it's a notebook, meaning this represents a directory, and contains more tabs within it
 		while selectedTab.winfo_class() != 'TFrame':
 
 			if selectedTab.tabs() == (): return None
@@ -509,20 +516,11 @@ class CodeManagerTab( ttk.Frame ):
 		#print( '\tThese mods detected as installed:' )
 
 		for mod in globalData.codeMods:
-			# if mod.isAmfs: # Its source path is already a directory
-			# 	parentFolderPath = mod.path
-			# else:
 			parentFolderPath = os.path.dirname( mod.path )
 			parentFolderName = os.path.split( parentFolderPath )[1]
-			#srcFileExt = os.path.splitext( mod.path )[1].lower()
 			
 			# Get a path for this mod, relative to the library root (display core codes as relative to root as well)
-			#if mod.isAmfs and os.path.dirname( parentFolderPath ) == globalData.paths['coreCodes']:
-			if mod.isAmfs and parentFolderPath == globalData.paths['coreCodes']:
-				relPath = ''
-			# elif mod.isAmfs and srcFileExt in ( '.asm', '.s' ):
-			# 	relPath = os.path.relpath( parentFolderPath, self.libraryFolder )
-			elif parentFolderPath == globalData.paths['coreCodes']: # For the "Core Codes.txt" file
+			if parentFolderPath == globalData.paths['coreCodes']: # For the "Core Codes.txt" file
 				relPath = ''
 			elif parentFolderName == mod.category:
 				relPath = ''
@@ -737,9 +735,7 @@ class CodeManagerTab( ttk.Frame ):
 			dolRevision = revisionWindow.region + ' ' + revisionWindow.version
 
 		# Load the DOL for this revision (if one is not already loaded).
-		# This may be needed for formatting the code, in order to calculate RAM addresses
-		# vanillaDol = globalData.getVanillaDol()
-		# if not vanillaDol: return
+		# This may be needed for formatting the code, in order to calculate RAM addresses from DOL offsets
 		try:
 			vanillaDol = globalData.getVanillaDol()
 		except Exception as err:
@@ -754,33 +750,22 @@ class CodeManagerTab( ttk.Frame ):
 		containsSpecialSyntax = []
 		saveString = 'Saved to ' + fileExt[1:].upper()
 
-		#for mod in globalData.codeMods:
+		# Collect Gecko code strings and update the mod/modModule states
 		for tab in self.getAllTabs():
-			guiModules = self.getModModules( tab )
+			for mod in tab.winfo_children()[0].mods:
+				if mod.state == 'enabled' or mod.state == 'pendingEnable':
+					if dolRevision in mod.data:
+						geckoCodeString = mod.buildGeckoString( vanillaDol, createForGCT )
 
-			if guiModules:
-				# Update the GUI modules (this tab must be selected)
-				for guiModule in guiModules:
-					mod = guiModule.mod
-					if mod.state == 'enabled' or mod.state == 'pendingEnable':
-						if dolRevision in mod.data:
-							geckoCodeString = mod.buildGeckoString( vanillaDol, createForGCT )
-
-							if geckoCodeString == '':
-								containsSpecialSyntax.append( mod.name )
-							else:
-								geckoFormattedMods.append( geckoCodeString )
-
-								# Update the mod's status (appearance) so the user knows what was saved
-								guiModule.setState( 'enabled', saveString, updateControlPanelCounts=False )
+						if geckoCodeString == '':
+							containsSpecialSyntax.append( mod.name )
 						else:
-							missingTargetRevision.append( mod.name )
-			else:
-				# Update the internal mod references
-				for mod in tab.winfo_children()[0].mods:
-					if mod.state == 'enabled' or mod.state == 'pendingEnable':
-						mod.state = 'enabled'
-						self.mod.stateDesc = saveString
+							geckoFormattedMods.append( geckoCodeString )
+
+							# Update the mod's status (appearance) so the user knows what was saved
+							mod.setState( 'enabled', saveString, updateControlPanelCounts=False )
+					else:
+						missingTargetRevision.append( mod.name )
 
 		self.updateInstalledModsTabLabel()
 
@@ -984,10 +969,10 @@ class CodeManagerTab( ttk.Frame ):
 						for changeType, address, _, customCodeLines, annotation in codeChangeTuples:
 							# Validate the address
 							if dol:
-								errorMsg = self.normalizeDolOffset( codeChange.offset )[1]
+								errorMsg = dol.normalizeDolOffset( address )[1]
 								if errorMsg:
-									problemMessage = ( 'A problem was detected with an offset, {}, '
-											'for the mod "{}";{}'.format(codeChange.offset, mod.name, errorMsg.split(';')[1]) )
+									problemMessage = ( 'A problem was detected with an address, {}, '
+											'for the mod "{}";{}'.format(address, mod.name, errorMsg.split(';')[1]) )
 									raise Exception( problemMessage )
 
 							# Create a new CodeChange object and attach it to the internal mod module
@@ -1045,9 +1030,9 @@ class CodeManagerTab( ttk.Frame ):
 				0: Success; all selected codes installed or uninstalled
 				1: Unable to restore the DOL (likely no vanilla disc reference)
 				2: One or more selected codes could not be installed or uninstalled
-				3: No selected codes could be installed or uninstalled	
-				4: Mods found with internal conflicts and user canceled operation 
-				5: Operation aborted (clicked Cancel on Gecko Conversion prompt)"""
+				3: No selected codes could be installed or uninstalled
+				4: Operation aborted by user (Mods found with internal conflicts)
+				5: Operation aborted by user (clicked Cancel on Gecko Conversion prompt)"""
 
 		modsToInstall = []
 		modsToUninstall = []
@@ -1055,47 +1040,92 @@ class CodeManagerTab( ttk.Frame ):
 		conflictedMods = []
 		newModsToInstall = False
 
+		offerToConvertGecko = globalData.checkSetting( 'offerToConvertGeckoCodes' )
+
 		tic = time.clock()
 
 		# Scan the library for mods to be installed or uninstalled
 		for mod in globalData.codeMods:
 			if mod.state == 'pendingDisable':
 				modsToUninstall.append( mod )
-			
+
 			elif mod.state == 'pendingEnable':
 				if mod.type == 'gecko':
+					if not offerToConvertGecko:
+						geckoCodesToInstall.append( mod )
+						continue
+
 					# Attempt to convert the Gecko code changes to standard static overwrites and injections
 					newMod = self.convertGeckoCode( mod, globalData.disc.dol )
 
-					# If the operation was successful, use this new mod instead of the original
-					if newMod:
-						mod = newMod
-						# yes = askyesnocancel( 'Gecko Code Conversion', 'The mod {} could be more efficiently stored '
-						# 				'and run in another format, such as in MCM or AMFS format. Would you like to '
-						# 				'save it and use it in that form instead?'.format(mod.name) )
-						# if yes is None: # User clicked Cancel; abort install
-						# 	return 5
-						# elif yes:
-						# 	mod.setState( 'disabled' )
-						# 	newMod.
+					if not newMod: # Unable to convert it; install it as a Gecko code
+						geckoCodesToInstall.append( mod )
+						continue
 
-						# 	# Determine how and where to save the mod
-						# 	userPrompt = PromptHowToSave( self.mod )
-						# 	if not userPrompt.targetPath: return # User canceled
+					# If the conversion was successful, ask the user if they'd like to use this instead of the original
+					yes = tkMessageBox.askyesnocancel( 'Gecko Code Conversion', 'The mod "{}" could be more efficiently stored '
+									'and executed in another format, such as in MCM or AMFS format. Would you like to '
+									'save a copy of it and use it in that form instead?'.format(mod.name) )
 
-						# 	newMod.path = userPrompt.targetPath
-						# 	if userPrompt.storeMini:
-						# 		saveSuccessful = self.mod.saveAsStandaloneFile()
-						# 	elif userPrompt.storeAsAmfs:
-						# 		saveSuccessful = self.mod.saveInAmfsFormat()
-						# 	else:
-						# 		newMod.fileIndex += 1 # Creating a new index below the original since we're inserting it below
-						# 		saveSuccessful = self.mod.saveInMcmFormat( insert=True )
+					if yes is None: # User clicked Cancel; abort install
+						globalData.gui.updateProgramStatus( 'Operation aborted by user', warning=True )
+						return 5
+					elif yes:
+						# Ask how and where to save the new mod
+						userPrompt = PromptHowToSave( newMod )
+						if not userPrompt.targetPath:
+							globalData.gui.updateProgramStatus( 'Operation aborted by user', warning=True )
+							return 5 # User canceled
 
-						# 	if saveSuccessful:
+						newMod.path = userPrompt.targetPath
+						if userPrompt.storeMini:
+							saveSuccessful = newMod.saveAsStandaloneFile()
+						elif userPrompt.storeAsAmfs:
+							saveSuccessful = newMod.saveInAmfsFormat()
+						else: # MCM format
+							if userPrompt.targetPath == newMod.path:
+								# Save the new mod just below the original
+								newMod.fileIndex += 1
+								saveSuccessful = newMod.saveInMcmFormat( insert=True )
+							else:
+								# Append to the end of a different file
+								newMod.fileIndex = -1
+								saveSuccessful = newMod.saveInMcmFormat( userPrompt.targetPath )
 
+						if saveSuccessful:
+							# Enable this new mod and store it with the others that have been parsed
+							newMod.setState( 'pendingEnable' )
+							globalData.codeMods.append( newMod ) # This will then be iterated over by this loop later
+							
+							# Add the new mod to the modsPanel of the original
+							libraryTabs = self.getAllTabs()
+							foundPanel = False
+							for tab in libraryTabs:
+								modsPanel = tab.winfo_children()[0]
 
-					else: # Unable to convert it; install it as a Gecko code
+								# Seek out the original mod, and add the new one just below it
+								for i, _mod in enumerate( modsPanel.mods ):
+									if _mod == mod:
+										modsPanel.mods = modsPanel.mods[:i+1] + [newMod] + modsPanel.mods[i+1:]
+										foundPanel = True
+										break
+								if foundPanel: break
+
+							# Reload the current panel if it's currently in-view
+							currentTab = self.getCurrentTab()
+							if currentTab == tab:
+								self.emptyModsPanels()
+								self.createModModules( currentTab )
+
+							mod.setState( 'disabled' )
+							mod = newMod
+
+						else: # Unable to save the newly converted mod; install the original
+							msg( 'Unable to save the newly converted code. It will be saved to the game as a Gecko code after all.', 'Unable to Save Copy', warning=True )
+							geckoCodesToInstall.append( mod )
+							continue
+
+					else: # User does not wish to convert it; install it as a Gecko code
 						geckoCodesToInstall.append( mod )
 						continue
 
@@ -1119,6 +1149,7 @@ class CodeManagerTab( ttk.Frame ):
 			proceed = tkMessageBox.askyesno( 'Mod Internal Conflicts Detected', 'Some mods were found to have internal conflicts and will not '
 							'be installed. Would you like to proceed with the save without the following codes?\n\n{}'.format(modNames) )
 			if not proceed:
+				globalData.gui.updateProgramStatus( 'Mod internal conflicts found; operation aborted', warning=True )
 				return 4
 
 		modsNotUninstalled = []
@@ -1142,7 +1173,7 @@ class CodeManagerTab( ttk.Frame ):
 			modUninstallCount = len( modsToUninstall )
 
 			if modInstallCount == 0: # None could be installed
-				globalData.gui.updateProgramStatus( 'No code mods could be installed' )
+				globalData.gui.updateProgramStatus( 'No code mods could be installed', warning=True )
 				return 3
 
 		elif modsToUninstall: # If installing new mods, all mods selected for uninstall will automatically be excluded
@@ -1156,7 +1187,7 @@ class CodeManagerTab( ttk.Frame ):
 			modUninstallCount = len( modsToUninstall ) - len( modsNotUninstalled )
 
 			if modUninstallCount == 0: # None could be uninstalled
-				globalData.gui.updateProgramStatus( 'No code mods could be uninstalled' )
+				globalData.gui.updateProgramStatus( 'No code mods could be uninstalled', warning=True )
 				return 3
 
 		else:
@@ -1457,6 +1488,13 @@ class ModModule( Tk.Frame, object ):
 			return
 
 		CodeConfigWindow( self.mod )
+
+	def getParentTab( self ):
+
+		""" Returns the tab this module is attached to; i.e. the child Frame of a Notebook.
+			guiModule -> modsPanel.interior -> modsPanel (VSF) -> Frame -> Notebook """
+
+		return self.master.master.master
 
 
 class CodeConstructor( Tk.Frame ):
@@ -2774,7 +2812,7 @@ class PromptHowToSave( BasicWindow ):
 		emptyWidget = Tk.Frame( self.window, relief='flat' ) # This is used as a simple workaround for the labelframe, so we can have no text label with no label gap.
 		mcmFrame = ttk.Labelframe( self.window, labelwidget=emptyWidget, padding=(20, 4) )
 		ttk.Button( mcmFrame, text='MCM Format', width=16, command=self.choseMCM ).pack( pady=3 )
-		ttk.Label( mcmFrame, wraplength=descBoxWidth-20, foreground='#555555', text='Standard formatting that you would see in MCM library text files. Must store custom code as either assembly (ASM) source code OR assembled hex. Custom codes stored as ASM will have slightly slower installation times.' ).pack()
+		ttk.Label( mcmFrame, wraplength=descBoxWidth-20, foreground='#555555', text='Standard formatting that you would see in MCM library text files. Must store custom code as either assembly (ASM) source code or assembled hex. Custom codes stored as ASM will have slightly slower installation times.' ).pack()
 		mcmFrame.grid( column=1, row=1, sticky='ew', pady=6, padx=8 )
 
 		emptyWidget = Tk.Frame( self.window, relief='flat' ) # This is used as a simple workaround for the labelframe, so we can have no text label with no label gap.
@@ -2813,7 +2851,7 @@ class PromptHowToSave( BasicWindow ):
 
 			if overwrite:
 				self.storeMini = True
-				self.targetPath = newFilePath
+				self.targetPath = os.path.normpath( newFilePath ) # Normalizes slashes
 
 		self.close()
 
@@ -2833,7 +2871,7 @@ class PromptHowToSave( BasicWindow ):
 			targetFolder = os.path.dirname( targetFile )
 			globalData.setLastUsedDir( targetFolder, 'codeLibrary' )
 
-			self.targetPath = targetFile
+			self.targetPath = os.path.normpath( targetFile ) # Normalizes slashes
 
 		self.close()
 

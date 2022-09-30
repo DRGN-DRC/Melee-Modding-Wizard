@@ -90,6 +90,7 @@ def init( programArgs ):
 		'createHiResCSPs': '0',
 		'disableMainMenuAnimations': '0',
 		'useCodeCache': '1',
+		'offerToConvertGeckoCodes': '1',
 	}
 	# regionOverwriteDefaults = {
 	# 	'Common Code Regions': True,

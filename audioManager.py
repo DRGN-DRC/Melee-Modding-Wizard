@@ -66,7 +66,7 @@ def getHpsFile( windowParent=None, isoPath='' ):
 		# Prompt the user to specify a loop point
 		loopEditorWindow = LoopEditorWindow( 'Loop Configuration' )
 		if loopEditorWindow.loopArg == 'cancel': # User may have canceled the operation
-			globalData.gui.updateProgramStatus( 'The operation was canceled.' )
+			globalData.gui.updateProgramStatus( 'The operation was canceled' )
 			return None
 
 		# Get the path to the converter executable and construct the output hps filepath
@@ -91,8 +91,8 @@ def getHpsFile( windowParent=None, isoPath='' ):
 		newFileObj.getData()
 		return newFileObj
 	except Exception as err:
-		print( 'Exception during file initialization;'.format(err) )
-		globalData.gui.updateProgramStatus( 'Unable to replace the file; ' + str(err), error=True )
+		print( 'Exception during file initialization; {}'.format(err) )
+		globalData.gui.updateProgramStatus( 'Unable to replace the file; {}'.format(err), error=True )
 		return None
 
 
@@ -449,9 +449,9 @@ class AudioManager( ttk.Frame ):
 		globalData.setLastUsedDir( directoryPath, 'hps' )
 
 		if successful:
-			globalData.gui.updateProgramStatus( 'File exported successfully.', success=True )
+			globalData.gui.updateProgramStatus( 'File exported successfully', success=True )
 		else:
-			globalData.gui.updateProgramStatus( 'Unable to export.', error=True )
+			globalData.gui.updateProgramStatus( 'Unable to export', error=True )
 
 	def importTrack( self ):
 
