@@ -1575,6 +1575,12 @@ class CodeLibraryParser():
 		self.modNames = set()
 		self.codeMods = []
 
+		# Preliminary check for the Gecko codehandler (there's still a try/catch when reading this later)
+		if os.path.exists( globalData.paths['codehandler'] ):
+			self.codehandlerFound = True
+		else:
+			self.codehandlerFound = False
+
 	def processDirectory( self, folderPath ):
 
 		""" Starting point for processing a Code Library. Recursively processes sub-folders. """
@@ -2109,13 +2115,14 @@ class CodeLibraryParser():
 		""" Store the given mod, and perfom some basic validation on it. """
 		
 		if not mod.data:
-			#mod.state = 'unavailable'
 			mod.stateDesc = 'Missing mod data'
 			mod.errors.add( 'Missing mod data; may be defined incorrectly' )
 		elif mod.name in self.modNames:
-			#mod.state = 'unavailable'
 			mod.stateDesc = 'Duplicate mod'
 			mod.errors.add( 'Duplicate mod; more than one by this name in library' )
+		elif mod.type == 'gecko' and not self.codehandlerFound:
+			mod.stateDesc = 'Missing codehandler'
+			mod.errors.add( 'The Gecko codehandler.bin file could not be found' )
 
 		self.codeMods.append( mod )
 		self.modNames.add( mod.name )

@@ -63,7 +63,8 @@ def init( programArgs ):
 		'coreCodes': os.path.join( scriptHomeFolder, 'bin', 'Core Codes' ),
 		'xDelta': os.path.join( scriptHomeFolder, 'bin', 'xdelta3-3.0.11-x86_64.exe' ), # todo: make this dynamic
 		'maps': os.path.join( scriptHomeFolder, 'bin', 'maps' ),
-		'charDataTranslations': os.path.join( scriptHomeFolder, 'bin', 'CharDataTranslations.json' )
+		'charDataTranslations': os.path.join( scriptHomeFolder, 'bin', 'CharDataTranslations.json' ),
+		'codehandler': os.path.join( scriptHomeFolder, 'bin', 'codehandler.bin' ),
 	}
 
 	# These are default settings if they are not defined in the user's settings.ini file

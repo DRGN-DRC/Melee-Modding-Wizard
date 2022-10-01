@@ -51,6 +51,20 @@ def roundTo32( x, base=32 ):
 	return int( base * math.ceil(float(x) / base) )
 
 
+def padToNearest( data, alignment=4 ):
+	
+	""" Adds padding to the given data (a bytearray), to 
+		ensure it's a multiple of the given number of bytes. 
+		Default alignment is the next multiple of 4 bytes.
+		Returns the new data with padding added. """
+
+	remainder = len( data ) % alignment
+	if remainder: # Non-0
+		data += bytearray( alignment - remainder )
+	
+	return data
+
+
 def allAreEqual( iterator ):
 
 	""" Checks whether all values in an array are the same. """

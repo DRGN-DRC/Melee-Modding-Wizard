@@ -1036,7 +1036,7 @@ class CodeManagerTab( ttk.Frame ):
 
 		modsToInstall = []
 		modsToUninstall = []
-		geckoCodesToInstall = []
+		#geckoCodesToInstall = []
 		conflictedMods = []
 		newModsToInstall = False
 
@@ -1046,100 +1046,107 @@ class CodeManagerTab( ttk.Frame ):
 
 		# Scan the library for mods to be installed or uninstalled
 		for mod in globalData.codeMods:
-			if mod.state == 'pendingDisable':
+			if mod.state == 'disabled':
+				continue
+
+			elif mod.state == 'pendingDisable':
 				modsToUninstall.append( mod )
+				continue
 
 			elif mod.state == 'pendingEnable':
-				if mod.type == 'gecko':
-					if not offerToConvertGecko:
-						geckoCodesToInstall.append( mod )
-						continue
+				newModsToInstall = True
+
+				if mod.type == 'gecko' and offerToConvertGecko:
+					# if not offerToConvertGecko:
+					# 	geckoCodesToInstall.append( mod )
+					# 	continue
 
 					# Attempt to convert the Gecko code changes to standard static overwrites and injections
 					newMod = self.convertGeckoCode( mod, globalData.disc.dol )
 
-					if not newMod: # Unable to convert it; install it as a Gecko code
-						geckoCodesToInstall.append( mod )
-						continue
+					if newMod: # Unable to convert it; install it as a Gecko code
+						# geckoCodesToInstall.append( mod )
+						# continue
 
-					# If the conversion was successful, ask the user if they'd like to use this instead of the original
-					yes = tkMessageBox.askyesnocancel( 'Gecko Code Conversion', 'The mod "{}" could be more efficiently stored '
-									'and executed in another format, such as in MCM or AMFS format. Would you like to '
-									'save a copy of it and use it in that form instead?'.format(mod.name) )
+						# If the conversion was successful, ask the user if they'd like to use this instead of the original
+						yes = tkMessageBox.askyesnocancel( 'Gecko Code Conversion', 'The mod "{}" could be more efficiently stored '
+										'and executed in another format, such as in MCM or AMFS format. Would you like to '
+										'save a copy of it and use it in that form instead?'.format(mod.name) )
 
-					if yes is None: # User clicked Cancel; abort install
-						globalData.gui.updateProgramStatus( 'Operation aborted by user', warning=True )
-						return 5
-					elif yes:
-						# Ask how and where to save the new mod
-						userPrompt = PromptHowToSave( newMod )
-						if not userPrompt.targetPath:
+						if yes is None: # User clicked Cancel; abort install
 							globalData.gui.updateProgramStatus( 'Operation aborted by user', warning=True )
-							return 5 # User canceled
+							return 5
+						elif yes:
+							# Ask how and where to save the new mod
+							userPrompt = PromptHowToSave( newMod )
+							if not userPrompt.targetPath:
+								globalData.gui.updateProgramStatus( 'Operation aborted by user', warning=True )
+								return 5 # User canceled
 
-						newMod.path = userPrompt.targetPath
-						if userPrompt.storeMini:
-							saveSuccessful = newMod.saveAsStandaloneFile()
-						elif userPrompt.storeAsAmfs:
-							saveSuccessful = newMod.saveInAmfsFormat()
-						else: # MCM format
-							if userPrompt.targetPath == newMod.path:
-								# Save the new mod just below the original
-								newMod.fileIndex += 1
-								saveSuccessful = newMod.saveInMcmFormat( insert=True )
-							else:
-								# Append to the end of a different file
-								newMod.fileIndex = -1
-								saveSuccessful = newMod.saveInMcmFormat( userPrompt.targetPath )
+							newMod.path = userPrompt.targetPath
+							if userPrompt.storeMini:
+								saveSuccessful = newMod.saveAsStandaloneFile()
+							elif userPrompt.storeAsAmfs:
+								saveSuccessful = newMod.saveInAmfsFormat()
+							else: # MCM format
+								if userPrompt.targetPath == newMod.path:
+									# Save the new mod just below the original
+									newMod.fileIndex += 1
+									saveSuccessful = newMod.saveInMcmFormat( insert=True )
+								else:
+									# Append to the end of a different file
+									newMod.fileIndex = -1
+									saveSuccessful = newMod.saveInMcmFormat( userPrompt.targetPath )
 
-						if saveSuccessful:
-							# Enable this new mod and store it with the others that have been parsed
-							newMod.setState( 'pendingEnable' )
-							globalData.codeMods.append( newMod ) # This will then be iterated over by this loop later
-							
-							# Add the new mod to the modsPanel of the original
-							libraryTabs = self.getAllTabs()
-							foundPanel = False
-							for tab in libraryTabs:
-								modsPanel = tab.winfo_children()[0]
+							if saveSuccessful:
+								# Enable this new mod and store it with the others that have been parsed
+								newMod.setState( 'pendingEnable' )
+								globalData.codeMods.append( newMod ) # This will then be iterated over by this loop later
+								
+								# Add the new mod to the modsPanel of the original
+								libraryTabs = self.getAllTabs()
+								foundPanel = False
+								for tab in libraryTabs:
+									modsPanel = tab.winfo_children()[0]
 
-								# Seek out the original mod, and add the new one just below it
-								for i, _mod in enumerate( modsPanel.mods ):
-									if _mod == mod:
-										modsPanel.mods = modsPanel.mods[:i+1] + [newMod] + modsPanel.mods[i+1:]
-										foundPanel = True
-										break
-								if foundPanel: break
+									# Seek out the original mod, and add the new one just below it
+									for i, _mod in enumerate( modsPanel.mods ):
+										if _mod == mod:
+											modsPanel.mods = modsPanel.mods[:i+1] + [newMod] + modsPanel.mods[i+1:]
+											foundPanel = True
+											break
+									if foundPanel: break
 
-							# Reload the current panel if it's currently in-view
-							currentTab = self.getCurrentTab()
-							if currentTab == tab:
-								self.emptyModsPanels()
-								self.createModModules( currentTab )
+								# Reload the current panel if it's currently in-view
+								currentTab = self.getCurrentTab()
+								if currentTab == tab:
+									self.emptyModsPanels()
+									self.createModModules( currentTab )
 
-							mod.setState( 'disabled' )
-							mod = newMod
+								mod.setState( 'disabled' )
+								mod = newMod
 
-						else: # Unable to save the newly converted mod; install the original
-							msg( 'Unable to save the newly converted code. It will be saved to the game as a Gecko code after all.', 'Unable to Save Copy', warning=True )
-							geckoCodesToInstall.append( mod )
-							continue
+				# 		else: # Unable to save the newly converted mod; install the original
+				# 			msg( 'Unable to save the newly converted code. It will be saved to the game as a Gecko code after all.', 'Unable to Save Copy', warning=True )
+				# 			geckoCodesToInstall.append( mod )
+				# 			continue
 
-					else: # User does not wish to convert it; install it as a Gecko code
-						geckoCodesToInstall.append( mod )
-						continue
+				# 	else: # User does not wish to convert it; install it as a Gecko code
+				# 		geckoCodesToInstall.append( mod )
+				# 		continue
 
-				if mod.assessForConflicts():
-					conflictedMods.append( mod )
-				else:
-					modsToInstall.append( mod )
-					newModsToInstall = True
+				# if mod.assessForConflicts():
+				# 	conflictedMods.append( mod )
+				# else:
+				# 	modsToInstall.append( mod )
+				# 	newModsToInstall = True
 
-			elif mod.state == 'enabled':
-				if mod.assessForConflicts():
-					conflictedMods.append( mod )
-				else:
-					modsToInstall.append( mod )
+			#elif mod.state == 'enabled':
+			
+			if mod.assessForConflicts():
+				conflictedMods.append( mod )
+			else:
+				modsToInstall.append( mod )
 
 		toc = time.clock()
 		print( 'time to check for conflicts:', toc-tic )
@@ -1154,7 +1161,6 @@ class CodeManagerTab( ttk.Frame ):
 
 		modsNotUninstalled = []
 		modsNotInstalled = []
-		geckoCodesNotInstalled = []
 		modInstallCount = 0
 		modUninstallCount = 0
 
@@ -1192,16 +1198,6 @@ class CodeManagerTab( ttk.Frame ):
 
 		else:
 			print( 'no code changes to be made' )
-
-		if geckoCodesToInstall:
-			print( 'skipping installation of these Gecko codes: ' + str([mod.name for mod in geckoCodesToInstall]) )
-		# 	globalData.updateProgramStatus( 'Installing {} Gecko codes'.format(len(geckoCodesToInstall)) )
-		# 	geckoCodesNotInstalled = globalData.disc.installGeckoCodes( geckoCodesToInstall )
-
-		# if modsNotUninstalled or modsNotInstalled or geckoCodesNotInstalled:
-		# 	problematicMods = modsNotUninstalled + modsNotInstalled + geckoCodesNotInstalled
-
-		# 	msg( '{} code mods installed. However, these mods could not be installed:\n\n{}'.format(len(), '\n'.join(problematicMods)) )
 
 		# Build a message to be displayed in the program's status bar
 		statusMsg = ''

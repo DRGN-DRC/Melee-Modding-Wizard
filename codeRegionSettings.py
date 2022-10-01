@@ -113,26 +113,9 @@ customCodeRegions = OrderedDict([
 ])
 
 
-# The Gecko hook (set below) intercepts the game's normal execution to point to the Gecko Codehandler with a standard branch.
-# Warning: do not change the hook offsets unless you've first fully uninstalled all Gecko codes from your game.
-# Otherwise, the old hook will still remain in your game, and your game will not run unless you manually remove it.
-#
-# If the regions used for the codelist or codehandler are changed, the next time you open the program and game/DOL,
-# any previously installed Gecko codes will not be detected (because the program will be looking in the new region for 
-# them), however their code will still be present in the same place as they were before. So you will need to reselect
-# and save the mods that you'd like to be installed. And if you want the code in the old regions to be retuned the game's
-# original/vanilla hex, use the "Restore" buttons found in the Code-Space Options window (located in the Mods Library tab).
-# 
-# Note that if Gecko codes are used, the codelist/codehandler will be placed at the start of their respective region,
-# defined below. As you can see in the customCodeRegions definitions above, a single region may be one contiguous area, 
-# or a collection of several areas. However, any region set for the Gecko codelist or codehandler will only use the first 
-# area if there are multiple. The extra space left over in that region may still be used for standard injection mod code 
-# and/or standalone functions.
-# geckoConfiguration = {
-# 	'hookOffsets': { 'NTSC 1.02': 0x3738E0, 'NTSC 1.01': 0x372c00, 'NTSC 1.00': 0x371a2c, 'PAL 1.00': 0x3737e4 },
-# 	'codehandlerRegion': 'Tournament Mode Region, P1', # If Gecko codes are used, the codehandler will be placed at the start of this region (must exist in customCodeRegions)
-# 	'codelistRegion': 'Tournament Mode Region, P2' # If Gecko codes are used, the codelist will be placed at the start of this region (must exist in customCodeRegions)
-# }
-# Recommended defaults:
-#	Tournament Mode Region, P2 for the codelist, because it is the largest contiguous area
-#	Tournament Mode Region, P1 for the codehandler (Aux Code Regions is a good alternative, but you will lose use of the "Enable OSReport Print on Crash" code)
+# The Gecko hook (set below) intercepts the game's normal execution to point to the Gecko Codehandler 
+# (if Gecko codes are installed) with a standard branch. Do not change the hook offsets unless you've 
+# first fully uninstalled all Gecko codes from your game. Otherwise, the old hook will still remain in 
+# your game, and your game will not run unless you manually remove it.
+# These all correspond to offsets within the DOL.
+geckoHookOffsets = { 'NTSC 1.02': 0x80376D00, 'NTSC 1.01': 0x80376020, 'NTSC 1.00': 0x80374E4C, 'PAL 1.00': 0x80376C04 }
