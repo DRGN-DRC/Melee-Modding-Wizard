@@ -150,8 +150,8 @@ class Dol( FileBase ):
 
 		self._musicFilePointers = ()
 		self._stageInfoStructPointers = ()
-		self._externalCodelistData = ()
-		self._externalInjectionData = ()
+		# self._externalCodelistData = ()
+		# self._externalInjectionData = ()
 
 		self.project = -1
 		self.major = -1
@@ -292,7 +292,7 @@ class Dol( FileBase ):
 			apparentRegion, apparentVersion = normalizeRegionString( customVersionString ).split() # Should never return 'ALL' in this case
 
 			if ( apparentRegion == 'NTSC' or apparentRegion == 'PAL' ) and apparentVersion.find( '.' ) != -1:
-				print 'DOL revision determined from metadata:', self.region, self.version
+				print( 'DOL revision determined from metadata: {} {}'.format(self.region, self.version) )
 				self.region, self.version = apparentRegion, apparentVersion
 		
 		if self.region and self.version:
@@ -403,7 +403,7 @@ class Dol( FileBase ):
 			msg( 'Invalid input for branch calculation: "from" value (' + hex(fromDOL) + ') is out of range.' )
 			return -1
 		elif end == -1:
-			msg( 'Invalid input for branch calculation: "to" value (' + hex(toDOL) + ') is out of range.' ) #.\n\nTarget DOL Offset: ' + hex(toDOL) )
+			msg( 'Invalid input for branch calculation: "to" value (' + hex(toDOL) + ') is out of range.' )
 			return -1
 		else:
 			return end - start
@@ -541,7 +541,7 @@ class Dol( FileBase ):
 			hex track IDs (bit 0x10000 set), which are not equivalent. """
 		
 		if musicId < 0 or musicId > 0x62:
-			print 'Invalid music ID given to getMusicFilename(): ' + hex( musicId )
+			print( 'Invalid music ID given to getMusicFilename(): ' + hex(musicId) )
 			return ''
 
 		# Get the pointer for the string name from the pointer table
@@ -575,7 +575,7 @@ class Dol( FileBase ):
 				return self._musicFilePointers.index( pointer )
 
 		else: # The loop above didn't break; filename not found
-			print 'Dol.getMusicId() unable to look up musicId for "{}"'.format( filename )
+			print( 'Dol.getMusicId() unable to look up musicId for "{}"'.format(filename) )
 			return -1
 
 	def getStageFileName( self, internalStageId, forceExtension=True, defaultToUsd=True ):
@@ -591,7 +591,7 @@ class Dol( FileBase ):
 			(i.e. .usd vs .dat), the file extension will not be included unless forceExtension is True. """
 
 		if internalStageId <= 0 or internalStageId >= 0x6F:
-			print 'Invalid index to stage file name look-up: ' + hex(internalStageId)
+			print( 'Invalid index to stage file name look-up: ' + hex(internalStageId) )
 			return -1, ''
 
 		# Unpack all of the pointers to the stage table structs
@@ -600,7 +600,7 @@ class Dol( FileBase ):
 			pointerTableData = self.getData( 0x3DCEDC, 0x6F*4 )
 			self._stageInfoStructPointers = struct.unpack( '>111I', pointerTableData )
 			toc = time.clock()
-			print 'time to unpack stage info struct:', toc-tic
+			print( 'time to unpack stage info struct: ' + str(toc-tic) )
 
 		structOffset = self.offsetInDOL( self._stageInfoStructPointers[internalStageId] )
 
@@ -653,13 +653,13 @@ class Dol( FileBase ):
 
 					# Check that the region start is within the DOL's code or data sections
 					elif regionStart < 0x100 or regionStart >= self.maxDolOffset:
-						print "Region start (0x{:X}) for {} is outside of the DOL's code/data sections.".format( regionStart, regionName )
+						print( "Region start (0x{:X}) for {} is outside of the DOL's code/data sections.".format(regionStart, regionName) )
 						incompatibleRegions.append( regionName )
 						break
 
 					# Check that the region end is within the DOL's code or data sections
 					elif regionEnd > self.maxDolOffset:
-						print "Region end (0x{:X}) for {} is outside of the DOL's code/data sections.".format( regionEnd, regionName )
+						print( "Region end (0x{:X}) for {} is outside of the DOL's code/data sections.".format(regionEnd, regionName) )
 						incompatibleRegions.append( regionName )
 						break
 
@@ -721,82 +721,6 @@ class Dol( FileBase ):
 
 		return ( inEnabledRegion, regionNameFoundIn )
 
-	# def codeMatches( self, codeToMatch, freeSpaceCodeArea, offset ):
-
-	# 	sectionLength = len( codeToMatch ) / 2
-		
-	# 	codeInDol = freeSpaceCodeArea[offset:offset+sectionLength]
-
-	# 	if bytearray.fromhex( codeToMatch ) != codeInDol: # Comparing bytearrays rather than strings prevents worrying about upper/lower-case
-	# 		return -1 # Mismatch detected, meaning this is not the same (custom) code in the DOL.
-	# 	else:
-	# 		return offset
-
-
-	# def compareCustomOptionCode( self, section, sectionStart, freeSpaceCodeArea, isAssembly, mod ):
-
-	# 	""" Parses a section of custom code for its non-option/value parts, and compares 
-	# 		them to what's in the DOL to see if the code matches and is installed. """
-
-	# 	section = section[5:]
-	# 	sectionChunks = section.split( '[[' )
-
-	# 	if isAssembly: # This is expected to be one ASM command. Just use the opCode to compare
-	# 		# Substitute name placeholders for values for the assembly process
-	# 		for i, chunk in enumerate( sectionChunks ):
-	# 			if ']]' in chunk:# Contains a config/variable name and maybe other code
-	# 				optName, theRest = chunk.split( ']]' )
-	# 				sectionChunks[i] = chunk.replace( optName + ']]', '0' )
-
-	# 		assemblyCode = ''.join( sectionChunks )
-	# 		conversionOutput, errors = globalData.codeProcessor.assemble( assemblyCode, False, mod.includePaths, True, False )
-	# 		if errors:
-	# 			return False
-			
-	# 		# Compare the opCode of the assembled code and the code in the DOL
-	# 		hexCode = bytearray.fromhex( conversionOutput )
-	# 		codeInDol = freeSpaceCodeArea[sectionStart:sectionStart+4]
-	# 		if hexCode[0] == codeInDol[0]:
-	# 			return True
-	# 		else:
-	# 			return False
-		
-	# 	else: # Processing hex code
-	# 		sectionPos = 0 # Offset/position within this section
-
-	# 		for chunk in sectionChunks:
-	# 			if ']]' in chunk: # Contains a config/variable name and maybe other code
-	# 				_, chunk = chunk.split( ']]' )
-
-	# 				# Return True if there are any non-hex characters (meaning assembly was found)
-	# 				# if not theRest: pass # Empty string
-	# 				# else:
-	# 				# 	chunkLength = len( theRest ) / 2
-
-	# 				# 	# Check for DOL code mismatch
-	# 				# 	dolChunkStart = sectionStart + sectionPos
-	# 				# 	dolChunk = freeSpaceCodeArea[dolChunkStart:dolChunkStart+chunkLength]
-	# 				# 	if bytearray.fromhex( theRest ) != dolChunk:
-	# 				# 		return False
-
-	# 				# 	sectionPos += chunkLength
-				
-	# 			# No config/variable name in this chunk; expected to be hex at this point.
-	# 			if not chunk: pass # Empty string
-	# 			else:
-	# 				chunkLength = len( chunk ) / 2
-
-	# 				# Check for DOL code mismatch
-	# 				dolChunkStart = sectionStart + sectionPos
-	# 				dolChunk = freeSpaceCodeArea[dolChunkStart:dolChunkStart+chunkLength]
-	# 				print 'comparing', chunk, 'to', hexlify( dolChunk )
-	# 				if bytearray.fromhex( chunk ) != dolChunk:
-	# 					return False
-
-	# 				sectionPos += chunkLength
-
-	# 		return True
-
 	@staticmethod
 	def getOptionWidth( optionType ):
 
@@ -811,26 +735,29 @@ class Dol( FileBase ):
 		else:
 			return -1
 
-	def findCustomCode( self, mod, codeChange, freeSpaceCodeArea ):
+	def findCustomCode( self, mod, codeChange, searchArea ):
 
-		""" Occurs with Gecko codes and standalone functions, since we may not have a branch to locate them.
-			This is the first normal (non-special-branch) section for this code. Since the offset is unknown,
-			use the given section to find all possible locations/matches for this code within the region. """
+		""" Searches for custom code from the given code change within the given search area (code from 
+			custom code regions) and returns the offset of matching code. This is used to search for Gecko 
+			codes and standalone functions, since we won't have a branch to locate them. """
 		
 		customCode = codeChange.preProcessedCode
 		if not customCode: # Pre-processing may have failed
 			return -1
-			
+		
+		# If no custom syntax is used in this code, check for it as one block
 		elif not codeChange.syntaxInfo:
-			matches = findAll( freeSpaceCodeArea, bytearray.fromhex(customCode), charIncrement=1 ) # charIncrement set to 1 in order to increment by byte
+			matches = findAll( searchArea, bytearray.fromhex(customCode), charIncrement=1 ) # charIncrement set to 1 in order to increment by byte
 			
 			if matches:
-				return True
+				if len( matches ) > 1:
+					print( 'Warning: Found multiple matches of {} code change at 0x{:X}.'.format(mod.name, codeChange.offset))
+				return matches[0]
 			else:
-				return False
+				return -1
 
+		# Check for blocks of code separated by custom syntaxes
 		readOffset = 0
-
 		for syntaxOffset, length, _, _, _ in codeChange.syntaxInfo:
 
 			# Check for and process custom code preceding this custom syntax instance
@@ -840,13 +767,13 @@ class Dol( FileBase ):
 
 				codeSection = customCode[readOffset:syntaxOffset]
 				
-				matches = findAll( freeSpaceCodeArea, bytearray.fromhex(codeSection), charIncrement=1 ) # charIncrement set to 1 in order to increment by byte
+				matches = findAll( searchArea, bytearray.fromhex(codeSection), charIncrement=1 ) # charIncrement set to 1 in order to increment by byte
 
 				# Iterate over the possible locations/matches, and check if each may be the code we're looking for (note that starting offsets will be known in these checks)
 				for matchingOffset in matches:
 					codeStart = matchingOffset - readOffset # Accomodates for potential preceding special branches
 
-					if self.customCodeInDOL( mod, codeChange, codeStart, freeSpaceCodeArea ):
+					if self.customCodeInDOL( mod, codeChange, codeStart, searchArea ):
 						return codeStart
 				else: # Loop above didn't return; no matches for this section found in the given code area
 					return -1
@@ -855,23 +782,11 @@ class Dol( FileBase ):
 
 		return 0 # If this is reached, the custom code is entirely special syntaxes; going to have to assume installed. todo: fix
 
-	#def getMask( self, syntaxInfo, mod ):
+	def customCodeInDOL( self, mod, codeChange, startingOffset, searchArea, excludeLastCommand=False ):
 
-	# def parseConfigurationOption( self, syntaxInfo, mod ):
-
-	# 	for syntaxOffset, length, syntaxType, codeLine, names in syntaxInfo:
-	# 		for name in names:
-	# 			optionDict = mod.getConfiguration( name )
-
-	def customCodeInDOL( self, mod, codeChange, startingOffset, freeSpaceCodeArea, excludeLastCommand=False ):
-
-		""" Checks if the given custom code (a hex string) is installed within the given code area (a bytearray).
-			Essentially tries to mismatch any of a code change's custom code with the custom code in the DOL. Besides simply
-			checking injection site code, this can check custom injection code, even if it includes unknown special branch syntaxes.
-
-			This is much more reliable than simply checking whether the hex at an injection site is vanilla or not because it's 
-			possible that more than one mod could target the same location (so we have to see which mod the installed custom code 
-			belongs to). If custom code is mostly or entirely composed of custom syntaxes, we'll have to give it the benefit of the 
+		""" Checks if custom code from the given code change is installed within the given code area. 
+			Essentially tries to mismatch any of a code change's custom code with code currently in the DOL. 
+			If custom code is mostly or entirely composed of custom syntaxes, we'll have to give it the benefit of the 
 			doubt and assume it's installed (since at this point there is no way to know what bytes a custom syntax may resolve to). """
 
 		customCode = codeChange.preProcessedCode
@@ -886,7 +801,7 @@ class Dol( FileBase ):
 
 		# With no custum syntax, there is just one chunk of code to compare
 		if not codeChange.syntaxInfo:
-			codeInDol = freeSpaceCodeArea[startingOffset:startingOffset+codeLength]
+			codeInDol = searchArea[startingOffset:startingOffset+codeLength]
 
 			if bytearray.fromhex( customCode ) == codeInDol: # Comparing via bytearrays rather than strings prevents worrying about upper/lower-case
 				return True
@@ -905,7 +820,7 @@ class Dol( FileBase ):
 				assert sectionLength > 0, 'Read position error in .customCodeInDOL()! Read offset: {}, Next syntax offset: {}'.format( readOffset, syntaxOffset )
 				
 				codeSection = customCode[readOffset*2:syntaxOffset*2] # Splicing a string, so *2 to splice by bytes rather than nibbles
-				codeInDol = freeSpaceCodeArea[dolCodeStart:dolCodeEnd]
+				codeInDol = searchArea[dolCodeStart:dolCodeEnd]
 				test = hexlify( codeInDol )
 
 				# Check whether the custom code is in the same as what's currently in the DOL
@@ -928,7 +843,7 @@ class Dol( FileBase ):
 					valueOffset = startingOffset + syntaxOffset # Need an absolute DOL offset. The option offset is relative to the code start
 					readOffset += length
 
-				codeInDol = freeSpaceCodeArea[valueOffset:valueOffset+length]
+				codeInDol = searchArea[valueOffset:valueOffset+length]
 
 				if len( names ) == 1:
 					optionDict = mod.getConfiguration( names[0] )
@@ -980,7 +895,7 @@ class Dol( FileBase ):
 
 			# else:
 			# 	sectionLength = len( section ) / 2
-			# 	codeInDol = freeSpaceCodeArea[readOffset:readOffset+sectionLength]
+			# 	codeInDol = searchArea[readOffset:readOffset+sectionLength]
 
 			# 	if bytearray.fromhex( section ) != codeInDol: # Comparing bytearrays rather than strings prevents worrying about upper/lower-case
 			# 		matchOffset = -1
@@ -995,7 +910,7 @@ class Dol( FileBase ):
 			dolCodeStart = startingOffset + readOffset
 			dolCodeEnd = dolCodeStart + sectionLength
 
-			codeInDol = freeSpaceCodeArea[dolCodeStart:dolCodeEnd]
+			codeInDol = searchArea[dolCodeStart:dolCodeEnd]
 
 			# Check whether the custom code is in the same as what's currently in the DOL
 			if not bytearray.fromhex( codeSection ) == codeInDol: # Comparing via bytearrays rather than strings prevents worrying about upper/lower-case
@@ -1011,11 +926,11 @@ class Dol( FileBase ):
 		self.load()
 
 		#clearSummaryTab() # Clears the summary tab's lists of installed mods/SFs.
-		allEnabledCodeRegions = self.getCustomCodeRegions()
+		codeRegions = self.getCustomCodeRegions( True )
 
 		# Preliminary attempts to get injection code and gecko code data external to the dol (from gecko.bin/codes.bin)
-		self._externalCodelistData = self.disc.getGeckoData()
-		self._externalInjectionData = self.disc.getInjectionData()
+		# self._externalCodelistData = self.disc.getGeckoData()
+		# self._externalInjectionData = self.disc.getInjectionData()
 
 		standaloneFunctionsInstalled = set()
 		functionOnlyModules = [] # Remember some info on modules composed of only standalone functions
@@ -1089,7 +1004,7 @@ class Dol( FileBase ):
 						included = False
 					else:
 						# Check whether this overwrite would land in an area reserved for custom code. If so, assume it should be disabled.
-						for codeRegion in allEnabledCodeRegions:
+						for codeRegion in codeRegions:
 							if offset >= codeRegion[0] and offset < codeRegion[1]:
 								included = False
 								break
@@ -1114,44 +1029,61 @@ class Dol( FileBase ):
 						inEnabledRegion, regionNameFoundIn = self.offsetInEnabledRegions( customCodeOffset )
 
 						if inEnabledRegion:
-							# matchOffset = self.customCodeInDOL( mod, codeChange, customCodeOffset, self.data, excludeLastCommand=True ) #todo narrow search field to improve performance
-
-							# # If there was a good match on the custom code, remember where this code change is for a summary on this mod's installation
-							# if matchOffset == -1: included = False
 							if not self.customCodeInDOL( mod, codeChange, customCodeOffset, self.data, excludeLastCommand=True ): #todo narrow search field to improve performance?
 								included = False
 							else:
+								# Remember where this code change is for a summary on this mod's installation
 								summaryReport.append( ('Branch', 'static', offset, 4) ) # changeName, changeType, dolOffset, changeLength
 								summaryReport.append( ('Injection code', codeChange.type, customCodeOffset, codeChange.length) )
 
 						else:
 							included = False
-							print '\nPossible phantom mod;', mod.name, 'may have custom code installed to a disabled region: "' + regionNameFoundIn + '"'
-							print 'it was led to by an injection point hex of', injectionPointCode, 'at', hex(offset), 'which points to DOL offset', hex(customCodeOffset)
+							print( '\nPossible phantom mod; {} may have custom code installed to a disabled region: "{}"'.format(mod.name, regionNameFoundIn) )
+							print( 'It was led to by an injection point hex of {} at 0x{:X} which points to DOL offset 0x{:X}'.format(injectionPointCode, offset, customCodeOffset) )
 
 							if regionNameFoundIn != '':
 								if regionNameFoundIn not in requiredDisabledRegions:
 									requiredDisabledRegions.append( regionNameFoundIn )
 							else:
-								print 'Custom code at', hex(offset), 'seems to be pointing to a region not defined for custom code!'
+								print( 'Custom code at 0x{:X} seems to be pointing to a region not defined for custom code!'.format(offset) )
 
 				elif codeChange.type == 'gecko':
 					codeChange.evaluate()
 					# if not gecko.environmentSupported: # These aren't available for this DOL
 					# 	included = False
-					if not self._externalCodelistData: # Not installed
-						included = False
+					# if not self._externalCodelistData: # Not installed
+					# 	included = False
 
-					else: # Check if the code is installed (present in the codelist area)
-						matchOffset = self.findCustomCode( mod, codeChange, self._externalCodelistData )
+					# else: # Check if the code is installed (present in the codelist area)
+						#matchOffset = self.findCustomCode( mod, codeChange, self._externalCodelistData )
 
-						if matchOffset == -1: # Code not found in the DOL
-							included = False
+					# Scan all regions for the code (even disabled ones)
+					matchOffset = -1
+					regionNameFoundIn = ''
+					for regionStart, regionEnd, regionNameFoundIn in codeRegions:
+						data = self.data[regionStart:regionEnd]
+						matchOffset = self.findCustomCode( mod, codeChange, data )
 
-						else: # Code found to be installed!
-							# self.disc.files[self.disc.gameId + '/gecko.bin']
-							# dolOffset = gecko.codelistRegionStart + 8 + matchOffset
+						if matchOffset != -1: # Found a match
+							matchOffset += regionStart # Make relative to the start of the DOL file
+							break
+
+					if matchOffset != -1: # Found the code installed
+						inEnabledRegion, regionNameFoundIn = self.offsetInEnabledRegions( matchOffset )
+						# Check that it's installed to an enabled region
+						if inEnabledRegion:
 							summaryReport.append( ('Gecko code', codeChange.type, matchOffset, codeChange.length) )
+						else:
+							included = False
+							print( '\nPossible phantom mod; {} may have gecko code installed to a disabled region: "{}"'.format(mod.name, regionNameFoundIn) )
+
+							if regionNameFoundIn != '':
+								if regionNameFoundIn not in requiredDisabledRegions:
+									requiredDisabledRegions.append( regionNameFoundIn )
+							else:
+								print( 'Gecko code at 0x{:X} seems to be pointing to a region not defined for custom code!'.format(matchOffset) )
+					else:
+						included = False
 
 				elif codeChange.type == 'standalone':
 					functionsIncluded.append( codeChange.offset ) # The offset will be a name in this case
@@ -1177,7 +1109,7 @@ class Dol( FileBase ):
 					for functionName in requiredStandaloneFunctions:
 						functionCodeChange = globalData.standaloneFunctions[ functionName ][1]
 
-						for areaStart, areaEnd, _ in allEnabledCodeRegions:
+						for areaStart, areaEnd, _ in codeRegions:
 							matchOffset = self.findCustomCode( mod, functionCodeChange, self.data[areaStart:areaEnd] )
 
 							if matchOffset != -1: # Function found
@@ -1194,7 +1126,7 @@ class Dol( FileBase ):
 										matchOffset = self.findCustomCode( mod, functionCodeChange, self.data[regionStart:regionEnd] )
 
 										if matchOffset != -1: # Function found (in a disabled region!)
-											print 'SF for', mod.name + ', "' + functionName + '", found in a disabled region.'
+											print( 'SF for {}, "{}", found in a disabled region.'.format(mod.name, functionName) )
 											if not regionName in requiredDisabledRegions: requiredDisabledRegions.append( regionName )
 											found = True
 											break
@@ -1223,7 +1155,7 @@ class Dol( FileBase ):
 
 		# Finished checking for mods (end of allMods loop).
 		toc = time.clock()
-		print 'time to check for installed codes:', toc-tic
+		print( 'Time to check for installed codes: ' + str(toc-tic) )
 
 		# Ask to enable regions that appear to have custom code
 		if requiredDisabledRegions:

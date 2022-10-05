@@ -51,10 +51,10 @@ def regionsOverlap( regionList ):
 			if nextRegionStart < regionEnd and regionStart < nextRegionEnd: # The regions overlap by some amount.
 				overlapDetected = True
 
-				rS = dol.dolOffset( regionStart )
-				rE = dol.dolOffset( regionEnd )
-				nrs = dol.dolOffset( nextRegionStart )
-				nre = dol.dolOffset( nextRegionEnd )
+				rS = dol.offsetInDOL( regionStart )
+				rE = dol.offsetInDOL( regionEnd )
+				nrs = dol.offsetInDOL( nextRegionStart )
+				nre = dol.offsetInDOL( nextRegionEnd )
 
 				# Determine the names of the overlapping regions, and report this to the user
 				msg( 'Warning! One or more regions enabled for custom code overlap each other. The first overlapping areas detected '
@@ -3768,20 +3768,6 @@ class CommandProcessor( object ):
 			branch = "{}{:06X}".format( opCode, branchDistance ) # Pads the value portion to 6 characters
 
 		return branch
-
-	# @staticmethod
-	# def calcBranchDistance( fromDOL, toDOL ):
-	# 	start = offsetInRAM( fromDOL, dol.sectionInfo )
-	# 	end = offsetInRAM( toDOL, dol.sectionInfo )
-
-	# 	if start == -1:
-	# 		msg( 'Invalid input for branch calculation: "from" value (' + hex(fromDOL) + ') is out of range.' )
-	# 		return -1
-	# 	elif end == -1:
-	# 		msg( 'Invalid input for branch calculation: "to" value (' + hex(toDOL) + ') is out of range.' ) #.\n\nTarget DOL Offset: ' + hex(toDOL) )
-	# 		return -1
-	# 	else:
-	# 		return end - start
 
 	@staticmethod
 	def codeIsAssembly( codeLines ):

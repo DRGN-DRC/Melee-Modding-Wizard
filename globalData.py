@@ -595,7 +595,7 @@ def getVanillaDol( skipCache=False ):
 	dolPath = settings.get( 'General Settings', 'dolSource' )
 
 	if dolPath == 'vanilla':
-		# See if we can get a reference to vanilla DOL code
+		# See if we can get a reference to vanilla DOL code from a disc
 		vanillaDiscPath = getVanillaDiscPath()
 		if not vanillaDiscPath: # User canceled path input
 			raise Exception( 'no vanilla disc available for reference' )

@@ -2044,10 +2044,15 @@ class Disc( object ):
 			Also detects conflicts between mods during the mod installation operation, and notifies the user of conflicts. 
 			Free space regions for injection code are organized independently and not considered by this."""
 
-		newCodeLength = len( code ) / 2 # in bytes
+		# Convert the code to a bytearray and make sure its aligned to 4 bytes
+		if not isinstance( code, bytearray ):
+			code = bytearray.fromhex( code )
+		code = padToNearest( code )
+		newCodeLength = len( code )
+
+		# Check if this code change conflicts with any others already made
 		newCodeEnd = address + newCodeLength
 		conflictDetected = False
-
 		for regionStart, codeLength, priorModName in self.modifiedRegions:
 			regionEnd = regionStart + codeLength
 
@@ -2062,8 +2067,7 @@ class Disc( object ):
 			newChangeRegion = 'Code Start: 0x{:X},  Code End: 0x{:X}'.format( newCodeStart, newCodeStart + newCodeLength )
 
 			if requiredChange:
-				warningMsg = ( 'A conflict (writing overlap) was detected between the {} and a '
-								'code change for {}: {}'
+				warningMsg = ( 'A conflict (writing overlap) was detected between the {} and a code change for {}: {}'
 								'\n\nThe latter has been partially overwritten and will likely no longer function correctly. '
 								"It's recommended to be uninstalled.".format(modName, priorModName, oldChangeRegion) )
 			else:
@@ -2088,14 +2092,14 @@ class Disc( object ):
 				if address != fileStartAddress:
 					conflictDetected = True
 				else:
-					self.injectionsCodeFile.data = bytearray.fromhex(code) + self.injectionsCodeFile.data
+					self.injectionsCodeFile.data = code + self.injectionsCodeFile.data
 
 				# fileLength = len( self.injectionsCodeFile.data )
 				# fileStart = arenaEnd - fileLength
 				# if address > fileStart: # Address is in the file
 				# else:
 			else:
-				self.dol.setData( dolOffset, bytearray.fromhex(code) )
+				self.dol.setData( dolOffset, code )
 			
 			if not conflictDetected:
 				self.modifiedRegions.append( (address, newCodeLength, modName) )
@@ -2108,8 +2112,12 @@ class Disc( object ):
 			code regions enabled for use. And then if no usable space is found there, allocates space in the Arena. 
 			Returns a RAM address for where the code is determined to be placed. """
 
-		customCodeOffset = -1
+		# Account for alignment
+		if customCodeLength % 4 != 0:
+			customCodeLength += 4 - ( customCodeLength % 4 )
 
+		# Scan the allocation matrix to check to for the first largest area of free space
+		customCodeOffset = -1
 		for codeSpace in self.allocationMatrix[:-1]:
 			areaStart, areaEnd, spaceUsed = codeSpace # Not expanded in the above line so we can modify the last entry
 			spaceRemaining = areaEnd - areaStart - spaceUsed
@@ -2159,8 +2167,8 @@ class Disc( object ):
 						 'OSReport Print on Crash" code to function, which is very useful for debugging crashes and is therefore '
 						 'enabled by default. \n\nYou can easily resolve this by one of three ways: 1) disable use of the Aux Code '
 						 'Regions (and restore that area to vanilla code), 2) change the settings option "Always Enable Crash Reports" '
-						 'to False, or 3) remove the "Enable OSReport Print on Crash" code '
-						 "from your library (or comment it out so it's not picked up by this program).", 'Aux Code Regions Conflict' )
+						 'to False, or 3) remove the "Enable OSReport Print on Crash" code from your library '
+						 "(or comment it out so it's not picked up by this program).", 'Aux Code Regions Conflict' )
 					return []
 					
 		customCodeProcessor = globalData.codeProcessor
@@ -2171,57 +2179,7 @@ class Disc( object ):
 		totalModsToInstall = len( codeMods )
 		totalModsInstalled = 0
 		codesNotInstalled = []
-		newSymbols = []		# list of tuples of the form ( functionAddress, length, symbolName )
-		# geckoCodes = []
-		# geckoSummaryReport = []
-
-
-		# 	# Need to get a new list of acceptable code regions; one that reserves space for the Gecko codelist/codehandler
-		# 	allCodeRegions = getCustomCodeRegions( codelistStartPosShift=codelistLength, codehandlerStartPosShift=gecko.codehandlerLength )
-
-		# else: # No Gecko codes to be installed
-		# 	wrappedGeckoCodes = ''
-
-		# 	if removingSomeGeckoCodes: # Then the regions that were used for them should be restored.
-		# 		if overwriteOptions[ 'EnableGeckoCodes' ].get(): 
-		# 			restoreGeckoParts = True # If they've already enabled these regions, the following changes should be fine and we don't need to ask.
-		# 		else:
-		# 			restoreGeckoParts = tkMessageBox.askyesno( 'Gecko Parts Restoration', 'All Gecko codes have been removed. '
-		# 				'Would you like to restore the regions used for the Gecko codehandler and codelist ({} and {}) to vanilla Melee?'.format(gecko.codehandlerRegion, gecko.codelistRegion) )
-
-		# 		if restoreGeckoParts:
-		# 			if not gecko.environmentSupported: # Failsafe; if removingSomeGeckoCodes, gecko.environmentSupported should be True
-		# 				msg( 'The configuration for Gecko codes seems to be incorrect; unable to uninstall Gecko codes and restore the Gecko code regions.' )
-		# 			else:
-		# 				vanillaHexAtHookOffset = getVanillaHex( gecko.hookOffset )
-
-		# 				vanillaCodelistRegion = getVanillaHex( gecko.codelistRegionStart, byteCount=gecko.spaceForGeckoCodelist )
-		# 				vanillaCodehandlerRegion = getVanillaHex( gecko.codehandlerRegionStart, byteCount=gecko.spaceForGeckoCodehandler )
-
-		# 				if not vanillaHexAtHookOffset or not vanillaCodelistRegion or not vanillaCodehandlerRegion:
-		# 					msg( 'Unable to restore the original hex at the location of the codehandler hook, or the areas for the Gecko codelist and codehandler. '
-		# 						 'This is likely due to a missing original copy of the DOL, which should be here:\n\n' + dolsFolder + '\n\nThe filename should be "[region] [version].dol", '
-		# 						 'for example, "NTSC 1.02.dol". Some mods may have been uninstalled, however you will need to reselect and save the new [non-Gecko] codes that were to be installed.',
-		# 						 'Unable to find an original copy of the DOL' )
-
-		# 					# Unexpected failsafe scenario. We'll be ignoring the areas occupied by most of the Gecko stuff (hook and codehandler); it will remain in-place. 
-		# 					# Inefficient, but what're ya gonna do. Should at least be functional.
-		# 					wrappedGeckoCodes = '00D0C0DE00D0C0DEF000000000000000' # Empty codelist; still need this; maybe? #totest
-		# 					allCodeRegions = getCustomCodeRegions( codelistStartPosShift=16, codehandlerStartPosShift=gecko.codehandlerLength )
-		# 					addToInstallationSummary( geckoInfrastructure=True )
-		# 				else:
-		# 					# Remove the branch to the codehandler and return this point to the vanilla code instruction.
-		# 					replaceHex( gecko.hookOffset, vanillaHexAtHookOffset)
-
-		# 					# Restore the free space regions designated for the Gecko codelist and codehandler
-		# 					replaceHex( gecko.codelistRegionStart, vanillaCodelistRegion )
-		# 					replaceHex( gecko.codehandlerRegionStart, vanillaCodehandlerRegion )
-
-		# Zero-out the regions that will be used for custom code.
-		# for regionStart, regionEnd in allCodeRegions:
-		# 	regionLength = regionEnd - regionStart # in bytes
-		# 	#replaceHex( regionStart, '00' * regionLength )
-		# 	self.dol.setData( regionStart, bytearray(regionLength) )
+		newSymbols = [] # List of tuples of the form ( functionAddress, length, symbolName )
 
 		# Calculate the size of the toc, assuming codes.bin is added
 		# if self.rebuildReason:
@@ -2272,101 +2230,100 @@ class Disc( object ):
 				nopSummaryReport.append( ('Code overwrite', 'static', screenshotRegionNopSites[self.dol.revision][1], 4) )
 				#addToInstallationSummary( 'USB Screenshot Region NOP', 'static', nopSummaryReport, isMod=False ) # , iid='screenshotRegionNops'
 		
-		# geckoCodes = []
-		# geckoSummaryReport = []
-		# geckoProblemFound = False
+		geckoCodes = []
+		geckoSummaryReport = []
+		geckoProblemFound = False
 
-		# # Collect Gecko codes, and determine the adjusted code regions to use for injection/standalone code.
-		# totalLength = 0
-		# for mod in codeMods:
-		# 	if mod.type == 'gecko':
-		# 		for change in mod.getCodeChanges():
-		# 			if change.type == 'gecko':
-		# 				geckoCodes.append( change.preProcessedCode )
-		# 				# dolOffset = gecko.codelistRegionStart + 8 + len( geckoCodes )/2
-		# 				relOffset = totalLength + change.length
-		# 				geckoSummaryReport.append( (mod.name, mod.type, 'Gecko code', 'gecko', relOffset, change.length) )
+		# Preliminary code-saving pass. Collect Gecko codes
+		totalLength = 0
+		for mod in codeMods:
+			if mod.type == 'gecko':
+				for change in mod.getCodeChanges():
+					if change.type == 'gecko':
+						geckoCodes.append( change.preProcessedCode )
+						# dolOffset = gecko.codelistRegionStart + 8 + len( geckoCodes )/2
+						relOffset = totalLength + change.length
+						geckoSummaryReport.append( (mod.name, mod.type, 'Gecko code', 'gecko', relOffset, change.length) )
 
-		# if geckoCodes:
-		# 	# Build the codelist, and ensure its length is a multiple of 4 bytes
-		# 	geckoCodes.insert( 0, '00D0C0DE00D0C0DE' )
-		# 	geckoCodes.append( 'F000000000000000' )
-		# 	#wrappedGeckoCodes = '00D0C0DE00D0C0DE' + ''.join( geckoCodes ) + 'F000000000000000'
-		# 	wrappedGeckoCodes = ''.join( geckoCodes )
-		# 	# codelistLength = roundTo32( len(wrappedGeckoCodes)/2, base=4 ) # Rounds up to closest multiple of 4 bytes
-		# 	# paddingLength = codelistLength - len(wrappedGeckoCodes)/2 # in bytes
-		# 	# padding = '00' * paddingLength
-		# 	# wrappedGeckoCodes += padding
-		# 	codelist = bytearray.fromhex( wrappedGeckoCodes )
-		# 	codelist = padToNearest( codelist )
-		# 	codelistLength = len( codelist )
+		if geckoCodes:
+			# Build the codelist
+			geckoCodes.insert( 0, '00D0C0DE00D0C0DE' )
+			geckoCodes.append( 'F000000000000000' )
+			wrappedGeckoCodes = ''.join( geckoCodes )
+			codelistLength = roundTo32( len(wrappedGeckoCodes)/2, base=4 ) # Rounds up to closest multiple of 4 bytes
 
-		# 	# Get the codehandler
-		# 	try:
-		# 		codehandlerPath = globalData.paths['codehandler']
-		# 		with open( codehandlerPath, 'rb' ) as codehandlerFile:
-		# 			codehandler = bytearray( codehandlerFile.read() )
-		# 	except Exception as err:
-		# 		# Failsafe; not expected. A check/warning that this file exists is expected in earlier functions
-		# 		msg( 'Unable to load the Gecko codehandler file; {}. Gecko codes will not be able to be installed without this. '
-		# 			'You may want to check for the codehandler here: {}'.format(err, codehandlerPath), 'Gecko Codehandler Loading Error', error=True )
-		# 		geckoProblemFound = True
+			# Get the codehandler
+			try:
+				codehandlerPath = globalData.paths['codehandler']
+				with open( codehandlerPath, 'rb' ) as codehandlerFile:
+					codehandler = bytearray( codehandlerFile.read() )
+			except Exception as err:
+				# Failsafe; not expected. A check/warning that this file exists is expected in earlier functions
+				msg( 'Unable to load the Gecko codehandler file; {}. Gecko codes will not be able to be installed without this. '
+					'You may want to check for the codehandler here: {}'.format(err, codehandlerPath), 'Gecko Codehandler Loading Error', error=True )
+				geckoProblemFound = True
 
-		# 	if not geckoProblemFound:
-		# 		# Ensure the codehandler is a multiple of 4 bytes
-		# 		codehandler = padToNearest( codehandler )
-		# 		codehandlerLength = len( codehandler )
+			if not geckoProblemFound:
+				codehandlerLength = roundTo32( len(codehandler), base=4 ) # Rounds up to closest multiple of 4 bytes
 
-		# 		# Allocate space for the codelist and codehandler (allocating largest item first)
-		# 		if codelistLength > codehandlerLength:
-		# 			codelistAddress = self.allocateCodeSpace( codelistLength )
-		# 			codehandlerAddress = self.allocateCodeSpace( codehandlerLength )
-		# 		else:
-		# 			codehandlerAddress = self.allocateCodeSpace( codehandlerLength )
-		# 			codelistAddress = self.allocateCodeSpace( codelistLength )
+				# Allocate space for the codelist and codehandler (allocating largest item first)
+				if codelistLength > codehandlerLength:
+					codelistAddress = self.allocateCodeSpace( codelistLength )
+					codehandlerAddress = self.allocateCodeSpace( codehandlerLength )
+				else:
+					codehandlerAddress = self.allocateCodeSpace( codehandlerLength )
+					codelistAddress = self.allocateCodeSpace( codelistLength )
 
-		# 		# Replace the codehandler's codelist RAM address
-		# 		codelistAddrBytes = struct.pack( '>I', codelistAddress ) # Packing to bytes as a big-endian unsigned int (4 bytes)
-		# 		codehandlerCodelistAddr = codehandler.find( b'\x3D\xE0' ) # Offset of the first instruction to load the codelist address
-		# 		codehandler[codehandlerCodelistAddr+2:codehandlerCodelistAddr+4] = codelistAddrBytes[:2] # Update first two bytes
-		# 		codehandler[codehandlerCodelistAddr+6:codehandlerCodelistAddr+8] = codelistAddrBytes[2:] # Update second two bytes
+				# Calculate branch distance from the hook to the destination of the Gecko codehandler's code start
+				hookOffset = codeRegionSettings.geckoHookOffsets.get( self.dol.revision )
+				if not hookOffset:
+					yes = tkMessageBox.askyesno( 'Unable to find a Gecko codehandler hook offset for your game revision ({}). These are '
+						'defined in the codeRegionSettings.py file (you may add your revision there). Without a known hook offset, Gecko '
+						'codes cannot be installed.\n\nWould you like to use the default hook for NTSC 1.02 instead?', 'Gecko Codehandler Hook Undefined', warning=True )
+					if yes:
+						hookOffset = codeRegionSettings.geckoHookOffsets['NTSC 1.02']
+					else: # User declined; no hook offset available
+						geckoProblemFound = True
 
-		# 		# Calculate branch distance from the hook to the destination of the Gecko codehandler's code start
-		# 		hookOffset = codeRegionSettings.geckoHookOffsets.get( self.dol.revision )
-		# 		if not hookOffset:
-		# 			yes = tkMessageBox.askyesno( 'Unable to find a Gecko codehandler hook offset for your game revision ({}). These are '
-		# 				'defined in the codeRegionSettings.py file (you may add your revision there). Without a known hook offset, Gecko '
-		# 				'codes cannot be installed.\n\nWould you like to use the default hook for NTSC 1.02 instead?', 'Gecko Codehandler Hook Undefined', warning=True )
-		# 			if yes:
-		# 				hookOffset = codeRegionSettings.geckoHookOffsets['NTSC 1.02']
-		# 			else: # User declined; no hook offset available
-		# 				geckoProblemFound = True
+			if not geckoProblemFound:
+				geckoHookDistance = codehandlerAddress - hookOffset
 
-		# 	if not geckoProblemFound:
-		# 		#geckoHookDistance = calcBranchDistance( hookOffset, codehandlerAddress )
-		# 		geckoHookDistance = hookOffset - codehandlerAddress
+				# Look for the first instruction in the codehandler, to offset the hook distance (there is likely empty space for Gecko registers)
+				codehandlerStartOffset = codehandler.find( b'\x94\x21' )
+				if codehandlerStartOffset != -1:
+					geckoHookDistance += codehandlerStartOffset
 
-		# 		# Look for the first instruction in the codehandler, to offset the hook distance (there is likely empty space for Gecko registers)
-		# 		codehandlerStartOffset = codehandler.find( b'\x94\x21' )
-		# 		if codehandlerStartOffset != -1:
-		# 			geckoHookDistance += codehandlerStartOffset
-		# 		#codelistAddrBytes = struct.pack( '>I', codelistAddress )
+				# Add the Gecko codehandler hook
+				geckoHook = customCodeProcessor.assembleBranch( 'b', geckoHookDistance )
+				geckoProblemFound = self.storeCodeChange( hookOffset, geckoHook, 'Gecko Codehandler Hook' )
 
-		# 		# Add the Gecko codehandler hook
-		# 		geckoHook = customCodeProcessor.assembleBranch( 'b', geckoHookDistance )
-		# 		#modifyDol( gecko.hookOffset, geckoHook, 'Gecko Codehandler Hook' )
-		# 		geckoProblemFound = self.storeCodeChange( hookOffset, geckoHook, 'Gecko Codehandler Hook' )
+				# Set the RAM address for the codelist in the codehandler
+				codelistAddrBytes = struct.pack( '>I', codelistAddress ) # Packing to bytes as a big-endian unsigned int (4 bytes)
+				codehandlerCodelistAddr = codehandler.find( b'\x3D\xE0' ) # Offset of the first instruction to load the codelist address (lis/ori instructions)
+				codehandler[codehandlerCodelistAddr+2:codehandlerCodelistAddr+4] = codelistAddrBytes[:2] # Update first two bytes
+				codehandler[codehandlerCodelistAddr+6:codehandlerCodelistAddr+8] = codelistAddrBytes[2:] # Update second two bytes
 
-		# 		# Add the codehandler and codelist to the DOL
-		# 		modifyDol( gecko.codelistRegionStart, wrappedGeckoCodes, 'Gecko codes list' )
-		# 		modifyDol( gecko.codehandlerRegionStart, hexlify(gecko.codehandler), 'Gecko Codehandler' )
+				# Add the codelist and codehandler to the DOL
+				if not geckoProblemFound:
+					geckoProblemFound = self.storeCodeChange( codelistAddress, wrappedGeckoCodes, 'Gecko codes list' )
+				if not geckoProblemFound:
+					geckoProblemFound = self.storeCodeChange( codehandlerAddress, codehandler, 'Gecko Codehandler' )
 
-
-		# 	if geckoProblemFound:
-		# 		for mod in codeMods:
-		# 			if mod.type == 'gecko':
-		# 				codesNotInstalled.append( mod )
-		# 		geckoCodes = []
+			# If the above failed, count these mods as not installed
+			if geckoProblemFound:
+				for mod in codeMods:
+					if mod.type == 'gecko':
+						codesNotInstalled.append( mod )
+				geckoCodes = []
+			else:
+				codelistDolOffset = self.dol.offsetInDOL( codelistAddress )
+				codehandlerDolOffset = self.dol.offsetInDOL( codehandlerAddress )
+				codelistRegion = self.dol.offsetInEnabledRegions( codelistDolOffset )[1]
+				codehandlerRegion = self.dol.offsetInEnabledRegions( codehandlerDolOffset )[1]
+				print( 'Gecko Codelist installed to "{}" at 0x{:X} (0x{:X})'.format(codelistRegion, codelistAddress, codelistDolOffset) )
+				print( 'Gecko Codehandler installed to "{}" at 0x{:X} (0x{:X})'.format(codehandlerRegion, codehandlerAddress, codehandlerDolOffset) )
+				newSymbols.append( (codelistAddress, codelistLength, 'Gecko Codelist') )
+				newSymbols.append( (codehandlerAddress, codehandlerLength, 'Gecko Codehandler') )
 
 		# Primary code-saving pass.
 		installCount = 0

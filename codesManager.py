@@ -824,6 +824,13 @@ class CodeManagerTab( ttk.Frame ):
 		elif formatChoice == 1: # MCM
 			msg( 'Not yet implemented; lmk if you want to use this.' )
 		else: # AMFS
+			# Try to get a vanilla DOL for address validation, and attempt to convert the mod
+			try:
+				vanillaDol = globalData.getVanillaDol()
+			except Exception as err:
+				printStatus( 'Unable to load a vanilla DOL; {}'.format(err.message) )
+				vanillaDol = None
+
 			for mod in globalData.codeMods:
 				try:
 					# Remove the filename component from mini/MCM paths, and add a new folder name component
@@ -841,7 +848,7 @@ class CodeManagerTab( ttk.Frame ):
 
 					# Attempt to convert Gecko codes to standard static overwrites and injections
 					if mod.type == 'gecko':
-						convertedGeckoMod = self.convertGeckoCode( mod )
+						convertedGeckoMod = self.convertGeckoCode( mod, vanillaDol )
 
 						if convertedGeckoMod:
 							mod = convertedGeckoMod # Save this in AMFS
@@ -972,7 +979,7 @@ class CodeManagerTab( ttk.Frame ):
 								errorMsg = dol.normalizeDolOffset( address )[1]
 								if errorMsg:
 									problemMessage = ( 'A problem was detected with an address, {}, '
-											'for the mod "{}";{}'.format(address, mod.name, errorMsg.split(';')[1]) )
+														'for the mod "{}";{}'.format(address, mod.name, errorMsg.split(';')[1]) )
 									raise Exception( problemMessage )
 
 							# Create a new CodeChange object and attach it to the internal mod module
@@ -1039,6 +1046,7 @@ class CodeManagerTab( ttk.Frame ):
 		#geckoCodesToInstall = []
 		conflictedMods = []
 		newModsToInstall = False
+		geckoCodeChanges = False
 
 		offerToConvertGecko = globalData.checkSetting( 'offerToConvertGeckoCodes' )
 
@@ -1046,11 +1054,13 @@ class CodeManagerTab( ttk.Frame ):
 
 		# Scan the library for mods to be installed or uninstalled
 		for mod in globalData.codeMods:
-			if mod.state == 'disabled':
+			if mod.state == 'disabled' or mod.state == 'unavailable':
 				continue
 
 			elif mod.state == 'pendingDisable':
 				modsToUninstall.append( mod )
+				if mod.type == 'gecko':
+					geckoCodeChanges = True
 				continue
 
 			elif mod.state == 'pendingEnable':
@@ -1142,7 +1152,7 @@ class CodeManagerTab( ttk.Frame ):
 				# 	newModsToInstall = True
 
 			#elif mod.state == 'enabled':
-			
+
 			if mod.assessForConflicts():
 				conflictedMods.append( mod )
 			else:
@@ -1165,7 +1175,7 @@ class CodeManagerTab( ttk.Frame ):
 		modUninstallCount = 0
 
 		# Install or uninstall selected code mods
-		if newModsToInstall:
+		if newModsToInstall or geckoCodeChanges:
 			# Restore the DOL to start fresh
 			if not globalData.disc.restoreDol( countAsNewFile=False ):
 				globalData.gui.updateProgramStatus( 'Unable to save code changes; the vanilla or source DOL could not be restored', warning=True )
@@ -1326,10 +1336,10 @@ class ModModule( Tk.Frame, object ):
 			LabelButton( row3, 'warningsButton', self.showProblems, "View parsing or assembly errors" ).pack( side='right', padx=5 )
 
 			# Disable mods with problems
-			self.setState( 'unavailable', self.mod.stateDesc, updateControlPanelCounts=False )
+			self.setState( 'unavailable', self.mod.stateDesc, False )
 		else:
 			# Initialize the GUI module's state with the mod's core state
-			self.setState( self.mod.state, self.mod.stateDesc, updateControlPanelCounts=False )
+			self.setState( self.mod.state, self.mod.stateDesc, False )
 
 	def openWebPage( self, event ):
 
@@ -2298,8 +2308,13 @@ class CodeConstructor( Tk.Frame ):
 			saveSuccessful = self.mod.saveAsStandaloneFile()
 		elif self.mod.isAmfs:
 			if self.mod.type == 'gecko':
-
-				convertedGeckoMod = globalData.gui.codeManagerTab.convertGeckoCode( self.mod )
+				# Try to get a vanilla DOL for address validation, and attempt to convert the mod
+				try:
+					vanillaDol = globalData.getVanillaDol()
+				except Exception as err:
+					printStatus( 'Unable to load a vanilla DOL; {}'.format(err.message) )
+					vanillaDol = None
+				convertedGeckoMod = globalData.gui.codeManagerTab.convertGeckoCode( self.mod, vanillaDol )
 
 				if convertedGeckoMod:
 					self.mod = convertedGeckoMod
