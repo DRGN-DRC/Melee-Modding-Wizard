@@ -1731,7 +1731,8 @@ class Disc( object ):
 				4: Unable to open the original disc
 				5: Unrecognized error during file writing
 				6: Unable to overwrite existing file
-				7: Could not rename discs or remove original """
+				7: Could not rename discs or remove original 
+				8: Unable to save root folder files """
 
 		# Perform some clean-up operations for 20XXHP features
 		if self.is20XX:
@@ -1756,7 +1757,9 @@ class Disc( object ):
 
 		# Build a list of files that have unsaved changes, and make sure there are changes to be saved
 		filesToSave = self.getUnsavedChangedFiles()
-		if not filesToSave and not self.unsavedChanges and not self.rebuildReason:
+		if self.isRootFolder and not filesToSave and not self.unsavedChanges:
+			return 1, []
+		elif not filesToSave and not self.unsavedChanges and not self.rebuildReason:
 			return 1, []
 
 		# Make sure all system files are present (you never know....)
@@ -1771,9 +1774,45 @@ class Disc( object ):
 			msg( 'Unable to save the disc; missing these system files: ' + ', '.join(missingSysFiles) )
 			return 2, []
 
-		# Write the file(s) to the ISO.
-		if not self.rebuildReason:
-			# Create a copy of the file and operate on that instead if using the 'Save Disc As' option
+		# Save files for a root directory in-place
+		if self.isRootFolder and not newDiscPath:
+			try:
+				# Determine the folder to save files in (used for files that don't have an external path)
+				rootFilesFolder = os.path.join( self.filePath, 'files' )
+				if not os.path.exists( rootFilesFolder ):
+					rootFilesFolder = self.filePath
+
+				for file in filesToSave:
+					# Build a filesystem path, if needed
+					if not file.extPath:
+						if file.isoPath:
+							pathParts = file.isoPath.split( '/' )
+							newPath = os.path.join( rootFilesFolder, *pathParts[1:] ) # Excludes Game ID, but includes other root subfolders
+						elif file.filename:
+							newPath = os.path.join( rootFilesFolder, file.filename )
+						else: # Fail-[semi]safe; shouldn't be possible
+							raise Exception( 'File found with no extPath, isoPath, or filename!' )
+						file.extPath = os.path.normpath( newPath )
+
+					error = file.export( file.extPath )
+
+					if error:
+						raise Exception( 'unable to save ' + file.filename )
+
+				# Clear unsaved-changes lists
+				self.unsavedChanges = []
+				for fileObj in filesToSave:
+					fileObj.unsavedChanges = []
+					fileObj.offsetsModified.clear()
+
+				return 0
+			except Exception as err:
+				printStatus( 'Unable to save root folder; {}'.format(err) )
+				return 8
+
+		# Write modified file(s) to the ISO.
+		elif not self.rebuildReason:
+			# Create a copy of the disc file and operate on that instead if using the 'Save Disc As' option
 			if newDiscPath:
 				try:
 					# Ensure containing folders exist for the new disc path
@@ -1838,7 +1877,8 @@ class Disc( object ):
 			# Rebuild the disc
 			returnCode, updatedFiles = self.buildNewDisc( newDiscPath )
 
-		if returnCode == 0: # Save was successful
+		if returnCode == 0: # Save was successful (to a disc; not applicable to root folders)
+
 			# Clear unsaved-changes lists
 			self.unsavedChanges = []
 			for fileObj in filesToSave:

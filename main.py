@@ -2079,8 +2079,13 @@ class MainGui( Tk.Frame, object ):
 			return -1
 
 		origDiscName = os.path.basename( disc.filePath )
-		fileNameWithoutExt, ext = origDiscName.rsplit( '.', 1 )
-		newFilenameSuggestion = '{} - Copy'.format( fileNameWithoutExt )
+
+		if disc.isRootFolder:
+			fileNameWithoutExt = newFilenameSuggestion = origDiscName
+			ext = 'iso'
+		else:
+			fileNameWithoutExt, ext = origDiscName.rsplit( '.', 1 )
+			newFilenameSuggestion = '{} - Copy'.format( fileNameWithoutExt )
 
 		# Prompt the user for a save directory and filename
 		newPath = tkFileDialog.asksaveasfilename(

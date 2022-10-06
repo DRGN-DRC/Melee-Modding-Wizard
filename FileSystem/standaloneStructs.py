@@ -26,9 +26,9 @@ class StandaloneStruct( object ):
 
 	def __init__( self, hostFile, offset, entryCount=-1 ):
 
-		self.host 			= hostFile				# Host DAT File object
+		self.host 			= hostFile				# Host DAT (or other) file object
 		self.offset 		= offset
-		self.data			= ()					# Will become a bytearray
+		self.data			= bytearray()
 		self.name 			= 'Standalone Struct ' + uHex( 0x20 + offset )
 		self.fields			= ()
 		self.length			= -1

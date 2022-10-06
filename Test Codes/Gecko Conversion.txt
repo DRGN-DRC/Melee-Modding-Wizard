@@ -1,0 +1,33 @@
+Bowser - Flame Cancel - Gecko
+[Achilles]
+NTSC 1.02
+04135684 38800156
+
+
+	-==-
+
+
+Bowser - Flame Cancel - Gecko (Converted)
+[Achilles]
+Revision ---- DOL Offset ---- Hex to Replace ---------- ASM Code -
+NTSC 1.02 --- 0x80135684 ---- 38800155 -> 38800156
+
+
+	-==-
+
+
+Debug Menu replaces Tournament Mode - Gecko
+[Magus, donny2112, SypherPhoenix]
+NTSC 1.02
+0422D638 38000006
+0422C644 3800001B
+
+
+	-==-
+
+
+Debug Menu replaces Tournament Mode - Gecko (Converted)
+[Magus, donny2112, SypherPhoenix]
+Revision ---- DOL Offset ---- Hex to Replace ---------- ASM Code -
+NTSC 1.02 --- 0x8022C644 ---- 3800002C -> 3800001B
+------------- 0x8022D638 ---- 3800001B -> 38000006

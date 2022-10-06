@@ -674,6 +674,7 @@ charNameLookup = {
 	'Ch': 'Crazy Hand',
 	'Cl': 'Child/Young Link',
 	'Co': 'Common to the cast',
+	'Dd': 'Diddy Kong',
 	'Dk': 'Donkey Kong',
 	'Dr': 'Dr. Mario',
 	'Fc': 'Falco',
@@ -688,6 +689,7 @@ charNameLookup = {
 	'Kp': '[Koopa] Bowser',
 	'Lg': 'Luigi',
 	'Lk': 'Link',
+	'Lz': 'Charizard',
 	'Mh': 'Master Hand',
 	'Mn': 'Menus Data',
 	'Mr': 'Mario',
@@ -840,10 +842,10 @@ charAbbrList = [ # Indexed by External Character ID
 ]
 
 
-charColorLookup = { # 12 Unique color slots
+charColorLookup = {
+	# Vanilla Melee
 	'Aq': 'aqua',
 	'Bk': 'black',
-	'Br': 'brown', # So far just for Brown Wolf in Mex
 	'Bu': 'blue',
 	'Gr': 'green',
 	'Gy': 'gray',
@@ -851,12 +853,19 @@ charColorLookup = { # 12 Unique color slots
 	'Nr': 'neutral',
 	'Or': 'orange',
 	'Pi': 'pink',
-	'Rd': 'red', # Unique to 20XX 4.0+ for Falcon's .usd variation
 	'Re': 'red',
-	'Rl': 'red', # Unique to 20XX 4.0+ for Falcon's .usd variation (red 'L')
-	'Rr': 'red', # Unique to 20XX 4.0+ for Falcon's .usd variation (red 'R')
 	'Wh': 'white',
-	'Ye': 'yellow'
+	'Ye': 'yellow',
+
+	# 20XX (versions 4.0+) for Falcon's .usd variations
+	'Rd': 'red',
+	'Rl': 'red', # Red 'L' alt costume
+	'Rr': 'red', # Red 'R' alt costume
+
+	# m-ex
+	'Cy': 'cyan',
+	'Br': 'brown',
+	'Pr': 'purple',
 }
 
 

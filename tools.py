@@ -1228,11 +1228,17 @@ class DolphinController( object ):
 		
 		printStatus( 'Booting {} in emulator....'.format(discObj.gameId) )
 
-		# Construct the command with the disc filepath and send it to Dolphin
-		if globalData.checkSetting( 'runDolphinInDebugMode' ):
-			command = '"{}" --debugger --exec="{}"'.format( self.exePath, discObj.filePath )
+		# Pass along the filepath to the DOL file if this is a root folder
+		if discObj.isRootFolder:
+			bootFile = discObj.dol.extPath
 		else:
-			command = '"{}" --batch --exec="{}"'.format( self.exePath, discObj.filePath )
+			bootFile = discObj.filePath
+
+		# Construct the command with the disc or DOL filepath and send it to Dolphin
+		if globalData.checkSetting( 'runDolphinInDebugMode' ):
+			command = '"{}" --debugger --exec="{}"'.format( self.exePath, bootFile )
+		else:
+			command = '"{}" --batch --exec="{}"'.format( self.exePath, bootFile )
 		self.process = subprocess.Popen( command, stderr=subprocess.STDOUT, creationflags=0x08000000 )
 
 	def stop( self ):

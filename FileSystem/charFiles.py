@@ -930,7 +930,11 @@ class CharCostumeFile( CharFileBase, DatFile ):
 		# Check the costume color
 		colorKey = self.colorAbbr
 		color = globalData.charColorLookup.get( colorKey, '' )
-		assert color, 'Unable to get a color look-up from ' + colorKey
+		if not color:
+			print( 'Unable to get a character color look-up from {} (from {})'.format(colorKey, self.filename) )
+			self._shortDescription = 'Unknown costume color'
+			self._longDescription += ' (unknown costume color)'
+			return
 
 		# Assemble the costume color string
 		self._shortDescription = color + ' costume'

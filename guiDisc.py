@@ -84,7 +84,8 @@ class DiscTab( ttk.Frame ):
 		self.isoFileTree.column( 'description', anchor='w', minwidth=180, stretch=1, width=312 )
 		self.isoFileTree.tag_configure( 'changed', foreground='red' )
 		self.isoFileTree.tag_configure( 'changesSaved', foreground='#292' ) # The 'save' green color
-		self.isoFileTree.tag_configure( 'cFolder', foreground='#0084c9' ) # Blue, for convenience folders
+		self.isoFileTree.tag_configure( 'cFolder', foreground='#0084c9' )
+		self.isoFileTree.tag_configure( 'nFolder', foreground='#0084c9' )
 		self.isoFileTree.pack( side='left', fill='both', expand=1 )
 		self.isoFileScroller.config( command=self.isoFileTree.yview )
 		self.isoFileScroller.pack( side='left', fill='y' )
@@ -415,7 +416,7 @@ class DiscTab( ttk.Frame ):
 			description = ''
 			iconImage = globalData.gui.imageBank( 'folderIcon' )
 		
-		self.isoFileTree.insert( parent, 'end', iid=isoPath, text=' ' + folderName, values=(description, 'nFolder'), image=iconImage )
+		self.isoFileTree.insert( parent, 'end', iid=isoPath, text=' ' + folderName, values=(description, 'nFolder'), image=iconImage, tags=('nFolder',) )
 		
 	def addFileToFileTree( self, discFile, usingConvenienceFolders ):
 
@@ -501,19 +502,18 @@ class DiscTab( ttk.Frame ):
 			elif entryName.startswith( 'Pl' ) and entryName != 'PlCo.dat': # Character file
 				if not self.isoFileTree.exists( 'pl' ):
 					self.isoFileTree.insert( parent, 'end', iid='pl', text=' Pl__.dat', values=('\t\t --< Character Files >--', 'cFolder'), image=globalData.gui.imageBank('charIcon'), tags=('cFolder',) )
-				character = globalData.charNameLookup.get( entryName[2:4], '' )
-				if character:
-					# Create a folder for the character (and the copy ability files if this is Kirby) if one does not already exist.
-					charFolderIid = 'pl' + character.replace(' ', '').replace('[','(').replace(']',')') # Spaces or brackets can't be used in the iid.
-					if not self.isoFileTree.exists( charFolderIid ):
-						self.isoFileTree.insert( 'pl', 'end', iid=charFolderIid, text=' ' + character, values=('', 'cFolder'), image=globalData.gui.imageBank('folderIcon'), tags=('cFolder',) )
-					if entryName.endswith( 'DViWaitAJ.dat' ):
-						discFile.shortDescription = '1P mode wait animation'
-						if character.endswith( 's' ):
-							discFile.longDescription = character + "' " + discFile.shortDescription
-						else:
-							discFile.longDescription = character + "'s " + discFile.shortDescription
-					parent = charFolderIid
+				character = globalData.charNameLookup.get( entryName[2:4], 'Unknown ({})'.format(entryName[:4]) )
+				# Create a folder for the character (and the copy ability files if this is Kirby) if one does not already exist.
+				charFolderIid = 'pl' + character.replace(' ', '').replace('[','(').replace(']',')') # Spaces or brackets can't be used in the iid.
+				if not self.isoFileTree.exists( charFolderIid ):
+					self.isoFileTree.insert( 'pl', 'end', iid=charFolderIid, text=' ' + character, values=('', 'cFolder'), image=globalData.gui.imageBank('folderIcon'), tags=('cFolder',) )
+				if entryName.endswith( 'DViWaitAJ.dat' ):
+					discFile.shortDescription = '1P mode wait animation'
+					if character.endswith( 's' ):
+						discFile.longDescription = character + "' " + discFile.shortDescription
+					else:
+						discFile.longDescription = character + "'s " + discFile.shortDescription
+				parent = charFolderIid
 			elif entryName.startswith( 'Sd' ): # Menu text files
 				if not self.isoFileTree.exists( 'sd' ):
 					self.isoFileTree.insert( parent, 'end', iid='sd', text=' Sd__.dat', values=('\t\t --< UI Text Files >--', 'cFolder'), image=globalData.gui.imageBank('folderIcon'), tags=('cFolder',) )
