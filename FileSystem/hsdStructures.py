@@ -56,6 +56,7 @@ class StructBase( object ):
 		self.children 		= [] 					# List of integers (offsets of other structs)
 		self.values 		= () 					# Actual decoded values (ints/floats/etc) of the struct's data
 		self.branchSize 	= -1					# The size of this structure plus all of its children
+		self.structDepth 	= None
 		self.childClassIdentities = {}
 
 		self._parentsChecked = False

@@ -212,6 +212,7 @@ class Disc( object ):
 		self.files = ListDict([])		# System files will be first in this, while root files will be ordered by the FST, or the OS if opening a root folder
 		self.gameId = ''
 		self.region = ''				# NTSC or PAL
+		self.isMex = ''					# Empty string or m-ex major/minor version string, e.g. '1.1'
 		self.is20XX = ''				# Will be an empty string, or if 20XX, a string like '3.02' or 'BETA 04' (see method for details)
 		self.isMelee = ''				# Will be an empty string, or if Melee, a string of '02', '01', '00', or 'pal'
 		self.version = 0				# Byte 7 of the disc
@@ -322,17 +323,13 @@ class Disc( object ):
 				self.loadRootFile( itemPath, rootFilesFolder )
 
 		self.buildFstEntries()
+		self.checkMexVersion()
+
 		self.rebuildReason = 'to build from a root folder'
 		self.isRootFolder = True
 		self.fstRebuildRequired = True
-		
-		# If this is 20XX, check its version
-		# if self.isMelee:
-		# 	cssFile = self.files.get( self.gameId + '/MnSlChr.0sd' )
-		# 	if cssFile:
-		# 		self.is20XX = self.get20xxVersion( cssFile.getData() )
 
-		# Now that we know the Game ID, we can look up disc file definitions
+		# Now that we know the Game ID, we can look up disc file descriptions
 		FileBase.setupDescriptions( self.gameId )
 
 	def loadRootSubFolder( self, folderPath, rootFilesFolder ):
@@ -409,28 +406,14 @@ class Disc( object ):
 			dol = Dol( self, dolOffset, dolSize, self.gameId + '/Start.dol', 'Main game executable' )
 			fst = FileBase( self, fstOffset, fstSize, self.gameId + '/Game.toc', "The disc's file system table (FST)" )
 
-			# If this is Melee, check if this is the 20XX HP (and get its version), by checking the CSS file
-			# cssData = None
-			# if self.isMelee:
-			# 	for _, _, entryOffset, entrySize, itemName, _ in self.fstEntries:
-			# 		if itemName.startswith( 'MnSlChr.' ): # Could be .usd or .0sd
-			# 			isoBinary.seek( entryOffset )
-			# 			cssData = bytearray( isoBinary.read(entrySize) )
-			# 			self.is20XX = self.get20xxVersion( cssData )
-			# 			break
-
 			# Add the file's data to the file objects created above, since we have it (prevent having to open the disc again later)
 			dol.data = dolData
 			dol.load()
 			self.is20XX = dol.is20XX
 			fst.data = fstData
 
-			self.instantiateFilesystem()
-			
-			# if cssData: # Couldn't do this in the loop above because the file object hadn't been created yet
-			# 	cssFile = self.files.get( self.gameId + '/' + itemName )
-			# 	if cssFile:
-			# 		cssFile.data = cssData
+		self.instantiateFilesystem()
+		self.checkMexVersion()
 
 		# Now that we know the Game ID, we can look up disc file definitions
 		FileBase.setupDescriptions( self.gameId )
@@ -526,7 +509,7 @@ class Disc( object ):
 
 		""" Works like the getFile (singular) method above, but gets multiple files. This is much more
 			efficient to get multiple files that each will need their data loaded, because the disc will 
-			only be opened once to fetch it. """
+			only be opened once to fetch them. """
 
 		files = []
 
@@ -537,7 +520,7 @@ class Disc( object ):
 			for filename in filenames:
 				# Get info on this file, and then get it from the disc
 				fileObj = self.files.get( self.gameId + '/' + filename ) # Will likely be uninitialized, so it won't have data
-				if not fileObj.data:					
+				if not fileObj.data:
 					try:
 						if fileObj.source == 'disc':
 							assert fileObj.offset != -1, 'Unable to get file data for {}; disc offset has not been set'.format( fileObj.filename )
@@ -622,7 +605,7 @@ class Disc( object ):
 				dirEndIndexes.append( size ) # In the case of folders, length is the number of items in this folder
 			else:
 				# Instantiate a disc object for this file
-				fileFactory( self, offset, size, isoPath )
+				fileFactory( self, offset, size, isoPath, trustNames=True )
 		
 	def checkMeleeVersion( self, dolData ):
 
@@ -634,96 +617,17 @@ class Disc( object ):
 		elif dolData[0x3B6C1B:0x3B6C32] == ssbmStringBytes: self.isMelee = '01' # i.e. version 1.01
 		elif dolData[0x3B5A3B:0x3B5A52] == ssbmStringBytes: self.isMelee = '00' # i.e. version 1.00
 		elif dolData[0x3B75E3:0x3B75FA] == ssbmStringBytes: self.isMelee = 'pal' # i.e. PAL
+		else: self.isMelee = ''
 
-	# def check20xxVersion( self, cssData ):
+	def checkMexVersion( self ):
 
-	# 	""" Checks the loaded disc to see if it's the 20XX Training Hack Pack, and gets its version if it is. 
-	# 		The returned value will be a string of the version number, or an empty string if it's not 20XX.
-	# 		The version string went through many different variations over the years; return values may be:
-				
-	# 		3.02, 3.02.01, 3.03, BETA 01, BETA 02, BETA 03, BETA 04, 4.07+, 4.07++, or [majorVersion].[minorVersion] """
+		mexDataFile = self.files.get( self.gameId + '/MxDt.dat' )
 
-	# 	# Check the file length of MnSlChr (the CSS); if it's abnormally larger than vanilla, it's 20XX post-v3.02
-	# 	fileSize = toInt( cssData[:4] )
-
-	# 	if fileSize > 0x3a2849: # Comparing against the vanilla file size.
-	# 		# Isolate a region in the file that may contain the version string.
-	# 		versionStringRange = cssData[0x3a4cd0:0x3a4d00]
-
-	# 		# Create a bytearray representing "VERSION " to search for in the region defined above
-	# 		versionBytes = bytearray.fromhex( '56455253494f4e20' ) # the hex for "VERSION "
-	# 		versionStringPosition = findBytes( versionStringRange, versionBytes )
-
-	# 		if versionStringPosition != -1: # The string was found
-	# 			versionValue = versionStringRange[versionStringPosition+8:].split(b'\x00')[0].decode( 'ascii' )
-
-	# 			if versionValue == 'BETA': # Determine the specific beta version; 01, 02, or 03 (BETA 04 identified separately)
-	# 				firstDifferentByte = cssData[0x3a47b5]
-
-	# 				if firstDifferentByte == 249 and hexlify( cssData[0x3b905e:0x3b9062] ) == '434f4445': # Hex for the string "CODE"
-	# 					versionValue += ' 01'
-	# 				elif firstDifferentByte == 249: versionValue += ' 02'
-	# 				elif firstDifferentByte == 250: versionValue += ' 03'
-	# 				else: versionValue = ''
-
-	# 			elif versionValue == 'BETA04': versionValue = 'BETA 04'
-					
-	# 			self.is20XX = versionValue
-
-	# 		elif fileSize == 0x3a5301: self.is20XX = '3.03'
-	# 		elif fileSize == 0x3a3bcd: self.is20XX = '3.02.01' # Source: https://smashboards.com/threads/the-20xx-melee-training-hack-pack-v4-05-update-3-17-16.351221/page-68#post-18090881
-	# 		else: self.is20XX = ''
-
-	# 	elif cssData[0x310f9] == 0x33: # In vanilla Melee, this value is '0x48'
-	# 		self.is20XX = '3.02'
-
-	# 	else:
-	# 		self.is20XX = ''
-
-	# def get20xxVersion( self, cssData ):
-
-	# 	""" Checks the loaded disc to see if it's the 20XX Training Hack Pack, and gets its version if it is. 
-	# 		The returned value will be a string of the version number, or an empty string if it's not 20XX.
-	# 		The version string went through many different variations over the years; return values may be:
-				
-	# 		3.02, 3.02.01, 3.03, BETA 01, BETA 02, BETA 03, BETA 04, 4.07+, 4.07++, or [majorVersion].[minorVersion] """
-
-	# 	is20XX = ''
-
-	# 	# Check the file length of MnSlChr (the CSS); if it's abnormally larger than vanilla, it's 20XX post-v3.02
-	# 	fileSize = toInt( cssData[:4] )
-
-	# 	if fileSize > 0x3A2849: # Comparing against the vanilla file size.
-	# 		# Isolate a region in the file that may contain the version string.
-	# 		versionStringRange = cssData[0x3a4cd0:0x3a4d00]
-
-	# 		# Create a bytearray representing "VERSION " to search for in the region defined above
-	# 		versionBytes = bytearray.fromhex( '56455253494f4e20' ) # The hex for "VERSION "
-	# 		versionStringPosition = findBytes( versionStringRange, versionBytes )
-
-	# 		if versionStringPosition != -1: # The string was found
-	# 			versionValue = versionStringRange[versionStringPosition+8:].split(b'\x00')[0].decode( 'ascii' )
-
-	# 			if versionValue == 'BETA': # Determine the specific beta version; 01, 02, or 03 (BETA 04 identified separately)
-	# 				firstDifferentByte = cssData[0x3a47b5]
-
-	# 				if firstDifferentByte == 249 and hexlify( cssData[0x3b905e:0x3b9062] ) == '434f4445': # Hex for the string "CODE"
-	# 					versionValue += ' 01'
-	# 				elif firstDifferentByte == 249: versionValue += ' 02'
-	# 				elif firstDifferentByte == 250: versionValue += ' 03'
-	# 				else: versionValue = ''
-
-	# 			elif versionValue == 'BETA04': versionValue = 'BETA 04'
-				
-	# 			is20XX = versionValue
-
-	# 		elif fileSize == 0x3a5301: is20XX = '3.03'
-	# 		elif fileSize == 0x3a3bcd: is20XX = '3.02.01' # Source: https://smashboards.com/threads/the-20xx-melee-training-hack-pack-v4-05-update-3-17-16.351221/page-68#post-18090881
-
-	# 	elif cssData[0x310f9] == 0x33: # In vanilla Melee, this value is '0x48'
-	# 		is20XX = '3.02'
-
-	# 	return is20XX
+		if mexDataFile:
+			vMajor, vMinor = mexDataFile.getVersion()
+			self.isMex = '{}.{}'.format( vMajor, vMinor )
+		else:
+			self.isMex = ''
 
 	def setImageName( self, newName ):
 
@@ -851,7 +755,7 @@ class Disc( object ):
 
 		""" Returns the expected size of the disc, taking into account disc changes if it needs to be rebuilt. """
 
-		if not self.rebuildReason:
+		if not self.isRootFolder and not self.rebuildReason:
 			return os.path.getsize( self.filePath )
 		else:
 			return self.getDiscSizeCalculations()[0]

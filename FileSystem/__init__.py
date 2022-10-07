@@ -18,6 +18,7 @@ from .charFiles import *
 from .fileBases import *
 from .hsdFiles import *
 from .hsdStructures import *
+from .mex import *
 
 
 def registerStructureClasses():
@@ -28,6 +29,10 @@ def registerStructureClasses():
 			globalData.fileStructureClasses[name] = obj
 
 	for name, obj in inspect.getmembers( charFiles ):
+		if inspect.isclass( obj ) and issubclass( obj, (StructBase,) ):
+			globalData.fileStructureClasses[name] = obj
+
+	for name, obj in inspect.getmembers( mex ):
 		if inspect.isclass( obj ) and issubclass( obj, (StructBase,) ):
 			globalData.fileStructureClasses[name] = obj
 
@@ -85,6 +90,10 @@ def fileFactory( *args, **kwargs ):
 
 			elif 'MnSelectChrDataTable' in fileObj.stringDict.values():
 				return CssFile( *args, **kwargs )
+
+			elif symbol == 'mexData':
+				return MexData( *args, **kwargs )
+
 			else:
 				return fileObj
 
@@ -128,6 +137,9 @@ def fileFactory( *args, **kwargs ):
 
 		elif filename.startswith( 'MnSlChr' ):
 			return CssFile( *args, **kwargs )
+
+		elif filename == 'MxDt':
+			return MexData( *args, **kwargs )
 
 		return DatFile( *args, **kwargs )
 

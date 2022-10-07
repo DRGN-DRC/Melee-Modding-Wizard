@@ -92,6 +92,7 @@ def init( programArgs ):
 		'disableMainMenuAnimations': '0',
 		'useCodeCache': '1',
 		'offerToConvertGeckoCodes': '1',
+		'subActionFilterAttacks': '1',
 	}
 	# regionOverwriteDefaults = {
 	# 	'Common Code Regions': True,

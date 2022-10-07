@@ -21,7 +21,7 @@ from basicFunctions import msg, printStatus
 # Internal Dependencies
 import globalData
 from FileSystem.charFiles import CharDataFile, SubAction, SubActionEvent
-from guiSubComponents import BasicWindow, ColoredLabelButton, DDList, HexEditEntry, LabelButton, ToggleButton, ToolTip, VerticalScrolledFrame
+from guiSubComponents import BasicWindow, ClickText, ColoredLabelButton, DDList, HexEditEntry, LabelButton, ToggleButton, ToolTip, VerticalScrolledFrame, getWindowGeometry
 
 
 class CharModding( ttk.Notebook ):
@@ -315,26 +315,19 @@ class SubActionEditor( ttk.Frame, object ):
 	def __init__( self, parent ):
 		super( SubActionEditor, self ).__init__( parent )
 
-		# self.charFile = parent.charFile
-		# self.actionTable = parent.charFile.getActionTable()
-		# self.subActionStruct = None
-		# self.lastSelection = -1
-
 		# Add the action table pane's title
-		#self.tableTitleVar = Tk.StringVar( value='{} Action Table  (0x{:X})'.format(self.charFile.filename, self.actionTable.offset + 0x20) )
 		self.tableTitleVar = Tk.StringVar()
-		ttk.Label( self, textvariable=self.tableTitleVar ).grid( columnspan=2, column=0, row=0, pady=4 )
+		ttk.Label( self, textvariable=self.tableTitleVar ).grid( column=0, columnspan=2, row=0, pady=4 )
+
+		ClickText( self, 'Edit Filters', self.showFilterOptions ).grid( column=0, columnspan=2, row=1 )
 
 		# Add the action table list and its scrollbar
 		subActionScrollBar = Tk.Scrollbar( self, orient='vertical' )
 		self.subActionList = Tk.Listbox( self, width=38, yscrollcommand=subActionScrollBar.set, activestyle='none', selectbackground='#78F', exportselection=0 )
 		subActionScrollBar.config( command=self.subActionList.yview )
-		# for i, values in self.actionTable.iterateEntries():
-		# 	subActionName = self.getSubActionName( values[0], i )
-		# 	self.subActionList.insert( i, '  ' + subActionName.replace(' (', '    (') )
 		self.subActionList.bind( '<<ListboxSelect>>', self.subActionSelected )
-		self.subActionList.grid( column=0, row=1, sticky='nsew' )
-		subActionScrollBar.grid( column=1, row=1, sticky='ns' )
+		self.subActionList.grid( column=0, row=2, sticky='nsew' )
+		subActionScrollBar.grid( column=1, row=2, sticky='ns' )
 
 		# Pane for showing subAction events (empty for now)
 		ttk.Label( self, text='Event Display:' ).grid( column=2, row=0 )
@@ -342,7 +335,7 @@ class SubActionEditor( ttk.Frame, object ):
 		self.displayPane = DDList( scrollPane.interior, 500, 40, item_borderwidth=2, reorder_callback=self.reordered, offset_x=2, offset_y=2, gap=2 )
 		self.displayPaneMessage = None
 		self.displayPane.pack( fill='both', expand=True )
-		scrollPane.grid( column=2, row=1, sticky='nsew' )
+		scrollPane.grid( column=2, row=1, rowspan=2, sticky='nsew' )
 
 		# Pane for general info display
 		infoPane = ttk.Frame( self )
@@ -383,7 +376,7 @@ class SubActionEditor( ttk.Frame, object ):
 		self.expandInfoBtn = None
 		self.noteStringFrame.pack( fill='x', expand=True, pady=0 )
 
-		infoPane.grid( column=3, row=1, sticky='ew', padx=20, pady=0 )
+		infoPane.grid( column=3, row=1, rowspan=2, sticky='ew', padx=20, pady=0 )
 
 		# Configure row/column stretch and resize behavior
 		self.columnconfigure( 0, weight=1 ) # SubAction Listbox
@@ -391,25 +384,37 @@ class SubActionEditor( ttk.Frame, object ):
 		self.columnconfigure( 2, weight=2 ) # Events display pane
 		self.columnconfigure( 3, weight=0 ) # Info display
 		self.rowconfigure( 0, weight=0 ) # Titles
-		self.rowconfigure( 1, weight=1 ) # Main content
+		self.rowconfigure( 1, weight=0 ) # Main content
+		self.rowconfigure( 2, weight=1 ) # Main content
 
 		self.populate( parent.charFile )
 
 	def populate( self, newCharFile ):
+
+		""" Clears the subAction list (if it has anything displayed) and 
+			repopulates it with entries from the character's action table. """
 		
 		self.charFile = newCharFile
 		self.actionTable = newCharFile.getActionTable()
 		self.subActionStruct = None
 		self.lastSelection = -1
+		self.listboxIndices = {} # Key = listboxIndex, value = eventIndex
 
 		title = '{} Action Table  (0x{:X})'.format( self.charFile.filename, self.actionTable.offset + 0x20 )
 		self.tableTitleVar.set( title )
 
 		# Repopulate the subAction list
 		self.subActionList.delete( 0, 'end' )
-		for i, values in self.actionTable.iterateEntries():
-			subActionName = self.getSubActionName( values[0], i )
-			self.subActionList.insert( i, '  ' + subActionName.replace(' (', '    (') )
+		listboxIndex = 0
+		for entryIndex, values in self.actionTable.iterateEntries():
+			subActionName = self.getSubActionName( values[0], entryIndex )
+
+			self.subActionList.insert( entryIndex, '  ' + subActionName.replace(' (', '    (') )
+			self.listboxIndices[listboxIndex] = entryIndex
+
+			if subActionName.startswith( 'Entry' ):
+				self.subActionList.itemconfigure( listboxIndex, foreground='#6A6A6A' )
+			listboxIndex += 1
 
 		# Clear the events display pane
 		self.displayPane.delete_all_items()
@@ -423,6 +428,22 @@ class SubActionEditor( ttk.Frame, object ):
 
 		# Clear flags display
 		self.subActionFlags.set( 'SubAction Flags:  ' )
+
+	def showFilterOptions( self, guiEvent ):
+		
+		menu = Tk.Menu( self )
+		menu.add_checkbutton( label='Attacks', underline=0, variable=globalData.boolSettings['subActionFilterAttacks'], command=self.updateFilters )
+		menu.add_checkbutton( label='Movement', underline=0, variable=globalData.boolSettings['subActionFilterAttacks'], command=self.updateFilters )
+		menu.add_checkbutton( label='Item Related', underline=0, variable=globalData.boolSettings['subActionFilterAttacks'], command=self.updateFilters )
+		menu.add_checkbutton( label='Character Specific', underline=0, variable=globalData.boolSettings['subActionFilterAttacks'], command=self.updateFilters )
+
+		# Determine spawn coordinates and display the menu
+		rootDistanceFromScreenLeft, rootDistanceFromScreenTop = getWindowGeometry( globalData.gui.root )[2:]
+		menu.post( rootDistanceFromScreenLeft+160, rootDistanceFromScreenTop+180 )
+
+	def updateFilters( self ):
+
+		globalData.saveProgramSettings()
 
 	def getSubActionName( self, namePointer, index ):
 		if namePointer == 0:
@@ -449,7 +470,7 @@ class SubActionEditor( ttk.Frame, object ):
 
 		""" Parses subAction events and updates the GUI. Called on selection of the subAction list. 
 		
-			Maybe a bug in Tkinter, but this may also be called upon ListboxSelect of other Listboxes, 
+			Maybe a bug in Tkinter, but this may also be called upon the ListboxSelect of other Listboxes, 
 			however it will not have a selection. Also, if debugging and breaking on this method it may appear 
 			to be called multiple times upon ListboxSelect, however prints show it only being called once. """
 
@@ -479,6 +500,7 @@ class SubActionEditor( ttk.Frame, object ):
 		
 		# Commiting to this selection
 		self.lastSelection = index
+		index = self.listboxIndices[index] # Convert from listbox index to events table index
 		namePointer, animOffset, animSize, eventsPointer, flags, _, _, _ = self.actionTable.getEntryValues( index )
 		
 		# Update general info display
@@ -518,7 +540,7 @@ class SubActionEditor( ttk.Frame, object ):
 		if not self.subActionStruct or ( len(self.subActionStruct.events) == 1 and self.subActionStruct.events[0].id == 0 ):
 			if not self.displayPaneMessage:
 				self.displayPaneMessage = ttk.Label( self, text='No events' )
-				self.displayPaneMessage.grid( column=2, row=1, sticky='n', pady=150 )
+				self.displayPaneMessage.grid( column=2, row=2, sticky='n', pady=150 )
 		else:
 			if self.displayPaneMessage:
 				self.displayPaneMessage.destroy()

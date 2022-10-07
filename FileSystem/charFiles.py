@@ -671,7 +671,7 @@ class SubAction( DataBlock ):
 			# Jump to the next event
 			byte = self.data[position]
 
-		print( 'orig data:' )
+		print( 'orig data for {}:'.format(self.name) )
 		print( hexlify(self.data) )
 
 	def rebuild( self ):
@@ -689,7 +689,7 @@ class SubAction( DataBlock ):
 
 		self.length = len( self.data )
 			
-		print( 'new data:' )
+		print( 'rebuilt data for {}:'.format(self.name) )
 		print( hexlify(self.data) )
 
 	def deleteEvent( self, eventIndex ):

@@ -2015,7 +2015,7 @@ class MainGui( Tk.Frame, object ):
 		globalData.rememberFile( targetPath, updateDefaultDirectory )
 
 		# Load the disc, and load the disc's info into the GUI
-		#tic = time.clock()
+		# tic = time.clock()
 		globalData.disc = Disc( targetPath )
 		globalData.disc.load()
 		# toc = time.clock()

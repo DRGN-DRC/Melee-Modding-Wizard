@@ -1467,7 +1467,7 @@ class DiscDetailsTab( ttk.Frame ):
 			if updateName:
 				widget.configure( background='white' )
 	
-	def loadDiscDetails( self, discSize=0 ):
+	def loadDiscDetails( self ):
 
 		""" This primarily updates the Disc Details tab using information from Boot.bin/ISO.hdr (so a disc should already be loaded); 
 			it directly handles updating the fields for disc filepath, gameID (and its breakdown), region and version, image name,
@@ -1501,15 +1501,16 @@ class DiscDetailsTab( ttk.Frame ):
 		if disc.is20XX:
 			self.projectLabelText.set( '20XX Version:' )
 			self.projectVerstionText.set( disc.is20XX )
+		elif disc.isMex:
+			self.projectLabelText.set( 'M-EX Version:' )
+			self.projectVerstionText.set( disc.isMex )
 		else:
 			self.projectLabelText.set( '' )
 			self.projectVerstionText.set( '' )
 
 		# Get and display the disc's total files and total file size
 		self.isoFileCountText.set( "{:,}".format(len(disc.files)) )
-		if discSize: # i.e. if it's a root folder that's been opened
-			isoByteSize = discSize
-		else: isoByteSize = os.path.getsize( disc.filePath )
+		isoByteSize = disc.getSize()
 		self.isoFilesizeText.set( "{:,} bytes".format(isoByteSize) )
 		self.isoFilesizeTextLine2.set( '(i.e.: ' + "{:,}".format(isoByteSize/1048576) + ' MB, or ' + humansize(isoByteSize) + ')' )
 
