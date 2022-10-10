@@ -926,7 +926,7 @@ class Dol( FileBase ):
 		self.load()
 
 		#clearSummaryTab() # Clears the summary tab's lists of installed mods/SFs.
-		codeRegions = self.getCustomCodeRegions( True )
+		codeRegions = self.getCustomCodeRegions()
 
 		# Preliminary attempts to get injection code and gecko code data external to the dol (from gecko.bin/codes.bin)
 		# self._externalCodelistData = self.disc.getGeckoData()
@@ -1069,19 +1069,19 @@ class Dol( FileBase ):
 							break
 
 					if matchOffset != -1: # Found the code installed
-						inEnabledRegion, regionNameFoundIn = self.offsetInEnabledRegions( matchOffset )
-						# Check that it's installed to an enabled region
-						if inEnabledRegion:
-							summaryReport.append( ('Gecko code', codeChange.type, matchOffset, codeChange.length) )
-						else:
-							included = False
-							print( '\nPossible phantom mod; {} may have gecko code installed to a disabled region: "{}"'.format(mod.name, regionNameFoundIn) )
+						# inEnabledRegion, regionNameFoundIn = self.offsetInEnabledRegions( matchOffset )
+						# # Check that it's installed to an enabled region
+						# if inEnabledRegion:
+						summaryReport.append( ('Gecko code', codeChange.type, matchOffset, codeChange.length) )
+						# else:
+						# 	included = False
+						# 	print( '\nPossible phantom mod; {} may have gecko code installed to a disabled region: "{}"'.format(mod.name, regionNameFoundIn) )
 
-							if regionNameFoundIn != '':
-								if regionNameFoundIn not in requiredDisabledRegions:
-									requiredDisabledRegions.append( regionNameFoundIn )
-							else:
-								print( 'Gecko code at 0x{:X} seems to be pointing to a region not defined for custom code!'.format(matchOffset) )
+						# 	if regionNameFoundIn != '':
+						# 		if regionNameFoundIn not in requiredDisabledRegions:
+						# 			requiredDisabledRegions.append( regionNameFoundIn )
+						# 	else:
+						# 		print( 'Gecko code at 0x{:X} seems to be pointing to a region not defined for custom code!'.format(matchOffset) )
 					else:
 						included = False
 

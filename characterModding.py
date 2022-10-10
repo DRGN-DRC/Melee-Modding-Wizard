@@ -323,7 +323,8 @@ class SubActionEditor( ttk.Frame, object ):
 
 		# Add the action table list and its scrollbar
 		subActionScrollBar = Tk.Scrollbar( self, orient='vertical' )
-		self.subActionList = Tk.Listbox( self, width=38, yscrollcommand=subActionScrollBar.set, activestyle='none', selectbackground='#78F', exportselection=0 )
+		self.subActionList = Tk.Listbox( self, width=46, yscrollcommand=subActionScrollBar.set, 
+			activestyle='none', selectbackground='#78F', exportselection=0 ) #, font=('Consolas', 9)
 		subActionScrollBar.config( command=self.subActionList.yview )
 		self.subActionList.bind( '<<ListboxSelect>>', self.subActionSelected )
 		self.subActionList.grid( column=0, row=2, sticky='nsew' )
@@ -453,7 +454,9 @@ class SubActionEditor( ttk.Frame, object ):
 			translatedName = self.charFile.subActionTranslations.get( gameName )
 
 			if translatedName:
-				return '{} ({})'.format( translatedName, gameName )
+				#spaces = ' ' * ( 40 - (len(translatedName) + len(gameName)) )
+				spaces = '     '
+				return '{}{}{}'.format( translatedName, spaces, gameName )
 			else:
 				return gameName
 

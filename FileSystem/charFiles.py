@@ -84,6 +84,7 @@ class CharDataFile( CharFileBase, DatFile ):
 	specialAttrNames = {}
 	subActionTranslations = {}
 	eventNotes = {}
+	translationsChecked = False
 	
 	def __init__( self, *args, **kwargs ):
 		super( CharDataFile, self ).__init__( *args, **kwargs )
@@ -141,11 +142,7 @@ class CharDataFile( CharFileBase, DatFile ):
 
 		""" Retrieves various human-readable names and notes for character data files from a JSON file. """
 		
-		if not self.specialAttrNames:
-			# Prevent multiple attempts and reports of the error if there's something wrong
-			if self.specialAttrNames == 'ERR':
-				return ''
-
+		if not self.translationsChecked:
 			# Open the Properties.json file and get its file contents
 			try:
 				jsonPath = globalData.paths['charDataTranslations']
@@ -155,10 +152,10 @@ class CharDataFile( CharFileBase, DatFile ):
 					self.subActionTranslations = jsonContents['subActionTranslation']
 					self.eventNotes = jsonContents['eventNotes']
 			except Exception as err:
-				self.specialAttrNames = 'ERR'
 				errMsg = 'Encountered an error when attempting to open "{}" (likely due to incorrect formatting); {}'.format( jsonPath, err )
 				msg( errMsg )
-				return ''
+				return
+			self.translationsChecked = True
 
 	def getAttributeName( self ):
 
