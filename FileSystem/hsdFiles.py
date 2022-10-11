@@ -21,7 +21,7 @@ import hsdStructures
 import standaloneStructs
 
 from fileBases import DatFile
-from basicFunctions import toInt, msg, uHex, dictReverseLookup
+from basicFunctions import toInt, msg, uHex, reverseDictLookup
 
 
 def findBytes( bytesRange, target ): # Searches a bytearray for a given (target) set of bytes, and returns the location (index)
@@ -571,11 +571,11 @@ class SisFile( DatFile ):
 		# Convert the given stage menu text to bytes and add the ending bytes
 		byteStrings = []
 		for char in newText:
-			sBytes = dictReverseLookup( globalData.DolCharacters, char )
+			sBytes = reverseDictLookup( globalData.DolCharacters, char )
 
 			# Check special characters (defined in this file) if a normal one wasn't found (defined in the DOL)
 			if not sBytes:
-				sBytes = dictReverseLookup( specialCharDict, char, defaultValue='20eb' ) # Default to question mark
+				sBytes = reverseDictLookup( specialCharDict, char, defaultValue='20eb' ) # Default to question mark
 			
 			byteStrings.append( sBytes )
 		hexString = ''.join( byteStrings )

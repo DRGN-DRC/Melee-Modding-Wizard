@@ -92,7 +92,13 @@ def init( programArgs ):
 		'disableMainMenuAnimations': '0',
 		'useCodeCache': '1',
 		'offerToConvertGeckoCodes': '1',
-		'subActionFilterAttacks': '1',
+
+		# Filters used on the Moves Editor's Action States list
+		'actionStateFilterAttacks': '1',
+		'actionStateFilterMovement': '0',
+		'actionStateFilterItems': '0',
+		'actionStateFilterCharSpecific': '1',
+		'actionStateFilterEmpty': '0',
 	}
 	# regionOverwriteDefaults = {
 	# 	'Common Code Regions': True,

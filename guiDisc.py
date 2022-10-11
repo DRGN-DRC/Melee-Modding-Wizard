@@ -1903,15 +1903,11 @@ class DiscMenu( Tk.Menu, object ):
 		self.fileObj.initialize()
 
 		lines = []
-		# for symbol in self.fileObj.animNames:
-		# 	charName = symbol[3:].split( '_' )[0]
-		# 	animName = symbol.split( '_' )[3]
 		for anim in self.fileObj.animations:
 			charName = anim.name[3:].split( '_' )[0]
 			animName = anim.name.split( '_' )[3]
-			offset = hex( anim.offset + 0x20 )
 			
-			lines.append( '{}  -  {}  -  {}'.format(charName, animName, offset) )
+			lines.append( '{}  -  {}  -  0x{:X}'.format(charName, animName, 0x20+anim.offset) )
 
 		cmsg( '\n'.join(lines), '{} Animation Names'.format(self.fileObj.filename) )
 

@@ -759,7 +759,7 @@ class CharAnimFile( CharFileBase, FileBase ):
 		# Create a DAT file for each animation
 		while 1:
 			# Get the size of this animation
-			headerData = self.getData( readOffset, 0xC )
+			headerData = self.getData( readOffset, 0xC, hideWarnings=True )
 			if len( headerData ) != 0xC:
 				break # Reached the end of the file
 			animSize, rtStart, rtEntryCount = struct.unpack( '>3I', headerData )

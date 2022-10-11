@@ -118,7 +118,7 @@ class FileBase( object ):
 			# Unknown problem parsing the file
 			msg( 'There was an error while parsing the {}.yaml config file:\n\n{}'.format(gameId, err) )
 
-	def getData( self, dataOffset=0, dataLength=-1 ):
+	def getData( self, dataOffset=0, dataLength=-1, hideWarnings=False ):
 
 		""" Gets and returns binary data for this file (also storing it to .data for future use). 
 			If no arguments are given, the whole file's data is returned. 
@@ -148,10 +148,12 @@ class FileBase( object ):
 					return bytearray()
 			
 			except IOError:
-				msg( "Unable to read the source file. Be sure that the path to it is "
-					 "correct and that the file hasn't been moved, renamed, or deleted." )
+				if not hideWarnings:
+					msg( "Unable to read the source file. Be sure that the path to it is "
+						"correct and that the file hasn't been moved, renamed, or deleted." )
 			except Exception as err:
-				msg( "Unable to read the source file; {}".format(err) )
+				if not hideWarnings:
+					msg( "Unable to read the source file; {}".format(err) )
 				
 		# Return all of the data if no args were given
 		if dataOffset == 0 and dataLength == -1:
@@ -164,7 +166,7 @@ class FileBase( object ):
 		data = self.data[ dataOffset:dataOffset+dataLength ]
 
 		# Check that all of the data was retrieved
-		if len( data ) != dataLength:
+		if not hideWarnings and len( data ) != dataLength:
 			printStatus( 'Unable to retrieve 0x{:X} bytes from 0x{:X}; possibly invalid data length or offset'.format(dataLength, dataOffset), error=True )
 
 		return data

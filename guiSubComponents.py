@@ -589,6 +589,50 @@ class CharacterColorChooser( BasicWindow ):
 		self.close()
 
 
+class AnimationChooser( BasicWindow ):
+
+	""" Prompts the user to choose an animation (names taken from a given Pl__AJ.dat file). 
+		This window will block the main interface until a selection is made. """
+
+	def __init__( self, animFile, message='' ):
+
+		BasicWindow.__init__( self, globalData.gui.root, 'Select an Animation', offsets=(300, 300) )
+		
+		self.emptySelection = '- - -'
+		self.animSymbol = -1
+
+		if message: # Optional user message
+			ttk.Label( self.window, text=message, wraplength=500 ).pack( padx=14, pady=(6, 0) )
+
+		# Build the initial list to appear in the dropdown
+		animFile.initialize()
+		animList = [ fileObj.name.split( '_' )[3] for fileObj in animFile.animations ]
+		
+		charChoice = Tk.StringVar()
+		charDropdown = ttk.OptionMenu( self.window, charChoice, self.emptySelection, *animList, command=self.animationSelected )
+		charDropdown.pack( padx=14, pady=(4, 0) )
+		
+		buttonFrame = ttk.Frame( self.window )
+		ttk.Button( buttonFrame, text='Confirm', command=self.close ).grid( column=0, row=0, padx=6 )
+		ttk.Button( buttonFrame, text='Cancel', command=self.cancel ).grid( column=1, row=0, padx=6 )
+		buttonFrame.pack( pady=(4, 6) )
+
+		# Make this window modal (will not allow the user to interact with main GUI until this is closed)
+		self.window.grab_set()
+		globalData.gui.root.wait_window( self.window )
+
+	def animationSelected( self, selectedOption ):
+
+		""" Called when the user changes the current selection. Sets the currently 
+			selected character ID, and populates the costume color drop-down. """
+
+		self.animSymbol = selectedOption
+
+	def cancel( self ):
+		self.animSymbol = ''
+		self.close()
+
+
 def cmsg( message, title='', align='center', buttons=None, makeModal=False, parent=None ):
 
 	""" Simple helper function to display a small, windowed message to the user, with text that can be selected/copied. 

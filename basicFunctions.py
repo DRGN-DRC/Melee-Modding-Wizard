@@ -153,7 +153,7 @@ def floatToHex( input ):
 	return '0x' + hex( intValue )[2:].upper()
 
 
-def dictReverseLookup( dict, value, defaultValue=None ):
+def reverseDictLookup( dict, value, defaultValue=None ):
 
 	""" Looks up a key in a dictionary for a given value. 
 		Returns the first match, so naturally this assumes unique values. 
