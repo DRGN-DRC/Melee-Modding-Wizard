@@ -566,7 +566,7 @@ class CharacterColorChooser( BasicWindow ):
 		colorChoice = Tk.StringVar()
 		self.colorDropdown = ttk.OptionMenu( self.window, colorChoice, self.emptySelection, *costumeOptions, command=self.colorSelected )
 		self.colorDropdown.pack( pady=(4, 0) )
-		
+
 		buttonFrame = ttk.Frame( self.window )
 		ttk.Button( buttonFrame, text='Confirm', command=self.close ).grid( column=0, row=0, padx=6 )
 		ttk.Button( buttonFrame, text='Cancel', command=self.cancel ).grid( column=1, row=0, padx=6 )
@@ -589,48 +589,167 @@ class CharacterColorChooser( BasicWindow ):
 		self.close()
 
 
-class AnimationChooser( BasicWindow ):
+# class AnimationChooser( BasicWindow ):
 
-	""" Prompts the user to choose an animation (names taken from a given Pl__AJ.dat file). 
-		This window will block the main interface until a selection is made. """
+# 	""" Prompts the user to choose an animation (names taken from a given Pl__AJ.dat file). 
+# 		This window will block the main interface until a selection is made. """
 
-	def __init__( self, animFile, message='' ):
+# 	def __init__( self, animFile, message='' ):
 
-		BasicWindow.__init__( self, globalData.gui.root, 'Select an Animation', offsets=(300, 300) )
+# 		BasicWindow.__init__( self, globalData.gui.root, 'Select an Animation', offsets=(300, 300) )
 		
-		self.emptySelection = '- - -'
-		self.animSymbol = -1
+# 		self.listboxIndices = {} # Key = listboxIndex, value = animationIndex
+# 		#self.animSymbol = ''
 
-		if message: # Optional user message
-			ttk.Label( self.window, text=message, wraplength=500 ).pack( padx=14, pady=(6, 0) )
+# 		if message: # Optional user message
+# 			#ttk.Label( self.window, text=message, wraplength=500 ).pack( padx=14, pady=(6, 0) )
+# 			ttk.Label( self.window, text=message, wraplength=500 ).grid( column=0, columnspan=2, row=0 )
 
-		# Build the initial list to appear in the dropdown
-		animFile.initialize()
-		animList = [ fileObj.name.split( '_' )[3] for fileObj in animFile.animations ]
+# 		# Build the initial list to appear in the dropdown
+# 		self.animFile = animFile
+# 		animFile.initialize()
+# 		#animList = [ fileObj.name.split( '_' )[3] for fileObj in animFile.animations ]
 		
-		charChoice = Tk.StringVar()
-		charDropdown = ttk.OptionMenu( self.window, charChoice, self.emptySelection, *animList, command=self.animationSelected )
-		charDropdown.pack( padx=14, pady=(4, 0) )
+# 		filtersBox = ttk.Frame( self.window )
+# 		ttk.Checkbutton( filtersBox, text='Attacks', variable=globalData.boolSettings['actionStateFilterAttacks'], command=self.updateFilters ).grid( column=0, row=0, sticky='w' )
+# 		ttk.Checkbutton( filtersBox, text='Movement', variable=globalData.boolSettings['actionStateFilterMovement'], command=self.updateFilters ).grid( column=0, row=1, sticky='w' )
+# 		ttk.Checkbutton( filtersBox, text='Item Related', variable=globalData.boolSettings['actionStateFilterItems'], command=self.updateFilters ).grid( column=1, row=0, sticky='w', padx=(10, 0) )
+# 		ttk.Checkbutton( filtersBox, text='Character Specific', variable=globalData.boolSettings['actionStateFilterCharSpecific'], command=self.updateFilters ).grid( column=1, row=1, sticky='w', padx=(10, 0) )
+# 		ttk.Checkbutton( filtersBox, text='Empty Entries', variable=globalData.boolSettings['actionStateFilterEmpty'], command=self.updateFilters ).grid( column=2, row=0, sticky='w', padx=(8, 0) )
+# 		filtersBox.grid( column=0, columnspan=2, row=1, pady=3 )
+
+# 		# Add the action table list and its scrollbar
+# 		subActionScrollBar = Tk.Scrollbar( self.window, orient='vertical' )
+# 		self.subActionList = Tk.Listbox( self.window, width=48, yscrollcommand=subActionScrollBar.set, 
+# 										activestyle='none', selectbackground='#78F', exportselection=0, font=('Consolas', 9) )
+# 		# i = 0
+# 		# for name in animList:
+# 		# 	self.subActionList.insert( i, name )
+# 		# 	i += 1
+# 		self.populate()
+# 		subActionScrollBar.config( command=self.subActionList.yview )
+# 		self.subActionList.bind( '<<ListboxSelect>>', self.animationSelected )
+# 		self.subActionList.grid( column=0, row=2, sticky='ns' )
+# 		subActionScrollBar.grid( column=1, row=2, sticky='ns' )
+
+# 		buttonFrame = ttk.Frame( self.window )
+# 		ttk.Button( buttonFrame, text='Confirm', command=self.close ).grid( column=0, row=0, padx=6 )
+# 		ttk.Button( buttonFrame, text='Cancel', command=self.cancel ).grid( column=1, row=0, padx=6 )
+# 		buttonFrame.pack( column=0, columnspan=2, row=3 )
+
+# 		self.window.columnconfigure( 0, weight=1 )
+# 		self.window.rowconfigure( 1, weight=1 )
+
+# 		# Make this window modal (will not allow the user to interact with main GUI until this is closed)
+# 		self.window.grab_set()
+# 		globalData.gui.root.wait_window( self.window )
+
+# 	def populate( self ):
+
+# 		""" Clears the subAction list (if it has anything displayed) and 
+# 			repopulates it with entries from the character's action table. """
+
+# 		# Remember the current (soon to be previous) selection
+# 		selection = self.subActionList.curselection()
+# 		if selection:
+# 			lastSelectedEntry = self.listboxIndices.get( selection[0], -1 ) # Convert from listbox index to animation index
+# 		else:
+# 			lastSelectedEntry = -1
 		
-		buttonFrame = ttk.Frame( self.window )
-		ttk.Button( buttonFrame, text='Confirm', command=self.close ).grid( column=0, row=0, padx=6 )
-		ttk.Button( buttonFrame, text='Cancel', command=self.cancel ).grid( column=1, row=0, padx=6 )
-		buttonFrame.pack( pady=(4, 6) )
+# 		self.listboxIndices = {} # Key = listboxIndex, value = animationIndex
 
-		# Make this window modal (will not allow the user to interact with main GUI until this is closed)
-		self.window.grab_set()
-		globalData.gui.root.wait_window( self.window )
+# 		showAttacks = globalData.checkSetting( 'actionStateFilterAttacks' )
+# 		showMovement = globalData.checkSetting( 'actionStateFilterMovement' )
+# 		showItems = globalData.checkSetting( 'actionStateFilterItems' )
+# 		showCharSpecific = globalData.checkSetting( 'actionStateFilterCharSpecific' )
+# 		showEmpty = globalData.checkSetting( 'actionStateFilterEmpty' )
 
-	def animationSelected( self, selectedOption ):
+# 		# Repopulate the subAction list
+# 		self.subActionList.delete( 0, 'end' )
+# 		listboxIndex = 0
+# 		for anim in self.animFile.animations:
+# 			# Apply filters and skip unwanted actions
+# 			if not showAttacks:
+# 				if entryIndex > 0x2D and entryIndex < 0x49: # Many basic moves (jab, f-tilt, etc.)
+# 					continue
+# 				elif entryIndex == 0xBB or entryIndex == 0xC3: # Grounded get-up attacks
+# 					continue
+# 				elif entryIndex == 0xDD or entryIndex == 0xDE: # Ledge get-up attacks
+# 					continue
+# 				elif entryIndex > 0xF1 and entryIndex < 0xFB: # Grab states
+# 					continue
+# 				elif entryIndex > 0x105 and entryIndex < 0x10A: # Throws
+# 					continue
+# 			if not showMovement:
+# 				if entryIndex <= 0x2D: # Basic movement
+# 					continue
+# 				elif entryIndex > 0x48 and entryIndex < 0x4E: # Attack landing animations
+# 					continue
+# 				elif entryIndex > 0xA4 and entryIndex < 0xE5: # Damage flight animations
+# 					if entryIndex not in ( 0xBB, 0xC3, 0xDD, 0xDE ): # Exclude a few attacks
+# 						continue
+# 				elif entryIndex > 0xED and entryIndex < 0xF1: # Entry and Taunts
+# 					continue
+# 				elif entryIndex > 0x11D and entryIndex < 0x124:
+# 					continue
+# 				elif entryIndex > 0xFA and entryIndex < 0x103: # Being grabbed
+# 					continue
+# 			if not showItems:
+# 				if entryIndex > 0x4D and entryIndex < 0xA5: # All item stuff
+# 					continue
+# 			if not showCharSpecific and entryIndex > 0x126:
+# 				continue
 
-		""" Called when the user changes the current selection. Sets the currently 
-			selected character ID, and populates the costume color drop-down. """
+# 			# Check for a pointer to an animation name string
+# 			namePointer = values[0]
+# 			if not showEmpty and namePointer == 0:
+# 				continue
 
-		self.animSymbol = selectedOption
+# 			subActionName = self.getActionName( namePointer, entryIndex )
 
-	def cancel( self ):
-		self.animSymbol = ''
-		self.close()
+# 			self.subActionList.insert( entryIndex, '  ' + subActionName.replace(' (', '    (') )
+# 			self.listboxIndices[listboxIndex] = entryIndex
+
+# 			if not namePointer:
+# 				self.subActionList.itemconfigure( listboxIndex, foreground='#6A6A6A' )
+# 			listboxIndex += 1
+
+# 		# Clear the events display pane and reset the scrollbar
+# 		# self.displayPane.delete_all_items()
+# 		# self.displayPane.master.master.yview_moveto( 0 )
+
+# 		# # Clear general info display
+# 		# self.subActionIndex.set( 'Action Table Index:  ' )
+# 		# self.targetAnimName.set( 'Target Animation:  ' )
+# 		# self.actionAnimOffset.set( 'Animation (AJ) Offset:  ' )
+# 		# self.actionAnimSize.set( 'Animation (AJ) Size:  ' )
+# 		# self.subActionEventsOffset.set( 'Events Offset:  ' )
+# 		# self.subActionEventsSize.set( 'Events Table Size:  ' )
+
+# 		# # Clear flags display
+# 		# self.subActionFlags.set( 'Action Flags:  ' )
+
+# 		# Clear current selection, and then select the same item that was selected before (if it's still present)
+# 		self.subActionList.selection_clear( 0, 'end' )
+# 		if lastSelectedEntry != -1 and lastSelectedEntry in self.listboxIndices.values():
+# 			listboxIndex = reverseDictLookup( self.listboxIndices, lastSelectedEntry )
+# 			self.subActionList.selection_set( listboxIndex )
+# 			self.subActionList.see( listboxIndex )
+
+# 	def animationSelected( self, guiEvent ):
+
+# 		""" Called when the user changes the current selection. Sets the currently 
+# 			selected character ID, and populates the costume color drop-down. """
+		
+# 		selection = self.subActionList.curselection()
+# 		if not selection:
+# 			return
+
+# 		self.animSymbol = selection[0]
+
+# 	def cancel( self ):
+# 		self.animSymbol = ''
+# 		self.close()
 
 
 def cmsg( message, title='', align='center', buttons=None, makeModal=False, parent=None ):

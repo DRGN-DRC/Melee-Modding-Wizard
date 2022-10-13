@@ -21,7 +21,7 @@ from basicFunctions import reverseDictLookup, msg, printStatus
 # Internal Dependencies
 import globalData
 from FileSystem.charFiles import CharDataFile, SubAction, SubActionEvent
-from guiSubComponents import AnimationChooser, BasicWindow, ClickText, ColoredLabelButton, DDList, HexEditEntry, LabelButton, ToggleButton, ToolTip, VerticalScrolledFrame, getWindowGeometry
+from guiSubComponents import BasicWindow, ClickText, ColoredLabelButton, DDList, HexEditEntry, LabelButton, ToggleButton, ToolTip, VerticalScrolledFrame, getWindowGeometry
 
 
 class CharModding( ttk.Notebook ):
@@ -130,8 +130,8 @@ class CharModding( ttk.Notebook ):
 		newCharNotebook.add( newTab, text=' Properties ' )
 
 		# Add the fighter/character properties tab
-		newCharNotebook.subActionEditor = SubActionEditor( newCharNotebook )
-		newCharNotebook.add( newCharNotebook.subActionEditor, text=' Moves (SubAction) Editor ' )
+		newCharNotebook.subActionEditor = ActionEditor( newCharNotebook )
+		newCharNotebook.add( newCharNotebook.subActionEditor, text=' Moves Modding ' )
 
 		# Switch tabs to this character
 		self.select( newCharNotebook )
@@ -260,12 +260,12 @@ class CharModding( ttk.Notebook ):
 
 		modifiedCharacters = []
 
+		# Check each Action Editor tab for changes
 		for tabName in self.tabs():
 			# Get the character tab
 			tabWidget = globalData.gui.root.nametowidget( tabName )
-			if not tabWidget.charFile: continue # Skip main selection tab
 
-			# Check the SubAction tab for changes
+			if not tabWidget.charFile: continue # Skip main selection tab
 			elif tabWidget.subActionEditor.hasUnsavedChanges():
 				modifiedCharacters.append( tabWidget.charFile.filename )
 
@@ -310,10 +310,10 @@ class CharGeneralEditor( ttk.Frame, object ):
 		self.cspLabel.image = cspImage # Storing to prevent garbage collection
 
 
-class SubActionEditor( ttk.Frame, object ):
+class ActionEditor( ttk.Frame, object ):
 
 	def __init__( self, parent ):
-		super( SubActionEditor, self ).__init__( parent )
+		super( ActionEditor, self ).__init__( parent )
 
 		self.charFile = parent.charFile
 		self.actionTable = self.charFile.getActionTable()
@@ -335,7 +335,7 @@ class SubActionEditor( ttk.Frame, object ):
 
 		# Add the action table list and its scrollbar
 		subActionScrollBar = Tk.Scrollbar( self, orient='vertical' )
-		self.subActionList = Tk.Listbox( self, width=48, yscrollcommand=subActionScrollBar.set, 
+		self.subActionList = Tk.Listbox( self, width=47, yscrollcommand=subActionScrollBar.set, 
 										activestyle='none', selectbackground='#78F', exportselection=0, font=('Consolas', 9) )
 		subActionScrollBar.config( command=self.subActionList.yview )
 		self.subActionList.bind( '<<ListboxSelect>>', self.subActionSelected )
@@ -368,7 +368,7 @@ class SubActionEditor( ttk.Frame, object ):
 		ttk.Label( generalInfoBox, textvariable=self.subActionEventsSize ).pack()
 		generalInfoBox.pack( fill='x', expand=True )
 		
-		flagsBox = ttk.Labelframe( infoPane, text=' SubAction Flags ', padding=(20, 5) )
+		flagsBox = ttk.Labelframe( infoPane, text=' Action Flags ', padding=(20, 5) )
 		self.subActionFlags = Tk.StringVar()
 		ttk.Label( flagsBox, textvariable=self.subActionFlags ).pack()
 		flagsBox.pack( fill='x', expand=True, pady=20 )
@@ -396,7 +396,7 @@ class SubActionEditor( ttk.Frame, object ):
 		infoPane.grid( column=3, row=1, rowspan=2, sticky='ew', padx=20, pady=0 )
 
 		# Configure row/column stretch and resize behavior
-		self.columnconfigure( 0, weight=0 ) # SubAction Listbox
+		self.columnconfigure( 0, weight=0 ) # SubAction Events Listbox
 		self.columnconfigure( 1, weight=0 ) # Scrollbar
 		self.columnconfigure( 2, weight=2 ) # Events display pane
 		self.columnconfigure( 3, weight=0 ) # Info display
@@ -433,38 +433,46 @@ class SubActionEditor( ttk.Frame, object ):
 		self.subActionList.delete( 0, 'end' )
 		listboxIndex = 0
 		for entryIndex, values in self.actionTable.iterateEntries():
-			# Apply filters and skip unwanted actions
-			if not showAttacks:
-				if entryIndex > 0x2D and entryIndex < 0x49: # Many basic moves (jab, f-tilt, etc.)
-					continue
-				elif entryIndex == 0xBB or entryIndex == 0xC3: # Grounded get-up attacks
-					continue
-				elif entryIndex == 0xDD or entryIndex == 0xDE: # Ledge get-up attacks
-					continue
-				elif entryIndex > 0xF2 and entryIndex < 0xFB: # Grab states
-					continue
-			if not showMovement:
-				if entryIndex <= 0x2D: # Basic movement
-					continue
-				elif entryIndex > 0x48 and entryIndex < 0x4E: # Attack landing animations
-					continue
-				elif entryIndex > 0xA4 and entryIndex < 0xE5: # Damage flight animations
-					if entryIndex not in ( 0xBB, 0xC3, 0xDD, 0xDE ): # Exclude a few attacks
-						continue
-				elif entryIndex == 0xEF or entryIndex == 0xF0: # Taunts
-					continue
-			if not showItems:
-				if entryIndex > 0x4D and entryIndex < 0xA5: # All item stuff
-					continue
-			if not showCharSpecific and entryIndex > 0x126:
-				continue
-
-			# Check for a pointer to an animation name string
 			namePointer = values[0]
-			if not showEmpty and namePointer == 0:
-				continue
 
-			subActionName = self.getSubActionName( namePointer, entryIndex )
+			if namePointer == 0:
+				if not showEmpty:
+					continue
+			
+			else:
+				# Apply filters and skip unwanted actions
+				if not showAttacks:
+					if entryIndex > 0x2D and entryIndex < 0x49: # Many basic moves (jab, f-tilt, etc.)
+						continue
+					elif entryIndex == 0xBB or entryIndex == 0xC3: # Grounded get-up attacks
+						continue
+					elif entryIndex == 0xDD or entryIndex == 0xDE: # Ledge get-up attacks
+						continue
+					elif entryIndex > 0xF1 and entryIndex < 0xFB: # Grab states
+						continue
+					elif entryIndex > 0x105 and entryIndex < 0x10A: # Throws
+						continue
+				if not showMovement:
+					if entryIndex <= 0x2D: # Basic movement
+						continue
+					elif entryIndex > 0x48 and entryIndex < 0x4E: # Attack landing animations
+						continue
+					elif entryIndex > 0xA4 and entryIndex < 0xE5: # Damage flight animations
+						if entryIndex not in ( 0xBB, 0xC3, 0xDD, 0xDE ): # Exclude a few attacks
+							continue
+					elif entryIndex > 0xED and entryIndex < 0xF1: # Entry and Taunts
+						continue
+					elif entryIndex > 0x11D and entryIndex < 0x124:
+						continue
+					elif entryIndex > 0xFA and entryIndex < 0x103: # Being grabbed
+						continue
+				if not showItems:
+					if entryIndex > 0x4D and entryIndex < 0xA5: # All item stuff
+						continue
+				if not showCharSpecific and entryIndex > 0x126:
+					continue
+
+			subActionName = self.getActionName( namePointer, entryIndex )
 
 			self.subActionList.insert( entryIndex, '  ' + subActionName.replace(' (', '    (') )
 			self.listboxIndices[listboxIndex] = entryIndex
@@ -478,7 +486,7 @@ class SubActionEditor( ttk.Frame, object ):
 		# self.displayPane.master.master.yview_moveto( 0 )
 
 		# # Clear general info display
-		# self.subActionIndex.set( 'SubAction Table Index:  ' )
+		# self.subActionIndex.set( 'Action Table Index:  ' )
 		# self.targetAnimName.set( 'Target Animation:  ' )
 		# self.actionAnimOffset.set( 'Animation (AJ) Offset:  ' )
 		# self.actionAnimSize.set( 'Animation (AJ) Size:  ' )
@@ -486,7 +494,7 @@ class SubActionEditor( ttk.Frame, object ):
 		# self.subActionEventsSize.set( 'Events Table Size:  ' )
 
 		# # Clear flags display
-		# self.subActionFlags.set( 'SubAction Flags:  ' )
+		# self.subActionFlags.set( 'Action Flags:  ' )
 
 		# Clear current selection, and then select the same item that was selected before (if it's still present)
 		self.subActionList.selection_clear( 0, 'end' )
@@ -516,17 +524,21 @@ class SubActionEditor( ttk.Frame, object ):
 		self.populate()
 		globalData.saveProgramSettings()
 
-	def getSubActionName( self, namePointer, index ):
-		if namePointer == 0:
-			return 'Entry ' + str( index + 1 )
-		else:
-			gameName = self.charFile.getString( namePointer ).split( '_' )[3] # e.g. 'WallDamage'
-			translatedName = self.charFile.subActionTranslations.get( gameName )
+	def getActionName( self, namePointer, index ):
 
-			if translatedName:
-				spaces = ' ' * ( 41 - (len(translatedName) + len(gameName)) )
-				#spaces = '     '
-				return '{}{}{}'.format( translatedName, spaces, gameName )
+		""" Gets the game's symbol name from a given string pointer, and 
+			translates it into a more friendly/human-readable name. """
+
+		if namePointer == 0:
+			index += 1
+			return 'Entry {}  (0x{:X})'.format( index, index )
+
+		else:
+			gameName, friendlyName = self.charFile.getFriendlyActionName( namePointer, index )
+
+			if friendlyName:
+				spaces = ' ' * ( 42 - (len(friendlyName) + len(gameName)) )
+				return '{}{}{}'.format( friendlyName, spaces, gameName )
 			else:
 				return gameName
 
@@ -581,7 +593,7 @@ class SubActionEditor( ttk.Frame, object ):
 		namePointer, animOffset, animSize, eventsPointer, flags, _, _, _ = self.actionTable.getEntryValues( index )
 		
 		# Update general info display
-		self.subActionIndex.set( 'SubAction Table Index:  0x{:X}'.format(index) )
+		self.subActionIndex.set( 'Action Table Index:  0x{:X}'.format(index) )
 		if animOffset == 0: # Assuming this is supposed to be null/no struct reference, rather than the struct at 0x20
 			self.targetAnimName.set( 'Target Animation:  N/A' )
 			self.actionAnimOffset.set( 'Animation (AJ) Offset:  Null' )
@@ -609,7 +621,7 @@ class SubActionEditor( ttk.Frame, object ):
 			self.actionAnimSize.set( 'Animation (AJ) Size:  0x{:X}'.format(animSize) )
 
 		# Update flags display
-		self.subActionFlags.set( 'SubAction Flags:  0x{:X}'.format(flags) )
+		self.subActionFlags.set( 'Action Flags:  0x{:X}'.format(flags) )
 
 		# Set the subActionStruct (and parse it) and the Events Offset/Size display
 		if eventsPointer == 0: # Assuming this is supposed to be null/no struct reference, rather than the struct at 0x20
@@ -627,7 +639,7 @@ class SubActionEditor( ttk.Frame, object ):
 				self.subActionEventsSize.set( 'Events Table Size:  0x{:X}'.format(self.subActionStruct.getLength()) )
 			except Exception as err:
 				self.subActionStruct = None
-				subActionName = self.getSubActionName( namePointer, index )
+				subActionName = self.getActionName( namePointer, index )
 				printStatus( 'Unable to parse {} subAction (index {}); {}'.format(subActionName, index, err) )
 				self.subActionEventsSize.set( 'Events Table Size:  N/A' )
 				return
@@ -706,7 +718,7 @@ class SubActionEditor( ttk.Frame, object ):
 
 		# Save this new data to the file
 		entry = self.actionTable.getEntryValues( self.lastSelection )
-		subActionName = self.getSubActionName( entry[0], self.lastSelection )
+		subActionName = self.getActionName( entry[0], self.lastSelection )
 		self.charFile.updateStruct( self.subActionStruct, 'SubAction event data for {} updated'.format(subActionName) )
 
 		globalData.gui.updateProgramStatus( 'These subAction changes have been updated in the character file, but still need to be saved to the disc' )
@@ -836,10 +848,10 @@ class SubActionEditor( ttk.Frame, object ):
 			return
 
 		# Prompt the user to choose an animation
-		animSelectWindow = AnimationChooser( ajFile )
-		selectedAnim = animSelectWindow.animSymbol
-		if not selectedAnim: # User canceled
-			return
+		# animSelectWindow = AnimationChooser( ajFile )
+		# selectedAnim = animSelectWindow.animSymbol
+		# if not selectedAnim: # User canceled
+		# 	return
 
 		
 

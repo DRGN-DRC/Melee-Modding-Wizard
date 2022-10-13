@@ -76,6 +76,41 @@ class CharFileBase( object ):
 				self._charName = globalData.charList[self.extCharId]
 		return self._charName
 
+	def getFriendlyActionName( self, symbolPointer, actionTableIndex=-1 ):
+
+		""" Translates an action state or animation subaction symbol name, such as 
+			"PlyCaptain5K_Share_ACTION_AttackS3S_figatree", to a more human-friendly and 
+			recognizable name, such as "Forward Tilt". Returns the game name (AttackS3S) as well as 
+			the translated name (Forward Tilt). The translated name may be an empty string if not defined. """
+
+		# Get and parse the full symbol name
+		symbol = self.getString( symbolPointer ) # e.g. 'PlyCaptain5K_Share_ACTION_AttackS3S_figatree'
+		gameName = symbol.split( '_' )[3] # e.g. 'AttackS3S'
+
+		# Try to look up the friendly name
+		friendlyName = self.subActionTranslations.get( gameName, '' )
+
+		# Modify the friendly name for certain actions
+		if friendlyName:
+			if isinstance( self, CharDataFile ):
+				assert actionTableIndex != -1, 'No action table index provided for action name translation.'
+				
+				if actionTableIndex >= 0x6C and actionTableIndex <= 0x83: # Item swing actions
+					if actionTableIndex <=0x6F:
+						friendlyName = 'Beam Sword ' + friendlyName
+					elif actionTableIndex <=0x73:
+						friendlyName = 'Bat ' + friendlyName
+					elif actionTableIndex <=0x77:
+						friendlyName = 'Parasol ' + friendlyName
+					elif actionTableIndex <=0x7B:
+						friendlyName = 'Fan ' + friendlyName
+					elif actionTableIndex <=0x7F:
+						friendlyName = 'Star Rod ' + friendlyName
+					else:
+						friendlyName = "Lip's Stick " + friendlyName
+		
+		return gameName, friendlyName
+
 
 class CharDataFile( CharFileBase, DatFile ):
 
