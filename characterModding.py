@@ -21,7 +21,7 @@ from basicFunctions import reverseDictLookup, msg, printStatus
 # Internal Dependencies
 import globalData
 from FileSystem.charFiles import CharDataFile, SubAction, SubActionEvent
-from guiSubComponents import BasicWindow, ClickText, ColoredLabelButton, DDList, HexEditEntry, LabelButton, ToggleButton, ToolTip, VerticalScrolledFrame, getWindowGeometry
+from guiSubComponents import AnimationChooser, BasicWindow, ClickText, ColoredLabelButton, DDList, HexEditEntry, LabelButton, ToggleButton, ToolTip, VerticalScrolledFrame, getWindowGeometry
 
 
 class CharModding( ttk.Notebook ):
@@ -72,6 +72,8 @@ class CharModding( ttk.Notebook ):
 			if not isinstance( fileObj, CharDataFile ) or not fileObj.filename.endswith( '.dat' ):
 				continue
 			elif fileObj.charAbbr == 'Nn': # Skip Nana
+				continue
+			elif fileObj.charAbbr == 'Kb' and 'Cp' in fileObj.filename: # Skip Kirby copy ft data files
 				continue
 
 			# Try to get the character's icon texture
@@ -324,18 +326,24 @@ class ActionEditor( ttk.Frame, object ):
 		self.tableTitleVar = Tk.StringVar()
 		ttk.Label( self, textvariable=self.tableTitleVar ).grid( column=0, columnspan=2, row=0, pady=4 )
 
-		#ClickText( self, 'Edit Filters', self.showFilterOptions ).grid( column=0, columnspan=2, row=1 )
 		filtersBox = ttk.Frame( self )
-		ttk.Checkbutton( filtersBox, text='Attacks', variable=globalData.boolSettings['actionStateFilterAttacks'], command=self.updateFilters ).grid( column=0, row=0, sticky='w' )
-		ttk.Checkbutton( filtersBox, text='Movement', variable=globalData.boolSettings['actionStateFilterMovement'], command=self.updateFilters ).grid( column=0, row=1, sticky='w' )
-		ttk.Checkbutton( filtersBox, text='Item Related', variable=globalData.boolSettings['actionStateFilterItems'], command=self.updateFilters ).grid( column=1, row=0, sticky='w', padx=(10, 0) )
-		ttk.Checkbutton( filtersBox, text='Character Specific', variable=globalData.boolSettings['actionStateFilterCharSpecific'], command=self.updateFilters ).grid( column=1, row=1, sticky='w', padx=(10, 0) )
-		ttk.Checkbutton( filtersBox, text='Empty Entries', variable=globalData.boolSettings['actionStateFilterEmpty'], command=self.updateFilters ).grid( column=2, row=0, sticky='w', padx=(8, 0) )
+		ttk.Checkbutton( filtersBox, text='Attacks', variable=globalData.boolSettings['actionStateFilterAttacks'] ).grid( column=0, row=0, sticky='w' )
+		ttk.Checkbutton( filtersBox, text='Movement', variable=globalData.boolSettings['actionStateFilterMovement'] ).grid( column=0, row=1, sticky='w' )
+		ttk.Checkbutton( filtersBox, text='Item Related', variable=globalData.boolSettings['actionStateFilterItems'] ).grid( column=1, row=0, sticky='w', padx=(10, 0) )
+		ttk.Checkbutton( filtersBox, text='Character Specific', variable=globalData.boolSettings['actionStateFilterCharSpecific'] ).grid( column=1, row=1, sticky='w', padx=(10, 0) )
+		ttk.Checkbutton( filtersBox, text='Empty Entries', variable=globalData.boolSettings['actionStateFilterEmpty'] ).grid( column=2, row=0, sticky='w', padx=(8, 0) )
 		filtersBox.grid( column=0, columnspan=2, row=1, pady=3 )
+
+		# Attach traces to the filter booleans, to update the GUI even if these are changed in ways besides clicking on the above checkboxes
+		globalData.boolSettings['actionStateFilterAttacks'].trace( 'w', self.updateFilters )
+		globalData.boolSettings['actionStateFilterMovement'].trace( 'w', self.updateFilters )
+		globalData.boolSettings['actionStateFilterItems'].trace( 'w', self.updateFilters )
+		globalData.boolSettings['actionStateFilterCharSpecific'].trace( 'w', self.updateFilters )
+		globalData.boolSettings['actionStateFilterEmpty'].trace( 'w', self.updateFilters )
 
 		# Add the action table list and its scrollbar
 		subActionScrollBar = Tk.Scrollbar( self, orient='vertical' )
-		self.subActionList = Tk.Listbox( self, width=47, yscrollcommand=subActionScrollBar.set, 
+		self.subActionList = Tk.Listbox( self, width=44, yscrollcommand=subActionScrollBar.set, 
 										activestyle='none', selectbackground='#78F', exportselection=0, font=('Consolas', 9) )
 		subActionScrollBar.config( command=self.subActionList.yview )
 		self.subActionList.bind( '<<ListboxSelect>>', self.subActionSelected )
@@ -343,12 +351,13 @@ class ActionEditor( ttk.Frame, object ):
 		subActionScrollBar.grid( column=1, row=2, sticky='ns' )
 
 		# Pane for showing subAction events (empty for now)
-		ttk.Label( self, text='SubAction Events:' ).grid( column=2, row=0 )
+		ttk.Label( self, text='SubAction Events (a.k.a. ftcmd scripts):' ).grid( column=2, row=0 )
 		scrollPane = VerticalScrolledFrame( self )
 		self.displayPane = DDList( scrollPane.interior, 500, 40, item_borderwidth=2, reorder_callback=self.reordered, offset_x=2, offset_y=2, gap=2 )
-		self.displayPaneMessage = None
 		self.displayPane.pack( fill='both', expand=True )
 		scrollPane.grid( column=2, row=1, rowspan=2, sticky='nsew' )
+		self.displayPaneMessage = ttk.Label( self, text='< - Select an Action on\n the left to begin.', justify='center' )
+		self.displayPaneMessage.grid( column=2, row=2, sticky='n', pady=150 )
 
 		# Pane for general info display
 		infoPane = ttk.Frame( self )
@@ -438,63 +447,53 @@ class ActionEditor( ttk.Frame, object ):
 			if namePointer == 0:
 				if not showEmpty:
 					continue
-			
+				else:
+					gameName, friendlyName = self.getActionName( namePointer, entryIndex )
+
 			else:
+				gameName, friendlyName = self.getActionName( namePointer, entryIndex )
+				nameStart = gameName[:4]
+
 				# Apply filters and skip unwanted actions
 				if not showAttacks:
-					if entryIndex > 0x2D and entryIndex < 0x49: # Many basic moves (jab, f-tilt, etc.)
+					if nameStart in ( 'Atta', 'Catc', 'Thro' ) or gameName.startswith( 'DownAttack' ):
 						continue
-					elif entryIndex == 0xBB or entryIndex == 0xC3: # Grounded get-up attacks
+					elif gameName.startswith( 'CliffAttack' ):
 						continue
-					elif entryIndex == 0xDD or entryIndex == 0xDE: # Ledge get-up attacks
+					# Check for certain 'Taro' moves, like Koopa Klaw and Kong Karry
+					elif gameName.startswith( 'T' + self.charFile.nickname ):
 						continue
-					elif entryIndex > 0xF1 and entryIndex < 0xFB: # Grab states
-						continue
-					elif entryIndex > 0x105 and entryIndex < 0x10A: # Throws
-						continue
+					
 				if not showMovement:
-					if entryIndex <= 0x2D: # Basic movement
+					if nameStart in ( 'Wall', 'Dama', 'Wait', 'Walk', 'Turn', 'Dash', 'Run', 'RunB', 'Land' ):
 						continue
-					elif entryIndex > 0x48 and entryIndex < 0x4E: # Attack landing animations
-						continue
-					elif entryIndex > 0xA4 and entryIndex < 0xE5: # Damage flight animations
-						if entryIndex not in ( 0xBB, 0xC3, 0xDD, 0xDE ): # Exclude a few attacks
+					elif nameStart in ( 'Jump', 'Fall', 'Squa', 'Guar', 'Esca', 'Rebo', 'Down', 'Pass' ):
+						if not gameName.startswith( 'DownAttack' ):
 							continue
-					elif entryIndex > 0xED and entryIndex < 0xF1: # Entry and Taunts
-						continue
-					elif entryIndex > 0x11D and entryIndex < 0x124:
-						continue
-					elif entryIndex > 0xFA and entryIndex < 0x103: # Being grabbed
-						continue
+					elif nameStart in ( 'Fura', 'Otto', 'Stop', 'Miss', 'Clif', 'Entr', 'Appe', 'Capt' ):
+						if not gameName.startswith( 'CliffAttack' ):
+							continue
+					# elif friendlyName.startswith( 'Opponent Thrown' ):
+					# 	continue
+
 				if not showItems:
-					if entryIndex > 0x4D and entryIndex < 0xA5: # All item stuff
+					if nameStart in ( 'Ligh', 'Heav', 'Swin', 'Item' ):
 						continue
+
 				if not showCharSpecific and entryIndex > 0x126:
 					continue
-
-			subActionName = self.getActionName( namePointer, entryIndex )
-
-			self.subActionList.insert( entryIndex, '  ' + subActionName.replace(' (', '    (') )
+			
+			# Add the action to the listbox
+			if friendlyName:
+				self.subActionList.insert( listboxIndex, ' ' + friendlyName )
+			else:
+				self.subActionList.insert( listboxIndex, ' ' + gameName )
 			self.listboxIndices[listboxIndex] = entryIndex
 
+			# Color the entry gray if it's a blank entry
 			if not namePointer:
 				self.subActionList.itemconfigure( listboxIndex, foreground='#6A6A6A' )
 			listboxIndex += 1
-
-		# Clear the events display pane and reset the scrollbar
-		# self.displayPane.delete_all_items()
-		# self.displayPane.master.master.yview_moveto( 0 )
-
-		# # Clear general info display
-		# self.subActionIndex.set( 'Action Table Index:  ' )
-		# self.targetAnimName.set( 'Target Animation:  ' )
-		# self.actionAnimOffset.set( 'Animation (AJ) Offset:  ' )
-		# self.actionAnimSize.set( 'Animation (AJ) Size:  ' )
-		# self.subActionEventsOffset.set( 'Events Offset:  ' )
-		# self.subActionEventsSize.set( 'Events Table Size:  ' )
-
-		# # Clear flags display
-		# self.subActionFlags.set( 'Action Flags:  ' )
 
 		# Clear current selection, and then select the same item that was selected before (if it's still present)
 		self.subActionList.selection_clear( 0, 'end' )
@@ -503,19 +502,7 @@ class ActionEditor( ttk.Frame, object ):
 			self.subActionList.selection_set( listboxIndex )
 			self.subActionList.see( listboxIndex )
 
-	# def showFilterOptions( self, guiEvent ):
-		
-	# 	menu = Tk.Menu( self )
-	# 	menu.add_checkbutton( label='Attacks', underline=0, variable=globalData.boolSettings['actionStateFilterAttacks'], command=self.updateFilters )
-	# 	menu.add_checkbutton( label='Movement', underline=0, variable=globalData.boolSettings['actionStateFilterAttacks'], command=self.updateFilters )
-	# 	menu.add_checkbutton( label='Item Related', underline=0, variable=globalData.boolSettings['actionStateFilterAttacks'], command=self.updateFilters )
-	# 	menu.add_checkbutton( label='Character Specific', underline=0, variable=globalData.boolSettings['actionStateFilterAttacks'], command=self.updateFilters )
-
-	# 	# Determine spawn coordinates and display the menu
-	# 	rootDistanceFromScreenLeft, rootDistanceFromScreenTop = getWindowGeometry( globalData.gui.root )[2:]
-	# 	menu.post( rootDistanceFromScreenLeft+160, rootDistanceFromScreenTop+180 )
-
-	def updateFilters( self ):
+	def updateFilters( self, name, idx, mode ):
 
 		""" Repopulates action states shown in the left-side listbox, 
 			according to the current filters, and saves current settings. 
@@ -524,23 +511,30 @@ class ActionEditor( ttk.Frame, object ):
 		self.populate()
 		globalData.saveProgramSettings()
 
-	def getActionName( self, namePointer, index ):
+	def getActionName( self, namePointer, index, useParenthesis=False ):
 
 		""" Gets the game's symbol name from a given string pointer, and 
-			translates it into a more friendly/human-readable name. """
+			translates it into a more friendly/human-readable name. 
+			Returns both the game name and the friendly name. """
 
 		if namePointer == 0:
 			index += 1
-			return 'Entry {}  (0x{:X})'.format( index, index )
+			if index > 9:
+				return '', 'Entry {} (0x{:X})'.format( index, index )
+			else:
+				return '', 'Entry {}'.format( index )
 
 		else:
-			gameName, friendlyName = self.charFile.getFriendlyActionName( namePointer, index )
+			gameName, friendlyName = self.charFile.getFriendlyActionName( None, namePointer, index )
 
 			if friendlyName:
-				spaces = ' ' * ( 42 - (len(friendlyName) + len(gameName)) )
-				return '{}{}{}'.format( friendlyName, spaces, gameName )
-			else:
-				return gameName
+				if useParenthesis:
+					friendlyName = '{} ({})'.format( friendlyName, gameName )
+				else:
+					spaces = ' ' * ( 42 - (len(friendlyName) + len(gameName)) )
+					friendlyName = '{}{}{}'.format( friendlyName, spaces, gameName )
+
+			return gameName, friendlyName
 
 	def hasUnsavedChanges( self ):
 
@@ -566,13 +560,13 @@ class ActionEditor( ttk.Frame, object ):
 		selection = self.subActionList.curselection()
 		if not selection:
 			return
-		index = selection[0]
-		if index == self.lastSelection: # No change!
+		listBoxIndex = selection[0]
+		if listBoxIndex == self.lastSelection: # No change!
 			return
 
 		# Check for unsaved changes that the user might want
 		if self.hasUnsavedChanges():
-			proceed = tkMessageBox.askyesno( 'Unsaved Changes Detected', 'It appears there are unsaved changes with these events.\n\nDo you want to discard these changes?' )
+			proceed = tkMessageBox.askyesno( 'Unsaved Changes Detected', 'It appears there are unsaved changes to the subAction events.\n\nDo you want to discard these changes?' )
 			if proceed: # Discard changes
 				self.subActionStruct.events = []
 				self.subActionStruct.data = self.subActionStruct.origData
@@ -588,8 +582,8 @@ class ActionEditor( ttk.Frame, object ):
 		self.displayPane.master.master.yview_moveto( 0 )
 		
 		# Commiting to this selection
-		self.lastSelection = index
-		index = self.listboxIndices[index] # Convert from listbox index to events table index
+		self.lastSelection = listBoxIndex
+		index = self.listboxIndices[listBoxIndex] # Convert from listbox index to events table index
 		namePointer, animOffset, animSize, eventsPointer, flags, _, _, _ = self.actionTable.getEntryValues( index )
 		
 		# Update general info display
@@ -605,11 +599,11 @@ class ActionEditor( ttk.Frame, object ):
 				ajFile.initialize()
 				for anim in ajFile.animations:
 					if anim.offset == animOffset:
-						animShortName = anim.name.split( '_' )[3]
-						if len( animShortName ) > 8:
-							self.targetAnimName.set( 'Target Animation:\n' + animShortName )
+						gameName = anim.name.split( '_' )[3]
+						if len( gameName ) > 8:
+							self.targetAnimName.set( 'Target Animation:\n' + gameName )
 						else:
-							self.targetAnimName.set( 'Target Animation:  ' + animShortName )
+							self.targetAnimName.set( 'Target Animation:  ' + gameName )
 						break
 				else: # The loop above didn't break
 					self.targetAnimName.set( 'Target Animation:\nNot Found!' )
@@ -639,8 +633,8 @@ class ActionEditor( ttk.Frame, object ):
 				self.subActionEventsSize.set( 'Events Table Size:  0x{:X}'.format(self.subActionStruct.getLength()) )
 			except Exception as err:
 				self.subActionStruct = None
-				subActionName = self.getActionName( namePointer, index )
-				printStatus( 'Unable to parse {} subAction (index {}); {}'.format(subActionName, index, err) )
+				actionName = self.getActionName( namePointer, index )[1]
+				printStatus( 'Unable to parse {} subAction (index {}); {}'.format(actionName, index, err) )
 				self.subActionEventsSize.set( 'Events Table Size:  N/A' )
 				return
 
@@ -717,9 +711,9 @@ class ActionEditor( ttk.Frame, object ):
 		self.subActionStruct.origData = self.subActionStruct.data
 
 		# Save this new data to the file
-		entry = self.actionTable.getEntryValues( self.lastSelection )
-		subActionName = self.getActionName( entry[0], self.lastSelection )
-		self.charFile.updateStruct( self.subActionStruct, 'SubAction event data for {} updated'.format(subActionName) )
+		entryValues = self.actionTable.getEntryValues( self.lastSelection )
+		actionName = self.getActionName( entryValues[0], self.lastSelection )[1]
+		self.charFile.updateStruct( self.subActionStruct, 'SubAction event data for {} updated'.format(actionName) )
 
 		globalData.gui.updateProgramStatus( 'These subAction changes have been updated in the character file, but still need to be saved to the disc' )
 
@@ -822,10 +816,10 @@ class ActionEditor( ttk.Frame, object ):
 			newLength += event.length
 
 		diff = newLength - self.subActionStruct.length
-		msg( ('The data for this structure is larger than the original, which means that saving '
-			'it back into the file will require expanding the space at offset 0x{:X}. Data after '
-			'this offset will be shifted forward by 0x{:X} bytes, and pointers following this '
-			'offset will be recalculated.').format(self.subActionStruct.offset, diff), 'File Expansion Warning', warning=True )
+		msg( ('The data for this structure is larger than the original, which means that saving it '
+			'back into the file will require expanding the space at offset 0x{:X}. Data after this '
+			'offset will be shifted forward by at least 0x{:X} bytes, and pointers following this '
+			'offset will be adjusted accordingly.').format(self.subActionStruct.offset, diff), 'File Expansion Warning', warning=True )
 
 	def getAnimFile( self ):
 
@@ -840,6 +834,12 @@ class ActionEditor( ttk.Frame, object ):
 
 		""" Called by the 'Change Animation' button on the right-side panel. """
 
+		# Ensure an action is selected
+		selection = self.subActionList.curselection()
+		if not selection:
+			msg( 'No action is selected for editing!', 'Please Select an Action State' )
+			return
+
 		# Get the associated animation file
 		ajFile, filename = self.getAnimFile()
 		if not ajFile:
@@ -848,12 +848,45 @@ class ActionEditor( ttk.Frame, object ):
 			return
 
 		# Prompt the user to choose an animation
-		# animSelectWindow = AnimationChooser( ajFile )
-		# selectedAnim = animSelectWindow.animSymbol
-		# if not selectedAnim: # User canceled
-		# 	return
+		animSelectWindow = AnimationChooser( ajFile, self.charFile )
+		animOffset = animSelectWindow.animOffset
+		if animOffset == -1: # User canceled
+			return
 
-		
+		# Get the action name and create a description and user message for this change
+		listBoxIndex = selection[0]
+		entryIndex = self.listboxIndices[listBoxIndex] # Convert from listbox index to events table index
+		namePointer = self.actionTable.getEntryValues( entryIndex )[0]
+		origActionName, actionName = self.getActionName( namePointer, entryIndex, useParenthesis=True )
+		if animSelectWindow.friendlyName:
+			userMessage = 'Animation for {} changed to {} ({})'.format( actionName, animSelectWindow.friendlyName, animSelectWindow.gameName )
+		else:
+			userMessage = 'Animation for {} changed to {}'.format( actionName, animSelectWindow.gameName )
+
+		# Determine which symbol to update (updating a string to a shorter one is easier and guarantees no rebuild is needed)
+		assert namePointer, 'Unable to change animation strings with empty entries!'
+		if len( origActionName ) > len( animSelectWindow.gameName ):
+			updateInAJ = False
+		else:
+			updateInAJ = True
+
+		# Update the action table struct values
+		#self.charFile.updateStructValue( self.actionTable, 0, , trackChange=False, entryIndex=entryIndex )
+		self.charFile.updateStructValue( self.actionTable, 1, animSelectWindow.animOffset, trackChange=False, entryIndex=entryIndex )
+		self.charFile.updateStructValue( self.actionTable, 2, animSelectWindow.animSize, userMessage, entryIndex=entryIndex )
+
+		# Update the string in the AJ file to match this action's name
+		#if updateInAJ:
+
+		# Update the GUI
+		printStatus( userMessage )
+		if len( animSelectWindow.gameName ) > 8:
+			self.targetAnimName.set( 'Target Animation:\n' + animSelectWindow.gameName )
+		else:
+			self.targetAnimName.set( 'Target Animation:  ' + animSelectWindow.gameName )
+		self.actionAnimOffset.set( 'Animation (AJ) Offset:  0x{:X}'.format(0x20+animSelectWindow.animOffset) )
+		self.actionAnimSize.set( 'Animation (AJ) Size:  0x{:X}'.format(animSelectWindow.animSize) )
+
 
 class EventModule( ttk.Frame, object ):
 

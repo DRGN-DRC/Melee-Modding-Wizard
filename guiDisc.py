@@ -84,8 +84,8 @@ class DiscTab( ttk.Frame ):
 		self.isoFileTree.column( 'description', anchor='w', minwidth=180, stretch=1, width=312 )
 		self.isoFileTree.tag_configure( 'changed', foreground='red' )
 		self.isoFileTree.tag_configure( 'changesSaved', foreground='#292' ) # The 'save' green color
-		self.isoFileTree.tag_configure( 'cFolder', foreground='#0084c9' )
-		self.isoFileTree.tag_configure( 'nFolder', foreground='#0084c9' )
+		self.isoFileTree.tag_configure( 'cFolder', foreground='#097ab7' )
+		self.isoFileTree.tag_configure( 'nFolder', foreground='#097ab7' )
 		self.isoFileTree.pack( side='left', fill='both', expand=1 )
 		self.isoFileScroller.config( command=self.isoFileTree.yview )
 		self.isoFileScroller.pack( side='left', fill='y' )
@@ -513,7 +513,13 @@ class DiscTab( ttk.Frame ):
 						discFile.longDescription = character + "' " + discFile.shortDescription
 					else:
 						discFile.longDescription = character + "'s " + discFile.shortDescription
-				parent = charFolderIid
+					parent = charFolderIid
+				elif charFolderIid == 'plKirby' and isinstance( discFile, CharDataFile ) and 'Cp' in discFile.filename:
+					if not self.isoFileTree.exists( 'plKirbyData' ):
+						self.isoFileTree.insert( 'plKirby', 'end', iid='plKirbyData', text=' Copy power ftData files', values=('', 'cFolder'), image=globalData.gui.imageBank('folderIcon'), tags=('cFolder',) )
+					parent = 'plKirbyData'
+				else:
+					parent = charFolderIid
 			elif entryName.startswith( 'Sd' ): # Menu text files
 				if not self.isoFileTree.exists( 'sd' ):
 					self.isoFileTree.insert( parent, 'end', iid='sd', text=' Sd__.dat', values=('\t\t --< UI Text Files >--', 'cFolder'), image=globalData.gui.imageBank('folderIcon'), tags=('cFolder',) )

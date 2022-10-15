@@ -126,14 +126,27 @@ def fileFactory( *args, **kwargs ):
 					charFile._charAbbr = filename[2:4] # Save some work later
 					
 					return charFile
-				elif filename[2:6] == 'KbCp':
-					pass # Oh, Kirby.... (these are copy powers; ftData)
 				else:
 					charFile = CharCostumeFile( *args, **kwargs )
 					charFile._charAbbr = filename[2:4] # Save some work later
 					charFile._colorAbbr = filename[4:6]
 
 					return charFile
+
+			# Oh, Kirby... (these are ftData files for copy powers)
+			elif len( filename ) == 8 and filename[2:6] == 'KbCp':
+				charFile = CharDataFile( *args, **kwargs )
+				charFile._charAbbr = 'Kb' # Save some work later
+
+				return charFile
+
+			# More files for Kirby copy powers (costume colors for specific copied characters)
+			elif len( filename ) == 10 and filename[2:4] == 'Kb' and filename[6:8] == 'Cp':
+				charFile = CharCostumeFile( *args, **kwargs )
+				charFile._charAbbr = 'Kb' # Save some work later
+				charFile._colorAbbr = filename[4:6]
+
+				return charFile
 
 		elif filename.startswith( 'MnSlChr' ):
 			return CssFile( *args, **kwargs )

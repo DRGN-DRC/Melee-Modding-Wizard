@@ -20,7 +20,7 @@ from collections import OrderedDict
 from fileBases import FileBase
 from hsdFiles import DatFile
 from hsdStructures import StructBase, TableStruct, DataBlock
-from basicFunctions import msg, uHex, roundTo32
+from basicFunctions import msg, reverseDictLookup, uHex, roundTo32
 
 
 class CharFileBase( object ):
@@ -49,6 +49,11 @@ class CharFileBase( object ):
 					'Cl': 0x15, 'Dr': 0x16, 'Fe': 0x17, 'Pc': 0x18, 'Gn': 0x19, 'Mh': 0x1A, 'Bo': 0x1B,
 					'Gl': 0x1C, 'Gk': 0x1D, 'Ch': 0x1E, 'Sb': 0x1F, 'Nn': 0x0E } # Excludes 0x20 (Solo Popo)
 
+	specialAttrNames = {}
+	subActionTranslations = {}
+	eventNotes = {}
+	translationsChecked = False
+
 	@property
 	def intCharId( self ):
 		if self._intCharId == -2:
@@ -62,29 +67,61 @@ class CharFileBase( object ):
 		return self._extCharId
 		
 	@property
-	def charAbbr( self ):
+	def charAbbr( self ): # e.g. 'Ca'
 		if not self._charAbbr:
 			self._charAbbr = self.getCharAbbr()
 		return self._charAbbr
 
 	@property
-	def charName( self ):
+	def charName( self ): # e.g. 'Captain Falcon'
 		if not self._charName and self.extCharId >= 0:
-			if self.extCharId >= len( globalData.charList ):
-				self._charName = 'Unidentified'
-			else:
-				self._charName = globalData.charList[self.extCharId]
+			self._charName = self.getCharName( self.extCharId )
 		return self._charName
 
-	def getFriendlyActionName( self, symbolPointer, actionTableIndex=-1 ):
+	@property
+	def nickname( self ): # e.g. 'Captain'
+		if not self._nickname:
+			self.getCharAbbr()
+		return self._nickname
+
+	def getCharName( self, extCharId ):
+		if extCharId < 0 or extCharId >= len( globalData.charList ):
+			return 'Unidentified'
+		else:
+			return globalData.charList[extCharId]
+
+	def getCharDataTranslations( self ):
+
+		""" Retrieves various human-readable names and notes for character data files from a JSON file. """
+		
+		if not self.translationsChecked:
+			# Open the Properties.json file and get its file contents
+			try:
+				jsonPath = globalData.paths['charDataTranslations']
+				with open( jsonPath, 'r' ) as jsonFile:
+					jsonContents = json.load( jsonFile )
+					self.specialAttrNames = jsonContents['specialAttributes']
+					self.subActionTranslations = jsonContents['subActionTranslation']
+					self.eventNotes = jsonContents['eventNotes']
+			except Exception as err:
+				errMsg = 'Encountered an error when attempting to open "{}" (likely due to incorrect formatting); {}'.format( jsonPath, err )
+				msg( errMsg )
+				return
+			self.translationsChecked = True
+
+	def getFriendlyActionName( self, symbol=None, symbolPointer=-1, actionTableIndex=-1 ):
 
 		""" Translates an action state or animation subaction symbol name, such as 
 			"PlyCaptain5K_Share_ACTION_AttackS3S_figatree", to a more human-friendly and 
 			recognizable name, such as "Forward Tilt". Returns the game name (AttackS3S) as well as 
 			the translated name (Forward Tilt). The translated name may be an empty string if not defined. """
 
+		self.getCharDataTranslations()
+
 		# Get and parse the full symbol name
-		symbol = self.getString( symbolPointer ) # e.g. 'PlyCaptain5K_Share_ACTION_AttackS3S_figatree'
+		if not symbol:
+			assert symbolPointer != -1, 'Invalid input to .getFriendlyActionName(); no symbol pointer provided.'
+			symbol = self.getString( symbolPointer ) # e.g. 'PlyCaptain5K_Share_ACTION_AttackS3S_figatree'
 		gameName = symbol.split( '_' )[3] # e.g. 'AttackS3S'
 
 		# Try to look up the friendly name
@@ -108,6 +145,28 @@ class CharFileBase( object ):
 						friendlyName = 'Star Rod ' + friendlyName
 					else:
 						friendlyName = "Lip's Stick " + friendlyName
+
+		elif self.charAbbr == 'Gk' or self.charAbbr == 'Kp': # Bowser/Giga Bowser
+			if gameName.startswith( 'TKoopaSpecial' ):
+				friendlyName = 'Koopa Klaw'
+
+		elif self.charAbbr == 'Dk':
+			if gameName.startswith( 'TDonkeyThrowF' ):
+				friendlyName = 'Kong Karry'
+
+		elif gameName[0] == 'T' and gameName[1] != 'h' and 'Throw' in gameName: # Taro animations
+			friendlyName = 'Victim Thrown'
+
+			if gameName.endswith( 'F' ):
+				friendlyName += ' Forward'
+			elif gameName.endswith( 'B' ):
+				friendlyName += ' Backward'
+			elif gameName.endswith( 'Hi' ):
+				friendlyName += ' Up'
+			elif gameName.endswith( 'Lw' ):
+				friendlyName += ' Down'
+			elif gameName.endswith( 'LwPeach' ):
+				friendlyName = 'Peach Thrown Down'
 		
 		return gameName, friendlyName
 
@@ -115,11 +174,6 @@ class CharFileBase( object ):
 class CharDataFile( CharFileBase, DatFile ):
 
 	""" Pl__.dat (ftData_) """
-
-	specialAttrNames = {}
-	subActionTranslations = {}
-	eventNotes = {}
-	translationsChecked = False
 	
 	def __init__( self, *args, **kwargs ):
 		super( CharDataFile, self ).__init__( *args, **kwargs )
@@ -128,14 +182,23 @@ class CharDataFile( CharFileBase, DatFile ):
 		self._extCharId = -2
 		self._charAbbr = ''
 		self._charName = ''
+		self._nickname = ''
 
 	def getCharAbbr( self ):
+
+		""" Returns the two-letter abbreviation for this character (e.g. 'Ca' for Captain Falcon). 
+			Also sets the character nickname (e.g. 'Captain' for Captain Falcon) often used in strings. """
 
 		# Ensure root nodes and the string table have been parsed
 		self.initialize()
 
 		rootNodeName = self.rootNodes[0][1]
-		return self.charAbbrs[rootNodeName[6:]] # Removes ftData from the string
+		self._nickname = rootNodeName[6:] # Removes 'ftData' from the string
+
+		if self._nickname.startswith( 'KirbyCopy' ):
+			self._nickname = 'Kirby'
+
+		return self.charAbbrs.get( self._nickname, '' )
 
 	def validate( self ):
 
@@ -173,26 +236,14 @@ class CharDataFile( CharFileBase, DatFile ):
 		else:
 			self._shortDescription = 'Data file'
 
-	def getCharDataTranslations( self ):
+		# Give additional details for Kirby copy powers
+		if len( self.filename ) == 12 and self.filename.startswith( 'PlKbCp' ):
+			copyTargetExternalId = self.extCharIds.get( self.filename[6:8], -1 )
+			copyTarget = self.getCharName( copyTargetExternalId )
+			self._shortDescription += ' for {} copy power'.format( copyTarget )
+			self._longDescription += ' for {} copy power'.format( copyTarget )
 
-		""" Retrieves various human-readable names and notes for character data files from a JSON file. """
-		
-		if not self.translationsChecked:
-			# Open the Properties.json file and get its file contents
-			try:
-				jsonPath = globalData.paths['charDataTranslations']
-				with open( jsonPath, 'r' ) as jsonFile:
-					jsonContents = json.load( jsonFile )
-					self.specialAttrNames = jsonContents['specialAttributes']
-					self.subActionTranslations = jsonContents['subActionTranslation']
-					self.eventNotes = jsonContents['eventNotes']
-			except Exception as err:
-				errMsg = 'Encountered an error when attempting to open "{}" (likely due to incorrect formatting); {}'.format( jsonPath, err )
-				msg( errMsg )
-				return
-			self.translationsChecked = True
-
-	def getAttributeName( self ):
+	def getAttributesInfo( self ):
 
 		""" Read the JSON file containing attribute names, if it has not already been read, 
 			and return the attribute names and formatting for this character. """
@@ -231,7 +282,7 @@ class CharDataFile( CharFileBase, DatFile ):
 		propFormatting = list( propStruct.formatting[1:] ) # Excludes '>' character
 
 		# Update field names and formatting for this struct if info on it is available
-		attrInfo = self.getAttributeName()
+		attrInfo = self.getAttributesInfo()
 		if attrInfo:
 			offsetsFound = set()
 			for offset, name, attrType in attrInfo[1:]: # Excludes first entry (character name)
@@ -753,6 +804,7 @@ class CharAnimFile( CharFileBase, FileBase ):
 		self._extCharId = -2
 		self._charAbbr = ''
 		self._charName = ''
+		self._nickname = ''
 
 	def validate( self ):
 
@@ -800,7 +852,7 @@ class CharAnimFile( CharFileBase, FileBase ):
 			animSize, rtStart, rtEntryCount = struct.unpack( '>3I', headerData )
 
 			# Create a DAT file for this animation and attach its data
-			anim = DatFile( None, readOffset, animSize, self.filename )
+			anim = DatFile( None, readOffset, animSize, self.filename, source='self' )
 			anim.data = self.getData( readOffset, animSize )
 
 			# Get the name of this animation (the symbol). Simpler method than initializing the file
@@ -816,13 +868,26 @@ class CharAnimFile( CharFileBase, FileBase ):
 
 	def getCharAbbr( self ):
 
+		""" Returns the two-letter abbreviation for this character (e.g. 'Ca' for Captain Falcon). 
+			Also sets the character nickname (e.g. 'Captain' for Captain Falcon) often used in strings. 
+			This may confuse Wireframe characters for Falcon/Zelda, since they share the same character nicknames. """
+
 		# Ensure root nodes and the string table have been parsed
 		self.initialize()
 
-		symbol = self.animations[0].name
+		symbol = self.animations[0].name # e.g. "PlyCaptain5K_Share_ACTION_Wait1_figatree"
 		symbolBase = symbol[3:].split( '_' )[0] # Remove 'Ply' and everything after first underscore
+		self._nickname = symbolBase.replace( '5K', '' )
 
-		return symbolBase.replace( '5K', '' )
+		# Attempt a fallback method to not confuse wireframe characters
+		if self._nickname == 'Captain' and 'Bo' in self.filename:
+			charAbbr = 'Bo'
+		elif self._nickname == 'Zelda' and 'Gl' in self.filename:
+			charAbbr = 'Gl'
+		else:
+			charAbbr = self.charAbbrs.get( self._nickname, '' )
+
+		return charAbbr
 
 	def getDescription( self ):
 		
@@ -856,6 +921,7 @@ class CharIdleAnimFile( CharFileBase, FileBase ):
 		self._extCharId = -2
 		self._charAbbr = ''
 		self._charName = ''
+		self._nickname = ''
 
 
 class CharCostumeFile( CharFileBase, DatFile ):
@@ -869,6 +935,7 @@ class CharCostumeFile( CharFileBase, DatFile ):
 		self._extCharId = -2
 		self._charAbbr = ''
 		self._charName = ''
+		self._nickname = ''
 		self._colorAbbr = ''
 
 	@property
@@ -905,14 +972,16 @@ class CharCostumeFile( CharFileBase, DatFile ):
 		if len( nameParts ) == 1: # Must be a character like Master Hand or a Wireframe (no 5K string portion), or a Kirby copy costume
 			charShorthand = rootNodeName.split( '_' )[0][3:]
 
-			# If this is Kirby, strip off the color abbreviation
-			if charShorthand.startswith( 'Kirby' ) and charShorthand[-2:] in ( 'Bu', 'Gr', 'Re', 'Wh', 'Ye' ):
-				charShorthand = charShorthand[:-2]
+			# If this is Kirby, strip off the color abbreviation or copy strings
+			if charShorthand.startswith( 'Kirby' ):
+				charShorthand = 'Kirby'
 
 		else:
 			charShorthand = nameParts[0][3:] # Excludes beginning 'Ply'
 
-		return self.charAbbrs.get( charShorthand, '' )
+		self._nickname = charShorthand
+
+		return self.charAbbrs.get( self._nickname, '' )
 
 	def getColorAbbr( self ):
 
@@ -967,9 +1036,17 @@ class CharCostumeFile( CharFileBase, DatFile ):
 			self._shortDescription = 'Unknown costume color'
 			self._longDescription += ' (unknown costume color)'
 			return
+		else:
+			self._shortDescription = color + ' costume'
 
-		# Assemble the costume color string
-		self._shortDescription = color + ' costume'
+		# Give additional details for Kirby copy powers
+		if len( self.filename ) == 14 and self.filename.startswith( 'PlKb' ) and self.filename[6:8] == 'Cp':
+			copyTargetExternalId = self.extCharIds.get( self.filename[8:10], -1 )
+			copyTarget = self.getCharName( copyTargetExternalId )
+			self._shortDescription += ' for {} copy power'.format( copyTarget )
+			self._longDescription += ' for {} copy power'.format( copyTarget )
+
+		# Add parenthesis for 20XX costume alts
 		if self.ext == '.lat' or colorKey == 'Rl': self._shortDescription += " ('L' alt)" # For 20XX
 		elif self.ext == '.rat' or colorKey == 'Rr': self._shortDescription += " ('R' alt)"
 

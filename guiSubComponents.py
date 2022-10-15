@@ -25,7 +25,7 @@ import globalData
 import FileSystem
 
 from ScrolledText import ScrolledText
-from basicFunctions import createFolders, grammarfyList, printStatus, uHex, humansize, msg, getFileMd5, validHex
+from basicFunctions import createFolders, grammarfyList, printStatus, reverseDictLookup, uHex, humansize, msg, getFileMd5, validHex
 from tplCodec import TplEncoder
 
 
@@ -589,167 +589,169 @@ class CharacterColorChooser( BasicWindow ):
 		self.close()
 
 
-# class AnimationChooser( BasicWindow ):
+class AnimationChooser( BasicWindow ):
 
-# 	""" Prompts the user to choose an animation (names taken from a given Pl__AJ.dat file). 
-# 		This window will block the main interface until a selection is made. """
+	""" Prompts the user to choose an animation (names taken from a given Pl__AJ.dat file). 
+		This window will block the main interface until a selection is made. """
 
-# 	def __init__( self, animFile, message='' ):
+	def __init__( self, animFile, charFile, message='' ):
 
-# 		BasicWindow.__init__( self, globalData.gui.root, 'Select an Animation', offsets=(300, 300) )
+		BasicWindow.__init__( self, globalData.gui.root, 'Select an Animation', offsets=(300, 150), resizable=True )
 		
-# 		self.listboxIndices = {} # Key = listboxIndex, value = animationIndex
-# 		#self.animSymbol = ''
+		self.listboxIndices = {} # Key = listboxIndex, value = animationIndex
+		self.animOffset = -1
+		self.gameName = ''
+		self.friendlyName = ''
+		self.animSize = -1
 
-# 		if message: # Optional user message
-# 			#ttk.Label( self.window, text=message, wraplength=500 ).pack( padx=14, pady=(6, 0) )
-# 			ttk.Label( self.window, text=message, wraplength=500 ).grid( column=0, columnspan=2, row=0 )
+		if message: # Optional user message
+			ttk.Label( self.window, text=message, wraplength=500 ).grid( column=0, columnspan=2, row=0 )
 
-# 		# Build the initial list to appear in the dropdown
-# 		self.animFile = animFile
-# 		animFile.initialize()
-# 		#animList = [ fileObj.name.split( '_' )[3] for fileObj in animFile.animations ]
+		# Initialize the character files if it has not already been done
+		self.animFile = animFile
+		self.charFile = charFile
+		animFile.initialize()
+		charFile.initialize()
 		
-# 		filtersBox = ttk.Frame( self.window )
-# 		ttk.Checkbutton( filtersBox, text='Attacks', variable=globalData.boolSettings['actionStateFilterAttacks'], command=self.updateFilters ).grid( column=0, row=0, sticky='w' )
-# 		ttk.Checkbutton( filtersBox, text='Movement', variable=globalData.boolSettings['actionStateFilterMovement'], command=self.updateFilters ).grid( column=0, row=1, sticky='w' )
-# 		ttk.Checkbutton( filtersBox, text='Item Related', variable=globalData.boolSettings['actionStateFilterItems'], command=self.updateFilters ).grid( column=1, row=0, sticky='w', padx=(10, 0) )
-# 		ttk.Checkbutton( filtersBox, text='Character Specific', variable=globalData.boolSettings['actionStateFilterCharSpecific'], command=self.updateFilters ).grid( column=1, row=1, sticky='w', padx=(10, 0) )
-# 		ttk.Checkbutton( filtersBox, text='Empty Entries', variable=globalData.boolSettings['actionStateFilterEmpty'], command=self.updateFilters ).grid( column=2, row=0, sticky='w', padx=(8, 0) )
-# 		filtersBox.grid( column=0, columnspan=2, row=1, pady=3 )
+		filtersBox = ttk.Frame( self.window )
+		ttk.Checkbutton( filtersBox, text='Attacks', variable=globalData.boolSettings['actionStateFilterAttacks'], command=self.updateFilters ).grid( column=0, row=0, sticky='w' )
+		ttk.Checkbutton( filtersBox, text='Movement', variable=globalData.boolSettings['actionStateFilterMovement'], command=self.updateFilters ).grid( column=0, row=1, sticky='w' )
+		ttk.Checkbutton( filtersBox, text='Item Related', variable=globalData.boolSettings['actionStateFilterItems'], command=self.updateFilters ).grid( column=1, row=0, sticky='w', padx=(10, 0) )
+		ttk.Checkbutton( filtersBox, text='Character Specific', variable=globalData.boolSettings['actionStateFilterCharSpecific'], command=self.updateFilters ).grid( column=1, row=1, sticky='w', padx=(10, 0) )
+		#ttk.Checkbutton( filtersBox, text='Empty Entries', variable=globalData.boolSettings['actionStateFilterEmpty'], command=self.updateFilters ).grid( column=2, row=0, sticky='w', padx=(8, 0) )
+		filtersBox.grid( column=0, columnspan=2, row=1, pady=4 )
 
-# 		# Add the action table list and its scrollbar
-# 		subActionScrollBar = Tk.Scrollbar( self.window, orient='vertical' )
-# 		self.subActionList = Tk.Listbox( self.window, width=48, yscrollcommand=subActionScrollBar.set, 
-# 										activestyle='none', selectbackground='#78F', exportselection=0, font=('Consolas', 9) )
-# 		# i = 0
-# 		# for name in animList:
-# 		# 	self.subActionList.insert( i, name )
-# 		# 	i += 1
-# 		self.populate()
-# 		subActionScrollBar.config( command=self.subActionList.yview )
-# 		self.subActionList.bind( '<<ListboxSelect>>', self.animationSelected )
-# 		self.subActionList.grid( column=0, row=2, sticky='ns' )
-# 		subActionScrollBar.grid( column=1, row=2, sticky='ns' )
+		# Add the action table list and its scrollbar
+		subActionScrollBar = Tk.Scrollbar( self.window, orient='vertical' )
+		self.subActionList = Tk.Listbox( self.window, width=44, height=30, yscrollcommand=subActionScrollBar.set, 
+										activestyle='none', selectbackground='#78F', exportselection=0, font=('Consolas', 9) )
+		self.populate()
+		subActionScrollBar.config( command=self.subActionList.yview )
+		self.subActionList.bind( '<<ListboxSelect>>', self.animationSelected )
+		self.subActionList.grid( column=0, row=2, sticky='ns' )
+		subActionScrollBar.grid( column=1, row=2, sticky='ns' )
 
-# 		buttonFrame = ttk.Frame( self.window )
-# 		ttk.Button( buttonFrame, text='Confirm', command=self.close ).grid( column=0, row=0, padx=6 )
-# 		ttk.Button( buttonFrame, text='Cancel', command=self.cancel ).grid( column=1, row=0, padx=6 )
-# 		buttonFrame.pack( column=0, columnspan=2, row=3 )
+		buttonFrame = ttk.Frame( self.window )
+		ttk.Button( buttonFrame, text='Confirm', command=self.close ).grid( column=0, row=0, padx=6 )
+		ttk.Button( buttonFrame, text='Cancel', command=self.cancel ).grid( column=1, row=0, padx=6 )
+		buttonFrame.grid( column=0, columnspan=2, row=3, pady=4 )
 
-# 		self.window.columnconfigure( 0, weight=1 )
-# 		self.window.rowconfigure( 1, weight=1 )
+		self.window.columnconfigure( 0, weight=1 )
+		self.window.rowconfigure( 1, weight=1 )
 
-# 		# Make this window modal (will not allow the user to interact with main GUI until this is closed)
-# 		self.window.grab_set()
-# 		globalData.gui.root.wait_window( self.window )
+		# Make this window modal (will not allow the user to interact with main GUI until this is closed)
+		self.window.grab_set()
+		globalData.gui.root.wait_window( self.window )
 
-# 	def populate( self ):
+	def updateFilters( self ):
 
-# 		""" Clears the subAction list (if it has anything displayed) and 
-# 			repopulates it with entries from the character's action table. """
+		""" Repopulates action states shown in the left-side listbox, 
+			according to the current filters, and saves current settings. 
+			Called by the filter checkboxes in the GUI when toggled. """
 
-# 		# Remember the current (soon to be previous) selection
-# 		selection = self.subActionList.curselection()
-# 		if selection:
-# 			lastSelectedEntry = self.listboxIndices.get( selection[0], -1 ) # Convert from listbox index to animation index
-# 		else:
-# 			lastSelectedEntry = -1
+		self.populate()
+		globalData.saveProgramSettings()
+
+	def populate( self ):
+
+		""" Clears the subAction list (if it has anything displayed) and 
+			repopulates it with entries from the character's action table. """
+
+		# Remember the current (soon to be previous) selection
+		selection = self.subActionList.curselection()
+		if selection:
+			lastSelectedEntry = self.listboxIndices.get( selection[0], (-1, '', '', -1) )
+		else:
+			lastSelectedEntry = (-1, '', '', -1)
 		
-# 		self.listboxIndices = {} # Key = listboxIndex, value = animationIndex
+		self.listboxIndices = {} # Key = listboxIndex, value = animationIndex
 
-# 		showAttacks = globalData.checkSetting( 'actionStateFilterAttacks' )
-# 		showMovement = globalData.checkSetting( 'actionStateFilterMovement' )
-# 		showItems = globalData.checkSetting( 'actionStateFilterItems' )
-# 		showCharSpecific = globalData.checkSetting( 'actionStateFilterCharSpecific' )
-# 		showEmpty = globalData.checkSetting( 'actionStateFilterEmpty' )
+		showAttacks = globalData.checkSetting( 'actionStateFilterAttacks' )
+		showMovement = globalData.checkSetting( 'actionStateFilterMovement' )
+		showItems = globalData.checkSetting( 'actionStateFilterItems' )
+		showCharSpecific = globalData.checkSetting( 'actionStateFilterCharSpecific' )
 
-# 		# Repopulate the subAction list
-# 		self.subActionList.delete( 0, 'end' )
-# 		listboxIndex = 0
-# 		for anim in self.animFile.animations:
-# 			# Apply filters and skip unwanted actions
-# 			if not showAttacks:
-# 				if entryIndex > 0x2D and entryIndex < 0x49: # Many basic moves (jab, f-tilt, etc.)
-# 					continue
-# 				elif entryIndex == 0xBB or entryIndex == 0xC3: # Grounded get-up attacks
-# 					continue
-# 				elif entryIndex == 0xDD or entryIndex == 0xDE: # Ledge get-up attacks
-# 					continue
-# 				elif entryIndex > 0xF1 and entryIndex < 0xFB: # Grab states
-# 					continue
-# 				elif entryIndex > 0x105 and entryIndex < 0x10A: # Throws
-# 					continue
-# 			if not showMovement:
-# 				if entryIndex <= 0x2D: # Basic movement
-# 					continue
-# 				elif entryIndex > 0x48 and entryIndex < 0x4E: # Attack landing animations
-# 					continue
-# 				elif entryIndex > 0xA4 and entryIndex < 0xE5: # Damage flight animations
-# 					if entryIndex not in ( 0xBB, 0xC3, 0xDD, 0xDE ): # Exclude a few attacks
-# 						continue
-# 				elif entryIndex > 0xED and entryIndex < 0xF1: # Entry and Taunts
-# 					continue
-# 				elif entryIndex > 0x11D and entryIndex < 0x124:
-# 					continue
-# 				elif entryIndex > 0xFA and entryIndex < 0x103: # Being grabbed
-# 					continue
-# 			if not showItems:
-# 				if entryIndex > 0x4D and entryIndex < 0xA5: # All item stuff
-# 					continue
-# 			if not showCharSpecific and entryIndex > 0x126:
-# 				continue
+		# Build a list of the character-specific action names
+		self.charSpecificActions = []
+		actionTable = self.charFile.getActionTable()
+		for entryIndex, values in actionTable.iterateEntries():
+			if entryIndex < 0x127: continue
+			
+			namePointer = values[0]
+			if namePointer != 0:
+				symbol = self.charFile.getString( namePointer ) # e.g. 'PlyCaptain5K_Share_ACTION_AttackS3S_figatree'
+				actionName = symbol.split( '_' )[3] # e.g. 'AttackS3S'
+				self.charSpecificActions.append( actionName )
 
-# 			# Check for a pointer to an animation name string
-# 			namePointer = values[0]
-# 			if not showEmpty and namePointer == 0:
-# 				continue
+		# Repopulate the subAction list
+		self.subActionList.delete( 0, 'end' )
+		listboxIndex = 0
+		for anim in self.animFile.animations:
+			gameName, friendlyName = self.animFile.getFriendlyActionName( anim.name )
+			nameStart = gameName[:4]
 
-# 			subActionName = self.getActionName( namePointer, entryIndex )
+			# Apply filters and skip unwanted actions
+			if not showAttacks:
+				if nameStart in ( 'Atta', 'Catc', 'Thro' ) or gameName.startswith( 'DownAttack' ):
+					continue
+				elif gameName.startswith( 'CliffAttack' ):
+					continue
+				
+				# Check for certain 'Taro' moves, like Koopa Klaw and Kong Karry
+				if gameName.startswith( 'T' + self.animFile.nickname ):
+					continue
+				
+			if not showMovement:
+				if nameStart in ( 'Wall', 'Dama', 'Wait', 'Walk', 'Turn', 'Dash', 'Run', 'RunB', 'Land' ):
+					continue
+				elif nameStart in ( 'Jump', 'Fall', 'Squa', 'Guar', 'Esca', 'Rebo', 'Down', 'Pass' ):
+					if not gameName.startswith( 'DownAttack' ):
+						continue
+				elif nameStart in ( 'Fura', 'Otto', 'Stop', 'Miss', 'Clif', 'Entr', 'Appe', 'Capt' ):
+					if not gameName.startswith( 'CliffAttack' ):
+						continue
 
-# 			self.subActionList.insert( entryIndex, '  ' + subActionName.replace(' (', '    (') )
-# 			self.listboxIndices[listboxIndex] = entryIndex
+			if not showItems:
+				if nameStart in ( 'Ligh', 'Heav', 'Swin', 'Item' ):
+					continue
 
-# 			if not namePointer:
-# 				self.subActionList.itemconfigure( listboxIndex, foreground='#6A6A6A' )
-# 			listboxIndex += 1
+			if not showCharSpecific and gameName in self.charSpecificActions:
+				continue
 
-# 		# Clear the events display pane and reset the scrollbar
-# 		# self.displayPane.delete_all_items()
-# 		# self.displayPane.master.master.yview_moveto( 0 )
+			# Add the action to the listbox
+			if friendlyName:
+				spaces = ' ' * ( 42 - (len(friendlyName) + len(gameName)) )
+				line = ' {}{}{}'.format( friendlyName, spaces, gameName )
+				self.subActionList.insert( listboxIndex, line )
+			else:
+				self.subActionList.insert( listboxIndex, ' ' + gameName )
+			self.listboxIndices[listboxIndex] = ( anim.offset, gameName, friendlyName, anim.size )
+			listboxIndex += 1
 
-# 		# # Clear general info display
-# 		# self.subActionIndex.set( 'Action Table Index:  ' )
-# 		# self.targetAnimName.set( 'Target Animation:  ' )
-# 		# self.actionAnimOffset.set( 'Animation (AJ) Offset:  ' )
-# 		# self.actionAnimSize.set( 'Animation (AJ) Size:  ' )
-# 		# self.subActionEventsOffset.set( 'Events Offset:  ' )
-# 		# self.subActionEventsSize.set( 'Events Table Size:  ' )
+		# Clear current selection, and then select the same item that was selected before (if it's still present)
+		self.subActionList.selection_clear( 0, 'end' )
+		if lastSelectedEntry[0] != -1 and lastSelectedEntry in self.listboxIndices.values():
+			listboxIndex = reverseDictLookup( self.listboxIndices, lastSelectedEntry )
+			self.subActionList.selection_set( listboxIndex )
+			self.subActionList.see( listboxIndex )
 
-# 		# # Clear flags display
-# 		# self.subActionFlags.set( 'Action Flags:  ' )
+	def animationSelected( self, guiEvent ):
 
-# 		# Clear current selection, and then select the same item that was selected before (if it's still present)
-# 		self.subActionList.selection_clear( 0, 'end' )
-# 		if lastSelectedEntry != -1 and lastSelectedEntry in self.listboxIndices.values():
-# 			listboxIndex = reverseDictLookup( self.listboxIndices, lastSelectedEntry )
-# 			self.subActionList.selection_set( listboxIndex )
-# 			self.subActionList.see( listboxIndex )
-
-# 	def animationSelected( self, guiEvent ):
-
-# 		""" Called when the user changes the current selection. Sets the currently 
-# 			selected character ID, and populates the costume color drop-down. """
+		""" Called when the user changes the current selection. Sets the currently 
+			selected character ID, and populates the costume color drop-down. """
 		
-# 		selection = self.subActionList.curselection()
-# 		if not selection:
-# 			return
+		selection = self.subActionList.curselection()
+		if not selection:
+			return
 
-# 		self.animSymbol = selection[0]
+		self.animOffset, self.gameName, self.friendlyName, self.animSize = self.listboxIndices.get( selection[0], (-1, '', '', -1) )
 
-# 	def cancel( self ):
-# 		self.animSymbol = ''
-# 		self.close()
+	def cancel( self ):
+		self.animOffset = -1
+		self.gameName = ''
+		self.friendlyName = ''
+		self.animSize = -1
+		self.close()
 
 
 def cmsg( message, title='', align='center', buttons=None, makeModal=False, parent=None ):
