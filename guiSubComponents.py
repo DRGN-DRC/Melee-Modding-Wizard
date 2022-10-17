@@ -832,7 +832,7 @@ class PopupEntryWindow( BasicWindow ):
 
 		# Display a user message
 		self.label = ttk.Label( self.window, text=message, wraplength=wraplength )
-		self.label.pack( pady=8 )
+		self.label.pack( padx=8, pady=8 )
 
 		# Add the Entry widget for user input
 		if charLimit == -1:
@@ -2405,13 +2405,13 @@ class ToolTipButton( PopupInterface ):
 		super( ToolTipButton, self )._show()
 
 
-class Item( ttk.Frame ):
+class DDListItem( ttk.Frame ):
 
 	""" Used with the DDList class to create a list interface with drag-and-drop ordering capability. """
 
 	def __init__(self, master, value, width, height, selection_handler=None, drag_handler=None, drop_handler=None, **kwargs):
 
-		kwargs.setdefault("class_", "Item")
+		kwargs.setdefault("class_", "DDListItem")
 		ttk.Frame.__init__(self, master, **kwargs)
 		
 		self._x = None
@@ -2604,7 +2604,7 @@ class DDList( ttk.Frame ):
 		if self._item_padding is not None:
 			kwargs.setdefault("padding", self._item_padding)
 
-		item = Item(self.master, value, self._item_width, self._item_height, self._on_item_selected, self._on_item_dragged, self._on_item_dropped, **kwargs)
+		item = DDListItem(self.master, value, self._item_width, self._item_height, self._on_item_selected, self._on_item_dragged, self._on_item_dropped, **kwargs)
 		item.selected = False
 
 		return item
@@ -2645,7 +2645,7 @@ class DDList( ttk.Frame ):
 
 	def delete_item(self, index):
 		
-		if isinstance(index, Item):
+		if isinstance(index, DDListItem):
 			index = self._position[index]
 		else:
 			if not -len(self._list_of_items) < index < len(self._list_of_items):

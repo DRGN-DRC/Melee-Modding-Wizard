@@ -36,7 +36,8 @@ from _ctypes import PyObj_FromPtr  # see https://stackoverflow.com/a/15012814/35
 #		bytes object	->		text string			obj.decode()
 # 		bytearray 		-> 		hex string			hexlify( input )
 # 		hex string 		-> 		bytearray			bytearray.fromhex( input )
-# 		text string 	-> 		bytearray			init bytearray, then use .extend( string ) method on it
+# 		ascii string 	-> 		bytearray			bytearray( 'string' )
+#		unicode string	-> 		bytearray			bytearray( u'string', encoding='utf-8' )
 #
 # 		Note that a file object's .read() method returns a byte-string of unknown encoding, which will be 
 # 		locally interpreted as it's displayed. It should be properly decoded to a standard to be operated on.

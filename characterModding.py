@@ -16,12 +16,13 @@ import tkMessageBox
 import Tkinter as Tk
 
 from binascii import hexlify
+from FileSystem.disc import Disc
 from basicFunctions import reverseDictLookup, msg, printStatus
 
 # Internal Dependencies
 import globalData
 from FileSystem.charFiles import CharDataFile, SubAction, SubActionEvent
-from guiSubComponents import AnimationChooser, BasicWindow, ClickText, ColoredLabelButton, DDList, HexEditEntry, LabelButton, ToggleButton, ToolTip, VerticalScrolledFrame, getWindowGeometry
+from guiSubComponents import AnimationChooser, BasicWindow, ClickText, ColoredLabelButton, DDList, HexEditEntry, LabelButton, ToggleButton, ToolTip, VerticalScrolledFrame, getNewNameFromUser, getWindowGeometry
 
 
 class CharModding( ttk.Notebook ):
@@ -89,9 +90,12 @@ class CharModding( ttk.Notebook ):
 			button.icon = icon # Stored to prevent garbage collection
 			button.bind( '<1>', self.addCharacterTab )
 
+			# Place the buttons for special characters (Wireframes, Master Hand, etc.)
 			if fileObj.charAbbr in ( 'Bo', 'Gl', 'Mh', 'Ch', 'Gk', 'Sb' ):
 				button.grid( column=3, row=specialCharRow, padx=10 )
 				specialCharRow += 1
+				
+			# Place buttons for the normal cast
 			else:
 				button.grid( column=column, row=row, padx=10 )
 				row += 1
@@ -125,7 +129,7 @@ class CharModding( ttk.Notebook ):
 
 		# # Add the fighter/character properties tab
 		# newTab = CharGeneralEditor( newCharNotebook )
-		# newCharNotebook.add( newTab, text=' General ' )
+		# newCharNotebook.add( newTab, text=' Character Identity ' ) # General
 
 		# Add the fighter/character properties tab
 		newTab = self.buildPropertiesTab( newCharNotebook )
@@ -351,50 +355,50 @@ class ActionEditor( ttk.Frame, object ):
 		subActionScrollBar.grid( column=1, row=2, sticky='ns' )
 
 		# Pane for showing subAction events (empty for now)
-		ttk.Label( self, text='SubAction Events (a.k.a. ftcmd scripts):' ).grid( column=2, row=0 )
+		ttk.Label( self, text='SubAction Events (a.k.a. ftcmd script):' ).grid( column=2, row=0 )
 		scrollPane = VerticalScrolledFrame( self )
 		self.displayPane = DDList( scrollPane.interior, 500, 40, item_borderwidth=2, reorder_callback=self.reordered, offset_x=2, offset_y=2, gap=2 )
 		self.displayPane.pack( fill='both', expand=True )
 		scrollPane.grid( column=2, row=1, rowspan=2, sticky='nsew' )
-		self.displayPaneMessage = ttk.Label( self, text='< - Select an Action on\n the left to begin.', justify='center' )
+		self.displayPaneMessage = ttk.Label( self, text='< - Select an Action on\n  the left to begin.', justify='center' )
 		self.displayPaneMessage.grid( column=2, row=2, sticky='n', pady=150 )
 
-		# Pane for general info display
+		# Pane for general info display and editing controls
 		infoPane = ttk.Frame( self )
-		emptyWidget = Tk.Frame( relief='flat' ) # This is used as a simple workaround for the labelframe, so we can have no text label with no label gap.
-		generalInfoBox = ttk.Labelframe( infoPane, labelwidget=emptyWidget, padding=(20, 5) )
+		#emptyWidget = Tk.Frame( relief='flat' ) # This is used as a simple workaround for the labelframe, so we can have no text label with no label gap.
+		#generalInfoBox = ttk.Labelframe( infoPane, labelwidget=emptyWidget, padding=(20, 5) )
+		generalInfoBox = ttk.Labelframe( infoPane, text='  Selected Action  ', padding=(20, 5) )
 		self.subActionIndex = Tk.StringVar()
-		self.targetAnimName = Tk.StringVar()
-		self.actionAnimOffset = Tk.StringVar()
-		self.actionAnimSize = Tk.StringVar()
+		#self.targetAnimName = Tk.StringVar()
 		self.subActionEventsOffset = Tk.StringVar()
 		self.subActionEventsSize = Tk.StringVar()
+		self.subActionFlags = Tk.StringVar()
 		ttk.Label( generalInfoBox, textvariable=self.subActionIndex ).pack()
-		ttk.Label( generalInfoBox, textvariable=self.targetAnimName, justify='center' ).pack( pady=(7, 0) )
-		ttk.Label( generalInfoBox, textvariable=self.actionAnimOffset ).pack()
-		ttk.Label( generalInfoBox, textvariable=self.actionAnimSize ).pack()
+		#ttk.Label( generalInfoBox, textvariable=self.targetAnimName, justify='center' ).pack( pady=(7, 0) )
 		ttk.Label( generalInfoBox, textvariable=self.subActionEventsOffset ).pack( pady=(7, 0) )
 		ttk.Label( generalInfoBox, textvariable=self.subActionEventsSize ).pack()
+		ttk.Label( generalInfoBox, textvariable=self.subActionFlags ).pack( pady=(7, 0) )
 		generalInfoBox.pack( fill='x', expand=True )
-		
-		flagsBox = ttk.Labelframe( infoPane, text=' Action Flags ', padding=(20, 5) )
-		self.subActionFlags = Tk.StringVar()
-		ttk.Label( flagsBox, textvariable=self.subActionFlags ).pack()
-		flagsBox.pack( fill='x', expand=True, pady=20 )
 
-		buttonsFrame = ttk.Frame( infoPane )
-		ColoredLabelButton( buttonsFrame, 'delete', self.deleteEvent, 'Delete Event', '#f04545' ).grid( column=0, row=0, pady=4, padx=4 )
-		ColoredLabelButton( buttonsFrame, 'expand', self.expandAll, 'Expand All' ).grid( column=1, row=0, pady=4, padx=4 )
-		ColoredLabelButton( buttonsFrame, 'collapse', self.collapseAll, 'Collapse All' ).grid( column=2, row=0, pady=4, padx=4 )
-		ColoredLabelButton( buttonsFrame, 'save', self.saveEventChanges, 'Save Changes\nto Charcter File', '#292' ).grid( column=3, row=0, pady=4, padx=4 )
-		insertBtn = LabelButton( buttonsFrame, 'insert', self.insertEventBefore, 'Insert New Event\n\n(Before selection. Shift-click\nto insert after selection.)' )
+		eventsFrame = ttk.Labelframe( infoPane, text='  SubAction Events  ', padding=(20, 5) )
+		ColoredLabelButton( eventsFrame, 'delete', self.deleteEvent, 'Delete Event', '#f04545' ).grid( column=0, row=0, pady=4, padx=4 )
+		ColoredLabelButton( eventsFrame, 'expand', self.expandAll, 'Expand All' ).grid( column=1, row=0, pady=4, padx=4 )
+		ColoredLabelButton( eventsFrame, 'collapse', self.collapseAll, 'Collapse All' ).grid( column=2, row=0, pady=4, padx=4 )
+		ColoredLabelButton( eventsFrame, 'save', self.saveEventChanges, 'Save Changes\nto Charcter File', '#292' ).grid( column=3, row=0, pady=4, padx=4 )
+		insertBtn = LabelButton( eventsFrame, 'insert', self.insertEventBefore, 'Insert New Event\n\n(Before selection. Shift-click\nto insert after selection.)' )
 		insertBtn.bind( '<Shift-Button-1>', self.insertEventAfter )
 		insertBtn.grid( column=4, row=0, pady=4, padx=4 )
-		#ttk.Button( buttonsFrame, text='Restore to Vanilla', command=self.restoreEvents )
-		buttonsFrame.columnconfigure( 'all', weight=1 )
-		buttonsFrame.pack( fill='x', expand=True, padx=10, pady=20 )
-
-		ttk.Button( infoPane, text='Change Animation', command=self.changeAnimation ).pack( ipadx=10, pady=20 )
+		ttk.Button( eventsFrame, text='Restore to Vanilla', command=self.restoreEvents ).grid( column=0, columnspan=5, row=1, ipadx=12 )
+		eventsFrame.columnconfigure( 'all', weight=1 )
+		eventsFrame.pack( fill='x', expand=True, pady=42 )
+		
+		animBox = ttk.Labelframe( infoPane, text='  SubAction Animation  ', padding=(20, 5) )
+		self.actionAnimOffset = Tk.StringVar()
+		self.actionAnimSize = Tk.StringVar()
+		ttk.Label( animBox, textvariable=self.actionAnimOffset ).pack()
+		ttk.Label( animBox, textvariable=self.actionAnimSize ).pack()
+		ttk.Button( animBox, text='Change Animation', command=self.changeAnimation ).pack( ipadx=12, pady=5 )
+		animBox.pack( fill='x', expand=True )
 
 		self.noteStringFrame = ttk.Frame( infoPane )
 		self.noteStringVar = Tk.StringVar()
@@ -423,7 +427,7 @@ class ActionEditor( ttk.Frame, object ):
 		# Remember the current (soon to be previous) selection
 		selection = self.subActionList.curselection()
 		if selection:
-			lastSelectedEntry = self.listboxIndices.get( selection[0], -1 ) # Convert from listbox index to events table index
+			lastSelectedEntry = self.listboxIndices.get( selection[0], -1 ) # Convert from listbox index to actions table index
 		else:
 			lastSelectedEntry = -1
 		
@@ -581,35 +585,35 @@ class ActionEditor( ttk.Frame, object ):
 		self.displayPane.delete_all_items()
 		self.displayPane.master.master.yview_moveto( 0 )
 		
-		# Commiting to this selection
+		# Commiting to this selection. Get information on it
 		self.lastSelection = listBoxIndex
-		index = self.listboxIndices[listBoxIndex] # Convert from listbox index to events table index
+		index = self.listboxIndices[listBoxIndex] # Convert from listbox index to actions table index
 		namePointer, animOffset, animSize, eventsPointer, flags, _, _, _ = self.actionTable.getEntryValues( index )
 		
 		# Update general info display
 		self.subActionIndex.set( 'Action Table Index:  0x{:X}'.format(index) )
 		if animOffset == 0: # Assuming this is supposed to be null/no struct reference, rather than the struct at 0x20
-			self.targetAnimName.set( 'Target Animation:  N/A' )
+			#self.targetAnimName.set( 'Target Animation:  N/A' )
 			self.actionAnimOffset.set( 'Animation (AJ) Offset:  Null' )
 			self.actionAnimSize.set( 'Animation (AJ) Size:  N/A' )
 		else:
 			# Try to get the animation file to see what animation is pointed to
-			ajFile, filename = self.getAnimFile()
-			if ajFile:
-				ajFile.initialize()
-				for anim in ajFile.animations:
-					if anim.offset == animOffset:
-						gameName = anim.name.split( '_' )[3]
-						if len( gameName ) > 8:
-							self.targetAnimName.set( 'Target Animation:\n' + gameName )
-						else:
-							self.targetAnimName.set( 'Target Animation:  ' + gameName )
-						break
-				else: # The loop above didn't break
-					self.targetAnimName.set( 'Target Animation:\nNot Found!' )
-			else:
-				printStatus( 'Unable to find an animation file ({}) in the disc!'.format(filename), warning=True )
-				self.targetAnimName.set( 'Target Animation:  N/A' )
+			# ajFile, filename = self.getAnimFile()
+			# if ajFile:
+			# 	ajFile.initialize()
+			# 	for anim in ajFile.animations:
+			# 		if anim.offset == animOffset:
+			# 			gameName = anim.name.split( '_' )[3]
+			# 			if len( gameName ) > 8:
+			# 				self.targetAnimName.set( 'Target Animation:\n' + gameName )
+			# 			else:
+			# 				self.targetAnimName.set( 'Target Animation:  ' + gameName )
+			# 			break
+			# 	else: # The loop above didn't break
+			# 		self.targetAnimName.set( 'Target Animation:\nNot Found!' )
+			# else:
+			# 	printStatus( 'Unable to find an animation file ({}) in the disc!'.format(filename), warning=True )
+			# 	self.targetAnimName.set( 'Target Animation:  N/A' )
 
 			self.actionAnimOffset.set( 'Animation (AJ) Offset:  0x{:X}'.format(0x20+animOffset) )
 			self.actionAnimSize.set( 'Animation (AJ) Size:  0x{:X}'.format(animSize) )
@@ -699,6 +703,10 @@ class ActionEditor( ttk.Frame, object ):
 				eM.expandBtn.toggle()
 
 	def saveEventChanges( self, guiEvent ):
+
+		""" Saves current subAction event changes to the current file. 
+			These changes to the file still need to be saved to disc. """
+
 		if not self.subActionStruct:
 			globalData.gui.updateProgramStatus( 'No subAction events struct has been loaded' )
 			return
@@ -713,9 +721,54 @@ class ActionEditor( ttk.Frame, object ):
 		# Save this new data to the file
 		entryValues = self.actionTable.getEntryValues( self.lastSelection )
 		actionName = self.getActionName( entryValues[0], self.lastSelection )[1]
-		self.charFile.updateStruct( self.subActionStruct, 'SubAction event data for {} updated'.format(actionName) )
+		self.charFile.updateStruct( self.subActionStruct, 'SubAction event data for {} updated'.format(actionName), 'SubAction events updated' )
 
 		globalData.gui.updateProgramStatus( 'These subAction changes have been updated in the character file, but still need to be saved to the disc' )
+
+	def restoreEvents( self ):
+
+		""" Replaces the events (ftcmd script) of the currently selected action 
+			with those from a vanilla disc. """
+
+		# Ensure an action is selected
+		selection = self.subActionList.curselection()
+		if not selection:
+			msg( 'No Action is selected!' )
+			return
+		elif not self.subActionStruct:
+			msg( 'This action has no subAction events struct! The action has a null subAction events pointer, or the structure could not be initialized.' )
+			return
+		listBoxIndex = selection[0]
+		index = self.listboxIndices[listBoxIndex] # Convert from listbox index to actions table index
+
+		# Try to initialize the vanilla disc
+		vanillaDiscPath = globalData.getVanillaDiscPath()
+		if not vanillaDiscPath:
+			printStatus( 'Unable to restore the file(s) without a vanilla disc to source from', warning=True )
+			return
+		vanillaDisc = Disc( vanillaDiscPath )
+		vanillaDisc.load()
+
+		# Get the vanilla character data file, and get the original events struct from it
+		vCharFile = vanillaDisc.getFile( 'Pl{}.dat'.format(self.charFile.charAbbr) )
+		vActionTable = vCharFile.getActionTable()
+		vEventsPointer = vActionTable.getEntryValues( index )[3]
+		vSubActionStruct = vCharFile.initDataBlock( SubAction, vEventsPointer, vActionTable.offset )
+		vStructData = vSubActionStruct.data
+
+		assert vSubActionStruct.length <= self.subActionStruct.length, 'The vanilla subAction events structure is larger than the existing struct!'
+		if vSubActionStruct.length < self.subActionStruct.length:
+			padding = bytearray( self.subActionStruct.length - vSubActionStruct.length )
+			vStructData.extend( padding )
+
+		# Save the vanilla data to the current struct and update the file
+		self.subActionStruct.data = vStructData
+		namePointer = self.actionTable.getEntryValues( index )[0]
+		actionName = self.getActionName( namePointer, index )[1]
+		description = '{} subAction events restored to vanilla'.format( actionName )
+		self.charFile.updateStruct( self.subActionStruct, description, 'SubAction events restored' )
+
+		printStatus( description )
 
 	def reordered( self ):
 
@@ -832,13 +885,18 @@ class ActionEditor( ttk.Frame, object ):
 
 	def changeAnimation( self ):
 
-		""" Called by the 'Change Animation' button on the right-side panel. """
+		""" Called by the 'Change Animation' button on the right-side panel. 
+			Prompts the user to select an animation (from the AJ file), and then 
+			updates the action table with the offset and size of that animation. 
+			The action table name/string and the AJ file string must match, and 
+			may also be renamed by this function. """
 
 		# Ensure an action is selected
 		selection = self.subActionList.curselection()
 		if not selection:
 			msg( 'No action is selected for editing!', 'Please Select an Action State' )
 			return
+		listBoxIndex = selection[0]
 
 		# Get the associated animation file
 		ajFile, filename = self.getAnimFile()
@@ -850,40 +908,90 @@ class ActionEditor( ttk.Frame, object ):
 		# Prompt the user to choose an animation
 		animSelectWindow = AnimationChooser( ajFile, self.charFile )
 		animOffset = animSelectWindow.animOffset
+		animGameName = animSelectWindow.gameName
 		if animOffset == -1: # User canceled
 			return
 
-		# Get the action name and create a description and user message for this change
-		listBoxIndex = selection[0]
-		entryIndex = self.listboxIndices[listBoxIndex] # Convert from listbox index to events table index
-		namePointer = self.actionTable.getEntryValues( entryIndex )[0]
-		origActionName, actionName = self.getActionName( namePointer, entryIndex, useParenthesis=True )
-		if animSelectWindow.friendlyName:
-			userMessage = 'Animation for {} changed to {} ({})'.format( actionName, animSelectWindow.friendlyName, animSelectWindow.gameName )
-		else:
-			userMessage = 'Animation for {} changed to {}'.format( actionName, animSelectWindow.gameName )
+		# Get the name of the currently selected action
+		entryIndex = self.listboxIndices[listBoxIndex] # Convert from listbox index to actions table index
+		origNamePointer = self.actionTable.getEntryValues( entryIndex )[0]
+		origGameName, origFriendlyName = self.getActionName( origNamePointer, entryIndex, useParenthesis=True )
 
-		# Determine which symbol to update (updating a string to a shorter one is easier and guarantees no rebuild is needed)
-		assert namePointer, 'Unable to change animation strings with empty entries!'
-		if len( origActionName ) > len( animSelectWindow.gameName ):
-			updateInAJ = False
+		# Check that the selected animation is actually new
+		if animGameName == origGameName:
+			msg( 'The action is already using that animation!', 'Animation Already Applied', warning=True )
+			return
+
+		# Find the pointer to the action string that matches the target animation's
+		for _, values in self.actionTable.iterateEntries():
+			namePointer = values[0]
+			if namePointer != 0:
+				symbol = self.charFile.getString( namePointer ) # e.g. 'PlyCaptain5K_Share_ACTION_AttackS3S_figatree'
+				actionName = symbol.split( '_' )[3] # e.g. 'AttackS3S'
+				if actionName == animGameName:
+					break
+		else: # The loop above didn't break; no matching symbol found
+			msg( 'Unable to find a string referenced in the action table that matches the target animation.', 'Unable to Swap Animations', error=True )
+			printStatus( 'A matching string from the action table could not be found' )
+			return
+
+		# Offer to update the action and animation strings
+		message = ( 'You may enter a new name for this Action/Animation, or leave it as-is. If you do not change this, The action will appear in '
+					"the Action States Table with the same name as your chosen animation. It's recommended to use a name which "
+					'does not already appear in the animation file.' ) # todo: add validation to check for existing names
+		newName = getNewNameFromUser( len(animGameName), None, message, animGameName, 30, False, 'Enter Action/Animation Name' )
+		if not newName: # User canceled
+			printStatus( 'Animation swap canceled' )
+			return
+
+		# Update the new name/string in the Pl__.dat and AJ files
+		if newName != animGameName:
+			symbolParts = symbol.rsplit( '_', 2 ) # Results in e.g. ['PlyCaptain5K_Share_ACTION', 'AttackS3S', 'figatree']
+			symbolParts[-2] = newName
+			newSymbol = '_'.join( symbolParts )
+			symbolData = bytearray( newSymbol, encoding='utf-8' )
+
+			# Add padding to clear extra bytes if the new name is smaller
+			newNameLen = len( newName )
+			if newNameLen < len( animGameName ):
+				padding = len( animGameName ) - newNameLen
+				symbolData.append( 0 )
+				symbolData.extend( [0xFF] * padding )
+
+			# Get the offset of the symbol string in the AJ file
+			for anim in ajFile.animations:
+				if anim.offset == animOffset:
+					anim.initialize()
+					anim.name = newSymbol
+					ajStringOffset = 0x20 + animOffset + anim.headerInfo['stringTableStart']
+					break
+			else: # The loop above didn't break; unable to find the animation
+				msg( 'Unable to find an animation at offset 0x{:X} in the animation file ({})!'.format(animOffset, ajFile.filename), 'Unable to Swap Animations', error=True )
+				printStatus( 'Animation not found in AJ file' )
+				return
+
+			# Update the strings in both files
+			stringChangeDescription = 'Animation name "{}" changed to "{}"'.format( origGameName, newName )
+			self.charFile.updateData( namePointer, symbolData, stringChangeDescription, 'Animation swapped' )
+			ajFile.updateData( ajStringOffset, symbolData, stringChangeDescription, 'Animation name updated' )
+
+		# Create a user message/description for this change
+		if animSelectWindow.friendlyName:
+			description = 'Animation for {} changed to {} ({})'.format( origFriendlyName, animSelectWindow.friendlyName, animGameName )
 		else:
-			updateInAJ = True
+			description = 'Animation for {} changed to {}'.format( origFriendlyName, animGameName )
 
 		# Update the action table struct values
-		#self.charFile.updateStructValue( self.actionTable, 0, , trackChange=False, entryIndex=entryIndex )
-		self.charFile.updateStructValue( self.actionTable, 1, animSelectWindow.animOffset, trackChange=False, entryIndex=entryIndex )
-		self.charFile.updateStructValue( self.actionTable, 2, animSelectWindow.animSize, userMessage, entryIndex=entryIndex )
-
-		# Update the string in the AJ file to match this action's name
-		#if updateInAJ:
+		self.charFile.updateStructValue( self.actionTable, 0, namePointer, trackChange=False, entryIndex=entryIndex )
+		self.charFile.updateStructValue( self.actionTable, 1, animOffset, trackChange=False, entryIndex=entryIndex )
+		self.charFile.updateStructValue( self.actionTable, 2, animSelectWindow.animSize, description, entryIndex=entryIndex )
 
 		# Update the GUI
-		printStatus( userMessage )
-		if len( animSelectWindow.gameName ) > 8:
-			self.targetAnimName.set( 'Target Animation:\n' + animSelectWindow.gameName )
-		else:
-			self.targetAnimName.set( 'Target Animation:  ' + animSelectWindow.gameName )
+		printStatus( description )
+		# if len( animGameName ) > 8:
+		# 	self.targetAnimName.set( 'Target Animation:\n' + animGameName )
+		# else:
+		# 	self.targetAnimName.set( 'Target Animation:  ' + animGameName )
 		self.actionAnimOffset.set( 'Animation (AJ) Offset:  0x{:X}'.format(0x20+animSelectWindow.animOffset) )
 		self.actionAnimSize.set( 'Animation (AJ) Size:  0x{:X}'.format(animSelectWindow.animSize) )
 
@@ -926,9 +1034,6 @@ class EventModule( ttk.Frame, object ):
 			helpBtn = LabelButton( headerRow, 'question', self.showHelp, 'Info', style=self.labelStyle )
 			helpBtn.pack( side='right', padx=12, pady=(1, 0) )
 		headerRow.pack( fill='x', expand=True )
-
-		# Bind button release events to check for event drag-and-drop reordering
-		#parentItem.bind_class( parentItem._tag, "<ButtonRelease-1>", self.dropped )
 
 		if self.event.fields:
 			self.bind( '<Double-Button-1>', self.expandBtn.toggle )

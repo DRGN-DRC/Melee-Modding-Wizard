@@ -1363,13 +1363,15 @@ class DatFile( FileBase ):
 					description = 'Single byte updated'
 				else:
 					description = '0x{:X} bytes of data updated'.format( dataLength )
+
+			# If the description is short enough and there's no treeviewDescription, use the description for both
 			elif not treeviewDescription and len( description ) <= 42:
 				treeviewDescription = description
 			description += ' at 0x{:X}.'.format( 0x20 + offset ) # Accounting for file header
 
 			self.recordChange( description, treeviewDescription )
 
-	def updateStruct( self, structure, description='', trackChange=True ):
+	def updateStruct( self, structure, description='', treeviewDescription='', trackChange=True ):
 
 		""" Saves changes made to a given struct to this file. """
 
@@ -1392,7 +1394,7 @@ class DatFile( FileBase ):
 		if trackChange:
 			if not description:
 				description = self.name + ' updated'
-			self.recordChange( description )
+			self.recordChange( description, treeviewDescription )
 
 	def updateStructValue( self, structure, valueIndex, newValue, description='', trackChange=True, entryIndex=0 ):
 		
