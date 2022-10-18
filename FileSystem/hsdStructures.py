@@ -63,7 +63,6 @@ class StructBase( object ):
 		self._siblingsChecked = False
 		self._childrenChecked = False
 		self._branchInitialized = False
-		#self.changesNeedSaving = False				# Indicates that some of the decoded values have been changed
 
 		# Determine the structure's file depth (x, y) tuple, if possible.
 		#		x = how "deep" into the file (the file header is first, at 0. Root Nodes Table is next, at 1)
@@ -736,7 +735,6 @@ class StructBase( object ):
 		valuesList = list( self.values )
 		valuesList[index] = value
 		self.values = tuple( valuesList )
-		#changesNeedSaving = True # Both the self.data and self.dat.data need updating
 
 	def setFlag( self, valueIndex, bitNumber ):
 

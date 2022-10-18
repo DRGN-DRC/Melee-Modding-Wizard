@@ -1396,13 +1396,13 @@ class DatFile( FileBase ):
 				description = self.name + ' updated'
 			self.recordChange( description, treeviewDescription )
 
-	def updateStructValue( self, structure, valueIndex, newValue, description='', trackChange=True, entryIndex=0 ):
+	def updateStructValue( self, structure, valueIndex, newValue, description='', treeviewDescription='', trackChange=True, entryIndex=-1 ):
 		
 		""" Performs a similar function as the updateData method. However, this requires a known structure to exist, 
 			and makes the appropriate modifications through it first before updating self.data. """
 
 		# Change the value in the struct
-		if entryIndex != 0:
+		if entryIndex != -1:
 			assert isinstance( structure, hsdStructures.TableStruct ), 'Invalid usage of updateStructValue; must operate on a TableStruct if using an entryIndex.'
 			valueIndex = ( structure.entryValueCount * entryIndex ) + valueIndex
 		structure.setValue( valueIndex, newValue )
@@ -1420,7 +1420,7 @@ class DatFile( FileBase ):
 			offset = 0x20 + structure.valueIndexToOffset( valueIndex ) # Accounting for file header
 			description += ' at 0x{:X}.'.format( offset )
 
-			self.recordChange( description )
+			self.recordChange( description, treeviewDescription )
 
 	# def updateStructEntryValue( self, structure, valueIndex, newValue, description='', trackChange=True ):
 		

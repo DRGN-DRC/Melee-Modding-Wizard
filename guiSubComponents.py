@@ -14,6 +14,7 @@ import os
 import ttk
 import time
 import struct
+import tkFont
 import tkFileDialog
 import Tkinter as Tk
 
@@ -383,13 +384,13 @@ class BasicWindow( object ):
 	def __init__( self, topLevel, windowTitle='', dimensions='auto', offsets='auto', resizable=False, topMost=True, minsize=(-1, -1), unique=False ):
 
 		# If utilized, unique windows will be referenceable in a dictionary on the topLevel window
-		self.className = self.__class__.__name__
+		self.windowName = windowTitle
 		if unique:
 			assert topLevel, 'Only windows with a parent may be unique!'
 
 			# Bring into view an existing instance of this window, if already present
 			if hasattr( topLevel, 'uniqueWindows' ):
-				existingWindow = topLevel.uniqueWindows.get( self.className )
+				existingWindow = topLevel.uniqueWindows.get( self.windowName )
 				if existingWindow:
 					try:
 						# The window already exist. Make sure it's not minimized, and bring it to the foreground
@@ -397,7 +398,7 @@ class BasicWindow( object ):
 						existingWindow.window.lift()
 						return False # Can use this to determine whether child classes using 'unique' should continue with their init method
 					except: # Failsafe against bad window name (existing window somehow destroyed without proper clean-up); move on to create new instance
-						topLevel.uniqueWindows[self.className] = None
+						topLevel.uniqueWindows[self.windowName] = None
 			else:
 				topLevel.uniqueWindows = {}
 		
@@ -440,7 +441,7 @@ class BasicWindow( object ):
 			self.window.protocol( 'WM_DELETE_WINDOW', self.close )
 		
 		if unique:
-			topLevel.uniqueWindows[self.className] = self
+			topLevel.uniqueWindows[self.windowName] = self
 
 		return True
 
@@ -448,7 +449,7 @@ class BasicWindow( object ):
 		# Delete reference to this window if it's meant to be a unique instance, and then destroy the window
 		topLevel = self.window.master
 		if hasattr( topLevel, 'uniqueWindows' ):
-			topLevel.uniqueWindows[self.className] = None
+			topLevel.uniqueWindows[self.windowName] = None
 		self.window.destroy()
 
 
@@ -676,7 +677,7 @@ class AnimationChooser( BasicWindow ):
 		actionTable = self.charFile.getActionTable()
 		for entryIndex, values in actionTable.iterateEntries():
 			if entryIndex < 0x127: continue
-			
+
 			namePointer = values[0]
 			if namePointer != 0:
 				symbol = self.charFile.getString( namePointer ) # e.g. 'PlyCaptain5K_Share_ACTION_AttackS3S_figatree'
@@ -1551,6 +1552,238 @@ class CodeSpaceOptionsWindow( BasicWindow ):
 	# 		'the codelist wrapper (0x10 bytes), or the codelist.', '', self.window )
 
 
+class FlagDecoder( BasicWindow ):
+
+	""" Used to view and modify DAT file structure flags, and the individual bits associated to them. """
+
+	def __init__( self, structure, fieldAndValueIndex, entryIndex=-1, displayName='' ):
+		# Store the given arguments
+		self.structure = structure
+		self.fieldAndValueIndex = fieldAndValueIndex
+		self.entryIndex = entryIndex # For data table structs
+
+		# Collect info on these flags
+		fieldName = structure.fields[fieldAndValueIndex]
+		structFlagsDict = getattr( structure, 'flags', {} ) # Returns an empty dict if one is not found.
+		self.individualFlagNames = structFlagsDict.get( fieldName ) # Will be 'None' if these flags aren't defined in the structure's class
+		self.flagFieldLength = struct.calcsize( structure.formatting[fieldAndValueIndex+1] )
+
+		# Determine a name to identify these specific flags
+		if displayName:
+			self.name = displayName
+		else:
+			self.name = structure.name = ', ' + fieldName.replace( '_', ' ' ).replace( '\n', ' ' )
+
+		# Create a string for iterating bits
+		self.allFlagsValue = structure.getValues()[fieldAndValueIndex] # Single value representing all of the flags
+		self.bitString = format( self.allFlagsValue, 'b' ).zfill( self.flagFieldLength * 8 ) # Adds padding to the left to fill out to n*8 bits
+
+		# Determine the window spawn position (if this will be a long list, spawn the window right at the top of the main GUI)
+		if self.individualFlagNames and len( self.individualFlagNames ) > 16: spawnHeight = 0
+		elif not self.individualFlagNames and len( self.bitString ) > 16: spawnHeight = 0
+		else: spawnHeight = 180
+
+		# Generate the basic window
+		if not BasicWindow.__init__( self, globalData.gui.root, 'Flag Decoder  -  ' + displayName, offsets=(180, spawnHeight), unique=True ):
+			return # If the above returned false, it displayed an existing window, so we should exit here
+
+		# Define some fonts to use
+		self.fontNormal = tkFont.Font( size=11 )
+		self.boldFontLarge = tkFont.Font( weight='bold', size=14 )
+		self.boldFontNormal = tkFont.Font( weight='bold', size=12 )
+
+		self.drawWindowContents()
+
+	def drawWindowContents( self ):
+		# Display a break-down of all of the actual bits from the flag value
+		self.bitsGrid = ttk.Frame( self.window )
+		byteStringsList = [ self.bitString[i:i+8] for i in range(0, len(self.bitString), 8) ] # A list, where each entry is a string of 8 bits
+		for i, byteString in enumerate( byteStringsList ): # Add the current byte as both hex and binary
+			ttk.Label( self.bitsGrid, text='{0:02X}'.format(int( byteString, 2 )), font=self.boldFontLarge ).grid( column=i, row=0, ipadx=4 )
+			ttk.Label( self.bitsGrid, text=byteString, font=self.boldFontLarge ).grid( column=i, row=1, ipadx=4 )
+		ttk.Label( self.bitsGrid, text=' ^ bit {}'.format(len(self.bitString) - 1), font=self.fontNormal ).grid( column=0, row=2, sticky='w', ipadx=4 )
+		ttk.Label( self.bitsGrid, text='bit 0 ^ ', font=self.fontNormal ).grid( column=len(byteStringsList)-1, row=2, sticky='e', ipadx=4 )
+		self.bitsGrid.pack( pady=(10, 0), padx=10 )
+
+		# Iterate over the bits or flag enumerations and show the status of each one
+		self.flagTable = ttk.Frame( self.window )
+		row = 0
+		if self.individualFlagNames: # This will be a definition (ordered dictionary) from the structure's class.
+			for bitMapString, bitName in self.individualFlagNames.items():
+				baseValue, shiftAmount = bitMapString.split( '<<' )
+				shiftAmount = int( shiftAmount )
+
+				# Mask out the bits unrelated to this property
+				bitMask = int( baseValue ) << shiftAmount
+
+				ttk.Label( self.flagTable, text=bitMapString, font=self.fontNormal ).grid( column=0, row=row )
+
+				# Set up the checkbox variable, and add the flag name to the GUI
+				var = Tk.IntVar()
+				if self.flagsAreSet( bitMask, shiftAmount ):
+					var.set( 1 )
+					ttk.Label( self.flagTable, text=bitName, font=self.boldFontNormal ).grid( column=1, row=row, padx=14 )
+				else:
+					var.set( 0 )
+					ttk.Label( self.flagTable, text=bitName, font=self.fontNormal ).grid( column=1, row=row, padx=14 )
+
+				chkBtn = ttk.Checkbutton( self.flagTable, variable=var )
+				chkBtn.var = var
+				chkBtn.row = row
+				chkBtn.bitMask = bitMask
+				chkBtn.shiftAmount = shiftAmount
+				chkBtn.grid( column=2, row=row )
+				chkBtn.bind( '<1>', self.toggleBits ) # Using this instead of the checkbtn's 'command' argument so we get an event (and widget reference) passed
+
+				row += 1
+
+		else: # Undefined bits/properties
+			for i, bit in enumerate( reversed(self.bitString) ):
+				# Add the bit number and it's value
+				ttk.Label( self.flagTable, text='Bit {}:'.format(i), font=self.fontNormal ).grid( column=0, row=row )
+
+				# Add the flag(s) name and value
+				var = Tk.IntVar()
+				if bit == '1':
+					var.set( 1 )
+					ttk.Label( self.flagTable, text='Set', font=self.boldFontNormal ).grid( column=1, row=row, padx=6 )
+				else:
+					var.set( 0 )
+					ttk.Label( self.flagTable, text='Not Set', font=self.fontNormal ).grid( column=1, row=row, padx=6 )
+
+				chkBtn = ttk.Checkbutton( self.flagTable, variable=var )
+				chkBtn.var = var
+				chkBtn.row = row
+				chkBtn.bitMask = 1 << i
+				chkBtn.shiftAmount = i
+				chkBtn.grid( column=2, row=row )
+				chkBtn.bind( '<1>', self.toggleBits ) # Using this instead of the checkbtn's 'command' argument so we get an event (and widget reference) passed
+
+				row += 1
+
+		self.flagTable.pack( pady=20, padx=20 )
+
+	def flagsAreSet( self, bitMask, bitNumber ):
+
+		""" Can check a mask of one or multiple bits (i.e. 0x1000 or 0x1100 ), except 
+			when checking for a bitMask of 0, which only checks one specific bit. """
+
+		if bitMask == 0: # In this case, this flag will be considered 'True' or 'On' if the bit is 0
+			return not ( 1 << bitNumber ) & self.allFlagsValue
+		else:
+			return ( bitMask & self.allFlagsValue ) == bitMask
+
+	def toggleBits( self, event ):
+		# Get the widget's current value and invert it (since this method is called before the widget can update the value on its own)
+		flagIsToBeSet = not event.widget.var.get()
+
+		# For flags whose 'True' or 'On' case is met when the bit value is 0, invert whether the flags should be set to 1 or 0
+		bitMask = event.widget.bitMask
+		if bitMask == 0:
+			flagIsToBeSet = not flagIsToBeSet
+			bitMask = 1 << event.widget.shiftAmount
+
+		# Set or unset all of the bits for this flag
+		if flagIsToBeSet:
+			self.allFlagsValue = self.allFlagsValue | bitMask # Sets all of the masked bits in the final value to 1
+		else:
+			self.allFlagsValue = self.allFlagsValue & ~bitMask # Sets all of the masked bits in the final value to 0 (~ operation inverts bits)
+
+		# Rebuild the bit string and update the window contents
+		self.updateBitBreakdown()
+		self.updateFlagRows()
+
+		# Change the flag value in the file
+		self.updateFlagsInFile()
+
+		return 'break' # Prevents propagation of this event (the checkbutton's own event handler won't even fire)
+
+	def updateBitBreakdown( self ):
+
+		""" Updates the flag strings of hex and binary, and then redraws them in the GUI. """
+
+		# Update the internal strings
+		self.bitString = format( self.allFlagsValue, 'b' ).zfill( self.flagFieldLength * 8 ) # Adds padding to the left to fill out to n*8 bits
+		byteStringsList = [ self.bitString[i:i+8] for i in range(0, len(self.bitString), 8) ] # A list, where each entry is a string of 8 bits
+
+		# Update the GUI
+		for i, byteString in enumerate( byteStringsList ):
+			# Update the hex display for this byte
+			hexDisplayLabel = self.bitsGrid.grid_slaves( column=i, row=0 )[0]
+			hexDisplayLabel['text'] = '{0:02X}'.format( int(byteString, 2) )
+
+			# Update the binary display for this byte
+			binaryDisplayLabel = self.bitsGrid.grid_slaves( column=i, row=1 )[0]
+			binaryDisplayLabel['text'] = byteString
+
+	def updateFlagRows( self ):
+
+		""" Checks all flags/rows to see if the flag needs to be updated. All of 
+			them need to be checked because some flags may affect multiple flags/rows. """
+
+		for checkboxWidget in self.flagTable.grid_slaves( column=2 ):
+			flagNameLabel = self.flagTable.grid_slaves( column=1, row=checkboxWidget.row )[0]
+
+			# Set the boldness of the font, and the state of the checkbox
+			if self.flagsAreSet( checkboxWidget.bitMask, checkboxWidget.shiftAmount ):
+				flagNameLabel['font'] = self.boldFontNormal
+				checkboxWidget.var.set( 1 )
+			else:
+				flagNameLabel['font'] = self.fontNormal
+				checkboxWidget.var.set( 0 )
+
+	def updateFlagsInFile( self ):
+
+		""" Updates the combined value of the currently set flags in the file's data and in entry fields in the main program window. 
+			This [unfortunately] needs to rely on a search methodology to target entry field widgets that need updating, 
+			because they can be destroyed and re-created (thus, early references to existing widgets can't be trusted). """
+
+		# Convert the value to a bytearray and save it to the struct
+		#newHex = '{0:0{1}X}'.format( self.allFlagsValue, self.flagFieldLength*2 ) # Formats as hex; pads up to n zeroes (second arg)
+		#flagsData = struct.pack( self.structure.formatting[self.fieldAndValueIndex+1], self.allFlagsValue )
+		datFile = self.structure.dat
+		descriptionOfChange = self.name + ' flags updated'
+		datFile.updateStructValue( self.structure, self.fieldAndValueIndex, self.allFlagsValue, descriptionOfChange, 'Action state flags updated', entryIndex=self.entryIndex )
+
+		# Update the field entry widgets in the Structural Analysis tab, if it's currently showing this set of flags
+		# structTable = getattr( globalData.gui.structurePropertiesFrame, 'structTable', None )
+		# if structTable:
+		# 	# Get the offset of the structure shown in the panel (offset of the first field entry), to see if it's the same as the one we're editing
+		# 	firstFieldOffsets = structTable.grid_slaves( column=1, row=0 )[0].offsets # Should never be a list when generated here
+		# 	if firstFieldOffsets == self.structure.offset:
+		# 		# Set the value of the entry widget, and trigger its bound update function (which will handle everything from validation through data-saving)
+		# 		hexEntryWidget = structTable.grid_slaves( column=1, row=self.fieldAndValueIndex )[0]
+		# 		self.updateWidget( hexEntryWidget, newHex )
+
+		# Update the actual data in the file for each offset
+		#flagName = self.structure.fields[self.fieldAndValueIndex].replace( '_', ' ' ).replace( '\n', ' ' )
+		# descriptionOfChange = flagName + ' modified in ' + globalDatFile.fileName
+		# newData = bytearray.fromhex( newHex )
+		# if type( self.fieldOffsets ) == list:
+		# 	for offset in self.fieldOffsets:
+		# 		globalDatFile.updateData( offset, newData, descriptionOfChange )
+		# else: # This is expected to be for an entry on the Structural Analysis tab
+		# 	globalDatFile.updateData( self.fieldOffsets, newData, descriptionOfChange )
+
+		printStatus( descriptionOfChange )
+
+	# def updateWidget( self, widget, newHex ):
+		
+	# 	""" Handles some cosmetic changes for the widget. Actual saving 
+	# 		of the data is handled by the updateFlagsInFile method. """
+
+	# 	# Update the values shown
+	# 	widget.delete( 0, 'end' )
+	# 	widget.insert( 0, newHex )
+
+	# 	# Change the background color of the widget, to show that changes have been made to it and are pending saving
+	# 	widget.configure( background='#faa' )
+
+	# 	# Add the widget to a list to keep track of what widgets need to have their background restored to white when saving
+	# 	global editedDatEntries
+	# 	editedDatEntries.append( widget )
+
+
 class DisguisedEntry( Tk.Entry ):
 	
 	""" An Entry field that blends into its surroundings until hovered over. """
@@ -1660,7 +1893,7 @@ class LabelButton( ttk.Label ):
 
 		if hovertext:
 			self.updateHovertext( hovertext )
-		
+
 	def hovered( self, event ):
 		self['image'] = self.hoverImage
 		self.isHovered = True
@@ -1674,7 +1907,7 @@ class LabelButton( ttk.Label ):
 		else:
 			self.toolTipVar = Tk.StringVar( value=newText )
 			self.toolTip = ToolTip( self, textvariable=self.toolTipVar, delay=700, wraplength=800, justify='center' )
-			
+
 
 class ToggleButton( ttk.Label ):
 
@@ -2670,6 +2903,11 @@ class DDList( ttk.Frame ):
 			self._bottom -= shrinkAmount
 
 		self.configure(height=self._bottom+self._offset_y)
+
+		# If this item was selected, move selection to the next item
+		if item.selected and index < len( self._list_of_items ):
+			newSelectedItem = self._list_of_items[index]
+			self._on_item_selected(newSelectedItem)
 		
 		return value
 

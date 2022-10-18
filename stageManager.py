@@ -600,9 +600,9 @@ class SongChooser( BasicWindow ):
 		# Update the value in the file structure
 		if self.valueIndex == 1 or self.valueIndex == 2: # Update both the main/alt music and the super sudden death main/alt music
 			self.stageTab.musicTableStruct.setEntryValue( entryIndex, self.valueIndex, musicId ) # Ignores extra steps which will be handled below
-			self.stageTab.selectedStage.updateStructValue( self.stageTab.musicTableStruct, self.valueIndex+2, musicId, userMessage, entryIndex=entryIndex )
+			self.stageTab.selectedStage.updateStructValue( self.stageTab.musicTableStruct, self.valueIndex+2, musicId, userMessage, 'Music updated', entryIndex=entryIndex )
 		else:
-			self.stageTab.selectedStage.updateStructValue( self.stageTab.musicTableStruct, self.valueIndex, musicId, userMessage, entryIndex=entryIndex )
+			self.stageTab.selectedStage.updateStructValue( self.stageTab.musicTableStruct, self.valueIndex, musicId, userMessage, 'Music updated', entryIndex=entryIndex )
 
 		# Update the GUI
 		globalData.gui.updateProgramStatus( userMessage )
@@ -2112,7 +2112,7 @@ class StageManager( ttk.Frame ):
 		userMessage = 'Music Behavior of Music Table entry {} updated from {} to {}.'.format(entryIndex+1, origBehaviorName, newBehaviorName)
 
 		# Update the value in the file and structure
-		self.selectedStage.updateStructValue( self.musicTableStruct, 5, newValue, userMessage, entryIndex=entryIndex )
+		self.selectedStage.updateStructValue( self.musicTableStruct, 5, newValue, userMessage, 'Song behavior updated', entryIndex=entryIndex )
 
 		# Update the GUI
 		psuedoEntryName = str( entryIndex+1 ) + '|' # Don't need to feed it the whole selection name, just the entry index
@@ -2132,7 +2132,7 @@ class StageManager( ttk.Frame ):
 		userMessage = 'Alt. Music % Chance of Music Table entry {} updated from {} to {}.'.format(entryIndex+1, origValue, formattedNewValue)
 
 		# Update the value in the file and structure
-		self.selectedStage.updateStructValue( self.musicTableStruct, 6, newValue, userMessage, entryIndex=entryIndex )
+		self.selectedStage.updateStructValue( self.musicTableStruct, 6, newValue, userMessage, 'Alt music % chance updated', entryIndex=entryIndex )
 
 		# Update the GUI
 		globalData.gui.updateProgramStatus( userMessage )

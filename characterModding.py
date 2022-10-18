@@ -21,17 +21,17 @@ from basicFunctions import reverseDictLookup, msg, printStatus
 
 # Internal Dependencies
 import globalData
-from FileSystem.charFiles import CharDataFile, SubAction, SubActionEvent
-from guiSubComponents import AnimationChooser, BasicWindow, ClickText, ColoredLabelButton, DDList, HexEditEntry, LabelButton, ToggleButton, ToolTip, VerticalScrolledFrame, getNewNameFromUser, getWindowGeometry
+from FileSystem.charFiles import ActionTable, CharDataFile, SubAction, SubActionEvent
+from guiSubComponents import AnimationChooser, BasicWindow, ClickText, ColoredLabelButton, DDList, FlagDecoder, HexEditEntry, LabelButton, ToggleButton, ToolTip, VerticalScrolledFrame, getNewNameFromUser, getWindowGeometry
 
 
 class CharModding( ttk.Notebook ):
 
 	# Icon texture indexes within IfAll.usd
-	iconIndices = { 'Ca': 70, 'Dk': 74, 'Fx': 75,'Gw': 76, 'Kb': 77, 'Kp': 78, 'Lk': 79,
-					'Lg': 80, 'Mr': 81, 'Ms': 82, 'Mt': 83, 'Ns': 84, 'Pe': 85, 'Pk': 86,
-					'Pp': 87, 'Pr': 88, 'Ss': 89, 'Ys': 90, 'Zd': 91, 'Sk': 98, 'Fc': 92,
-					'Cl': 93, 'Dr': 94, 'Fe': 95, 'Pc': 96, 'Gn': 97, 
+	iconIndices = { 'Ca': 70, 'Dk': 74, 'Fx': 75, 'Gw': 76, 'Kb': 77, 'Kp': 78, 'Lk': 79, 
+					'Lg': 80, 'Mr': 81, 'Ms': 82, 'Mt': 83, 'Nn': 87, 'Ns': 84, 'Pe': 85, 
+					'Pk': 86, 'Pp': 87, 'Pr': 88, 'Ss': 89, 'Ys': 90, 'Zd': 91, 'Sk': 98, 
+					'Fc': 92, 'Cl': 93, 'Dr': 94, 'Fe': 95, 'Pc': 96, 'Gn': 97, 
 					
 					'Mh': 192, 'Bo': 191, 'Gl': 191, 'Gk': 202, 'Ch': 193, 'Sb': 196 }
 
@@ -72,8 +72,6 @@ class CharModding( ttk.Notebook ):
 			# Filter to just the character data files
 			if not isinstance( fileObj, CharDataFile ) or not fileObj.filename.endswith( '.dat' ):
 				continue
-			elif fileObj.charAbbr == 'Nn': # Skip Nana
-				continue
 			elif fileObj.charAbbr == 'Kb' and 'Cp' in fileObj.filename: # Skip Kirby copy ft data files
 				continue
 
@@ -85,7 +83,14 @@ class CharModding( ttk.Notebook ):
 			else:
 				icon = None
 
-			button = ttk.Button( self.charBtnsTab, image=icon, text=' '+fileObj.charName, compound=Tk.LEFT, width=22 )
+			if fileObj.charAbbr == 'Nn':
+				charName = ' Nana'
+			elif fileObj.charAbbr == 'Pp':
+				charName = ' Popo'
+			else:
+				charName = ' ' + fileObj.charName
+
+			button = ttk.Button( self.charBtnsTab, image=icon, text=charName, compound=Tk.LEFT, width=22 )
 			button.charFile = fileObj
 			button.icon = icon # Stored to prevent garbage collection
 			button.bind( '<1>', self.addCharacterTab )
@@ -365,30 +370,35 @@ class ActionEditor( ttk.Frame, object ):
 
 		# Pane for general info display and editing controls
 		infoPane = ttk.Frame( self )
-		#emptyWidget = Tk.Frame( relief='flat' ) # This is used as a simple workaround for the labelframe, so we can have no text label with no label gap.
-		#generalInfoBox = ttk.Labelframe( infoPane, labelwidget=emptyWidget, padding=(20, 5) )
 		generalInfoBox = ttk.Labelframe( infoPane, text='  Selected Action  ', padding=(20, 5) )
 		self.subActionIndex = Tk.StringVar()
-		#self.targetAnimName = Tk.StringVar()
-		self.subActionEventsOffset = Tk.StringVar()
-		self.subActionEventsSize = Tk.StringVar()
-		self.subActionFlags = Tk.StringVar()
+		self.entryOffset = Tk.StringVar()
 		ttk.Label( generalInfoBox, textvariable=self.subActionIndex ).pack()
-		#ttk.Label( generalInfoBox, textvariable=self.targetAnimName, justify='center' ).pack( pady=(7, 0) )
-		ttk.Label( generalInfoBox, textvariable=self.subActionEventsOffset ).pack( pady=(7, 0) )
-		ttk.Label( generalInfoBox, textvariable=self.subActionEventsSize ).pack()
-		ttk.Label( generalInfoBox, textvariable=self.subActionFlags ).pack( pady=(7, 0) )
+		ttk.Label( generalInfoBox, textvariable=self.entryOffset ).pack()
+
+		flagsFrame = ttk.Frame( generalInfoBox )
+		self.subActionFlags = Tk.StringVar()
+		ttk.Label( flagsFrame, textvariable=self.subActionFlags ).pack( side='left', padx=4, pady=(7, 0) )
+		self.flagsBtn = ColoredLabelButton( flagsFrame, 'flag', self.editFlags, 'Edit Flags for this Action' )
+		self.flagsBtn.disable()
+		self.flagsBtn.pack( side='left', pady=(7, 0) )
+		flagsFrame.pack()
+
 		generalInfoBox.pack( fill='x', expand=True )
 
 		eventsFrame = ttk.Labelframe( infoPane, text='  SubAction Events  ', padding=(20, 5) )
-		ColoredLabelButton( eventsFrame, 'delete', self.deleteEvent, 'Delete Event', '#f04545' ).grid( column=0, row=0, pady=4, padx=4 )
-		ColoredLabelButton( eventsFrame, 'expand', self.expandAll, 'Expand All' ).grid( column=1, row=0, pady=4, padx=4 )
-		ColoredLabelButton( eventsFrame, 'collapse', self.collapseAll, 'Collapse All' ).grid( column=2, row=0, pady=4, padx=4 )
-		ColoredLabelButton( eventsFrame, 'save', self.saveEventChanges, 'Save Changes\nto Charcter File', '#292' ).grid( column=3, row=0, pady=4, padx=4 )
+		self.subActionEventsOffset = Tk.StringVar()
+		self.subActionEventsSize = Tk.StringVar()
+		ttk.Label( eventsFrame, textvariable=self.subActionEventsOffset ).grid( column=0, columnspan=5, row=0 )
+		ttk.Label( eventsFrame, textvariable=self.subActionEventsSize ).grid( column=0, columnspan=5, row=1 )
+		ColoredLabelButton( eventsFrame, 'delete', self.deleteEvent, 'Delete Event', '#f04545' ).grid( column=0, row=2, pady=4, padx=4 )
+		ColoredLabelButton( eventsFrame, 'expand', self.expandAll, 'Expand All' ).grid( column=1, row=2, pady=4, padx=4 )
+		ColoredLabelButton( eventsFrame, 'collapse', self.collapseAll, 'Collapse All' ).grid( column=2, row=2, pady=4, padx=4 )
+		ColoredLabelButton( eventsFrame, 'save', self.saveEventChanges, 'Save Changes\nto Charcter File', '#292' ).grid( column=3, row=2, pady=4, padx=4 )
 		insertBtn = LabelButton( eventsFrame, 'insert', self.insertEventBefore, 'Insert New Event\n\n(Before selection. Shift-click\nto insert after selection.)' )
 		insertBtn.bind( '<Shift-Button-1>', self.insertEventAfter )
-		insertBtn.grid( column=4, row=0, pady=4, padx=4 )
-		ttk.Button( eventsFrame, text='Restore to Vanilla', command=self.restoreEvents ).grid( column=0, columnspan=5, row=1, ipadx=12 )
+		insertBtn.grid( column=4, row=2, pady=4, padx=4 )
+		ttk.Button( eventsFrame, text='Restore to Vanilla', command=self.restoreEvents ).grid( column=0, columnspan=5, row=3, ipadx=12, pady=4 )
 		eventsFrame.columnconfigure( 'all', weight=1 )
 		eventsFrame.pack( fill='x', expand=True, pady=42 )
 		
@@ -397,7 +407,7 @@ class ActionEditor( ttk.Frame, object ):
 		self.actionAnimSize = Tk.StringVar()
 		ttk.Label( animBox, textvariable=self.actionAnimOffset ).pack()
 		ttk.Label( animBox, textvariable=self.actionAnimSize ).pack()
-		ttk.Button( animBox, text='Change Animation', command=self.changeAnimation ).pack( ipadx=12, pady=5 )
+		ttk.Button( animBox, text='Change Animation', command=self.changeAnimation ).pack( ipadx=12, pady=4 )
 		animBox.pack( fill='x', expand=True )
 
 		self.noteStringFrame = ttk.Frame( infoPane )
@@ -416,6 +426,14 @@ class ActionEditor( ttk.Frame, object ):
 		self.rowconfigure( 0, weight=0 ) # Titles
 		self.rowconfigure( 1, weight=0 ) # Main content
 		self.rowconfigure( 2, weight=1 ) # Main content
+		
+		self.subActionIndex.set( 'Table Index:    ' )
+		self.entryOffset.set( 'Entry Offset:    ' )
+		self.subActionFlags.set( 'State Flags:    ' )
+		self.subActionEventsOffset.set( 'Events Offset:    ' )
+		self.subActionEventsSize.set( 'Events Table Size:    ' )
+		self.actionAnimOffset.set( 'Animation (AJ) Offset:    ' )
+		self.actionAnimSize.set( 'Animation (AJ) Size:    ' )
 
 		self.populate()
 
@@ -423,13 +441,6 @@ class ActionEditor( ttk.Frame, object ):
 
 		""" Clears the subAction list (if it has anything displayed) and 
 			repopulates it with entries from the character's action table. """
-
-		# Remember the current (soon to be previous) selection
-		selection = self.subActionList.curselection()
-		if selection:
-			lastSelectedEntry = self.listboxIndices.get( selection[0], -1 ) # Convert from listbox index to actions table index
-		else:
-			lastSelectedEntry = -1
 		
 		self.listboxIndices = {} # Key = listboxIndex, value = eventIndex
 
@@ -501,10 +512,13 @@ class ActionEditor( ttk.Frame, object ):
 
 		# Clear current selection, and then select the same item that was selected before (if it's still present)
 		self.subActionList.selection_clear( 0, 'end' )
-		if lastSelectedEntry != -1 and lastSelectedEntry in self.listboxIndices.values():
-			listboxIndex = reverseDictLookup( self.listboxIndices, lastSelectedEntry )
+		listboxIndex = self.listboxFromEntryIndex( self.lastSelection )
+		if listboxIndex != -1:
 			self.subActionList.selection_set( listboxIndex )
 			self.subActionList.see( listboxIndex )
+
+	def listboxFromEntryIndex( self, index ):
+		return reverseDictLookup( self.listboxIndices, index, -1 )
 
 	def updateFilters( self, name, idx, mode ):
 
@@ -552,7 +566,7 @@ class ActionEditor( ttk.Frame, object ):
 
 		return ( self.subActionStruct.origData != self.subActionStruct.data )
 
-	def subActionSelected( self, guiEvent ):
+	def subActionSelected( self, guiEvent=None, checkForUnsavedChanges=True ):
 
 		""" Parses subAction events and updates the GUI. Called on selection of the subAction list. 
 		
@@ -565,11 +579,11 @@ class ActionEditor( ttk.Frame, object ):
 		if not selection:
 			return
 		listBoxIndex = selection[0]
-		if listBoxIndex == self.lastSelection: # No change!
+		if listBoxIndex == self.listboxFromEntryIndex( self.lastSelection ): # No change!
 			return
 
 		# Check for unsaved changes that the user might want
-		if self.hasUnsavedChanges():
+		if checkForUnsavedChanges and self.hasUnsavedChanges():
 			proceed = tkMessageBox.askyesno( 'Unsaved Changes Detected', 'It appears there are unsaved changes to the subAction events.\n\nDo you want to discard these changes?' )
 			if proceed: # Discard changes
 				self.subActionStruct.events = []
@@ -578,7 +592,7 @@ class ActionEditor( ttk.Frame, object ):
 			else:
 				# Do not proceed; keep the previous selection and do nothing
 				self.subActionList.selection_clear( 0, 'end' )
-				self.subActionList.selection_set( self.lastSelection )
+				self.subActionList.selection_set( self.listboxFromEntryIndex(self.lastSelection) )
 				return
 
 		# Clear the events display pane and reset the scrollbar
@@ -586,12 +600,14 @@ class ActionEditor( ttk.Frame, object ):
 		self.displayPane.master.master.yview_moveto( 0 )
 		
 		# Commiting to this selection. Get information on it
-		self.lastSelection = listBoxIndex
 		index = self.listboxIndices[listBoxIndex] # Convert from listbox index to actions table index
+		self.lastSelection = index
 		namePointer, animOffset, animSize, eventsPointer, flags, _, _, _ = self.actionTable.getEntryValues( index )
 		
 		# Update general info display
-		self.subActionIndex.set( 'Action Table Index:  0x{:X}'.format(index) )
+		self.subActionIndex.set( 'Table Index:  0x{:X}'.format(index) )
+		entryOffset = 0x20 + self.actionTable.offset + ( index * 0x18 )
+		self.entryOffset.set( 'Entry Offset:  0x{:X}'.format(entryOffset) )
 		if animOffset == 0: # Assuming this is supposed to be null/no struct reference, rather than the struct at 0x20
 			#self.targetAnimName.set( 'Target Animation:  N/A' )
 			self.actionAnimOffset.set( 'Animation (AJ) Offset:  Null' )
@@ -619,7 +635,8 @@ class ActionEditor( ttk.Frame, object ):
 			self.actionAnimSize.set( 'Animation (AJ) Size:  0x{:X}'.format(animSize) )
 
 		# Update flags display
-		self.subActionFlags.set( 'Action Flags:  0x{:X}'.format(flags) )
+		self.subActionFlags.set( 'State Flags:  0x{:02X}'.format(flags) )
+		self.flagsBtn.enable()
 
 		# Set the subActionStruct (and parse it) and the Events Offset/Size display
 		if eventsPointer == 0: # Assuming this is supposed to be null/no struct reference, rather than the struct at 0x20
@@ -683,8 +700,9 @@ class ActionEditor( ttk.Frame, object ):
 			if item.selected:
 				self.subActionStruct.deleteEvent( i )
 				self.displayPane.delete_item( item )
-				self.updateExpansionWarning()
 				break
+		
+		self.updateExpansionWarning()
 
 	def expandAll( self, guiEvent ):
 		for item in self.displayPane._list_of_items:
@@ -756,18 +774,23 @@ class ActionEditor( ttk.Frame, object ):
 		vSubActionStruct = vCharFile.initDataBlock( SubAction, vEventsPointer, vActionTable.offset )
 		vStructData = vSubActionStruct.data
 
-		assert vSubActionStruct.length <= self.subActionStruct.length, 'The vanilla subAction events structure is larger than the existing struct!'
-		if vSubActionStruct.length < self.subActionStruct.length:
-			padding = bytearray( self.subActionStruct.length - vSubActionStruct.length )
+		#assert vSubActionStruct.length <= self.subActionStruct.length, 'The vanilla subAction events structure is larger than the existing struct!'
+		subActionStructSpace = self.charFile.getStructLength( self.subActionStruct.offset ) # Might be different than the current struct
+		if vSubActionStruct.length < subActionStructSpace:
+			padding = bytearray( subActionStructSpace - vSubActionStruct.length )
 			vStructData.extend( padding )
 
 		# Save the vanilla data to the current struct and update the file
 		self.subActionStruct.data = vStructData
+		self.subActionStruct.events = []
 		namePointer = self.actionTable.getEntryValues( index )[0]
-		actionName = self.getActionName( namePointer, index )[1]
+		actionName = self.getActionName( namePointer, index, useParenthesis=True )[1]
 		description = '{} subAction events restored to vanilla'.format( actionName )
 		self.charFile.updateStruct( self.subActionStruct, description, 'SubAction events restored' )
 
+		# Update the GUI
+		self.lastSelection = -1
+		self.subActionSelected( checkForUnsavedChanges=False )
 		printStatus( description )
 
 	def reordered( self ):
@@ -972,7 +995,7 @@ class ActionEditor( ttk.Frame, object ):
 
 			# Update the strings in both files
 			stringChangeDescription = 'Animation name "{}" changed to "{}"'.format( origGameName, newName )
-			self.charFile.updateData( namePointer, symbolData, stringChangeDescription, 'Animation swapped' )
+			self.charFile.updateData( namePointer, symbolData, stringChangeDescription )
 			ajFile.updateData( ajStringOffset, symbolData, stringChangeDescription, 'Animation name updated' )
 
 		# Create a user message/description for this change
@@ -984,7 +1007,7 @@ class ActionEditor( ttk.Frame, object ):
 		# Update the action table struct values
 		self.charFile.updateStructValue( self.actionTable, 0, namePointer, trackChange=False, entryIndex=entryIndex )
 		self.charFile.updateStructValue( self.actionTable, 1, animOffset, trackChange=False, entryIndex=entryIndex )
-		self.charFile.updateStructValue( self.actionTable, 2, animSelectWindow.animSize, description, entryIndex=entryIndex )
+		self.charFile.updateStructValue( self.actionTable, 2, animSelectWindow.animSize, description, 'Animation swapped', entryIndex=entryIndex )
 
 		# Update the GUI
 		printStatus( description )
@@ -994,6 +1017,25 @@ class ActionEditor( ttk.Frame, object ):
 		# 	self.targetAnimName.set( 'Target Animation:  ' + animGameName )
 		self.actionAnimOffset.set( 'Animation (AJ) Offset:  0x{:X}'.format(0x20+animSelectWindow.animOffset) )
 		self.actionAnimSize.set( 'Animation (AJ) Size:  0x{:X}'.format(animSelectWindow.animSize) )
+
+	def editFlags( self, guiEvent ):
+		# Ensure an action is selected
+		selection = self.subActionList.curselection()
+		if not selection:
+			msg( 'No Action is selected!' )
+			return
+		listBoxIndex = selection[0]
+
+		# Get the index and other info on this action
+		index = self.listboxIndices[listBoxIndex] # Convert from listbox index to actions table index
+		namePointer = self.actionTable.getEntryValues( index )[0]
+		gameName, friendlyName = self.getActionName( namePointer, index, useParenthesis=True )
+		if friendlyName:
+			actionName = friendlyName
+		else:
+			actionName = gameName
+
+		FlagDecoder( self.actionTable, 4, index, actionName )
 
 
 class EventModule( ttk.Frame, object ):

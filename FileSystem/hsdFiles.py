@@ -150,7 +150,7 @@ class CssFile( DatFile ):
 		elif fileName in self.randomNeutralStageNameTables and fileExt[1] in hexdigits:
 			index = int( fileExt[1], 16 )
 			nameOffset = self.randomNeutralStageNameTables[fileName] + 0x50 + ( index * 0x20 )
-			
+
 		else:
 			return ''
 

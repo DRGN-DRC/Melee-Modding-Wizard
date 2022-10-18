@@ -534,6 +534,17 @@ class SpecialCharacterAttributes( DataBlock ):
 
 
 class ActionTable( TableStruct ):
+		
+	flags = { 'State_Flags': OrderedDict([
+				( '1<<0', 'Unknown 1' ),				# 1
+				( '1<<1', 'Affects Model Scale' ),		# 2
+				( '1<<2', 'Update TransN' ),			# 4
+				( '1<<3', 'Disable Dynamics' ),			# 8
+				( '1<<4', 'Unknown 2' ),				# 16
+				( '1<<5', 'Unknown 3' ),				# 32
+				( '1<<6', 'Loop Animation' ),			# 64
+				( '1<<7', 'Anim. Induced Physics' ),	# 128
+		]) }
 
 	def __init__( self, *args, **kwargs ):
 		StructBase.__init__( self, *args, **kwargs )
@@ -544,9 +555,9 @@ class ActionTable( TableStruct ):
 						'Animation_Offset',			# Offset into the AJ files
 						'Animation_Size',
 						'SubAction_Events_Pointer',
-						'Flags',					# 0x10 (byte)
+						'State_Flags',				# 0x10 (1 byte)
 						'AdditionalBone_DisableBlendBoneIndex ',	# 0x11 (halfword)
-						'Internal_Character_ID',	# 0x13 (byte)
+						'Internal_Character_ID',	# 0x13 (1 byte)
 						'Padding'					# ARAM animation pointer placeholder (used when loaded into memory)
 					)
 		self.length = 0x18
