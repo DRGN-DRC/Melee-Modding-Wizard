@@ -225,8 +225,13 @@ class CharModding( ttk.Notebook ):
 		structTable = VerticalScrolledFrame( propertiesTab )
 		offset = 0
 		row = 0
-		for name, formatting, value in zip( attrStruct.fields, attrStruct.formatting[1:], propertyValues ):
+		# unknownCount = 1
+		for name, formatting, value, note in zip( attrStruct.fields, attrStruct.formatting[1:], propertyValues, attrStruct.notes ):
+			# if name:
 			propertyName = name.replace( '_', ' ' )
+			# else:
+			# 	propertyName = 'Unknown ' + str( unknownCount )
+			# 	unknownCount += 1
 			absoluteFieldOffset = attrStruct.offset + offset
 			verticalPadding = ( 0, 0 )
 
@@ -241,7 +246,10 @@ class CharModding( ttk.Notebook ):
 				typeName = 'Integer'
 			else:
 				typeName = 'Float'
-			ToolTip( fieldLabel, text='Offset in struct: 0x{:X}\nOffset in file: 0x{:X}\nType: {}'.format(offset, 0x20 + absoluteFieldOffset, typeName), delay=300 )
+			toolTipText = 'Offset in struct: 0x{:X}\nOffset in file: 0x{:X}\nType: {}'.format(offset, 0x20 + absoluteFieldOffset, typeName)
+			if note:
+				toolTipText += '\n\n' + note
+			ToolTip( fieldLabel, text=toolTipText, delay=300 )
 
 			# Add an editable field for the raw hex data
 			hexEntry = HexEditEntry( structTable.interior, parent.charFile, absoluteFieldOffset, fieldByteLength, format, propertyName )

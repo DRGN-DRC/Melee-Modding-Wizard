@@ -93,7 +93,7 @@ class CharFileBase( object ):
 	def getCharDataTranslations( self ):
 
 		""" Retrieves various human-readable names and notes for character data files from a JSON file. """
-		
+
 		if not self.translationsChecked:
 			# Open the Properties.json file and get its file contents
 			try:
@@ -106,7 +106,6 @@ class CharFileBase( object ):
 			except Exception as err:
 				errMsg = 'Encountered an error when attempting to open "{}" (likely due to incorrect formatting); {}'.format( jsonPath, err )
 				msg( errMsg )
-				return
 			self.translationsChecked = True
 
 	def getFriendlyActionName( self, symbol=None, symbolPointer=-1, actionTableIndex=-1 ):
@@ -280,12 +279,13 @@ class CharDataFile( CharFileBase, DatFile ):
 		# Cast what we're going to edit to lists, so we can use item assignment
 		propFieldNames = list( propStruct.fields )
 		propFormatting = list( propStruct.formatting[1:] ) # Excludes '>' character
+		propStruct.notes = [ '' for i in range(len( propStruct.fields )) ]
 
 		# Update field names and formatting for this struct if info on it is available
 		attrInfo = self.getAttributesInfo()
 		if attrInfo:
 			offsetsFound = set()
-			for offset, name, attrType in attrInfo[1:]: # Excludes first entry (character name)
+			for offset, name, attrType, note in attrInfo[1:]: # Excludes first entry (character name)
 				# Validate the offset
 				try:
 					offset = int( offset, 16 )
@@ -313,6 +313,7 @@ class CharDataFile( CharFileBase, DatFile ):
 				# Update the field name and format identifier for this entry
 				propFieldNames[valueIndex] = name
 				propFormatting[valueIndex] = attrType
+				propStruct.notes[valueIndex] = note
 
 			# Re-cast and replace the original struct fields and formatting
 			propStruct.fields = tuple( propFieldNames )

@@ -2314,20 +2314,25 @@ class MainGui( Tk.Frame, object ):
 		if not disc:
 			return False
 
-		changes = self.concatAllUnsavedChanges( basicSummary=True )
-		if not changes:
+		try:
+			changes = self.concatAllUnsavedChanges( basicSummary=True )
+			if not changes:
+				return False
+
+			# Changes have been recorded. Ask the user if they'd like to discard them
+			if programClosing:
+				warning = [ "It looks like the changes below haven't been saved to disc.", 'Are you sure you want to close?', '' ]
+			else:
+				warning = [ 'The changes below will be forgotten if you change or reload the disc before saving. Are you sure you want to do this?', '' ]
+			warning.extend( changes )
+
+			forgetChanges = tkMessageBox.askyesno( 'Unsaved Changes', '\n'.join(warning) )
+
+			return ( not forgetChanges )
+
+		except Exception as err:
+			print( 'Encountered an error while attempting to close: {}'.format(err) )
 			return False
-
-		# Changes have been recorded. Ask the user if they'd like to discard them
-		if programClosing:
-			warning = [ "It looks like the changes below haven't been saved to disc.", 'Are you sure you want to close?', '' ]
-		else:
-			warning = [ 'The changes below will be forgotten if you change or reload the disc before saving. Are you sure you want to do this?', '' ]
-		warning.extend( changes )
-
-		forgetChanges = tkMessageBox.askyesno( 'Unsaved Changes', '\n'.join(warning) )
-
-		return ( not forgetChanges )
 
 	def onProgramClose( self ):
 		globalData.saveProgramSettings()
