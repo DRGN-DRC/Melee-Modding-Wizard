@@ -44,45 +44,85 @@ class CharModding( ttk.Notebook ):
 		mainGui.dnd.bindtarget( self, mainGui.dndHandler, 'text/uri-list' )
 
 		# Add the main selection tab
-		selectionTab = ttk.Frame( self )
-		selectionTab.charFile = None
-		self.add( selectionTab, text=' Character Selection ' )
+		self.selectionTab = ttk.Frame( self )
+		self.selectionTab.charFile = None
+		self.add( self.selectionTab, text=' Character Selection ' )
+		self.extSearch = Tk.StringVar( value='.dat' )
 
-		ttk.Label( selectionTab, text="Choose the character(s) you'd like to modify:" ).pack( padx=20, pady=20 )
+		ttk.Label( self.selectionTab, text="Choose the character(s) you'd like to modify:" ).pack( padx=20, pady=20 )
 
 		# Collect character icon images
+		self.getIconTexturesInfo()
+			
+		self.charBtnsTab = ttk.Frame( self.selectionTab )
+		self.populateCharButtons()
+		self.charBtnsTab.pack( pady=20 )
+
+		self.rButtonsFrame = None
+		self.checkToAddModeButtons()
+
+	def getIconTexturesInfo( self ):
+
+		""" Gets the IfAll file from disc, which contains the icons used on the buttons. 
+			Also fetches texture information in order to get said icon textures. """
+
 		if globalData.disc.is20XX:
-			ifAllFile = globalData.disc.getFile( 'IfAl1.usd' )
+			self.ifAllFile = globalData.disc.getFile( 'IfAl1.usd' )
 		else:
-			ifAllFile = globalData.disc.getFile( 'IfAll.usd' )
-		if ifAllFile:
-			texturesInfo = ifAllFile.identifyTextures()
-			# print( 'found {} textures'.format(len(texturesInfo)) )
-			# for i, info in enumerate(texturesInfo):
+			self.ifAllFile = globalData.disc.getFile( 'IfAll.usd' )
+		if self.ifAllFile:
+			self.texturesInfo = self.ifAllFile.identifyTextures()
+			# print( 'found {} textures'.format(len(self.texturesInfo)) )
+			# for i, info in enumerate(self.texturesInfo):
 			# 	print( i, hex(info[0] + 0x20) )
 		else:
-			texturesInfo = None
+			self.texturesInfo = None
 
-		# Check for 'Pl__.dat' files to populate the main tab with character choices
-		self.charBtnsTab = ttk.Frame( selectionTab )
+	def checkToAddModeButtons( self ):
+
+		""" Adds the radio mode/selector buttons to choose SDR/PAL character files if this is 20XX. 
+			Or removes them if this is not 20XX. """
+
+		# Add Radio buttons to switch to SDR/PAL variations if this is 20XX
+		if globalData.disc.is20XX:
+			if not self.rButtonsFrame:
+				self.rButtonsFrame = ttk.Frame( self.selectionTab )
+				ttk.Radiobutton( self.rButtonsFrame, text='Default', value='.dat', variable=self.extSearch, command=self.populateCharButtons ).pack( side='left' )
+				ttk.Radiobutton( self.rButtonsFrame, text='SD Remix', value='.sat', variable=self.extSearch, command=self.populateCharButtons ).pack( side='left' )
+				ttk.Radiobutton( self.rButtonsFrame, text='PAL', value='.pat', variable=self.extSearch, command=self.populateCharButtons ).pack( side='left' )
+				self.rButtonsFrame.pack()
+
+		elif self.rButtonsFrame:
+			self.rButtonsFrame.destroy()
+			self.rButtonsFrame = None
+
+	def populateCharButtons( self ):
+
+		""" Scans the disc for 'Pl__.dat' files to populate the main tab with character choices. """
+
+		# Remove existing buttons
+		for btn in self.charBtnsTab.winfo_children():
+			btn.destroy()
+
 		specialCharRow = 1
 		column = 0
 		row = 0
 		for fileObj in globalData.disc.files.values():
 			# Filter to just the character data files
-			if not isinstance( fileObj, CharDataFile ) or not fileObj.filename.endswith( '.dat' ):
+			if not isinstance( fileObj, CharDataFile ) or not fileObj.filename.endswith( self.extSearch.get() ):
 				continue
 			elif fileObj.charAbbr == 'Kb' and 'Cp' in fileObj.filename: # Skip Kirby copy ft data files
 				continue
 
 			# Try to get the character's icon texture
-			if texturesInfo:
+			if self.texturesInfo:
 				textureIndex = self.iconIndices.get( fileObj.charAbbr, 71 )
-				texOffset, _, _, _, texWidth, texHeight, texType, _ = texturesInfo[textureIndex]
-				icon = ifAllFile.getTexture( texOffset, texWidth, texHeight, texType )
+				texOffset, _, _, _, texWidth, texHeight, texType, _ = self.texturesInfo[textureIndex]
+				icon = self.ifAllFile.getTexture( texOffset, texWidth, texHeight, texType )
 			else:
 				icon = None
 
+			# Name the button
 			if fileObj.charAbbr == 'Nn':
 				charName = ' Nana'
 			elif fileObj.charAbbr == 'Pp':
@@ -93,7 +133,7 @@ class CharModding( ttk.Notebook ):
 			button = ttk.Button( self.charBtnsTab, image=icon, text=charName, compound=Tk.LEFT, width=22 )
 			button.charFile = fileObj
 			button.icon = icon # Stored to prevent garbage collection
-			button.bind( '<1>', self.addCharacterTab )
+			button.bind( '<1>', self.selectCharacter )
 
 			# Place the buttons for special characters (Wireframes, Master Hand, etc.)
 			if fileObj.charAbbr in ( 'Bo', 'Gl', 'Mh', 'Ch', 'Gk', 'Sb' ):
@@ -109,12 +149,35 @@ class CharModding( ttk.Notebook ):
 					column += 1
 					row = 0
 
-		self.charBtnsTab.pack( pady=20 )
-
 	def repopulate( self ):
-		pass
 
-	def addCharacterTab( self, tkEvent ):
+		""" Reloads data in the GUI from the disc. Should be called when a new disc is loaded. """
+
+		disc = globalData.disc
+
+		# Reload the IfAll file (for icon textures) and re-fetch icon/texture information
+		self.getIconTexturesInfo()
+
+		# Make sure we search for .dat files if this isn't 20XX (otherwise, keep previous setting)
+		if not disc.is20XX:
+			self.extSearch.set( '.dat' )
+
+		# Reload the character buttons (getting updated character files from the disc) and add mode selection
+		self.populateCharButtons()
+		self.checkToAddModeButtons()
+
+		# Recreate character tabs
+		for tabName in self.tabs():
+			tabWidget = globalData.gui.root.nametowidget( tabName )
+			if tabWidget.charFile:
+				newCharFile = disc.getFile( tabWidget.charFile.filename )
+				tabWidget.destroy()
+
+				# Recreate the tab if a new character file was found
+				if newCharFile:
+					self.createCharacterTab( newCharFile )
+
+	def selectCharacter( self, tkEvent ):
 
 		""" Adds a new character to the main Character Modding notebook (if not already added). 
 			This includes populating all sub-tabs for that character. """
@@ -126,11 +189,28 @@ class CharModding( ttk.Notebook ):
 				# Found this tab already exists; select it
 				self.select( tabWidget )
 				return
+
+		newCharNotebook = self.createCharacterTab( tkEvent.widget.charFile )
+
+		# Switch tabs to this character
+		self.select( newCharNotebook )
+
+	def createCharacterTab( self, charFile ):
+
+		""" Creates and returns a new tab (a notebook widget) for a character tab. """
 		
-		# Create a new character tab and add it to the character modder notebook
+		# Create a new character tab and attach the character file for reference
 		newCharNotebook = ttk.Notebook( self )
-		newCharNotebook.charFile = tkEvent.widget.charFile
-		self.add( newCharNotebook, text=newCharNotebook.charFile.charName )
+		newCharNotebook.charFile = charFile
+
+		# Name the tab and add it to the notebook
+		if charFile.charAbbr == 'Nn': charName = ' Nana'
+		elif charFile.charAbbr == 'Pp': charName = ' Popo'
+		else: charName = ' ' + newCharNotebook.charFile.charName
+		filename = newCharNotebook.charFile.filename
+		if filename.endswith( '.sat' ): charName += ' (SDR)'
+		elif filename.endswith( '.pat' ): charName += ' (PAL)'
+		self.add( newCharNotebook, text=charName )
 
 		# # Add the fighter/character properties tab
 		# newTab = CharGeneralEditor( newCharNotebook )
@@ -140,12 +220,11 @@ class CharModding( ttk.Notebook ):
 		newTab = self.buildPropertiesTab( newCharNotebook )
 		newCharNotebook.add( newTab, text=' Properties ' )
 
-		# Add the fighter/character properties tab
+		# Add the tab for action states editing
 		newCharNotebook.subActionEditor = ActionEditor( newCharNotebook )
 		newCharNotebook.add( newCharNotebook.subActionEditor, text=' Moves Modding ' )
 
-		# Switch tabs to this character
-		self.select( newCharNotebook )
+		return newCharNotebook
 
 	def buildPropertiesTab( self, parent ):
 		
@@ -164,6 +243,7 @@ class CharModding( ttk.Notebook ):
 				 title='Unable to get Struct Values', 
 				 parent=globalData.gui,
 				 error=True )
+			return
 
 		# Create the properties table for Fighter Properties
 		structTable = VerticalScrolledFrame( propertiesTab )
@@ -225,21 +305,12 @@ class CharModding( ttk.Notebook ):
 		structTable = VerticalScrolledFrame( propertiesTab )
 		offset = 0
 		row = 0
-		# unknownCount = 1
 		for name, formatting, value, note in zip( attrStruct.fields, attrStruct.formatting[1:], propertyValues, attrStruct.notes ):
-			# if name:
 			propertyName = name.replace( '_', ' ' )
-			# else:
-			# 	propertyName = 'Unknown ' + str( unknownCount )
-			# 	unknownCount += 1
 			absoluteFieldOffset = attrStruct.offset + offset
 			verticalPadding = ( 0, 0 )
 
-			if offset == 0x180:
-				fieldByteLength = 1
-			else:
-				fieldByteLength = 4
-
+			# Add the property label and a tooltip for it
 			fieldLabel = ttk.Label( structTable.interior, text=propertyName + ':', wraplength=200 )
 			fieldLabel.grid( column=0, row=row, padx=(25, 10), sticky='e', pady=verticalPadding )
 			if formatting == 'I':
@@ -252,13 +323,13 @@ class CharModding( ttk.Notebook ):
 			ToolTip( fieldLabel, text=toolTipText, delay=300 )
 
 			# Add an editable field for the raw hex data
-			hexEntry = HexEditEntry( structTable.interior, parent.charFile, absoluteFieldOffset, fieldByteLength, format, propertyName )
-			rawData = attrStruct.data[offset:offset+fieldByteLength]
+			hexEntry = HexEditEntry( structTable.interior, parent.charFile, absoluteFieldOffset, 4, format, propertyName )
+			rawData = attrStruct.data[offset:offset+4]
 			hexEntry.insert( 0, hexlify(rawData).upper() )
 			hexEntry.grid( column=1, row=row, pady=verticalPadding )
 			
 			# Add an editable field for this field's actual decoded value (and attach the hex edit widget for later auto-updating)
-			valueEntry = HexEditEntry( structTable.interior, parent.charFile, absoluteFieldOffset, fieldByteLength, format, propertyName, valueEntry=True )
+			valueEntry = HexEditEntry( structTable.interior, parent.charFile, absoluteFieldOffset, 4, format, propertyName, valueEntry=True )
 			valueEntry.insert( 0, value )
 			valueEntry.hexEntryWidget = hexEntry
 			hexEntry.valueEntryWidget = valueEntry

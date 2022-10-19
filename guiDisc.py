@@ -84,8 +84,8 @@ class DiscTab( ttk.Frame ):
 		self.isoFileTree.column( 'description', anchor='w', minwidth=180, stretch=1, width=312 )
 		self.isoFileTree.tag_configure( 'changed', foreground='red' )
 		self.isoFileTree.tag_configure( 'changesSaved', foreground='#292' ) # The 'save' green color
-		self.isoFileTree.tag_configure( 'cFolder', foreground='#097ab7' )
-		self.isoFileTree.tag_configure( 'nFolder', foreground='#097ab7' )
+		self.isoFileTree.tag_configure( 'cFolder', foreground='#006ea9' )
+		self.isoFileTree.tag_configure( 'nFolder', foreground='#006ea9' )
 		self.isoFileTree.pack( side='left', fill='both', expand=1 )
 		self.isoFileScroller.config( command=self.isoFileTree.yview )
 		self.isoFileScroller.pack( side='left', fill='y' )
@@ -621,7 +621,7 @@ class DiscTab( ttk.Frame ):
 
 		discNewlyLoaded = False
 
-		# Load the most recent disc if one is not loaded
+		# Load the most recent disc if one is not loaded (todo: depricate this? not possible atm)
 		if not globalData.disc: # todo: remove this? may never be the case anymore that this tab exists without a disc being loaded
 			# Check that there are any recently loaded discs (in the settings file).
 			recentISOs = globalData.getRecentFilesLists()[0] # The resulting list is a list of tuples, of the form (path, dateLoaded)
