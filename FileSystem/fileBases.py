@@ -195,14 +195,14 @@ class FileBase( object ):
 
 		return self.getData( offset, dataLength ).split( b'\x00' )[0].decode( encoding )
 
-	def recordChange( self, description, treeviewDescription='' ):
+	def recordChange( self, changeListDescription, treeviewDescription='' ):
 
 		""" Records a change to this file by adding it to the self.unsavedChanges list. """
 
 		self.source = 'self'
 
-		if description not in self.unsavedChanges:
-			self.unsavedChanges.append( description )
+		if changeListDescription not in self.unsavedChanges:
+			self.unsavedChanges.append( changeListDescription )
 
 		# If the Disc File Tree is present, indicate this file has changes waiting to be saved there
 		if globalData.gui and globalData.gui.discTab:

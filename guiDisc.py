@@ -29,6 +29,7 @@ import globalData
 from audioManager import AudioManager
 from FileSystem import fileFactory, SisFile, MusicFile, CharDataFile, CharAnimFile
 from FileSystem.disc import Disc
+from FileSystem.fileBases import FileBase
 from basicFunctions import (
 		grammarfyList, msg, printStatus, copyToClipboard, removeIllegalCharacters, 
 		uHex, humansize, createFolders, saveAndShowTempFileData
@@ -37,6 +38,7 @@ from guiSubComponents import (
 		ClickText,
 		cmsg,
 		exportSingleTexture,
+		importGameFiles,
 		importSingleTexture,
 		exportSingleFileWithGui,
 		importSingleFileWithGui,
@@ -142,7 +144,7 @@ class DiscTab( ttk.Frame ):
 		# Primary ISO operation buttons
 		self.isoOpsPanelButtons = Tk.Frame( isoOpsPanel )
 		ttk.Button( self.isoOpsPanelButtons, text="Export", command=self.exportIsoFiles, state='disabled' ).grid( row=0, column=0, padx=7 )
-		ttk.Button( self.isoOpsPanelButtons, text="Import", command=self.importSingleIsoFile, state='disabled' ).grid( row=0, column=1, padx=7 )
+		ttk.Button( self.isoOpsPanelButtons, text="Import", command=self.importSingleFile, state='disabled' ).grid( row=0, column=1, padx=7 )
 		ttk.Button( self.isoOpsPanelButtons, text="Browse Textures", command=self.browseTexturesFromDisc, state='disabled', width=18 ).grid( row=1, column=0, columnspan=2, pady=(7,0) )
 		#ttk.Button( self.isoOpsPanelButtons, text="Analyze Structure", command=self.analyzeFileFromDisc, state='disabled', width=18 ).grid( row=2, column=0, columnspan=2, pady=(7,0) )
 		self.isoOpsPanelButtons.pack( pady=2 )
@@ -949,8 +951,24 @@ class DiscTab( ttk.Frame ):
 
 			# Update the default directory to start in when opening or exporting files.
 			globalData.setLastUsedDir( directoryPath )
+
+	def goodDiscPath( self ):
+		
+		""" A disc or root folder path must have been loaded by this point; 
+			this checks that the path is still valid. """
+		
+		if os.path.exists( globalData.disc.filePath ):
+			return True
+		else:
+			if globalData.disc.isRootFolder:
+				globalData.gui.updateProgramStatus( 'Import Error. Unable to find the currently loaded root folder path', error=True )
+				msg( "Unable to find the root folder path. Be sure that the path is correct and that the folder hasn't been moved or deleted.", 'Root Folder Not Found', error=True )
+			else:
+				globalData.gui.updateProgramStatus( 'Import Error. Unable to find the currently loaded disc file path', error=True )
+				msg( "Unable to find the disc image. Be sure that the file path is correct and that the file hasn't been moved or deleted.", 'Disc Not Found', error=True )
+			return False
 	
-	def importSingleIsoFile( self ):
+	def importSingleFile( self ):
 
 		""" Called by the Import button and Import File(s) menu option. This doesn't use the 
 			disc's file export method so we can include the convenience folders in the save path. """
@@ -967,21 +985,63 @@ class DiscTab( ttk.Frame ):
 			msg( 'Please select only one file to replace.' )
 			return
 
-		# A disc or root folder path must have been loaded at this point (to populate the GUI); make sure its path is still valid
-		elif not os.path.exists( globalData.disc.filePath ):
-			if globalData.disc.isRootFolder:
-				globalData.gui.updateProgramStatus( 'Import Error. Unable to find the currently loaded root folder path', error=True )
-				msg( "Unable to find the root folder path. Be sure that the path is correct and that the folder hasn't been moved or deleted.", 'Root Folder Not Found', error=True )
-			else:
-				globalData.gui.updateProgramStatus( 'Import Error. Unable to find the currently loaded disc file path', error=True )
-				msg( "Unable to find the disc image. Be sure that the file path is correct and that the file hasn't been moved or deleted.", 'Disc Not Found', error=True )
+		elif not self.goodDiscPath():
 			return
 
 		# Get the file object and prompt the user to replace it
 		fileObj = globalData.disc.files.get( iidSelectionsTuple[0] )
-		importSingleFileWithGui( fileObj )
+		importSingleFileWithGui( fileObj, "Choose a game file to import (replaces the currently selected file)" )
+
+	def importMultipleFiles( self ):
+
+		""" Import multiple files (selected by the user). Unlike with the single-file import method above, 
+			this doesn't use a current selection to determine a file to import over. Instead, each file 
+			will be identified by dat file symbols or file name to determine a file to replace. """
+
+		if not self.goodDiscPath():
+			return
+
+		# Prompt the user to select some external/standalone files
+		filePaths = importGameFiles( multiple=True, title='Choose one or more files to load into the disc (replaces originals by the same name)', category='dat' )
+
+		# Check if the user canceled; in which case the above will return an empty list
+		if not filePaths: return False
+
+		tic = time.clock()
+
+		# Attempt to import the files
+		failedImports = []
+		for path in filePaths:
+			filename = os.path.split( path )[1]
+
+			# Check for this file in the disc
+			discFile = globalData.disc.getFile( filename )
+			if not discFile:
+				failedImports.append( filename )
+				continue
+
+			# Initialize and replace the file
+			newFile = FileBase( globalData.disc, -1, -1, discFile.isoPath, extPath=path, source='file' )
+			globalData.disc.replaceFile( discFile, newFile, countAsNewFile=False )
+			newFile.recordChange( 'New file', 'New file' )
+			
+		toc = time.clock()
+		print( 'time to import: ' + str(toc-tic) )
+
+		# Notify the user of the results
+		if len( failedImports ) == len( filePaths ): # No success
+			printStatus( 'Imports failed', error=True )
+			msg( 'Unable to import any of these files; they could not be found in the disc.', 'Unable to Import', error=True )
+		elif failedImports: # Some success
+			printStatus( 'Imports complete (with some failures)', warning=True )
+			msg( 'Unable to import; files by these names were not found in the disc:\n\n' + grammarfyList(failedImports), 'Unimported Files', warning=True )
+		else:
+			printStatus( 'Imports complete ({} files imported)'.format(len(filePaths)), success=True )
 
 	def restoreFiles( self ):
+
+		""" Replaces the currently selected file(s) with vanilla (unmodified originals) 
+			from a vanilla disc. """
 
 		currentDisc = globalData.disc
 
@@ -1030,8 +1090,15 @@ class DiscTab( ttk.Frame ):
 				currentDisc.replaceFile( origFile, vanillaFile, countAsNewFile=False )
 				vanillaFile.recordChange( 'Restored to vanilla', 'Restored to vanilla' )
 
-		if missingFiles:
+		# Notify the user of the results
+		if len( missingFiles ) == len( iidSelections ): # No success
+			printStatus( 'Restoration failed', error=True )
+			msg( 'Unable to restore any of these files; they could not be found in the vanilla disc.', 'Unable to Restore', error=True )
+		elif missingFiles: # Some success
+			printStatus( 'Restoration complete (with some failures)', warning=True )
 			msg( 'Unable to restore these files; they could not be found in the vanilla disc:\n\n' + grammarfyList(missingFiles), 'Unrestored Files', warning=True )
+		else:
+			printStatus( 'Restoration complete ({} files restored)'.format(len(iidSelections)), success=True )
 
 	def browseTexturesFromDisc( self ):
 		print( 'Not yet implemented' )
@@ -1731,7 +1798,7 @@ class DiscDetailsTab( ttk.Frame ):
 
 class DiscMenu( Tk.Menu, object ):
 	
-	""" Main menu item, as well as the context menu for the Disc File Tree. """ # just context menu?
+	""" Context menu for the Disc File Tree. """
 
 	def __init__( self, parent, tearoff=True, *args, **kwargs ):
 		super( DiscMenu, self ).__init__( parent, tearoff=tearoff, *args, **kwargs )
@@ -1776,7 +1843,8 @@ class DiscMenu( Tk.Menu, object ):
 
 		# Add file-type-specific options if only a single file is selected
 		if self.fileObj:
-			self.add_command( label='Import File', underline=0, command=self.discTab.importSingleIsoFile )								# I
+			self.add_command( label='Import File', underline=0, command=self.discTab.importSingleFile )									# I
+			self.add_command( label='Auto Import', underline=0, command=self.discTab.importMultipleFiles )								# A
 			self.add_command( label='Restore to Vanilla', underline=11, command=self.restore )											# V
 
 			if self.fileObj.__class__ == MusicFile:
@@ -1788,10 +1856,15 @@ class DiscMenu( Tk.Menu, object ):
 			elif self.fileObj.__class__ == CharDataFile:
 				self.add_command( label='List Action Table Entries', command=self.listActionTableEntries )
 		# self.add_command( label='Import Multiple Files', underline=7, command=importMultipleIsoFiles )								# M
-		elif self.selectionCount >= 1:
-			self.add_command( label='Restore to Vanilla', underline=11, command=self.restore )											# V
+			self.add_separator()
 
-		self.add_separator()
+		elif self.selectionCount >= 1:
+			self.add_command( label='Auto Import', underline=0, command=self.discTab.importMultipleFiles )								# A
+			self.add_command( label='Restore to Vanilla', underline=11, command=self.restore )											# V
+			self.add_separator()
+		
+		else:
+			self.add_command( label='Auto Import', underline=0, command=self.discTab.importMultipleFiles )								# A
 
 		# Add supplemental disc functions
 		self.add_command( label='Add File(s) to Disc', underline=0, command=self.addFilesToIso )										# A
@@ -2073,8 +2146,8 @@ class DiscMenu( Tk.Menu, object ):
 			return
 		
 		# Scroll to the file(s) added so they're immediately visible to the user (unless a custom location was chosen, thus is probably already scrolled to)
-		if not iidToAddBefore or iidToAddBefore == 'end': # iidToAddBefore should be an empty string if the file was added alphanumerically
-			self.fileTree.see( filesToAdd[0].isoPath ) # Should be the iid of the topmost item that was added
+		#if not iidToAddBefore or iidToAddBefore == 'end': # iidToAddBefore should be an empty string if the file was added alphanumerically
+		self.fileTree.see( filesToAdd[0].isoPath ) # Should be the iid of the topmost item that was added
 
 		# Update the program status message
 		if len( filesToAdd ) == 1:

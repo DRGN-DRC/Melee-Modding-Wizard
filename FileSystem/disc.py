@@ -772,34 +772,36 @@ class Disc( object ):
 		fstFileSize = len( self.fstEntries ) * 0xC + len( '.'.join(fstStrings) ) + 1 # Final +1 to account for last stop byte
 
 		# Get space needed for all system files (ends after FST)
-		totalSystemFileSpace = roundTo32( fstOffset + fstFileSize ) # roundTo will round up, to ensure subsequent files are aligned
+		totalSystemFileSpace = roundTo32( fstOffset + fstFileSize ) # roundTo will round up to ensure subsequent files are aligned
 		
 		# Determine file space for non-system files
 		totalNonSystemFiles = 0
 		totalNonSystemFileSpace = 0
 		for entry in self.fstEntries:
-			if not entry[0] and entry[3] > 0: # Means it's a file, and bigger than 0 bytes
+			if not entry[0]: # Means it's a file
 				totalNonSystemFiles += 1
 				totalNonSystemFileSpace += roundTo32( entry[3], base=4 ) # Adding file size and post-file padding, rounding alignment up
-		interFilePaddingLength, paddingSetting = getInterFilePaddingLength( totalSystemFileSpace+totalNonSystemFileSpace, totalNonSystemFiles )
+		totalFileSpace = totalSystemFileSpace + totalNonSystemFileSpace
+		interFilePaddingLength, paddingSetting = getInterFilePaddingLength( totalFileSpace, totalNonSystemFiles )
 
 		# Calculate the size of the disc
 		if ignorePadding:
-			projectedDiscSize = totalSystemFileSpace + totalNonSystemFileSpace
+			projectedDiscSize = totalFileSpace
 		elif paddingSetting == 'auto':
 			if interFilePaddingLength == 0: # Disc is greater than or equal to the max size
-				projectedDiscSize = totalSystemFileSpace + totalNonSystemFileSpace
+				projectedDiscSize = totalFileSpace
 			else:
 				projectedDiscSize = defaultGameCubeMediaSize
 		else:
-			projectedDiscSize = totalSystemFileSpace + totalNonSystemFileSpace + ( interFilePaddingLength * totalNonSystemFiles )
+			projectedDiscSize = totalFileSpace + ( interFilePaddingLength * totalNonSystemFiles )
 
-		# print 'totalNonSystemFiles determined:', totalNonSystemFiles
-		# print 'total system file space:', hex(totalSystemFileSpace)
-		# print 'total non-system file space:', hex(totalNonSystemFileSpace)
-		# print 'projected disc size:', hex(projectedDiscSize), projectedDiscSize
-		# print 'paddingSetting:', paddingSetting
-		# print 'inter-file padding:', hex(interFilePaddingLength)
+		# print( 'paddingSetting: ' + paddingSetting )
+		# print( 'total file space: ' + hex(totalFileSpace) + ', ' + str(totalFileSpace) )
+		# print( 'total system file space: ' + hex(totalSystemFileSpace) + ', ' + str(totalSystemFileSpace) )
+		# print( 'total non-system file space: ' + hex(totalNonSystemFileSpace) + ', ' + str(totalNonSystemFileSpace) )
+		# print( 'total non-system files: ' + str(totalNonSystemFiles) )
+		# print( 'projected disc size: ' + hex(projectedDiscSize) + ', ' + str(projectedDiscSize) )
+		# print( 'inter-file padding: ' + hex(interFilePaddingLength) + ', ' + str(interFilePaddingLength) )
 
 		return projectedDiscSize, totalSystemFileSpace, fstOffset, interFilePaddingLength, paddingSetting
 
@@ -977,6 +979,8 @@ class Disc( object ):
 			newFile = FileBase( self, -1, -1, isoPath, extPath=externalPath, source='file' )
 			self.replaceFile( origFile, newFile )
 
+		print( 'Failed imports: ' + grammarfyList(failedImports) )
+
 	def replaceFile( self, origFileObj, newFileObj, countAsNewFile=True ):
 
 		""" An import operation. Replaces an existing file in the disc with a new external/standalone file. """
@@ -1007,7 +1011,7 @@ class Disc( object ):
 
 		# Update this file's entry size if it's changed, and check if the disc will need to be rebuilt
 		if newFileObj.size != origFileObj.size:
-			self.assessFileSizeChange( origFileObj.offset, newFileObj )
+			self.assessFileSizeChange( origFileObj, newFileObj )
 
 		if newFileObj.filename == 'Start.dol':
 			newFileObj.load()
@@ -1982,7 +1986,7 @@ class Disc( object ):
 
 		return problematicMods
 
-	def storeCodeChange( self, address, code, modName, requiredChange=False ):
+	def storeCodeChange( self, address, code, modName, requiredChange=False, ensureAlignment=False ):
 
 		""" Saves custom code to the DOL and/or to the codes.bin file (used to store custom code). 
 			Also detects conflicts between mods during the mod installation operation, and notifies the user of conflicts. 
@@ -1991,7 +1995,8 @@ class Disc( object ):
 		# Convert the code to a bytearray and make sure its aligned to 4 bytes
 		if not isinstance( code, bytearray ):
 			code = bytearray.fromhex( code )
-		code = padToNearest( code )
+		if ensureAlignment:
+			code = padToNearest( code )
 		newCodeLength = len( code )
 
 		# Check if this code change conflicts with any others already made
@@ -2249,9 +2254,9 @@ class Disc( object ):
 
 				# Add the codelist and codehandler to the DOL
 				if not geckoProblemFound:
-					geckoProblemFound = self.storeCodeChange( codelistAddress, wrappedGeckoCodes, 'Gecko codes list' )
+					geckoProblemFound = self.storeCodeChange( codelistAddress, wrappedGeckoCodes, 'Gecko codes list', ensureAlignment=True )
 				if not geckoProblemFound:
-					geckoProblemFound = self.storeCodeChange( codehandlerAddress, codehandler, 'Gecko Codehandler' )
+					geckoProblemFound = self.storeCodeChange( codehandlerAddress, codehandler, 'Gecko Codehandler', ensureAlignment=True )
 
 			# If the above failed, count these mods as not installed
 			if geckoProblemFound:
@@ -2337,7 +2342,7 @@ class Disc( object ):
 							mod.saveCache( codeChange )
 
 						# Store the function in the DOL
-						problemWithMod = self.storeCodeChange( functionAddress, finishedCode, mod.name + ' standalone function' )
+						problemWithMod = self.storeCodeChange( functionAddress, finishedCode, mod.name + ' standalone function', ensureAlignment=True )
 						if problemWithMod:
 							break
 						else:
@@ -2425,7 +2430,7 @@ class Disc( object ):
 										finishedCode = finishedCode[:-8] + branchBack
 
 							# Add the injection code to the DOL.
-							problemWithMod = self.storeCodeChange( customCodeAddress, finishedCode, mod.name + ' injection code' )
+							problemWithMod = self.storeCodeChange( customCodeAddress, finishedCode, mod.name + ' injection code', ensureAlignment=True )
 							if problemWithMod:
 								break
 							else:
@@ -2680,7 +2685,7 @@ class Disc( object ):
 		#returnCode, finalizedCode = mallocMod.finalCodeProcessing( mallocCodeAddress, arenaHiMallocInjection )
 		returnCode, finalizedCode = arenaHiMallocInjection.finalizeCode( mallocCodeAddress, not useCodeCache )
 		assert returnCode != 0, 'Error in finalizing malloc code'
-		conflict = self.storeCodeChange( mallocCodeAddress, finalizedCode, mallocMod.name + ' injection code', True )
+		conflict = self.storeCodeChange( mallocCodeAddress, finalizedCode, mallocMod.name + ' injection code', True, True )
 		if conflict:
 			return 2
 		else: summaryReport.append( ('Injection code', 'injection', mallocInjectionSite, arenaHiMallocLength) ) # changeName, changeType, dolOffset, customCodeLength
@@ -2711,7 +2716,7 @@ class Disc( object ):
 		#returnCode, finalizedCode = mallocMod.finalCodeProcessing( reservationLocation, fileLoadInjection )
 		returnCode, finalizedCode = fileLoadInjection.finalizeCode( reservationLocation, not useCodeCache )
 		assert returnCode != 0, 'Error in finalizing file load code'
-		conflict = self.storeCodeChange( reservationLocation, finalizedCode, fileLoadInjection.name + ' injection code', True )
+		conflict = self.storeCodeChange( reservationLocation, finalizedCode, fileLoadInjection.name + ' injection code', True, True )
 		if conflict:
 			return 3
 		else: summaryReport.append( ('Injection code', 'injection', fileLoadInjectionSite, fileLoadCodeLength) ) # changeName, changeType, dolOffset, customCodeLength

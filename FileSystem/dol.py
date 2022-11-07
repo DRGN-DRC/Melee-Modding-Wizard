@@ -751,7 +751,7 @@ class Dol( FileBase ):
 			
 			if matches:
 				if len( matches ) > 1:
-					print( 'Warning: Found multiple matches of {} code change at 0x{:X}.'.format(mod.name, codeChange.offset))
+					print( 'Warning: Found multiple matches of {} code change at {}.'.format(mod.name, codeChange.offset))
 				return matches[0]
 			else:
 				return -1

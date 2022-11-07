@@ -452,7 +452,7 @@ def getLastUsedDir( category='default', fileExt='' ):
 		else:
 			directoryPath = settings.get( 'Default Search Directories', 'default' )
 
-	return directoryPath
+	return os.path.normpath( directoryPath )
 
 
 def rememberFile( filepath, updateDefaultDirectory=True ):

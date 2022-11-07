@@ -175,6 +175,11 @@
 			[ "0x98", "Bowser Bomb Decent Speed", "f", "Positive values send you upwards" ],
 			[ "0x9C", "Bowser Bomb Vertical Start-up Momentum", "f", "" ]
 		],
+		"Ca": [
+			[ "-1", "character", "C. Falcon", "" ],
+			[ "0x0", "Falcon Punch - Stick Y-Axis Downward Angle Range", "f", "Minimum control stick Y-Axis range required for downward variant" ]
+			[ "0x4", "Falcon Punch - Stick Y-Axis Upward Angle Range", "f", "Maximum control stick Y-Axis range required for upward variant" ]
+		],
 		"Mr": [
 			[ "-1", "character", "Mario", "" ],
 			[ "0x0", "Fireball Horizontal Momentum", "f", "Smaller values allow for more momentum" ],

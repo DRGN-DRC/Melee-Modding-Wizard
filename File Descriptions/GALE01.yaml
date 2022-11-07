@@ -112,7 +112,7 @@ GmKumite.dat: Multi-Man Melee
 GmPause.dat: Pause Screen
 GmRst.dat: Results Screen
 GmStRoll.dat: Credits Screen/Minigame
-GmTitle.dat: Title Screen
+GmTitle.dat: Unused Beta Title Screen
 GmTou1p.dat: Tournament Mode File 1
 GmTou2p.dat: Tournament Mode File 2
 GmTou3p.dat: Tournament Mode File 3

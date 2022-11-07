@@ -121,6 +121,7 @@ def exportSingleFileWithGui( fileObj, master=None ):
 def importGameFiles( fileExt='', multiple=False, title='', fileTypeOptions=None, category='default' ):
 
 	""" Prompts the user to choose one or more external/standalone files to import. 
+
 		If fileExt is provided, it should be a 3 character file type string (with "." included); 
 		it will be used to prioritize (make default) that set of file types among the file type 
 		options shown to the user. If fileTypeOptions is provided, it should be a list of tuples, 
@@ -171,6 +172,7 @@ def importGameFiles( fileExt='', multiple=False, title='', fileTypeOptions=None,
 			newDir = os.path.dirname( filePaths[0] )
 		else: # filepaths will be a unicode string
 			newDir = os.path.dirname( filePaths )
+		newDir = os.path.normpath( newDir )
 
 		if newDir != defaultDir: # Update and save the new directory if it's different
 			globalData.setLastUsedDir( newDir, category, fileExt )
@@ -181,7 +183,7 @@ def importGameFiles( fileExt='', multiple=False, title='', fileTypeOptions=None,
 	return filePaths
 
 
-def importSingleFileWithGui( origFileObj, validate=True ):
+def importSingleFileWithGui( origFileObj, validate=True, title='' ):
 
 	""" Prompts the user to choose an external/standalone file to import, and then 
 		replaces the given file in the disc with the chosen file. 
@@ -189,9 +191,9 @@ def importSingleFileWithGui( origFileObj, validate=True ):
 		Also handles updating the GUI with the operation's success/failure status. 
 		Returns True/False on success. """
 
-	newFilePath = importGameFiles( origFileObj.ext )
+	newFilePath = importGameFiles( origFileObj.ext, title=title )
 
-	# The above will return an empty string if the user canceled
+	# Check if the user canceled; in which case the above will return an empty string
 	if not newFilePath: return False
 
 	# Load the new file
