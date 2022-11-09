@@ -34,41 +34,6 @@ ConfigurationTypes = { 	'int8':   'b',	'uint8':   'B',	'mask8':   'B',
 						'float': '>f' }
 
 
-def regionsOverlap( regionList ):
-
-	""" Checks selected custom code regions to make sure they do not overlap one another. """
-
-	dol = globalData.disc.dol
-	overlapDetected = False
-
-	# Compare each region to every other region
-	for i, ( regionStart, regionEnd, regionName ) in enumerate( regionList, start=1 ):
-
-		# Loop over the remaining items in the list (starting from second entry on first iteration, third entry from second iteration, etc),
-		# so as not to compare to itself, or make any repeated comparisons.
-		for nextRegionStart, nextRegionEnd, nextRegionName in regionList[i:]:
-			# Check if these two regions overlap by any amount
-			if nextRegionStart < regionEnd and regionStart < nextRegionEnd: # The regions overlap by some amount.
-				overlapDetected = True
-
-				rS = dol.offsetInDOL( regionStart )
-				rE = dol.offsetInDOL( regionEnd )
-				nrs = dol.offsetInDOL( nextRegionStart )
-				nre = dol.offsetInDOL( nextRegionEnd )
-
-				# Determine the names of the overlapping regions, and report this to the user
-				msg( 'Warning! One or more regions enabled for custom code overlap each other. The first overlapping areas detected '
-					 'are {} and {}; i.e. (0x{:X}, 0x{:X}) and (0x{:X}, 0x{:X}). '.format( regionName, nextRegionName, rS, rE, nrs, nre ) + \
-					 '(There may be more; resolve this case and try again to find others.) '
-					 '\n\nThese regions cannot be used in tandem. In the Code-Space Options window, please choose other regions, '
-					 'or deselect one of the regions that uses one of the areas shown above.', 'Region Overlap Detected' )
-				break
-
-		if overlapDetected: break
-
-	return overlapDetected
-
-
 class CodeChange( object ):
 
 	""" Represents a single code change to be made to the game, such 

@@ -30,7 +30,7 @@ from . import fileFactory
 from audioFiles import MusicFile
 from stageManager import StageSwapTable
 from fileBases import FileBase, BootBin
-from codeMods import regionsOverlap, CodeLibraryParser
+from codeMods import CodeLibraryParser
 from basicFunctions import padToNearest, roundTo32, uHex, toHex, toInt, toBytes, humansize, grammarfyList, createFolders, msg, printStatus, ListDict, validHex
 
 
@@ -2105,8 +2105,8 @@ class Disc( object ):
 
 		# Check for conflicts among the code regions selected for use
 		allCodeRegions = self.dol.getCustomCodeRegions( useRamAddresses=True )
-		if regionsOverlap( allCodeRegions ):
-			return []
+		if self.dol.regionsOverlap( allCodeRegions ):
+			return [] # A warning will have been given to the user if they overlap
 
 		# Notify the user of incompatibility between the crash printout code and the Aux Code Regions, if they're both enabled
 		if globalData.checkSetting( 'alwaysEnableCrashReports' ) and globalData.checkRegionOverwrite( 'Aux Code Regions' ):
