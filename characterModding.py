@@ -272,14 +272,14 @@ class CharModding( ttk.Notebook ):
 			ToolTip( fieldLabel, text='Offset in struct: 0x{:X}\nOffset in file: 0x{:X}\nType: {}'.format(offset, 0x20 + absoluteFieldOffset, typeName), delay=300 )
 
 			# Add an editable field for the raw hex data
-			hexEntry = HexEditEntry( structTable.interior, parent.charFile, absoluteFieldOffset, fieldByteLength, format, propertyName )
+			hexEntry = HexEditEntry( structTable.interior, parent.charFile, absoluteFieldOffset, fieldByteLength, formatting, propertyName, width=11 )
 			rawData = propStruct.data[offset:offset+fieldByteLength]
 			hexEntry.insert( 0, hexlify(rawData).upper() )
 			hexEntry.grid( column=1, row=row, pady=verticalPadding )
 			
 			# Add an editable field for this field's actual decoded value (and attach the hex edit widget for later auto-updating)
-			valueEntry = HexEditEntry( structTable.interior, parent.charFile, absoluteFieldOffset, fieldByteLength, format, propertyName, valueEntry=True )
-			valueEntry.insert( 0, value )
+			valueEntry = HexEditEntry( structTable.interior, parent.charFile, absoluteFieldOffset, fieldByteLength, formatting, propertyName, valueEntry=True, width=15 )
+			valueEntry.insert( 0, round(value, 9) )
 			valueEntry.hexEntryWidget = hexEntry
 			hexEntry.valueEntryWidget = valueEntry
 			valueEntry.grid( column=2, row=row, pady=verticalPadding, padx=(5, 20) )
@@ -323,14 +323,14 @@ class CharModding( ttk.Notebook ):
 			ToolTip( fieldLabel, text=toolTipText, delay=300 )
 
 			# Add an editable field for the raw hex data
-			hexEntry = HexEditEntry( structTable.interior, parent.charFile, absoluteFieldOffset, 4, format, propertyName )
+			hexEntry = HexEditEntry( structTable.interior, parent.charFile, absoluteFieldOffset, 4, formatting, propertyName, width=11 )
 			rawData = attrStruct.data[offset:offset+4]
 			hexEntry.insert( 0, hexlify(rawData).upper() )
 			hexEntry.grid( column=1, row=row, pady=verticalPadding )
 			
 			# Add an editable field for this field's actual decoded value (and attach the hex edit widget for later auto-updating)
-			valueEntry = HexEditEntry( structTable.interior, parent.charFile, absoluteFieldOffset, 4, format, propertyName, valueEntry=True )
-			valueEntry.insert( 0, value )
+			valueEntry = HexEditEntry( structTable.interior, parent.charFile, absoluteFieldOffset, 4, formatting, propertyName, valueEntry=True, width=15 )
+			valueEntry.insert( 0, round(value, 9) )
 			valueEntry.hexEntryWidget = hexEntry
 			hexEntry.valueEntryWidget = valueEntry
 			valueEntry.grid( column=2, row=row, pady=verticalPadding, padx=(5, 20) )

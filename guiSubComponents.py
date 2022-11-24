@@ -1021,7 +1021,7 @@ class HexEditEntry( Tk.Entry ):
 	""" Used for struct hex or value display and editing. 
 		"dataOffsets" will typically be a single int value, but may also be a list of offsets. """
 
-	def __init__( self, parent, targetFile, dataOffsets, byteLength, formatting, updateName='', valueEntry=False ):
+	def __init__( self, parent, targetFile, dataOffsets, byteLength, formatting, updateName='', valueEntry=False, width=-1 ):
 		# Determine if the target data has already been modified, and set this widget's background color accordingly
 		if type( dataOffsets ) == list:
 			for offset in dataOffsets:
@@ -1034,9 +1034,14 @@ class HexEditEntry( Tk.Entry ):
 			bgColor = '#faa'
 		else:
 			bgColor = '#fff'
+
+		# Auto-determine width of the widget if not explicitly set
+		if width == -1:
+			width = ( byteLength * 2 ) + 2
 		
+		# Create the base component of the widget
 		Tk.Entry.__init__( self, parent,
-			width=byteLength*2+2, 
+			width=width, 
 			justify='center', 
 			relief='flat', 
 			background=bgColor,
@@ -1148,7 +1153,7 @@ class HexEditEntry( Tk.Entry ):
 		# Update the data shown in the neighboring, decoded value widget
 		if decodedValue:
 			self.valueEntryWidget.delete( 0, 'end' )
-			self.valueEntryWidget.insert( 0, decodedValue )
+			self.valueEntryWidget.insert( 0, round(decodedValue, 9) )
 			self.valueEntryWidget.configure( background='#faa' )
 			#editedDatEntries.append( self.valueEntryWidget )
 

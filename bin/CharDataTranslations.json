@@ -177,7 +177,7 @@
 		],
 		"Ca": [
 			[ "-1", "character", "C. Falcon", "" ],
-			[ "0x0", "Falcon Punch - Stick Y-Axis Downward Angle Range", "f", "Minimum control stick Y-Axis range required for downward variant" ]
+			[ "0x0", "Falcon Punch - Stick Y-Axis Downward Angle Range", "f", "Minimum control stick Y-Axis range required for downward variant" ],
 			[ "0x4", "Falcon Punch - Stick Y-Axis Upward Angle Range", "f", "Maximum control stick Y-Axis range required for upward variant" ]
 		],
 		"Mr": [
