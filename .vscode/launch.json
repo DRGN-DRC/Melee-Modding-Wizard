@@ -5,10 +5,11 @@
 	"version": "0.2.0",
 	"configurations": [
 		{
-			"name": "Python: Current File",
+			"name": "Python: Run Main",
 			"type": "python",
 			"request": "launch",
 			"program": "main.py",
+			"python": "C:\\Python27\\python.exe",
 			"console": "integratedTerminal"
 		}
 	]

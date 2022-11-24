@@ -3,7 +3,7 @@
 :: You may uncomment one of the following lines to 
 :: control whether Dolphin is run in Debug Mode.
 
-python "%~dp0main.py" test --boot %*
+C:\Python27\python.exe "%~dp0main.py" test --boot %*
 ::python "%~dp0main.py" test --debug --boot %*
 
 
