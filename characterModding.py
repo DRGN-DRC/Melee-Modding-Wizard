@@ -1188,10 +1188,12 @@ class EventModule( ttk.Frame, object ):
 			entry = Tk.Entry( containingFrame, width=12, justify='center', relief='flat', 
 				highlightbackground='#b7becc', # Border color when not focused
 				borderwidth=1, highlightthickness=1, highlightcolor='#78F' )
+				
 			entry.bind( '<Return>', self.updateValue )
 			entry.index = index
 			entry.insert( 0, value )
 			entry.grid( column=1, row=index )
+
 			index += 1
 
 		containingFrame.pack( anchor='w', padx=(42,0), pady=(4,6) )
@@ -1212,10 +1214,10 @@ class EventModule( ttk.Frame, object ):
 		widget = tkEvent.widget
 
 		try:
-			self.tkEvent.updateValue( widget.index, widget.get() )
+			self.event.updateValue( widget.index, widget.get() )
 
 			# Change the background color of the widget, to show that changes have been made to it and are pending saving.
-			self.configure( background='#faa' )
+			widget.configure( background='#faa' )
 		except bitstring.CreationError as err:
 			if err.startswith( 'bool token' ):
 				message = 'A ' + err

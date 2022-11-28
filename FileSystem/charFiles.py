@@ -609,6 +609,7 @@ class SubActionEvent( object ):
 			assert padding > -1, 'Invalid length of packed bits; {} should be {} bytes long.'.format( self.formats, self.length )
 			if padding > 0:
 				self._dataBits.append( bitstring.Bits(length=padding) )
+
 		return self._dataBits
 
 	@property
@@ -616,7 +617,9 @@ class SubActionEvent( object ):
 		# Repack the bit stream into a new bytearray if the values have been updated
 		if self.modified:
 			self._data = self.dataBits.tobytes()
+			self._data = bytearray( self._data )
 			self.modified = False
+
 		return self._data
 
 	def updateValue( self, valueIndex, value ):
