@@ -1121,7 +1121,7 @@ class HexEditEntry( Tk.Entry ):
 		elif self.valueEntryWidget and self.formatting:
 			# Check that the appropriate value can be decoded from this hex (if formatting is available)
 			try:
-				decodedValue = struct.unpack( '>' + self.formatting, newData )
+				decodedValue = struct.unpack( '>' + self.formatting, newData )[0]
 			except Exception as err:
 				# Construct and display an error message for the user
 				dataTypes = { 	'?': 'a boolean', 'b': 'a signed character', 'B': 'an unsigned character', 	# 1-byte
