@@ -585,38 +585,41 @@ class SubActionEvent( object ):
 		self.id = eventCode
 		self.name = name			# From the SubAction class' event descriptions
 		self.length = length		# Length of this event's data in bytes
-		self.fields = valueNames	# A tuple of names
-		self.formats = bitFormats	# A tuple of formats from the SubAction class event descriptions
+		self.fields = valueNames	# A tuple of names for this event's values
+		self.formats = ( 'int:6', )
+		self.formats += bitFormats	# A tuple of formats from the SubAction class event descriptions (plus the ID format)
 		self.modified = False
-		
+
 		# Convert the event's data from a bytearray to a stream of bits (a BitStream)
 		self._data = data			# Still a bytearray here
-		self._dataBits = bitstring.ConstBitStream( bytes=data, offset=6 ) # Skips the event ID (top 6 bits)
-		self.values = self.dataBits.readlist( bitFormats )		# A list
+		dataBits = bitstring.ConstBitStream( bytes=data )
 
+		# Unpack the data stream (creates a list of values, excluding the event ID)
+		self.values = dataBits.readlist( self.formats )[1:]
+
+		# Try to catch any parsing errors or abnomalities
 		if not self.fields and self.values[0] != 0:
 			print( 'Unexpectedly found a non-zero value for a {} subAction event with no fields.'.format(name) )
 		elif self.id == 0 and self.values[0] != 0:
 			raise Exception( 'SubActions parsing error: invalid End of Script event.' )
 
 	@property
-	def dataBits( self ):
-		if self.modified:
-			self._dataBits = bitstring.pack( self.formats, *self.values )
-
-			# Pad to length
-			padding = self.length * 8 - self._dataBits.length # Padding in number of bits
-			assert padding > -1, 'Invalid length of packed bits; {} should be {} bytes long.'.format( self.formats, self.length )
-			if padding > 0:
-				self._dataBits.append( bitstring.Bits(length=padding) )
-
-		return self._dataBits
-
-	@property
 	def data( self ):
+
+		""" Repacks all bits from current values if this event has been modified. """
+
 		# Repack the bit stream into a new bytearray if the values have been updated
 		if self.modified:
-			self._data = self.dataBits.tobytes()
+			dataBits = bitstring.pack( self.formats, self.id, *self.values )
+
+			# Pad to length
+			padding = self.length * 8 - dataBits.length # Padding in number of bits
+			assert padding > -1, 'Invalid length of packed bits; {} should be {} bytes long.'.format( self.formats, self.length )
+			if padding > 0:
+				dataBits.append( bitstring.Bits(length=padding) )
+
+			# Convert to bytes
+			self._data = dataBits.tobytes()
 			self._data = bytearray( self._data )
 			self.modified = False
 
@@ -624,7 +627,7 @@ class SubActionEvent( object ):
 
 	def updateValue( self, valueIndex, value ):
 		# Validate the value (this will raise an exception upon invalid encoding)
-		valueFormat = self.formats[valueIndex]
+		valueFormat = self.formats[valueIndex+1] # +1 to skip ID
 		formatting = '{}={}'.format( valueFormat, value )
 		bitstring.Bits( formatting )
 

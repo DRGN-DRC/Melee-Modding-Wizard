@@ -465,21 +465,23 @@ class ActionEditor( ttk.Frame, object ):
 
 		generalInfoBox.pack( fill='x', expand=True )
 
-		eventsFrame = ttk.Labelframe( infoPane, text='  SubAction Events  ', padding=(20, 5) )
+		self.eventsFrame = ttk.Labelframe( infoPane, text='  SubAction Events  ', padding=(20, 5) )
 		self.subActionEventsOffset = Tk.StringVar()
 		self.subActionEventsSize = Tk.StringVar()
-		ttk.Label( eventsFrame, textvariable=self.subActionEventsOffset ).grid( column=0, columnspan=5, row=0 )
-		ttk.Label( eventsFrame, textvariable=self.subActionEventsSize ).grid( column=0, columnspan=5, row=1 )
-		ColoredLabelButton( eventsFrame, 'delete', self.deleteEvent, 'Delete Event', '#f04545' ).grid( column=0, row=2, pady=4, padx=4 )
-		ColoredLabelButton( eventsFrame, 'expand', self.expandAll, 'Expand All' ).grid( column=1, row=2, pady=4, padx=4 )
-		ColoredLabelButton( eventsFrame, 'collapse', self.collapseAll, 'Collapse All' ).grid( column=2, row=2, pady=4, padx=4 )
-		ColoredLabelButton( eventsFrame, 'save', self.saveEventChanges, 'Save Changes\nto Charcter File', '#292' ).grid( column=3, row=2, pady=4, padx=4 )
-		insertBtn = LabelButton( eventsFrame, 'insert', self.insertEventBefore, 'Insert New Event\n\n(Before selection. Shift-click\nto insert after selection.)' )
+		ttk.Label( self.eventsFrame, textvariable=self.subActionEventsOffset ).grid( column=0, columnspan=5, row=0 )
+		ttk.Label( self.eventsFrame, textvariable=self.subActionEventsSize ).grid( column=0, columnspan=5, row=1 )
+		ColoredLabelButton( self.eventsFrame, 'delete', self.deleteEvent, 'Delete Event', '#f04545' ).grid( column=0, row=2, pady=4, padx=4 )
+		ColoredLabelButton( self.eventsFrame, 'expand', self.expandAll, 'Expand All' ).grid( column=1, row=2, pady=4, padx=4 )
+		ColoredLabelButton( self.eventsFrame, 'collapse', self.collapseAll, 'Collapse All' ).grid( column=2, row=2, pady=4, padx=4 )
+		ColoredLabelButton( self.eventsFrame, 'save', self.saveEventChanges, 'Save Changes\nto Charcter File', '#292' ).grid( column=3, row=2, pady=4, padx=4 )
+		insertBtn = LabelButton( self.eventsFrame, 'insert', self.insertEventBefore, 'Insert New Event\n\n(Before selection. Shift-click\nto insert after selection.)' )
 		insertBtn.bind( '<Shift-Button-1>', self.insertEventAfter )
 		insertBtn.grid( column=4, row=2, pady=4, padx=4 )
-		ttk.Button( eventsFrame, text='Restore to Vanilla', command=self.restoreEvents ).grid( column=0, columnspan=5, row=3, ipadx=12, pady=4 )
-		eventsFrame.columnconfigure( 'all', weight=1 )
-		eventsFrame.pack( fill='x', expand=True, pady=42 )
+		ttk.Button( self.eventsFrame, text='Restore to Vanilla', command=self.restoreEvents ).grid( column=0, columnspan=5, row=3, ipadx=12, pady=4 )
+		self.eventsNotice = None
+		self.expandInfoBtn = None
+		self.eventsFrame.columnconfigure( 'all', weight=1 )
+		self.eventsFrame.pack( fill='x', expand=True, pady=42 )
 		
 		animBox = ttk.Labelframe( infoPane, text='  SubAction Animation  ', padding=(20, 5) )
 		self.actionAnimOffset = Tk.StringVar()
@@ -488,12 +490,6 @@ class ActionEditor( ttk.Frame, object ):
 		ttk.Label( animBox, textvariable=self.actionAnimSize ).pack()
 		ttk.Button( animBox, text='Change Animation', command=self.changeAnimation ).pack( ipadx=12, pady=4 )
 		animBox.pack( fill='x', expand=True )
-
-		self.noteStringFrame = ttk.Frame( infoPane )
-		self.noteStringVar = Tk.StringVar()
-		ttk.Label( self.noteStringFrame, textvariable=self.noteStringVar, foreground='#a34343' ).pack( side='left', pady=0 )
-		self.expandInfoBtn = None
-		self.noteStringFrame.pack( fill='x', expand=True, pady=0 )
 
 		infoPane.grid( column=3, row=1, rowspan=2, sticky='ew', padx=20, pady=0 )
 
@@ -871,6 +867,7 @@ class ActionEditor( ttk.Frame, object ):
 		self.lastSelection = -1
 		self.subActionSelected( checkForUnsavedChanges=False )
 		printStatus( description )
+		self.updateExpansionWarning()
 
 	def reordered( self ):
 
@@ -945,17 +942,17 @@ class ActionEditor( ttk.Frame, object ):
 			newLength += event.length
 
 		if newLength > self.subActionStruct.length:
-			self.noteStringVar.set( 'Expansion required.' )
-
 			# Add the info button if it's not there
 			if not self.expandInfoBtn:
-				self.expandInfoBtn = LabelButton( self.noteStringFrame, 'question', self.showExpansionInfo, 'Details' )
-				self.expandInfoBtn.pack( side='right' )
+				self.eventsNotice = ttk.Label( self.eventsFrame, text='Expansion required.', foreground='#a34343' )
+				self.eventsNotice.grid( column=0, columnspan=4, row=4, pady=4 )
+				self.expandInfoBtn = LabelButton( self.eventsFrame, 'question', self.showExpansionInfo, 'Details' )
+				self.expandInfoBtn.grid( column=4, row=4 )
 		else:
-			self.noteStringVar.set( '' )
-			
 			# Remove the info button if it's there
 			if self.expandInfoBtn:
+				self.eventsNotice.destroy()
+				self.eventsNotice = None
 				self.expandInfoBtn.destroy()
 				self.expandInfoBtn = None
 
@@ -1249,7 +1246,7 @@ class EventChooser( BasicWindow ):
 
 	def __init__( self, charFile, index=None ):
 
-		windowWidth = 320
+		windowWidth = 350
 
 		BasicWindow.__init__( self, globalData.gui.root, 'Add Event', resizable=True, minsize=(windowWidth, 600) )
 
@@ -1276,7 +1273,7 @@ class EventChooser( BasicWindow ):
 		eventsListFrame.rowconfigure( 1, weight=1 )
 
 		self.helpText = Tk.StringVar()
-		ttk.Label( self.window, textvariable=self.helpText, wraplength=windowWidth-20 ).pack( padx=10, pady=(14, 0) )
+		ttk.Label( self.window, textvariable=self.helpText, wraplength=windowWidth-24 ).pack( padx=10, pady=(14, 0) )
 
 		buttonsFrame = ttk.Frame( self.window )
 		ttk.Button( buttonsFrame, text='Cancel', command=self.cancel ).pack( side='left', padx=20 )
