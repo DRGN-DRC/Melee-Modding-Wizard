@@ -263,7 +263,7 @@ class CharModding( ttk.Notebook ):
 			else:
 				verticalPadding = ( 0, 0 )
 
-			fieldLabel = ttk.Label( structTable.interior, text=propertyName + ':', wraplength=200 )
+			fieldLabel = ttk.Label( structTable.interior, text=propertyName + ':', wraplength=200, justify='center' )
 			fieldLabel.grid( column=0, row=row, padx=(25, 10), sticky='e', pady=verticalPadding )
 			if formatting == 'I':
 				typeName = 'Integer'
@@ -279,7 +279,7 @@ class CharModding( ttk.Notebook ):
 			
 			# Add an editable field for this field's actual decoded value (and attach the hex edit widget for later auto-updating)
 			valueEntry = HexEditEntry( structTable.interior, parent.charFile, absoluteFieldOffset, fieldByteLength, formatting, propertyName, valueEntry=True, width=15 )
-			valueEntry.insert( 0, round(value, 9) )
+			valueEntry.set( value )
 			valueEntry.hexEntryWidget = hexEntry
 			hexEntry.valueEntryWidget = valueEntry
 			valueEntry.grid( column=2, row=row, pady=verticalPadding, padx=(5, 20) )
@@ -311,7 +311,7 @@ class CharModding( ttk.Notebook ):
 			verticalPadding = ( 0, 0 )
 
 			# Add the property label and a tooltip for it
-			fieldLabel = ttk.Label( structTable.interior, text=propertyName + ':', wraplength=200 )
+			fieldLabel = ttk.Label( structTable.interior, text=propertyName + ':', wraplength=200, justify='center' )
 			fieldLabel.grid( column=0, row=row, padx=(25, 10), sticky='e', pady=verticalPadding )
 			if formatting == 'I':
 				typeName = 'Integer'
@@ -330,7 +330,7 @@ class CharModding( ttk.Notebook ):
 			
 			# Add an editable field for this field's actual decoded value (and attach the hex edit widget for later auto-updating)
 			valueEntry = HexEditEntry( structTable.interior, parent.charFile, absoluteFieldOffset, 4, formatting, propertyName, valueEntry=True, width=15 )
-			valueEntry.insert( 0, round(value, 9) )
+			valueEntry.set( value )
 			valueEntry.hexEntryWidget = hexEntry
 			hexEntry.valueEntryWidget = valueEntry
 			valueEntry.grid( column=2, row=row, pady=verticalPadding, padx=(5, 20) )

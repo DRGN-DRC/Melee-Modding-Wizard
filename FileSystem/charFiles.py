@@ -285,7 +285,7 @@ class CharDataFile( CharFileBase, DatFile ):
 		attrInfo = self.getAttributesInfo()
 		if attrInfo:
 			offsetsFound = set()
-			for offset, name, attrType, note in attrInfo[1:]: # Excludes first entry (character name)
+			for offset, attrType, name, note in attrInfo[1:]: # Excludes first entry (character name)
 				# Validate the offset
 				try:
 					offset = int( offset, 16 )

@@ -1073,6 +1073,14 @@ class HexEditEntry( Tk.Entry ):
 		else:
 			self.bind( '<Return>', self.updateHex )
 
+	def set( self, value ):
+		
+		if self.formatting == 'f': # Round floats to 9 decimal places
+			value = round( value, 9 )
+
+		self.delete( 0, 'end' )
+		self.insert( 0, value )
+
 	def updateDataInFile( self, newData ):
 		
 		""" Replaces the data in the file for each offset location. """
@@ -1142,20 +1150,14 @@ class HexEditEntry( Tk.Entry ):
 		if self.colorSwatchWidget:
 			self.colorSwatchWidget.renderCircle( newHex )
 
-		# Add the widget to a list, to keep track of what widgets need to have their background restored to white when saving.
-		# global editedDatEntries
-		# editedDatEntries.append( widget )
-
 		# Update the hex shown in the widget (in case the user-entered value was zfilled; i.e. was not long enough)
 		self.delete( 0, 'end' )
 		self.insert( 0, newHex )
 
 		# Update the data shown in the neighboring, decoded value widget
 		if decodedValue:
-			self.valueEntryWidget.delete( 0, 'end' )
-			self.valueEntryWidget.insert( 0, round(decodedValue, 9) )
+			self.valueEntryWidget.set( decodedValue )
 			self.valueEntryWidget.configure( background='#faa' )
-			#editedDatEntries.append( self.valueEntryWidget )
 
 		self.updateDataInFile( newData )
 
@@ -1210,16 +1212,11 @@ class HexEditEntry( Tk.Entry ):
 		# else:
 		self.configure( background='#faa' )
 
-		# Add the widget to a list, to keep track of what widgets need to have their background restored to white when saving.
-		# global editedDatEntries
-		# editedDatEntries.append( self )
-
 		# Update the data shown in the neiboring widget
 		if self.hexEntryWidget:
 			self.hexEntryWidget.delete( 0, 'end' )
 			self.hexEntryWidget.insert( 0, newHex )
 			self.hexEntryWidget.configure( background='#faa' )
-			#editedDatEntries.append( hexEntryWidget )
 
 		# Replace the data in the file for each location
 		newData = bytearray.fromhex( newHex )
