@@ -46,6 +46,7 @@ from guiSubComponents import (
 		DisguisedEntry,
 		ToolTip, NeoTreeview
 	)
+from textureEditing import TexturesEditor
 from tools import CharacterColorConverter, SisTextEditor
 
 
@@ -145,8 +146,9 @@ class DiscTab( ttk.Frame ):
 		self.isoOpsPanelButtons = Tk.Frame( isoOpsPanel )
 		ttk.Button( self.isoOpsPanelButtons, text="Export", command=self.exportIsoFiles, state='disabled' ).grid( row=0, column=0, padx=7 )
 		ttk.Button( self.isoOpsPanelButtons, text="Import", command=self.importSingleFile, state='disabled' ).grid( row=0, column=1, padx=7 )
-		ttk.Button( self.isoOpsPanelButtons, text="Browse Textures", command=self.browseTexturesFromDisc, state='disabled', width=18 ).grid( row=1, column=0, columnspan=2, pady=(7,0) )
-		#ttk.Button( self.isoOpsPanelButtons, text="Analyze Structure", command=self.analyzeFileFromDisc, state='disabled', width=18 ).grid( row=2, column=0, columnspan=2, pady=(7,0) )
+		ttk.Button( self.isoOpsPanelButtons, text="Restore to Vanilla", command=self.restoreFiles, state='disabled', width=20 ).grid( row=1, column=0, columnspan=2, pady=(7,0) )
+		ttk.Button( self.isoOpsPanelButtons, text="Browse Textures", command=self.browseTexturesFromDisc, state='disabled', width=20 ).grid( row=2, column=0, columnspan=2, pady=(7,0) )
+		#ttk.Button( self.isoOpsPanelButtons, text="Analyze Structure", command=self.analyzeFileFromDisc, state='disabled', width=18 ).grid( row=3, column=0, columnspan=2, pady=(7,0) )
 		self.isoOpsPanelButtons.pack( pady=2 )
 
 		# Add the Magikoopa image
@@ -849,8 +851,8 @@ class DiscTab( ttk.Frame ):
 
 	def exportItemsInSelection( self, selection, isoBinary, directoryPath, exported, failedExports, addDolphinSubs ):
 
-		""" Basically just a recursive helper function to self.exportIsoFiles(). Passing the open isoBinary 
-			file object so that we can get file data from it directly, and avoid opening it multiple times. """
+		""" This is a recursive helper function for self.exportIsoFiles(). The open isoBinary file object is
+			passed so that we can get file data from it directly and avoid opening it multiple times. """
 
 		useConvenienceFolders = globalData.checkSetting( 'useConvenienceFoldersOnExport' )
 
@@ -967,29 +969,47 @@ class DiscTab( ttk.Frame ):
 				globalData.gui.updateProgramStatus( 'Import Error. Unable to find the currently loaded disc file path', error=True )
 				msg( "Unable to find the disc image. Be sure that the file path is correct and that the file hasn't been moved or deleted.", 'Disc Not Found', error=True )
 			return False
+
+	def getSingleFileSelection( self ):
+
+		""" Checks that only a single item is selected in the treeview, 
+			and returns it if that's True. Otherwise returns None. 
+			Notifies the user when a single file is not selected. """
+		
+		# Check that there's something selected
+		iidSelectionsTuple = self.isoFileTree.selection()
+		if not iidSelectionsTuple:
+			globalData.gui.updateProgramStatus( 'Hm?' )
+			msg( 'Please select a file to use this feature.', 'No File is Selected' )
+			return None
+
+		elif len( iidSelectionsTuple ) != 1:
+			globalData.gui.updateProgramStatus( 'Hm?' )
+			msg( 'Please select only one file to load.', 'Too Many Files Selected' )
+			return None
+
+		# Check what kind of item is selected. May be "file", "nFolder" (native folder), or "cFolder" (convenience folder)
+		isoPath = iidSelectionsTuple[0]
+		itemType = self.isoFileTree.item( isoPath, 'values' )[1]
+		if itemType == 'file':
+			fileObj = globalData.disc.files.get( isoPath )
+			assert fileObj, 'IsoFileTree displays a missing file! ' + isoPath
+
+			if self.goodDiscPath():
+				return fileObj
+		else:
+			msg( 'Please select just one file to load.', 'Folder Selected' )
 	
 	def importSingleFile( self ):
 
 		""" Called by the Import button and Import File(s) menu option. This doesn't use the 
 			disc's file export method so we can include the convenience folders in the save path. """
 
-		# Check that there's something selected to export
-		iidSelectionsTuple = self.isoFileTree.selection()
-		if not iidSelectionsTuple:
-			globalData.gui.updateProgramStatus( 'Hm?' )
-			msg( 'No file is selected.' )
-			return
+		# Check that there's something selected to import over (replace)
+		fileObj = self.getSingleFileSelection()
+		if not fileObj: return
 
-		elif len( iidSelectionsTuple ) != 1:
-			globalData.gui.updateProgramStatus( 'Hm?' )
-			msg( 'Please select only one file to replace.' )
-			return
-
-		elif not self.goodDiscPath():
-			return
-
-		# Get the file object and prompt the user to replace it
-		fileObj = globalData.disc.files.get( iidSelectionsTuple[0] )
+		# Prompt the user to replace the selected file
 		importSingleFileWithGui( fileObj, "Choose a game file to import (replaces the currently selected file)" )
 
 	def importMultipleFiles( self ):
@@ -1046,7 +1066,7 @@ class DiscTab( ttk.Frame ):
 		currentDisc = globalData.disc
 
 		# Check that there's something selected to restore
-		iidSelections = self.isoFileTree.getItemsInSelection()[1] # Extends selection to also include all files within folders that may be selected
+		iidSelections = self.isoFileTree.getItemsInSelection()[1] # Extends selection to also include all files within selected folders
 		if not iidSelections:
 			globalData.gui.updateProgramStatus( 'Hm?' )
 			msg( 'Please first select a file or folder to restore.' )
@@ -1101,8 +1121,30 @@ class DiscTab( ttk.Frame ):
 			printStatus( 'Restoration complete ({} files restored)'.format(len(iidSelections)), success=True )
 
 	def browseTexturesFromDisc( self ):
-		print( 'Not yet implemented' )
+		mainGui = globalData.gui
+		fileObj = self.getSingleFileSelection()
+		if not fileObj: return
+
+		# Get the selected file and check whether it has textures (has a method to get them)
+		if not hasattr( fileObj, 'identifyTextures' ):
+			globalData.gui.updateProgramStatus( 'Uhh...' )
+			msg( "This type of file doesn't appear to have any textures." )
+			return
+
+		# Load the tab if it's not already present
+		if not mainGui.texturesTab:
+			mainGui.texturesTab = TexturesEditor( mainGui.mainTabFrame, mainGui )
+		
+		mainGui.texturesTab.addTab( fileObj )
+
+		# Switch to the tab
+		mainGui.mainTabFrame.select( mainGui.texturesTab )
+		mainGui.playSound( 'menuSelect' )
+
 	def analyzeFileFromDisc( self ):
+		mainGui = globalData.gui
+		fileObj = self.getSingleFileSelection()
+		if not fileObj: return
 		print( 'Not yet implemented' )
 
 	def deleteIsoFiles( self, iids ):
@@ -1185,7 +1227,6 @@ class DiscTab( ttk.Frame ):
 				return parent, ''
 
 			# # Remove the last portion of the disc path if it's a file or Convenience Folder
-			#fileObj = globalData.disc.files.get( targetIid ) # The iids are isoPaths
 			itemType = self.isoFileTree.item( targetIid, 'values' )[1] # May be "file", "nFolder" (native folder), or "cFolder" (convenience folder)
 			if itemType == 'file':
 				iidToAddBefore = targetIid
@@ -1817,8 +1858,11 @@ class DiscMenu( Tk.Menu, object ):
 		self.iidSelectionsTuple = self.fileTree.selection()
 		self.selectionCount = len( self.iidSelectionsTuple )
 		if self.selectionCount == 1:
-			self.fileObj = globalData.disc.files.get( self.iidSelectionsTuple[0] )
-			if self.fileObj:
+			# Check what kind of item is selected. May be "file", "nFolder" (native folder), or "cFolder" (convenience folder)
+			itemType = self.fileTree.item( self.iidSelectionsTuple[0], 'values' )[1]
+			if itemType == 'file':
+				self.fileObj = globalData.disc.files.get( self.iidSelectionsTuple[0] )
+				assert self.fileObj, 'IsoFileTree displays a missing file! ' + self.iidSelectionsTuple[0]
 				self.entity = 'file'
 				self.entityName = self.fileObj.filename
 			else:

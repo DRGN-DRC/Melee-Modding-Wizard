@@ -84,12 +84,14 @@ def init( programArgs ):
 		'useDiscConvenienceFolders': '1',
 		'useConvenienceFoldersOnExport': '0',
 		'backupOnRebuild': '1',
-		'alwaysEnableCrashReports': '1',
 		'alwaysAddFilesAlphabetically': '0',
-		'exportDescriptionsInFilename': '1',
+		'exportDescriptionsInFilename': '1', # Music files only ATM (hps & wav)
 		'runDolphinInDebugMode': '0',
 		'createHiResCSPs': '0',
 		'disableMainMenuAnimations': '0',
+		
+		# Code related
+		'alwaysEnableCrashReports': '1',
 		'useCodeCache': '1',
 		'offerToConvertGeckoCodes': '1',
 
@@ -99,13 +101,11 @@ def init( programArgs ):
 		'actionStateFilterItems': '0',
 		'actionStateFilterCharSpecific': '1',
 		'actionStateFilterEmpty': '0',
+
+		# Texture editing interface
+		'showCanvasGrid': '1',
+		'showTextureBoundary': '1',
 	}
-	# regionOverwriteDefaults = {
-	# 	'Common Code Regions': True,
-	# 	'20XXHP 4.07 Regions': False,
-	# 	'20XXHP 5.0 Regions': False,
-	# 	'Tournament Mode Region'
-	# }
 
 	settings = ConfigParser.SafeConfigParser()
 	settings.optionxform = str # Tells the settings parser to preserve case sensitivity
@@ -298,12 +298,12 @@ def checkRegionOverwrite( regionName ):
 
 def saveProgramSettings():
 
-	""" Saves the current program settings to the "settings.ini" file. This will update a pre-existing settings file, 
-		or will create a new one if it doesn't already exist. 
+	""" Saves the current program settings to the "settings.ini" file. This will update a pre-existing 
+		settings file, or will create a new one if it doesn't already exist. 
 
 		String and alphanumeric settings are kept in the global settings object, while booleans 
-		are kept in the boolSettings dictionary, as BooleanVar objects, so that they can easily be 
-		kept in sync with the GUI. Therefore they need to be combined with the settings object before saving. """
+		are kept in the boolSettings dictionary as BooleanVar objects, so that they can easily be 
+		kept in sync with the GUI. Therefore they need to be synced with the settings object before saving. """
 
 	if gui:
 		# Convert the program's BooleanVars to strings and update them in the settings object

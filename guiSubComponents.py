@@ -1321,7 +1321,7 @@ class CodeLibrarySelector( BasicWindow ):
 		radioBtn = ttk.Radiobutton( optionFrame, text=os.path.basename(path), variable=self.pathIndexVar, value=buttonIndex, state=state )
 		radioBtn.pack( side='left', padx=(0, 100) )
 		removeBtn = ttk.Button( optionFrame, text='-', width=3, command=lambda w=optionFrame: self.removePath(w), style='red.TButton' )
-		ToolTip( removeBtn, text='Remove library', delay=1000, bg='#ee9999' )
+		ToolTip( removeBtn, text='Remove library', delay=1000, bg='#ee9999', location='n' )
 		removeBtn.pack( side='right' )
 
 		optionFrame.path = path
@@ -2207,6 +2207,7 @@ class NeoTreeview( ttk.Treeview, object ):
 				subFolders, subFiles = self.getItemsInSelection( children, True )
 				folderIids.update( subFolders )
 				fileIids.update( subFiles )
+
 			elif children:
 				folderIids.add( iid )
 			else:

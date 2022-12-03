@@ -45,6 +45,14 @@ from _ctypes import PyObj_FromPtr  # see https://stackoverflow.com/a/15012814/35
 # 		Note 2: In python 2, bytes objects are an alias for str objects; they are not like bytearrays.
 
 
+def isNaN( var ): # Test if a variable 'is Not a Number'
+	try:
+		float( var )
+		return False
+	except ValueError:
+		return True
+
+
 def roundTo32( x, base=32 ):
 	
 	""" Rounds up to nearest increment of [base] (default: 32 or 0x20). """

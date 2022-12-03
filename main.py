@@ -1591,6 +1591,7 @@ class MainGui( Tk.Frame, object ):
 		self.stageManagerTab = None		# ttk.Frame
 		self.audioManagerTab = None		# ttk.Frame
 		self.charModTab = None			# ttk.Notebook
+		self.texturesTab = None			# ttk.Notebook
 
 		self.mainTabFrame.grid( column=0, row=0, sticky='nsew' )
 		self.mainTabFrame.bind( '<<NotebookTabChanged>>', self.onMainTabChanged )
@@ -2338,6 +2339,9 @@ class MainGui( Tk.Frame, object ):
 		globalData.saveProgramSettings()
 
 		if not self.changesNeedSaving( globalData.disc, True ):
+			if self.texturesTab:
+				self.texturesTab.haltAllScans( programClosing=True )
+
 			self.root.destroy() # Stops the GUI's mainloop and destroys all widgets. https://stackoverflow.com/a/42928131/8481154
 
 	def addCodeConstructionTab( self ):
