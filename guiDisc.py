@@ -23,6 +23,7 @@ import tkFileDialog
 import Tkinter as Tk
 from PIL import Image, ImageTk
 from tkMessageBox import askyesno
+from FileSystem.charFiles import CharCostumeFile
 
 # Internal dependencies
 import globalData
@@ -359,6 +360,18 @@ class DiscTab( ttk.Frame ):
 		for discFile in disc.files.itervalues():
 			self.addFileToFileTree( discFile, usingConvenienceFolders )
 
+		# Ad-hoc test code
+		# count = 0
+		# totalSize = 0
+		# for discFile in disc.files.itervalues():
+		# 	if issubclass( discFile.__class__, CharCostumeFile ):
+		# 		if not discFile.charAbbr in ( 'Bo', 'Gl', 'Mh', 'Ch', 'Gk', 'Sb' ) \
+		# 			and not ( discFile.filename.startswith( 'PlKb' ) and 'Cp' in discFile.filename ):
+		# 			count += 1
+		# 			totalSize += discFile.size
+		# print( 'Total files of type: ' + str(count) )
+		# print( 'Total size: ' + humansize(totalSize) )
+
 		# Enable the GUI's buttons and update other labels
 		for widget in self.isoOpsPanelButtons.winfo_children():
 			widget.config( state='normal' )
@@ -549,8 +562,6 @@ class DiscTab( ttk.Frame ):
 			# if discFile.filename.endswith( '.mth' ):
 			# 	print discFile.filename
 
-			# if discFile.__class__.__name__ == 'CharDataFile':
-
 			# if discFile.filename == 'PlCa.dat':# or discFile.filename == 'PlCa.sat':
 			# 	table = discFile.getActionTable()
 			# 	print 'Fighter Action Tables:'
@@ -569,6 +580,7 @@ class DiscTab( ttk.Frame ):
 			# 	print( discFile.filename, ': ', hex(discFile.size), discFile.size )
 
 			# if issubclass( discFile.__class__, DatFile ):
+			# if issubclass( discFile.__class__, CharCostumeFile ):
 			# 	discFile.initialize()
 			# 	if discFile.headerInfo and discFile.headerInfo['rtEntryCount'] > 10000:
 			# 		print( discFile.filename, ': ', discFile.headerInfo['rtEntryCount'] )

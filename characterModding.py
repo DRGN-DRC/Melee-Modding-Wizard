@@ -574,10 +574,7 @@ class ActionEditor( ttk.Frame, object ):
 					continue
 			
 			# Add the action to the listbox
-			if friendlyName:
-				self.subActionList.insert( listboxIndex, ' ' + friendlyName )
-			else:
-				self.subActionList.insert( listboxIndex, ' ' + gameName )
+			self.subActionList.insert( listboxIndex, ' ' + friendlyName )
 			self.listboxIndices[listboxIndex] = entryIndex
 
 			# Color the entry gray if it's a blank entry
@@ -626,12 +623,14 @@ class ActionEditor( ttk.Frame, object ):
 				else:
 					spaces = ' ' * ( 42 - (len(friendlyName) + len(gameName)) )
 					friendlyName = '{}{}{}'.format( friendlyName, spaces, gameName )
+			else:
+				friendlyName = gameName
 
 			return gameName, friendlyName
 
 	def hasUnsavedChanges( self ):
 
-		""" Checks if the currently selected action has unsaved changes to subAction events. """
+		""" Checks if the currently selected action has unsaved changes to its subAction events. """
 
 		# If the subAction struct hasn't been initialized/parsed, there's nothing to save
 		if not self.subActionStruct:
@@ -639,7 +638,20 @@ class ActionEditor( ttk.Frame, object ):
 
 		self.subActionStruct.rebuild()
 
-		return ( self.subActionStruct.origData != self.subActionStruct.data )
+		# If the reconstructed data is identical, there are no changes
+		if self.subActionStruct.origData == self.subActionStruct.data:
+			return False
+
+		# Check if the difference is simply due to padding
+		elif len( self.subActionStruct.origData ) > len( self.subActionStruct.data ):
+			excessData = self.subActionStruct.origData[len(self.subActionStruct.data):]
+			if any( excessData ): # Returns True if there are any non-zero bytes (meaning it's not padding)
+				return True
+			else:
+				return False # All the extra data is zeroes (more than likely just padding)
+
+		else: # The new data is larger than the original
+			return True
 
 	def subActionSelected( self, guiEvent=None, checkForUnsavedChanges=True ):
 
@@ -813,7 +825,7 @@ class ActionEditor( ttk.Frame, object ):
 
 		# Save this new data to the file
 		entryValues = self.actionTable.getEntryValues( self.lastSelection )
-		actionName = self.getActionName( entryValues[0], self.lastSelection )[1]
+		actionName = self.getActionName( entryValues[0], self.lastSelection, useParenthesis=True )[1]
 		self.charFile.updateStruct( self.subActionStruct, 'SubAction event data for {} updated'.format(actionName), 'SubAction events updated' )
 
 		globalData.gui.updateProgramStatus( 'These subAction changes have been updated in the character file, but still need to be saved to the disc' )
@@ -1105,11 +1117,7 @@ class ActionEditor( ttk.Frame, object ):
 		# Get the index and other info on this action
 		index = self.listboxIndices[listBoxIndex] # Convert from listbox index to actions table index
 		namePointer = self.actionTable.getEntryValues( index )[0]
-		gameName, friendlyName = self.getActionName( namePointer, index, useParenthesis=True )
-		if friendlyName:
-			actionName = friendlyName
-		else:
-			actionName = gameName
+		actionName = self.getActionName( namePointer, index, useParenthesis=True )[1]
 
 		FlagDecoder( self.actionTable, 4, index, actionName )
 
