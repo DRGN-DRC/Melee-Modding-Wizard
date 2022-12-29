@@ -121,7 +121,7 @@
 		"0x12": "Random Smash SFX|Generates a random smash sound effect from a pre-defined table of specific sounds.",
 		"0x13": "Auto-cancel|Toggle the capability for this move to be (or not be) auto-canceled from this point on. 0 = on, 1 = off.",
 		"0x14": "Reverse Direction|Reverse the direction the character is facing. Also seems to have something to do with throws/item tosses, as well as noting breakpoints for rapid jabs.",
-		"0x17": "Allow Interrupt|Allow the current action to be interrupted by another action from this point on.",
+		"0x17": "Allow Interrupt|Allow the current action to be interrupted by another action from this point on. Essentially this is what allows for IASA frames.",
 		"0x1A": "Set Body Collision State|Controls whether or not the character's body is interactable.\n\n0 = normal, 1 = Invulnerable, 2 = Intangible",
 		"0x22": "Throw|This can be configured to either be a throw or a grab release.",
 		"0x33": "Self Damage|Inflicts damage to yourself, like Pichu.",

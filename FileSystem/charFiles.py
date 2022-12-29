@@ -424,8 +424,8 @@ class GeneralFighterProperties( DataBlock ):
 						'Number_of_Jumps', # Int
 						'Gravity',
 						'Terminal_Velocity',				# 0x60
-						'Aerial_Speed',
-						'Aerial_Friction',
+						'Aerial_Mobility_A',
+						'Aerial_Mobility_B',
 						'Max_Aerial_Horizontal_Speed',
 						'Air_Friction',						# 0x70
 						'FastFall_Terminal_Velocity',
@@ -661,12 +661,12 @@ class SubAction( DataBlock ):
 										'Size', 'Z Offset', 'Y Offset', 'X Offset', 
 										'Knockback Angle', 'Knockback Growth', 'Weight Dependent Set Knockback', 
 										'Padding', 'Hitbox Interaction', 'Base Knockback',
-										'Element', 'Shield Damage', 'Sound Effect', 'Hit Grounded Opponents', 'Hit Airborne Opponents'), 
+										'Element', 'Unknown', 'Shield Damage', 'Sound Effect', 'Hit Grounded Opponents', 'Hit Airborne Opponents'), 
 										('uint:3', 'uint:5', 'uint:7', 'int:2', 'uint:9', 
-										'uint:16', 'int:16', 'int:16', 'int:16', 
+										'uint:16', 'int:16', 'int:16', 'int:16', # 12 bytes so far
 										'uint:9', 'uint:9', 'uint:9', 
 										'int:3', 'uint:2', 'uint:9', 
-										'uint:5', 'uint:7', 'uint:8', 'bool', 'bool') ),
+										'uint:5', 'bool', 'uint:7', 'uint:8', 'bool', 'bool') ),
 		0x0C: ( "Adjust Hitbox Damage", 4, ('Hitbox ID', 'Damage'), ('uint:3', 'uint:23') ),
 		0x0D: ( "Adjust Hitbox Size", 4, ('Hitbox ID', 'New Size'), ('uint:3', 'uint:23') ),
 		0x0E: ( "Set Hitbox Flags", 4, ('Hitbox ID', 'Flags'), ('uint:24', 'uint:2'), ),
@@ -703,7 +703,7 @@ class SubAction( DataBlock ):
 		0x24: ( "Body Article Invisibility", 4, ('Padding', 'Flag'), ('uint:25', 'bool') ),
 		0x25: ( "Character Invisibility", 4, ('Padding', 'Flag'), ('uint:25', 'bool') ),
 		0x26: ( "Pseudo-Random Sound Effect", 0x1C, ('Unknown',), ('int:218',) ),
-		0x27: ( "Unknwon 0x27", 0x10, ('Unknown',), ('int:122',) ),
+		0x27: ( "Unknown 0x27", 0x10, ('Unknown',), ('int:122',) ),
 		0x28: ( "Animate Texture", 4, ('Material Flag', 'Material Index', 'Frame Flags', 'Frame'), 
 										('bool', 'int:7', 'int:7', 'int:11') ),
 		0x29: ( "Animate Model", 4, ('Body Part', 'State', 'Unknown'), ('uint:10', 'uint:4', 'uint:12') ),
