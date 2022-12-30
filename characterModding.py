@@ -765,7 +765,7 @@ class ActionEditor( ttk.Frame, object ):
 
 				# Create a GUI module for the event
 				item = self.displayPane.create_item()
-				helpMessage = self.charFile.eventNotes.get( '0x{:02X}'.format(event.id), '' )
+				helpMessage = self.charFile.getEventNotes( event.id )
 				eM = EventModule( item, event, self.displayPane, helpMessage )
 				eM.pack( fill='both', expand=True )
 				item.eventModule = eM # Useful for the expand/collapse methods below
@@ -924,7 +924,7 @@ class ActionEditor( ttk.Frame, object ):
 		
 		# Create a GUI module for the event
 		item = self.displayPane.create_item()
-		helpMessage = self.charFile.eventNotes.get( '0x{:02X}'.format(window.event.id), '' )
+		helpMessage = self.charFile.getEventNotes( window.event.id )
 		eM = EventModule( item, window.event, self.displayPane, helpMessage, True )
 		eM.pack( fill='both', expand=True )
 		item.eventModule = eM # Useful for the expand/collapse methods below
@@ -1150,10 +1150,13 @@ class EventModule( ttk.Frame, object ):
 		label = ttk.Label( headerRow, text=self.name, font=('Palatino Linotype', 11, 'bold'), style=self.labelStyle )
 		label.pack( side='left', padx=(12,0), pady=(4,0) )
 		
-		if self.event.fields:
-			self.expandBtn = ToggleButton( headerRow, 'expandArrow', self.toggleState, style=self.labelStyle )
-			self.expandBtn.pack( side='left', padx=(12,0), pady=(3, 0) )
-		else:
+		# Add the button to expand this subAction if there are any non-padding fields
+		for field in self.event.fields:
+			if field != 'Padding':
+				self.expandBtn = ToggleButton( headerRow, 'expandArrow', self.toggleState, style=self.labelStyle )
+				self.expandBtn.pack( side='left', padx=(12,0), pady=(3, 0) )
+				break
+		else: # The loop above didn't break; no fields or they're all padding
 			self.expandBtn = None
 
 		if self.helpMsg:
@@ -1161,7 +1164,7 @@ class EventModule( ttk.Frame, object ):
 			helpBtn.pack( side='right', padx=12, pady=(1, 0) )
 		headerRow.pack( fill='x', expand=True )
 
-		if self.event.fields:
+		if self.expandBtn:
 			self.bind( '<Double-Button-1>', self.expandBtn.toggle )
 			label.bind( '<Double-Button-1>', self.expandBtn.toggle )
 			headerRow.bind( '<Double-Button-1>', self.expandBtn.toggle )
@@ -1173,7 +1176,7 @@ class EventModule( ttk.Frame, object ):
 			self.expand()
 
 	def expand( self ):
-		if self.expanded or not self.event.fields:
+		if self.expanded or not self.expandBtn:
 			return
 
 		# Construct the event details labels
@@ -1187,8 +1190,7 @@ class EventModule( ttk.Frame, object ):
 
 			title = ttk.Label( containingFrame, text=valueName + ' :', style=self.labelStyle )
 			title.grid( column=0, row=index, padx=15 )
-			if self.event.fields:
-				title.bind( '<Double-Button-1>', self.expandBtn.toggle )
+			title.bind( '<Double-Button-1>', self.expandBtn.toggle )
 
 			entry = Tk.Entry( containingFrame, width=12, justify='center', relief='flat', 
 				highlightbackground='#b7becc', # Border color when not focused
@@ -1202,8 +1204,7 @@ class EventModule( ttk.Frame, object ):
 			index += 1
 
 		containingFrame.pack( anchor='w', padx=(42,0), pady=(4,6) )
-		if self.event.fields:
-			containingFrame.bind( '<Double-Button-1>', self.expandBtn.toggle )
+		containingFrame.bind( '<Double-Button-1>', self.expandBtn.toggle )
 
 		# Adjust height of the widget
 		item = self.master
@@ -1307,7 +1308,7 @@ class EventChooser( BasicWindow ):
 		eventCode = self.getEventCode()
 		if not eventCode: return
 
-		eventNote = self.charFile.eventNotes.get( '0x{:02X}'.format(eventCode), '' )
+		eventNote = self.charFile.getEventNotes( eventCode )
 		if eventNote:
 			self.helpText.set( eventNote.split( '|' )[1] ) # Removes title
 		else:

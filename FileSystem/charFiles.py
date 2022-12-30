@@ -108,6 +108,20 @@ class CharFileBase( object ):
 				msg( errMsg )
 			self.translationsChecked = True
 
+	def getEventNotes( self, eventCode ):
+
+		""" Returns the notes (a string) for a given subAction event code/ID. 
+			Returns an empty string if no notes are available. """
+
+		key = '0x{:02X}'.format( eventCode )
+		value = self.eventNotes.get( key, '' )
+
+		# Very long strings will be stored as lists for better readability in the json file
+		if isinstance( value, list ):
+			value = ''.join( value )
+
+		return value
+
 	def getFriendlyActionName( self, symbol=None, symbolPointer=-1, actionTableIndex=-1 ):
 
 		""" Translates an action state or animation subaction symbol name, such as 
@@ -661,7 +675,7 @@ class SubAction( DataBlock ):
 										'Size', 'Z Offset', 'Y Offset', 'X Offset', 
 										'Knockback Angle', 'Knockback Growth', 'Weight Dependent Set Knockback', 
 										'Padding', 'Hitbox Interaction', 'Base Knockback',
-										'Element', 'Unknown', 'Shield Damage', 'Sound Effect', 'Hit Grounded Opponents', 'Hit Airborne Opponents'), 
+										'Element', 'Can Clank', 'Shield Damage', 'Sound Effect', 'Hit Grounded Opponents', 'Hit Airborne Opponents'), 
 										('uint:3', 'uint:5', 'uint:7', 'int:2', 'uint:9', 
 										'uint:16', 'int:16', 'int:16', 'int:16', # 12 bytes so far
 										'uint:9', 'uint:9', 'uint:9', 
@@ -694,7 +708,7 @@ class SubAction( DataBlock ):
 		# https://smashboards.com/threads/melee-hacks-and-you-new-hackers-start-here-in-the-op.247119/page-49#post-10804377
 		0x22: ( "Throw", 0xC, ('Throw Type', 'Padding', 'Damage', 'Angle', 'Knockback Growth', 
 								'Weight Dependent Set Knockback', 'Padding', 'Base Knockback', 
-								'Element', 'Unknown 1', 'Unknown 2' 'Padding'), 
+								'Element', 'Unknown 1', 'Unknown 2', 'Padding'), 
 								('uint:3', 'uint:14', 'uint:9', 'uint:9', 'uint:9', 
 								'uint:9', 'uint:5', 'uint:9', 
 								'uint:4', 'uint:3', 'uint:4', 'uint:12') ),
@@ -717,7 +731,7 @@ class SubAction( DataBlock ):
 		0x2F: ( "Remove Color Overlay", 4, ('Unknown',), ('int:26',) ),
 		0x30: ( "Unknown 0x30", 4, ('Unknown',), ('int:26',) ),
 		0x31: ( "Sword Trail", 4, ('Use Beam Sword Trail', 'Padding', 'Render Status'), ('bool', 'int:17', 'uint:8') ),
-		0x32: ( "Enable Ragdoll Physics", 4, ('Bone ID',), ('uint:26') ),
+		0x32: ( "Enable Ragdoll Physics", 4, ('Bone ID',), ('uint:26',) ),
 		0x33: ( "Self Damage", 4, ('Padding', 'Damage'), ('uint:10', 'uint:16') ),
 		0x34: ( "Continuation Control", 4, ('Unknown',), ('int:26',) ),
 		0x35: ( "Footsnap Behavior", 4, ('Flags?',), ('int:26',) ), # set flag

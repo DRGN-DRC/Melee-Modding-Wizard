@@ -128,7 +128,7 @@ class AudioManager( ttk.Frame ):
 		infoPane = ttk.Frame( self )
 
 		generalLabelFrame = ttk.LabelFrame( infoPane, text='  General Info  ', labelanchor='n', padding=(20, 0, 20, 4) ) # Padding order: Left, Top, Right, Bottom.
-		ttk.Label( generalLabelFrame, text=('Total Tracks:\nFilespace Used:\nFilespace Remaining:') ).pack( side='left' )
+		ttk.Label( generalLabelFrame, text=('Total Tracks:\nTotal Music Filespace:\nDisc Filespace Remaining:') ).pack( side='left' )
 		self.generalInfoLabel = ttk.Label( generalLabelFrame )
 		self.generalInfoLabel.pack( side='right', padx=6 )
 		generalLabelFrame.pack( pady=(12, 6) )
