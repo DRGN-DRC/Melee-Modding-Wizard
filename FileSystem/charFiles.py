@@ -600,7 +600,7 @@ class SubActionEvent( object ):
 		self.name = name			# From the SubAction class' event descriptions
 		self.length = length		# Length of this event's data in bytes
 		self.fields = valueNames	# A tuple of names for this event's values
-		self.formats = ( 'int:6', )
+		self.formats = ( 'uint:6', )
 		self.formats += bitFormats	# A tuple of formats from the SubAction class event descriptions (plus the ID format)
 		self.modified = False
 
@@ -675,12 +675,13 @@ class SubAction( DataBlock ):
 										'Size', 'Z Offset', 'Y Offset', 'X Offset', 
 										'Knockback Angle', 'Knockback Growth', 'Weight Dependent Set Knockback', 
 										'Padding', 'Hitbox Interaction', 'Base Knockback',
-										'Element', 'Can Clank', 'Shield Damage', 'Sound Effect', 'Hit Grounded Opponents', 'Hit Airborne Opponents'), 
+										'Element', 'Unknown', 'Shield Damage', 'Sound Effect', 'Hit Grounded Opponents', 'Hit Airborne Opponents'), 
 										('uint:3', 'uint:5', 'uint:7', 'int:2', 'uint:9', 
 										'uint:16', 'int:16', 'int:16', 'int:16', # 12 bytes so far
 										'uint:9', 'uint:9', 'uint:9', 
 										'int:3', 'uint:2', 'uint:9', 
 										'uint:5', 'bool', 'uint:7', 'uint:8', 'bool', 'bool') ),
+
 		0x0C: ( "Adjust Hitbox Damage", 4, ('Hitbox ID', 'Damage'), ('uint:3', 'uint:23') ),
 		0x0D: ( "Adjust Hitbox Size", 4, ('Hitbox ID', 'New Size'), ('uint:3', 'uint:23') ),
 		0x0E: ( "Set Hitbox Flags", 4, ('Hitbox ID', 'Flags'), ('uint:24', 'uint:2'), ),
@@ -706,10 +707,12 @@ class SubAction( DataBlock ):
 		0x21: ( "Remove Models", 4, (), ('int:26',) ),
 
 		# https://smashboards.com/threads/melee-hacks-and-you-new-hackers-start-here-in-the-op.247119/page-49#post-10804377
-		0x22: ( "Throw", 0xC, ('Throw Type', 'Padding', 'Damage', 'Angle', 'Knockback Growth', 
+		0x22: ( "Throw", 0xC, ('Throw Type', 'Padding', 
+								'Damage', 'Angle', 'Knockback Growth', 
 								'Weight Dependent Set Knockback', 'Padding', 'Base Knockback', 
 								'Element', 'Unknown 1', 'Unknown 2', 'Padding'), 
-								('uint:3', 'uint:14', 'uint:9', 'uint:9', 'uint:9', 
+								('uint:3', 'uint:14', 
+								'uint:9', 'uint:9', 'uint:9', 
 								'uint:9', 'uint:5', 'uint:9', 
 								'uint:4', 'uint:3', 'uint:4', 'uint:12') ),
 
