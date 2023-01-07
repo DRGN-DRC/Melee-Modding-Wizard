@@ -684,7 +684,7 @@ class SubAction( DataBlock ):
 
 		0x0C: ( "Adjust Hitbox Damage", 4, ('Hitbox ID', 'Damage'), ('uint:3', 'uint:23') ),
 		0x0D: ( "Adjust Hitbox Size", 4, ('Hitbox ID', 'New Size'), ('uint:3', 'uint:23') ),
-		0x0E: ( "Set Hitbox Flags", 4, ('Hitbox ID', 'Flags'), ('uint:24', 'uint:2'), ),
+		0x0E: ( "Set Hitbox Interaction", 4, ('Hitbox ID', 'Type', 'Can Interact'), ('uint:24', 'bool', 'bool'), ),
 		0x0F: ( "Remove Hitbox", 4, (), ('int',) ), # Should include hitbox ID?
 		0x10: ( "Clear Hitboxes", 4, (), ('int',) ), # Sound effect?
 		0x11: ( "Sound Effect", 0xC, ('Unknown 1', 'Unknown 2', 'Sound Effect ID', 'Offset'), 
@@ -696,8 +696,8 @@ class SubAction( DataBlock ):
 		0x16: ( "Unknown 0x16", 4, ('Unknown',), ('int:26',) ), # set flag
 		0x17: ( "Allow Interrupt", 4, ('Unknown',), ('int:26',) ),
 		0x18: ( "Projectile Flag", 4, ('Unknown',), ('int:26',) ),
-		0x19: ( "Unknown 0x19", 4, ('Unknown',), ('int:26',) ), # related to ground air state
-		0x1A: ( "Set Body Collision State", 4, ('Padding', 'Body State'), ('int:24', 'int:2') ),
+		0x19: ( "Set Jump State", 4, ('Value',), ('uint:26',) ), # related to ground air state
+		0x1A: ( "Set Body Collision State", 4, ('Padding', 'Body State'), ('int:24', 'uint:2') ),
 		0x1B: ( "Body Collision Status", 4, ('Padding',), ('int:26',) ), # Has value (used)?
 		0x1C: ( "Set Bone Collision State", 4, ('Bone ID', 'Collision State'), ('uint:8', 'uint:18') ),
 		0x1D: ( "Enable Jab Follow-up", 4, ('Unknown',), ('int:26',) ),
@@ -710,7 +710,7 @@ class SubAction( DataBlock ):
 		0x22: ( "Throw", 0xC, ('Throw Type', 'Padding', 
 								'Damage', 'Angle', 'Knockback Growth', 
 								'Weight Dependent Set Knockback', 'Padding', 'Base Knockback', 
-								'Element', 'Unknown 1', 'Unknown 2', 'Padding'), 
+								'Element', 'SFX Severity', 'SFX Kind', 'Padding'), 
 								('uint:3', 'uint:14', 
 								'uint:9', 'uint:9', 'uint:9', 
 								'uint:9', 'uint:5', 'uint:9', 

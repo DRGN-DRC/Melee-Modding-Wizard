@@ -1016,20 +1016,20 @@ class ActionEditor( ttk.Frame, object ):
 				'The expected file is "{}/{}".'.format(globalData.disc.gameId, filename), 'File Not Found', warning=True )
 			return
 
+		# Get the name of the currently selected action
+		entryIndex = self.listboxIndices[listBoxIndex] # Convert from listbox index to actions table index
+		origNamePointer, ajAnimOffset = self.actionTable.getEntryValues( entryIndex )[:2]
+		origGameName, origFriendlyName = self.getActionName( origNamePointer, entryIndex, useParenthesis=True )
+
 		# Prompt the user to choose an animation
-		animSelectWindow = AnimationChooser( ajFile, self.charFile )
+		animSelectWindow = AnimationChooser( ajFile, self.charFile, initialSelectionAnimOffset=ajAnimOffset )
 		animOffset = animSelectWindow.animOffset
 		animGameName = animSelectWindow.gameName
 		if animOffset == -1: # User canceled
 			return
 
-		# Get the name of the currently selected action
-		entryIndex = self.listboxIndices[listBoxIndex] # Convert from listbox index to actions table index
-		origNamePointer = self.actionTable.getEntryValues( entryIndex )[0]
-		origGameName, origFriendlyName = self.getActionName( origNamePointer, entryIndex, useParenthesis=True )
-
 		# Check that the selected animation is actually new
-		if animGameName == origGameName:
+		if animGameName == origGameName and animOffset == ajAnimOffset:
 			msg( 'The action is already using that animation!', 'Animation Already Applied', warning=True )
 			return
 

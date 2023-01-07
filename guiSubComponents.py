@@ -597,15 +597,26 @@ class AnimationChooser( BasicWindow ):
 	""" Prompts the user to choose an animation (names taken from a given Pl__AJ.dat file). 
 		This window will block the main interface until a selection is made. """
 
-	def __init__( self, animFile, charFile, message='' ):
+	def __init__( self, animFile, charFile, message='', initialSelectionAnimOffset=-1 ):
 
 		BasicWindow.__init__( self, globalData.gui.root, 'Select an Animation', offsets=(300, 150), resizable=True )
 		
-		self.listboxIndices = {} # Key = listboxIndex, value = animationIndex
+		self.listboxIndices = {} # Key = listboxIndex, value = ( anim.offset, gameName, friendlyName, anim.size )
 		self.animOffset = -1
 		self.gameName = ''
 		self.friendlyName = ''
 		self.animSize = -1
+		self.currentAnimOffset = initialSelectionAnimOffset
+
+		# Copy the current action state filters (use them as defaults rather than also changing the main program filters)
+		self.showAttacks = Tk.BooleanVar()
+		self.showMovement = Tk.BooleanVar()
+		self.showItems = Tk.BooleanVar()
+		self.showCharSpecific = Tk.BooleanVar()
+		self.showAttacks.set( globalData.checkSetting('actionStateFilterAttacks') )
+		self.showMovement.set( globalData.checkSetting('actionStateFilterMovement') )
+		self.showItems.set( globalData.checkSetting('actionStateFilterItems') )
+		self.showCharSpecific.set( globalData.checkSetting('actionStateFilterCharSpecific') )
 
 		if message: # Optional user message
 			ttk.Label( self.window, text=message, wraplength=500 ).grid( column=0, columnspan=2, row=0 )
@@ -617,11 +628,10 @@ class AnimationChooser( BasicWindow ):
 		charFile.initialize()
 		
 		filtersBox = ttk.Frame( self.window )
-		ttk.Checkbutton( filtersBox, text='Attacks', variable=globalData.boolSettings['actionStateFilterAttacks'], command=self.updateFilters ).grid( column=0, row=0, sticky='w' )
-		ttk.Checkbutton( filtersBox, text='Movement', variable=globalData.boolSettings['actionStateFilterMovement'], command=self.updateFilters ).grid( column=0, row=1, sticky='w' )
-		ttk.Checkbutton( filtersBox, text='Item Related', variable=globalData.boolSettings['actionStateFilterItems'], command=self.updateFilters ).grid( column=1, row=0, sticky='w', padx=(10, 0) )
-		ttk.Checkbutton( filtersBox, text='Character Specific', variable=globalData.boolSettings['actionStateFilterCharSpecific'], command=self.updateFilters ).grid( column=1, row=1, sticky='w', padx=(10, 0) )
-		#ttk.Checkbutton( filtersBox, text='Empty Entries', variable=globalData.boolSettings['actionStateFilterEmpty'], command=self.updateFilters ).grid( column=2, row=0, sticky='w', padx=(8, 0) )
+		ttk.Checkbutton( filtersBox, text='Attacks', variable=self.showAttacks, command=self.populate ).grid( column=0, row=0, sticky='w' )
+		ttk.Checkbutton( filtersBox, text='Movement', variable=self.showMovement, command=self.populate ).grid( column=0, row=1, sticky='w' )
+		ttk.Checkbutton( filtersBox, text='Item Related', variable=self.showItems, command=self.populate ).grid( column=1, row=0, sticky='w', padx=(10, 0) )
+		ttk.Checkbutton( filtersBox, text='Character Specific', variable=self.showCharSpecific, command=self.populate ).grid( column=1, row=1, sticky='w', padx=(10, 0) )
 		filtersBox.grid( column=0, columnspan=2, row=1, pady=4 )
 
 		# Add the action table list and its scrollbar
@@ -646,33 +656,15 @@ class AnimationChooser( BasicWindow ):
 		self.window.grab_set()
 		globalData.gui.root.wait_window( self.window )
 
-	def updateFilters( self ):
-
-		""" Repopulates action states shown in the left-side listbox, 
-			according to the current filters, and saves current settings. 
-			Called by the filter checkboxes in the GUI when toggled. """
-
-		self.populate()
-		globalData.saveProgramSettings()
-
 	def populate( self ):
 
 		""" Clears the subAction list (if it has anything displayed) and 
 			repopulates it with entries from the character's action table. """
 
-		# Remember the current (soon to be previous) selection
-		selection = self.subActionList.curselection()
-		if selection:
-			lastSelectedEntry = self.listboxIndices.get( selection[0], (-1, '', '', -1) )
-		else:
-			lastSelectedEntry = (-1, '', '', -1)
-		
-		self.listboxIndices = {} # Key = listboxIndex, value = animationIndex
-
-		showAttacks = globalData.checkSetting( 'actionStateFilterAttacks' )
-		showMovement = globalData.checkSetting( 'actionStateFilterMovement' )
-		showItems = globalData.checkSetting( 'actionStateFilterItems' )
-		showCharSpecific = globalData.checkSetting( 'actionStateFilterCharSpecific' )
+		showAttacks = self.showAttacks.get()
+		showMovement = self.showMovement.get()
+		showItems = self.showItems.get()
+		showCharSpecific = self.showCharSpecific.get()
 
 		# Build a list of the character-specific action names
 		self.charSpecificActions = []
@@ -688,7 +680,9 @@ class AnimationChooser( BasicWindow ):
 
 		# Repopulate the subAction list
 		self.subActionList.delete( 0, 'end' )
+		self.listboxIndices = {} # Key = listboxIndex, value = ( anim.offset, gameName, friendlyName, anim.size )
 		listboxIndex = 0
+		newSelectionIndex = None
 		for anim in self.animFile.animations:
 			gameName, friendlyName = self.animFile.getFriendlyActionName( anim.name )
 			nameStart = gameName[:4]
@@ -729,14 +723,22 @@ class AnimationChooser( BasicWindow ):
 			else:
 				self.subActionList.insert( listboxIndex, ' ' + gameName )
 			self.listboxIndices[listboxIndex] = ( anim.offset, gameName, friendlyName, anim.size )
+
+			# Check if this entry should be selected (was previously selected by the user)
+			if self.animOffset == anim.offset:
+				newSelectionIndex = listboxIndex
+			
+			# Color the animation currently set
+			if self.currentAnimOffset == anim.offset:
+				self.subActionList.itemconfigure( listboxIndex, background='#aeeaae' ) # Light green color
+				
 			listboxIndex += 1
 
 		# Clear current selection, and then select the same item that was selected before (if it's still present)
 		self.subActionList.selection_clear( 0, 'end' )
-		if lastSelectedEntry[0] != -1 and lastSelectedEntry in self.listboxIndices.values():
-			listboxIndex = reverseDictLookup( self.listboxIndices, lastSelectedEntry )
-			self.subActionList.selection_set( listboxIndex )
-			self.subActionList.see( listboxIndex )
+		if newSelectionIndex:
+			self.subActionList.selection_set( newSelectionIndex )
+			self.subActionList.see( newSelectionIndex )
 
 	def animationSelected( self, guiEvent ):
 

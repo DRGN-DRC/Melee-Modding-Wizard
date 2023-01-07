@@ -131,7 +131,14 @@
 		"0x1A": [ "Set Body Collision State|Controls whether or not the character's body is interactable.",
 					"\n\n0 = normal, 1 = Invulnerable, 2 = Intangible"
 				],
-		"0x22": "Throw|This can be configured to either be a throw or a grab release.",
+		"0x1F": "Changle Model State|Updates the visibility of a model part to show or hide it.",
+		"0x22": [ "Throw|This can be configured to either be a throw or a grab release.",
+					"\n\nNotes on SFX Severity:",
+					"\n\n  0 - No sound?",
+					"\n  1 - Weak",
+					"\n  2 - Moderate",
+					"\n  3 - Strong"
+				],
 		"0x33": "Self Damage|Inflicts damage to yourself, like Pichu.",
 		"0x34": "Continuation Control|0 = earliest next, 1 = ?, 3 = open continuation window?",
 		"0x38": "Start Smash Charge|Start charging a smash attack on this frame if the Attack button is still being held. Effects on the character while charging can also be altered."
