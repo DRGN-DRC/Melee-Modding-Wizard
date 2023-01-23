@@ -390,13 +390,6 @@ class MusicToolTip( ToolTip ):
 		return False
 
 	def create_contents( self ):
-		# print 'creating tooltip for index', self.valueIndex
-		# # Hide any other tooltips currently shown
-		# for toolTip in self.mainTab.toolTips.values():
-		# 	if toolTip._tipwindow and toolTip != self:
-		# 		toolTip._unschedule()
-		# 		toolTip._hide()
-		
 		# Get the music ID and associated audio file
 		musicId = self.getMusicId()
 		musicFile = globalData.disc.getMusicFile( musicId )
@@ -440,7 +433,7 @@ class MusicToolTip( ToolTip ):
 
 		if self._opts['state'] == 'disabled' or not self._hasText():
 			self._unschedule()
-			print 'state disabled. unscheduling', self.valueIndex
+			print( 'state disabled. unscheduling ' + str(self.valueIndex) )
 			return
 		if not self._tipwindow:
 			self._tipwindow = Tk.Toplevel(self.master)
@@ -899,21 +892,6 @@ class StageManager( ttk.Frame ):
 
 		return sisFile.getStageMenuName( stageSlotId )
 
-	# def setRsssName( self, internalStageId, newName ):
-
-	# 	""" Sets a new name for this stage on the Random Stage Select Screen. """
-		
-	# 	# Construct the filename to pull the string from
-	# 	if self.stageSwapTable: # Means it's 20XX
-	# 		canvas = self.getCurrentCanvas()
-	# 		filename = '/SdSlChr.{}sd'.format( canvas.pageNumber )
-	# 	else:
-	# 		filename = '/SdSlChr.usd'
-
-	# 	# Get the Sd file and set the new name string
-	# 	sisFile = globalData.disc.files.get( globalData.disc.gameId + filename )
-	# 	sisFile.setStageMenuName( newName )
-
 	def updateBasicInfo( self, stageFile ):
 		
 		rsssName = self.getRsssName( self.selectedStageSlotId ).encode( 'utf8' )
@@ -1325,7 +1303,7 @@ class StageManager( ttk.Frame ):
 		# Find the stage file string in the DOL for the selected stage
 		dolFilenameOffset, dolStageFilename = self.dol.getStageFileName( self.selectedStageSlotId )
 		if dolFilenameOffset == -1:
-			print 'Unable to determine a stage file name for stage ID', hex( self.selectedStageSlotId )
+			globalData.gui.updateProgramStatus( 'Unable to determine a stage file name for stage ID 0x{:X}!'.format(self.selectedStageSlotId), warning=True )
 			return
 		
 		isoPath = globalData.disc.gameId + '/' + dolStageFilename
@@ -1363,7 +1341,7 @@ class StageManager( ttk.Frame ):
 		else:
 			newIntStageId = self.dol.getIntStageIdFromExt( newExtStageId )
 			if newIntStageId == 0x16: # i.e. external stage ID 0x1A, Icicle Mountain (anticipating no hacked stages of this); switch to current Target Test stage
-				print 'Unsupported; target test stage filename undetermined'
+				print( 'Unsupported; target test stage filename undetermined' )
 				self.stageVariationUnselected()
 				return
 
@@ -1814,7 +1792,7 @@ class StageManager( ttk.Frame ):
 			stageObj = globalData.disc.files.get( isoPath )
 
 			if stageObj: # Failsafe; not sure how this could happen
-				print 'selectedStage=None while attempting to import a stage'
+				print( 'selectedStage=None while attempting to import a stage' )
 				success = importSingleFileWithGui( stageObj )
 
 			else: # No file by this name in the disc; it's probably a random neutral stage slot selected. User probably wants to add a new file to disc
@@ -1921,7 +1899,7 @@ class StageManager( ttk.Frame ):
 			isoPath = self.variationsTreeview.item( iid, 'values' )[1]
 			stageObj = globalData.disc.files.get( isoPath )
 			if not stageObj:
-				print 'unused isoPath (first unused variation slot):', isoPath
+				print( 'Unused isoPath (first unused variation slot): ' + isoPath )
 				break
 
 		else: # Loop above didn't break; all slots are filled
@@ -1948,8 +1926,8 @@ class StageManager( ttk.Frame ):
 
 	def renameStage( self, updateProgramStatus=True ):
 
-		""" Prompts the user for a new stage name, and sets it for the stage 
-			currently selected in the Variations treeview. """
+		""" Prompts the user for a new stage name (description stored in the CSS or yaml file 
+			descriptions file), and sets it for the stage currently selected in the Variations treeview. """
 
 		if not self.selectedStage: # Failsafe (the button should be disabled in such a case)
 			msg( 'No stage file is selected!' )
@@ -1968,7 +1946,7 @@ class StageManager( ttk.Frame ):
 				globalData.gui.updateProgramStatus( 'Name update canceled' )
 			return 0
 
-		# Save the new name to file
+		# Save the new name to file (CSS or yaml descriptions file)
 		returnCode = self.selectedStage.setDescription( newName )
 
 		if returnCode != 0 and not updateProgramStatus:
@@ -2000,25 +1978,30 @@ class StageManager( ttk.Frame ):
 
 	def renameRsssName( self ):
 
-		""" Prompts the user for a new stage name, and sets it for the stage 
-			currently selected in the Variations treeview. """
+		""" Prompts the user for a new stage name to display on the Random Stage Select Screen (RSSS). 
+			This is then set in both the SdMenu._sd and SdSlChr._sd files. The SdMenu file is used 
+			when a player accesses the RSSS from the main menus, while the SdSlChr file is used when 
+			a player accesses the RSSS by navigating from the CSS (by clicking on the rules at the top). """
 
 		if not self.selectedStage: # Failsafe (the button should be disabled in such a case)
 			msg( 'No stage file is selected!' )
 			return 0
 			
-		# Construct the filename which contains the string
+		# Construct the filename which contains the stage name strings
 		if self.stageSwapTable: # Means it's 20XX
 			canvas = self.getCurrentCanvas()
 			filename = 'SdMenu.{}sd'.format( canvas.pageNumber )
+			filename2 = 'SdSlChr.{}sd'.format( canvas.pageNumber )
 		else:
 			filename = 'SdMenu.usd'
+			filename2 = 'SdSlChr.usd'
 
-		# Get the Sd file and the current name string
+		# Get the Sd files
 		sisFile = globalData.disc.files.get( globalData.disc.gameId + '/' + filename )
-		currentName = sisFile.getStageMenuName( self.selectedStageSlotId )
+		sisFile2 = globalData.disc.files.get( globalData.disc.gameId + '/' + filename2 )
 		
 		# Prompt the user to enter a new name, and validate it
+		currentName = sisFile.getStageMenuName( self.selectedStageSlotId )
 		newName = getNewNameFromUser( 24, None, 'Enter a new RSSS stage name:', currentName, isMenuText=True ) # 28 = char limit; 0x38 bytes / 2
 
 		if not newName:
@@ -2028,8 +2011,9 @@ class StageManager( ttk.Frame ):
 		# Save the new name to file
 		if newName != currentName:
 			sisFile.setStageMenuName( self.selectedStageSlotId, newName )
+			sisFile2.setStageMenuName( self.selectedStageSlotId, newName )
 			self.updateBasicInfo( self.selectedStage )
-			globalData.gui.updateProgramStatus( 'Stage name updated in the {} file'.format(filename), success=True )
+			globalData.gui.updateProgramStatus( 'Stage name updated in {} and {}'.format(filename, filename2), success=True )
 
 	def renameTreeviewItem( self, targetIsoPath, newName ):
 
@@ -2203,7 +2187,7 @@ class StageSwapEditor( BasicWindow ):
 		else:
 			newIntStageId = self.stageManagerTab.dol.getIntStageIdFromExt( newExtStageId )
 			if newIntStageId == 0x16: # i.e. external stage ID 0x1A, Icicle Mountain (anticipating no hacked stages of this); switch to current Target Test stage
-				print 'Unsupported; target test stage filename undetermined'
+				print( 'Unsupported; target test stage filename undetermined' )
 				return -1, ()
 
 		if newExtStageId == 0:
@@ -2428,8 +2412,8 @@ class StageSwapEditor( BasicWindow ):
 					if not usingRandomByteValue:
 						return intValue, (0, 0, 0, 0)
 					values.append( intValue )
-				except:
-					print 'Unable to convert character to value:', widgetContents
+				except Exception as err:
+					print( 'getByteReplacementValues() was unable to convert character to value: {}; {}'.format(widgetContents, err) )
 
 		# Ensure there are 4 values
 		zeroesToAdd = 4 - len( values )
@@ -2483,8 +2467,8 @@ class StageSwapEditor( BasicWindow ):
 					stringValue = widgetContents[0] # Will raise an error if no character is present
 					stringValue.encode( 'ascii' ) # Will raise an error if not an ASCII character
 					lastValue = ord( stringValue )
-				except:
-					print 'Unable to convert character to value:', widgetContents
+				except Exception as err:
+					print( 'removeRandomByteValue() was unable to convert character to value: {}; {}'.format(widgetContents, err) )
 			elif widgetClass == 'TButton' and lastValue != -1:
 				# Ignore this value if this was the 'Remove' button that was clicked
 				if widget != event.widget:
@@ -2516,7 +2500,6 @@ class StageSwapEditor( BasicWindow ):
 			# Check for illegal characters
 			for char in newString:
 				if char in self.illegalChars:
-					print 'illegal character detected'
 					raise Exception( 'Illegal character detected' )
 
 			# Make sure the string is purely ASCII
@@ -2563,7 +2546,7 @@ class StageSwapEditor( BasicWindow ):
 				raise Exception( 'Illegal character for stage name string.' )
 			failedEncoding = False
 		except Exception as err:
-			print( 'Unable to convert character to value: {} ; {}'.format(newString[0], err) )
+			print( 'Unable to convert character to value: {}; {}'.format(newString[0], err) )
 			failedEncoding = True
 		
 		# Look for a label widget paired with this entry, and update it if found
@@ -2607,7 +2590,7 @@ class StageSwapEditor( BasicWindow ):
 		else:
 			newIntStageId = self.stageManagerTab.dol.getIntStageIdFromExt( extStageId )
 			if newIntStageId == 0x16: # i.e. external stage ID 0x1A, Icicle Mountain (anticipating no hacked stages of this); switch to current Target Test stage
-				print 'Unsupported; target test stage filename undetermined'
+				print( 'Unsupported; target test stage filename undetermined' )
 				return
 			
 			newStageName = globalData.externalStageIds.get( extStageId, 'Unknown' )

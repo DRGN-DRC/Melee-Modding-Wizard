@@ -3040,13 +3040,14 @@ class MicroMelee( Disc ):
 				printStatus( 'Unable to find the Enable OSReport Print on Crash mod in the Core Codes library!', warning=True )
 
 		codesToInstall.append( parser.getModByName('Standard Pause Camera in Dev-Mode Match') )
+		codesToInstall.append( parser.getModByName('Unrestricted Pause Camera') )
 		
 		# Get the music table struct and the default song ID
 		# grGroundParamStruct = stageObj.getStructByLabel( 'grGroundParam' )
 		# musicTableOffset = grGroundParamStruct.getValues( 'Music_Table_Pointer' )
 		# musicTableStruct = stageObj.getStruct( musicTableOffset )
-		musicTableStruct = stageObj.getMusicTableStruct()
-		songId = musicTableStruct.getValues()[1]
+		# musicTableStruct = stageObj.getMusicTableStruct()
+		# songId = musicTableStruct.getValues()[1]
 
 		# Check if we can enable audio (if the music file is present)
 		# musicFile = self.getMusicFile( songId )
@@ -3097,6 +3098,7 @@ class MicroMelee( Disc ):
 		codesToInstall.append( assetTest )
 		
 		codesToInstall.append( parser.getModByName('Standard Pause Camera in Dev-Mode Match') )
+		codesToInstall.append( parser.getModByName('Unrestricted Pause Camera') )
 
 		# Make sure Dolphin is stopped so we can save to the disc
 		globalData.dolphinController.stopAllDolphinInstances()

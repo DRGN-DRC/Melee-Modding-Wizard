@@ -160,6 +160,26 @@ NTSC 1.02 --- 0x8016cb50 ---- 41820068 -> 60000000 # Enable regular VS Pause Cam
 	-==-
 
 
+Unrestricted Pause Camera
+[Achilles]
+Revision ---- DOL Offset ---- Hex to Replace ---------- ASM Code -
+NTSC 1.02 --- 0x80224C24 ---- C0230040 -> 39E00000
+------------- 0x8002F5B0 ---- D03F02F8 -> 91FF02F8
+------------- 0x80224C44 ---- C0230048 -> 3DE04700
+------------- 0x8002F5BC ---- D03F02FC -> 91FF02FC
+------------- 0x80224C5C ---- EC210032 -> 3DE04700
+------------- 0x8002F58C ---- D03F02E8 -> 91FF02E8
+------------- 0x80224C74 ---- EC210032 -> 3DE04700
+------------- 0x8002F594 ---- D03F02EC -> 91FF02EC
+------------- 0x80224C8C ---- EC210032 -> 3DE04700
+------------- 0x8002F5A4 ---- D03F02F4 -> 91FF02F4
+------------- 0x80224CA4 ---- EC210032 -> 3DE04700
+------------- 0x8002F59C ---- D03F02F0 -> 91FF02F0
+
+
+	-==-
+
+
 CSP Camera
 Sets up the camera coordinates and background color for taking CSP screenshots. Also prevents the stage and background from being displayed.
 Configurations: # To be taken from the CSP Configuration file

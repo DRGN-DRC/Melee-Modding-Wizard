@@ -10,10 +10,8 @@
 #		  -  - Melee Modding Wizard -  -  
 
 # Find the official thread here: 
+#		https://smashboards.com/threads/melee-modding-wizard-beta-v0-9-4.517823/
 
-
-# from __future__ import print_function
-# from cProfile import label # Use print with (); preparation for moving to Python 3
 
 # External dependencies
 import math

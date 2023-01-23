@@ -18,6 +18,16 @@ import FileSystem.standaloneStructs as standaloneStructs
 
 class DebugMenuEditor( ttk.Frame ):
 
+	# This is a definition for menu line items in a more human-readable form
+	friendlyTypes = { 
+		0: '0 (Text only)', 
+		1: '1 (Submenu)', 
+		2: '2 (Left/Right String List)',
+		3: '3 (Left/Right Int List)', 
+		8: '8 (Left/Right Float List)', 
+		9: '9 (End of List)'
+	}
+
 	def __init__( self, parent, mainGui ):
 
 		ttk.Frame.__init__( self, parent ) #, padding="11 0 0 11" ) # Padding order: Left, Top, Right, Bottom.
@@ -34,6 +44,7 @@ class DebugMenuEditor( ttk.Frame ):
 		self.typeVar = Tk.StringVar()
 		self.parentMenuVar = Tk.StringVar()
 		self.submenuVar = Tk.StringVar()
+		self.submenuLabelVar = Tk.StringVar( value='Submenu: ' )
 		self.targetFunctionVar = Tk.StringVar()
 
 		# Bottom Row
@@ -62,7 +73,7 @@ class DebugMenuEditor( ttk.Frame ):
 
 		ttk.Label( infoPanel, text='Parent Menu: ' ).grid( column=0, row=5, padx=padx, sticky='e', pady=(12, 0) )
 		ttk.Label( infoPanel, textvariable=self.parentMenuVar ).grid( column=1, row=5, sticky='w', pady=(12, 0) )
-		ttk.Label( infoPanel, text='Submenu: ' ).grid( column=0, row=6, padx=padx, sticky='e' )
+		ttk.Label( infoPanel, textvariable=self.submenuLabelVar ).grid( column=0, row=6, padx=padx, sticky='e' )
 		ttk.Label( infoPanel, textvariable=self.submenuVar ).grid( column=1, row=6, sticky='w' )
 		infoPanel.pack( pady=20, fill='x', expand=1, ipadx=8, ipady=6 )
 
@@ -215,14 +226,16 @@ class DebugMenuEditor( ttk.Frame ):
 		self.menuDisplay.tag_remove( "selected", "1.0", "end" ) # Clear from all rows
 		self.menuDisplay.tag_add( 'selected', '%s.0' % lineNumber, '%s.end' % lineNumber )
 
+		# Get data for the currently selected line for the current menu
 		menuItem = self.menuItems[self.currentMenu][lineNumber-1]
-		friendlyTypes = { 0: '0 (Text only)', 1: '1 (Submenu)', 2: '2 (Left/Right String List)',
-						  3: '3 (Left/Right Int List)', 8: '8 (Left/Right Float List)', 9: '9 (End of List)' }
 
 		# Update display of Line, Offset, and Type information
 		self.lineVar.set( lineNumber )
 		self.offsetVar.set( self.formatPointer(menuItem.address) )
-		self.typeVar.set( friendlyTypes[menuItem.itemType] )
+		if menuItem.itemType == 1 and menuItem.submenuPointer == 8: # A custom line item in 20XX
+			self.typeVar.set( '1 (Infographic)' )
+		else:
+			self.typeVar.set( self.friendlyTypes[menuItem.itemType] )
 		
 		# Set Parent Menu display
 		if self.currentMenu == self.topTableOffset:
@@ -231,7 +244,13 @@ class DebugMenuEditor( ttk.Frame ):
 			self.parentMenuVar.set( self.formatPointer(menuItem.parentMenu) )
 
 		# Set Submenu display
-		self.submenuVar.set( self.formatPointer(menuItem.submenuPointer) )
+		if menuItem.itemType == 1 and menuItem.submenuPointer == 8: # A custom line item in 20XX
+			self.submenuLabelVar.set( 'Target File: ' )
+			asciiHalfword = menuItem.data[0x1A:0x1C].decode() # Last two bytes of what is normally the left/right string list count
+			self.submenuVar.set( 'IfCom{}.dat'.format(asciiHalfword) )
+		else:
+			self.submenuLabelVar.set( 'Submenu: ' )
+			self.submenuVar.set( self.formatPointer(menuItem.submenuPointer) )
 
 		# Target function
 		self.targetFunctionVar.set( self.formatPointer(menuItem.targetFunction) )

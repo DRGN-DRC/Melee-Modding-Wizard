@@ -190,7 +190,7 @@ class CodeChange( object ):
 		self.updateLength( codeLength )
 
 		# if self.isAssembly:
-		# 	print self.mod.name, 'has ASM'
+		# 	print( self.mod.name + ' includes ASM' )
 
 		if self.processStatus == 0:
 			self.preProcessedCode = codeOrErrorNote
