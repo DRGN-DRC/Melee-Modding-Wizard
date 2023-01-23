@@ -290,7 +290,7 @@ class CharDataFile( CharFileBase, DatFile ):
 		attributesPointer = ftDataTable.getValues()[1]
 		propStruct = self.initDataBlock( SpecialCharacterAttributes, attributesPointer, fighterTableOffset )
 
-		# Cast what we're going to edit to lists, so we can use item assignment
+		# Cast what we're going to edit into lists, so we can use item assignment
 		propFieldNames = list( propStruct.fields )
 		propFormatting = list( propStruct.formatting[1:] ) # Excludes '>' character
 		propStruct.notes = [ '' for i in range(len( propStruct.fields )) ]
@@ -299,6 +299,7 @@ class CharDataFile( CharFileBase, DatFile ):
 		attrInfo = self.getAttributesInfo()
 		if attrInfo:
 			offsetsFound = set()
+
 			for offset, attrType, name, note in attrInfo[1:]: # Excludes first entry (character name)
 				# Validate the offset
 				try:

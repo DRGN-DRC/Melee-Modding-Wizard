@@ -58,7 +58,7 @@ class CharModding( ttk.Notebook ):
 		self.populateCharButtons()
 		self.charBtnsTab.pack( pady=20 )
 
-		self.rButtonsFrame = None
+		self.radioButtonsFrame = None
 		self.checkToAddModeButtons()
 
 	def getIconTexturesInfo( self ):
@@ -85,16 +85,16 @@ class CharModding( ttk.Notebook ):
 
 		# Add Radio buttons to switch to SDR/PAL variations if this is 20XX
 		if globalData.disc.is20XX:
-			if not self.rButtonsFrame:
-				self.rButtonsFrame = ttk.Frame( self.selectionTab )
-				ttk.Radiobutton( self.rButtonsFrame, text='Default', value='.dat', variable=self.extSearch, command=self.populateCharButtons ).pack( side='left' )
-				ttk.Radiobutton( self.rButtonsFrame, text='SD Remix', value='.sat', variable=self.extSearch, command=self.populateCharButtons ).pack( side='left' )
-				ttk.Radiobutton( self.rButtonsFrame, text='PAL', value='.pat', variable=self.extSearch, command=self.populateCharButtons ).pack( side='left' )
-				self.rButtonsFrame.pack()
+			if not self.radioButtonsFrame:
+				self.radioButtonsFrame = ttk.Frame( self.selectionTab )
+				ttk.Radiobutton( self.radioButtonsFrame, text='Default', value='.dat', variable=self.extSearch, command=self.populateCharButtons ).pack( side='left' )
+				ttk.Radiobutton( self.radioButtonsFrame, text='SD Remix', value='.sat', variable=self.extSearch, command=self.populateCharButtons ).pack( side='left' )
+				ttk.Radiobutton( self.radioButtonsFrame, text='PAL', value='.pat', variable=self.extSearch, command=self.populateCharButtons ).pack( side='left' )
+				self.radioButtonsFrame.pack()
 
-		elif self.rButtonsFrame:
-			self.rButtonsFrame.destroy()
-			self.rButtonsFrame = None
+		elif self.radioButtonsFrame:
+			self.radioButtonsFrame.destroy()
+			self.radioButtonsFrame = None
 
 	def populateCharButtons( self ):
 
@@ -303,12 +303,27 @@ class CharModding( ttk.Notebook ):
 
 		# Create the properties table for Character Attributes
 		structTable = VerticalScrolledFrame( propertiesTab )
+		currentSection = ''
 		offset = 0
 		row = 0
 		for name, formatting, value, note in zip( attrStruct.fields, attrStruct.formatting[1:], propertyValues, attrStruct.notes ):
 			propertyName = name.replace( '_', ' ' )
+
 			absoluteFieldOffset = attrStruct.offset + offset
 			verticalPadding = ( 0, 0 )
+
+			# Split section and value names, if present
+			if '|' in propertyName:
+				nextSection, propertyName = propertyName.split( '|', 1 )
+			else:
+				print( 'No section given in ' + name )
+				nextSection = ''
+			
+			# Add a section header if appropriate
+			if nextSection and nextSection != currentSection:
+				ttk.Label( structTable.interior, text=nextSection ).grid( columnspan=3, column=0, row=row, padx=(100, 10), pady=(14, 6) )
+				currentSection = nextSection
+				row += 1
 
 			# Add the property label and a tooltip for it
 			fieldLabel = ttk.Label( structTable.interior, text=propertyName + ':', wraplength=200, justify='center' )
