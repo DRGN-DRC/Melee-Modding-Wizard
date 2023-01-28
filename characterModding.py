@@ -335,7 +335,7 @@ class CharModding( ttk.Notebook ):
 			toolTipText = 'Offset in struct: 0x{:X}\nOffset in file: 0x{:X}\nType: {}'.format(offset, 0x20 + absoluteFieldOffset, typeName)
 			if note:
 				toolTipText += '\n\n' + note
-			ToolTip( fieldLabel, text=toolTipText, delay=300 )
+			ToolTip( fieldLabel, text=toolTipText, delay=300, wraplength=400 )
 
 			# Add an editable field for the raw hex data
 			hexEntry = HexEditEntry( structTable.interior, parent.charFile, absoluteFieldOffset, 4, formatting, propertyName, width=11 )
