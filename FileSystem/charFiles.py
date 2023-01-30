@@ -326,7 +326,8 @@ class CharDataFile( CharFileBase, DatFile ):
 					continue
 
 				# Update the field name and format identifier for this entry
-				propFieldNames[valueIndex] = name
+				if name: # Might be empty
+					propFieldNames[valueIndex] = name
 				propFormatting[valueIndex] = attrType
 				propStruct.notes[valueIndex] = note
 
