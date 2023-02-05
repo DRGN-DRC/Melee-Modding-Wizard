@@ -301,7 +301,7 @@ class CharModding( ttk.Notebook ):
 				 parent=globalData.gui,
 				 error=True )
 
-		# Create the properties table for Character Attributes
+		# Create the properties table for Special Character Attributes
 		structTable = VerticalScrolledFrame( propertiesTab )
 		currentSection = ''
 		offset = 0
@@ -315,6 +315,8 @@ class CharModding( ttk.Notebook ):
 			# Split section and value names, if present
 			if '|' in propertyName:
 				nextSection, propertyName = propertyName.split( '|', 1 )
+				if not propertyName:
+					propertyName = 'Unknown 0x{:X}'.format( offset )
 			else:
 				print( 'No section given in ' + name )
 				nextSection = ''
