@@ -46,7 +46,7 @@ class MexRootData( StructBase ):
 		return True
 
 
-class MexData( DatFile ):
+class MexData( DatFile ): # The MxDt.dat file
 
 	def getVersion( self ):
 

@@ -318,7 +318,6 @@ class CharModding( ttk.Notebook ):
 				if not propertyName:
 					propertyName = 'Unknown 0x{:X}'.format( offset )
 			else:
-				print( 'No section given in ' + name )
 				nextSection = ''
 			
 			# Add a section header if appropriate
