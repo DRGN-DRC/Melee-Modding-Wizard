@@ -898,9 +898,27 @@ class ImageDataBlock( DataBlock ):
 
 		return int( trueWidth * trueHeight * byteMultiplier[imageType] )
 
+	@staticmethod
+	def getMipmapLength( baseLevelSize, mipmapCount ):
+
+		""" Calculates the total size of an image and all of its mipmap levels. """
+
+		totalSize = baseLevelSize
+
+		for mipmapDepth in range( 1, mipmapCount ):
+			textureSize = baseLevelSize >> ( mipmapDepth * 2 )
+			
+			if textureSize < 0x20:
+				totalSize += 0x20 # A texture can't be smaller than this
+			else:
+				totalSize += textureSize
+
+		return totalSize
+
 	def getAttributes( self ):
 
-		""" Overidden to be more specific with struct initialization (avoiding structure factory for efficiency). """
+		""" Overidden to be more specific with struct initialization (avoiding structure factory for efficiency). 
+			The returned values should be: (imageDataOffset, width, height, imageType, mipMapFlag, minLOD, maxLOD) """
 
 		aHeaderOffset = self.getAnyDataSectionParent()
 		return self.dat.initSpecificStruct( ImageObjDesc, aHeaderOffset ).getValues()

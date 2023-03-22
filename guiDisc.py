@@ -238,7 +238,7 @@ class DiscTab( ttk.Frame ):
 			bannerImage = globalData.gui.discTab.bannerCanvas.pilImage
 		else:
 			bannerFile = globalData.disc.getBannerFile()
-			bannerImage = bannerFile.getBanner( getAsPilImage=True )
+			bannerImage = bannerFile.getTexture( 0x20, getAsPilImage=True )
 		canvas.pilImage = bannerImage
 		canvas.bannerGCstorage = ImageTk.PhotoImage( bannerImage )
 
@@ -1070,6 +1070,13 @@ class DiscTab( ttk.Frame ):
 		else:
 			printStatus( 'Imports complete ({} files imported)'.format(len(filePaths)), success=True )
 
+	# def importMultipleTextures( self ):
+
+	# 	# Prompt the user to import one or more textures
+	# 	textureFilePaths = importMultipleTextures()
+	# 	if not textureFilePaths:
+	# 		return
+
 	def restoreFiles( self ):
 
 		""" Replaces the currently selected file(s) with vanilla (unmodified originals) 
@@ -1134,23 +1141,25 @@ class DiscTab( ttk.Frame ):
 
 	def browseTexturesFromDisc( self ):
 		mainGui = globalData.gui
+
 		fileObj = self.getSingleFileSelection()
 		if not fileObj: return
 
 		# Get the selected file and check whether it has textures (has a method to get them)
 		if not hasattr( fileObj, 'identifyTextures' ):
-			globalData.gui.updateProgramStatus( 'Uhh...' )
+			printStatus( 'Uhh...', warning=True )
 			msg( "This type of file doesn't appear to have any textures." )
 			return
 
 		# Load the tab if it's not already present
 		if not mainGui.texturesTab:
 			mainGui.texturesTab = TexturesEditor( mainGui.mainTabFrame, mainGui )
-		
-		mainGui.texturesTab.addTab( fileObj )
 
 		# Switch to the tab
 		mainGui.mainTabFrame.select( mainGui.texturesTab )
+		
+		# Add a tab for the current file and populate it
+		mainGui.texturesTab.addTab( fileObj )
 		mainGui.playSound( 'menuSelect' )
 
 	def analyzeFileFromDisc( self ):
@@ -1833,13 +1842,13 @@ class DiscDetailsTab( ttk.Frame ):
 		# Get the disc file and save the banner image data to it
 		bannerFile = globalData.disc.getBannerFile()
 		try:
-			returnCode = bannerFile.setBanner( imagePath=imagePath )
+			returnCode = bannerFile.setTexture( 0x20, imagePath=imagePath )[0]
 		except Exception as err:
 			msg( 'An unexpected error occurred importing the texture: {}'.format(err), 'Import Error', error=True )
 			return
 
 		# Give a warning or success message
-		if returnCode == 1:
+		if returnCode == 2:
 			msg( 'The given image does not have the correct dimensions. The banner image should be 96x32 pixels.', 'Invalid Dimensions', warning=True )
 		elif returnCode == 0:
 			printStatus( 'Banner texture imported', success=True )

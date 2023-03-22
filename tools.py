@@ -17,7 +17,6 @@ import time
 import math
 import codecs
 import psutil
-import struct
 import win32gui
 import subprocess
 import win32process
@@ -32,13 +31,12 @@ from PIL import ImageGrab, Image, ImageTk
 
 # Internal dependencies
 import globalData
-import FileSystem
 import FileSystem.hsdStructures as hsdStructures
 
 from newTkDnD.tkDnD import TkDnD
 from FileSystem.disc import Disc
-from FileSystem import CharCostumeFile
 from codeMods import CodeLibraryParser
+from FileSystem import CharCostumeFile
 from basicFunctions import msg, saveAndShowTempFileData, uHex, cmdChannel, printStatus, humansize
 from guiSubComponents import ( 
 	BasicWindow, CharacterColorChooser, ColoredLabelButton, 

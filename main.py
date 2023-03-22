@@ -45,7 +45,7 @@ from FileSystem import CssFile, SssFile, StageFile, MusicFile
 from FileSystem.disc import Disc, isExtractedDirectory
 from basicFunctions import grammarfyList, msg, openFolder
 from guiSubComponents import (
-		ToolTip, cmsg, importGameFiles, 
+		ToolTip, importGameFiles, cmsg, 
 		CharacterChooser
 	)
 from guiDisc import DiscTab, DiscDetailsTab
@@ -1676,7 +1676,7 @@ class MainGui( Tk.Frame, object ):
 		if forceUpdate:
 			self.statusLabel.update()
 
-	def imageBank( self, imageName, subFolder='', showWarnings=True ):
+	def imageBank( self, imageName, subFolder='', showWarnings=True, getAsPilImage=False ):
 
 		""" Loads and stores images required by the GUI. This allows all of the images to be 
 			stored together in a similar manner, and ensures references to all of the loaded 
@@ -1699,7 +1699,10 @@ class MainGui( Tk.Frame, object ):
 			
 			# Get the image
 			try:
-				image = self._imageBank[imageName] = ImageTk.PhotoImage( Image.open(imagePath) )
+				if getAsPilImage:
+					image = self._imageBank[imageName] = Image.open(imagePath)
+				else:
+					image = self._imageBank[imageName] = ImageTk.PhotoImage( Image.open(imagePath) )
 			except:
 				if showWarnings:
 					print( 'Unable to load the image, "' + imagePath + '"' )
@@ -1848,21 +1851,20 @@ class MainGui( Tk.Frame, object ):
 		elif self.codeManagerTab: # Not selected, but it exists
 			self.codeManagerTab.emptyModsPanels() # For improved GUI performance
 
-		# 		v  Keep for when these tabs are added.  v
+		# Update the height for entries in Treeview widgets, which can't be specified per-widget-instance
+		if currentTab == self.texturesTab:
+			ttk.Style().configure( 'Treeview', rowheight=76 )
 
-		# if currentTab == self.datTab:
-		# 	ttk.Style().configure( 'Treeview', rowheight=76 )
+			# if globalDatFile and not self.datTextureTree.get_children():
+			# 	# May not have been scanned for textures yet (or none were found).
+			# 	scanDat()
 
-		# 	if globalDatFile and not self.datTextureTree.get_children():
-		# 		# May not have been scanned for textures yet (or none were found).
-		# 		scanDat()
+		else:
+			ttk.Style().configure( 'Treeview', rowheight=20 )
 
-		# else:
-		# 	ttk.Style().configure( 'Treeview', rowheight=20 )
-
-		# 	if globalDatFile and currentTab == self.savTab and not self.fileStructureTree.get_children():
-		# 		# SAV tab hasn't been populated yet. Perform analysis.
-		# 		analyzeDatStructure()
+			# if globalDatFile and currentTab == self.savTab and not self.fileStructureTree.get_children():
+			# 	# SAV tab hasn't been populated yet. Perform analysis.
+			# 	analyzeDatStructure()
 
 	def onMouseWheelScroll( self, event ):
 

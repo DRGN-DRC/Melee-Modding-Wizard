@@ -19,15 +19,18 @@ import tkFileDialog
 import Tkinter as Tk
 
 from binascii import hexlify
-from PIL import Image, ImageTk
+from tkColorChooser import askcolor
+from PIL import Image, ImageTk, ImageDraw, ImageOps
 
 # Internal dependencies
 import globalData
 import FileSystem
 
 from ScrolledText import ScrolledText
-from basicFunctions import createFolders, grammarfyList, printStatus, reverseDictLookup, uHex, humansize, msg, getFileMd5, validHex
-from tplCodec import TplEncoder
+from basicFunctions import ( createFolders, grammarfyList, printStatus, 
+							uHex, humansize, validHex, rgb2hex, hex2rgb, msg, getFileMd5, 
+							validHex, constructTextureFilename )
+from tplCodec import TplEncoder, TplDecoder
 
 
 def getWindowGeometry( topLevelWindow ):
@@ -228,7 +231,18 @@ def exportSingleTexture( defaultFilename, texture=None, fileObj=None, textureOff
 		The 'defaultFilename' argument should include a file extension (typically .png). 
 		The 'texture' argument should be a PIL image, or a fileObject plus texture offset must be given. 
 		Updates the default directory to search in when opening or exporting files. 
-		Also handles updating the GUI with the operation's success/failure status. """	
+		Also handles updating the GUI with the operation's success/failure status. """
+
+	# Get and validate the export format to be used.
+	exportFormat = globalData.checkSetting( 'textureExportFormat' ).lower().replace( '.', '' )
+	if exportFormat != 'png' and exportFormat != 'tpl':
+		msg( 'The default export format setting (textureExportFormat) is invalid! '
+			 'The format must be PNG or TPL. Check the settings.ini file to resolve this.' )
+		return
+
+	# Set up the drop-down list to save the file as a certain type
+	if exportFormat == 'png': filetypes = [('PNG files', '*.png'), ('TPL files', '*.tpl'), ("All files", "*.*")]
+	else: filetypes = [('TPL files', '*.tpl'), ('PNG files', '*.png'), ("All files", "*.*")]
 
 	# Prompt for a place to save the file. (Excluding defaultextension arg to give user more control, as it may silently append ext in some cases)
 	savePath = tkFileDialog.asksaveasfilename(
@@ -236,13 +250,14 @@ def exportSingleTexture( defaultFilename, texture=None, fileObj=None, textureOff
 		parent=globalData.gui.root,
 		initialdir=globalData.getLastUsedDir( 'dat' ), # Assuming this texture will be saved with its dat
 		initialfile=defaultFilename,
-		filetypes=[( "PNG files", '*.png' ), ("TPL files", '*.tpl' ), ( "All files", "*.*" )] )
+		filetypes=filetypes )
 
 	# The above will return an empty string if the user canceled
-	if not savePath: return ''
+	if not savePath:
+		return ''
 
 	# Update the default directory to start in when opening or exporting files.
-	globalData.setLastUsedDir( directoryPath, 'dat' )
+	globalData.setLastUsedDir( directoryPath, 'png' )
 
 	# Make sure folders exist for the chosen destination
 	directoryPath = os.path.dirname( savePath ) # Used at the end of this function
@@ -295,23 +310,191 @@ def exportSingleTexture( defaultFilename, texture=None, fileObj=None, textureOff
 
 	return returnCode
 
-def importSingleTexture( title='Choose a texture file to import' ):
+
+def exportMultipleTextures( texturesTab, exportAll=False ):
+
+	""" Exports some (what's selected) or all textures from the DAT Texture Tree of a specific file. """
+
+	# Get a list of the items in the treeview to export
+	datTextureTree = texturesTab.datTextureTree
+	if exportAll:
+		iidSelectionsTuple = datTextureTree.get_children()
+	else:
+		iidSelectionsTuple = datTextureTree.selection()
+
+	# Make sure there are textures selected to export, and a file loaded to export from
+	if not iidSelectionsTuple or not texturesTab.file:
+		msg( 'No texture is selected.' )
+		return
+
+	# Get and validate the export format to be used.
+	exportFormat = globalData.checkSetting( 'textureExportFormat' ).lower().replace( '.', '' )
+	if exportFormat != 'png' and exportFormat != 'tpl':
+		msg( 'The default export format setting (textureExportFormat) is invalid! '
+			 'The format must be PNG or TPL. Check the settings.ini file to resolve this.' )
+		return
+
+	directoryPath = ''
+	textureFilename = ''
+	problemFiles = []
+	workingFile = 1
+
+	if len( iidSelectionsTuple ) == 1:
+		# Construct a default filename
+		# imageDataOffset, imageDataLength, width, height, imageType = datTextureTree.item( iid, 'values' )[3:]
+		# textureDetails = int(imageDataOffset), int(imageDataLength), int(width), int(height), int(imageType)
+		
+		# Get the texture struct
+		imageDataOffset = int( iidSelectionsTuple[0] )
+		texture = texturesTab.file.structs.get( imageDataOffset )
+		#textureDetails = ( imageDataOffset, texture.imageDataLength, texture.width, texture.height, texture.imageType )
+		mipmapLevel = texturesTab.getMipmapLevel( iidSelectionsTuple[0] )
+
+		#defaultFilename = constructTextureFilename( texturesTab.file, iidSelectionsTuple[0], textureDetails=textureDetails )
+		defaultFilename = constructTextureFilename( texture, mipmapLevel )
+
+		# Set up the drop-down list to save the file as a certain type
+		if exportFormat == 'png': filetypes = [('PNG files', '*.png'), ('TPL files', '*.tpl'), ("All files", "*.*")]
+		else: filetypes = [('TPL files', '*.tpl'), ('PNG files', '*.png'), ("All files", "*.*")]
+
+		validExt = False
+		while not validExt:
+			# Prompt for a filename, and a place to save the file.
+			savePath = tkFileDialog.asksaveasfilename(
+				title="Where would you like to export the file?",
+				initialdir=globalData.getLastUsedDir( 'dat' ), # Assuming this texture will be saved with its dat
+				initialfile=defaultFilename,
+				defaultextension='.' + exportFormat,
+				filetypes=filetypes )
+
+			# Check the extension to see if it's valid (or just exit the loop if cancel was pressed).
+			exportFormat = savePath[-3:].lower()
+			if exportFormat == 'png' or exportFormat == 'tpl' or savePath == '': validExt = True
+			else: msg( 'Textures may only be exported in PNG or TPL format.' )
+
+		# If a path was given, get the directory chosen for the file
+		if savePath:
+			directoryPath = os.path.dirname( savePath )
+			textureFilename = os.path.basename( savePath )
+
+	else: # Multiple textures selected for export
+		# Instead of having the user choose a file name and save location, have them choose just the save location.
+		directoryPath = tkFileDialog.askdirectory(
+			title='Where would you like to save these textures?',
+			initialdir=globalData.getLastUsedDir( 'dat' ), # Assuming this texture will be saved with its dat
+			parent=globalData.gui.root,
+			mustexist=True )
+
+	if not directoryPath: # The dialog box was canceled
+		return
+	
+	tic = time.time()
+	#Gui.programStatus.set( 'Exporting Texture ' + str(workingFile) + '....' )
+
+	for iid in iidSelectionsTuple:
+		# Set us up the GUI
+		printStatus( 'Exporting Texture ' + str(workingFile) + '...' )
+		workingFile += 1
+
+		# Collect data/info on this texture
+		# imageDataOffset, imageDataLength, width, height, imageType = datTextureTree.item( iid, 'values' )[3:]
+		# textureDetails = int(imageDataOffset), int(imageDataLength), int(width), int(height), int(imageType)
+		imageDataOffset = int( iid )
+		texture = texturesTab.file.structs.get( imageDataOffset )
+		width, height, imageType = texture.width, texture.height, texture.imageType
+		imageData = texturesTab.file.getData( imageDataOffset, texture.imageDataLength )
+
+		# Construct a filepath/location to save the image to
+		if textureFilename: # May be a custom name from the user if only one texture is being exported.
+			savePath = directoryPath + '/' + textureFilename
+		else:
+			#textureDetails = ( imageDataOffset, texture.imageDataLength, width, height, imageType )
+			#savePath = directoryPath + '/' + constructTextureFilename( texturesTab.file, iid, textureDetails=textureDetails ) + '.' + exportFormat
+			mipmapLevel = texturesTab.getMipmapLevel( iid )
+			savePath = directoryPath + '/' + constructTextureFilename( texture, mipmapLevel ) + '.' + exportFormat
+
+		# Collect the palette data, if needed
+		if imageType == 8 or imageType == 9 or imageType == 10:
+			paletteData, paletteType = texturesTab.file.getPaletteData( imageDataOffset, imageData=imageData, imageType=imageType )
+			if not paletteData:
+				msg( 'A color palette could not be found for the texture at offset ' + uHex(0x20+imageDataOffset) + '. This texture will be skipped.' )
+				continue
+		else:
+			paletteData = ''
+			paletteType = None
+
+		try: # Save the file to be exported
+			if exportFormat == 'tpl':
+				tplImage = TplEncoder( imageDimensions=(width, height), imageType=imageType, paletteType=paletteType )
+				tplImage.encodedImageData = imageData
+				tplImage.encodedPaletteData = paletteData
+				tplImage.createTplFile( savePath )
+
+			elif exportFormat == 'png': # Decode the image data
+				pngImage = TplDecoder( '', (width, height), imageType, paletteType, imageData, paletteData )
+				pngImage.deblockify()
+				pngImage.createPngFile( savePath, creator='DTW - v' + globalData.programVersion )
+
+		except Exception as err:
+			print( 'Error during texture decoding/saving: {}'.format(err) )
+			problemFiles.append( os.path.basename(savePath) )
+
+	# Finished with file export/creation loop.
+	print( 'time to complete exports: ' + str(time.time()-tic) )
+
+	# Update the default directory to start in when opening or exporting files.
+	globalData.setLastUsedDir( os.path.dirname(savePath), category='png' )
+
+	# Give an error message for any problems encountered.
+	if problemFiles:
+		msg( "There was an unknown problem while exporting these files:\n\n" + '\n'.join(problemFiles), 'Export Error', error=True )
+		successfulExports = len( iidSelectionsTuple ) - len( problemFiles )
+		printStatus( 'Export Error; {} textures exported of {}'.format( successfulExports, len(iidSelectionsTuple)), error=True )
+	else:
+		printStatus( 'Export Successful', success=True )
+
+
+def importSingleTexture( title='Choose a texture file to import (PNG or TPL)' ):
 
 	# Prompt to select the file to import
 	imagePath = tkFileDialog.askopenfilename( # Will return a unicode string (if one file selected), or a tuple
 		title=title,
 		parent=globalData.gui.root,
-		initialdir=globalData.getLastUsedDir( 'dat' ), # Going to assume these files are with a DAT recently worked with
+		initialdir=globalData.getLastUsedDir( 'png' ),
 		filetypes=[ ('PNG files', '*.png'), ('TPL files', '*.tpl'), ('All files', '*.*') ],
 		multiple=False
 		)
 
 	# The above will return an empty string if the user canceled
-	if not imagePath:
+	if imagePath:
 		# Update the default directory to start in when opening or exporting files
-		globalData.setLastUsedDir( imagePath, 'dat' )
+		globalData.setLastUsedDir( imagePath, 'png' )
 
 	return imagePath
+
+
+def importMultipleTextures():
+
+	""" Prompt the user to select one or more textures from their system, 
+		and return a list of those filepaths. """
+		
+	# Prompt to select the file(s) to import.
+	textureFilepaths = tkFileDialog.askopenfilename( # Will return a unicode string (if one file selected), or a tuple
+		title="Choose one or more texture files to import (PNG or TPL).",
+		initialdir=globalData.getLastUsedDir( 'png' ),
+		filetypes=[ ('PNG files', '*.png'), ('TPL files', '*.tpl'), ('All files', '*.*') ],
+		multiple=True
+	)
+
+	if textureFilepaths:
+		# Normalize the input into list form
+		if not isinstance( textureFilepaths, list ) and not isinstance( textureFilepaths, tuple ): 
+			textureFilepaths = [textureFilepaths]
+
+		# Update the default directory to start in when opening or exporting files.
+		globalData.setLastUsedDir( os.path.dirname(textureFilepaths[0]), 'png' )
+
+		return textureFilepaths
 
 
 def checkTextLen( text, isMenuText ):
@@ -1018,9 +1201,150 @@ class VanillaDiscEntry( PopupEntryWindow ):
 		self.entry.bind( '<Return>', self.validate )
 
 
-class HexEditEntry( Tk.Entry ):
+class DataEntryWidgetBase( object ):
 
-	""" Used for struct hex or value display and editing. 
+	""" Provides a few common methods for various data entry widgets for updating 
+		the data that has been input to them into their respective file. """
+
+	def updateDataInFile( self, newData ):
+		
+		""" Replaces the data in the file for each offset location. """
+
+		if type( self.offsets ) == list:
+			for offset in self.offsets:
+				updateName = 'Offset ' + uHex( 0x20 + offset )
+				descriptionOfChange = updateName + ' modified in ' + self.fileObj.filename
+				self.fileObj.updateData( offset, newData, descriptionOfChange )
+		else:
+			# The offsets attribute is just a single value (the usual case)
+			descriptionOfChange = self.updateName + ' modified in ' + self.fileObj.filename
+			self.fileObj.updateData( self.offsets, newData, descriptionOfChange )
+
+	def updateHex( self, newHex ):
+
+		""" Validates widget input, checks if it's new/different from what's in the file, 
+			and updates the data in the file if it differs. Also triggers updating of any paired widgets. """
+
+		# Validate the input
+		#newHex = self.get().zfill( self.byteLength * 2 ).upper() # Pads the string with zeroes to the left if not enough characters
+		if not validHex( newHex ):
+			msg( 'The entered text is not valid hexadecimal!' )
+			return
+
+		# Confirm whether updating is necessary by checking if this is actually new data for any of the offset locations
+		if type( self.offsets ) == list:
+			for offset in self.offsets:
+				currentFileHex = hexlify( self.fileObj.getData(offset, self.byteLength) ).upper()
+				if currentFileHex != newHex: # Found a difference
+					break
+			else: # The loop above didn't break; no change found
+				return # No change to be updated
+		else: # The offsets attribute is just a single value (the usual case)
+			currentFileHex = hexlify( self.fileObj.getData(self.offsets, self.byteLength) ).upper()
+			if currentFileHex == newHex:
+				return # No change to be updated
+
+		# Get the data as a bytearray, and check for other GUI components that may need to be updated
+		newData = bytearray.fromhex( newHex )
+
+		if len( newData ) != self.byteLength: # Due to the zfill above, this should only happen if the hex entry is too long
+			msg( 'The new value must be {} characters ({} bytes) long.'.format(self.byteLength*2, self.byteLength) )
+			return
+
+		elif self.valueEntryWidget and self.formatting:
+			# Check that the appropriate value can be decoded from this hex (if formatting is available)
+			try:
+				decodedValue = struct.unpack( '>' + self.formatting, newData )[0]
+			except Exception as err:
+				# Construct and display an error message for the user
+				dataTypes = { 	'?': 'a boolean', 'b': 'a signed character', 'B': 'an unsigned character', 	# 1-byte
+								'h': 'a signed short (halfword)', 'H': 'an unsigned short',				# 2-bytes
+								'i': 'a signed integer', 'I': 'an unsigned integer', 'f': 'a float' } # 4-bytes
+				if self.formatting in dataTypes:
+					expectedLength = struct.calcsize( self.formatting )
+					msg( 'The entered value is invalid for {} value (should be {} byte(s) long).'.format( dataTypes[self.formatting], expectedLength ) )
+				else: # I tried
+					msg( 'The entered value is invalid.' )
+				print( 'Error encountered unpacking hex entry data; {}'.format(err) )
+				return
+
+			# Update the data shown in the neighboring, decoded value widget
+			self.valueEntryWidget.set( decodedValue )
+			self.valueEntryWidget.configure( background='#faa' )
+
+		# Change the background color of the widget, to show that changes have been made to it and are pending saving.
+		self.configure( background='#faa' )
+
+		# If this entry has a color swatch associated with it, redraw it
+		if self.colorSwatchWidget:
+			self.colorSwatchWidget.renderCircle( newHex )
+
+		# Update the hex shown in the widget (in case the user-entered value was zfilled; i.e. was not long enough)
+		self.delete( 0, 'end' )
+		self.insert( 0, newHex )
+
+		self.updateDataInFile( newData )
+
+		globalData.gui.updateProgramStatus( self.updateName + ' updated' )
+
+	def updateValue( self, event=None ):
+
+		""" Validates widget input, checks if it's new/different from what's in the file, 
+			and updates the data in the file if it differs. Also triggers updating of any paired widgets. """
+
+		# Validate the entered value by making sure it can be correctly encoded
+		try:
+			if self.formatting == 'f':
+				newHex = hexlify( struct.pack( '>f', float(self.get()) ) ).upper()
+			else:
+				newHex = hexlify( struct.pack( '>' + self.formatting, int(self.get()) ) ).upper()
+		except Exception as err:
+			# Construct and display an error message for the user
+			dataTypes = { 	'?': 'a boolean', 'b': 'a signed character', 'B': 'an unsigned character', 	# 1-byte
+							'h': 'a signed short (halfword)', 'H': 'an unsigned short',				# 2-bytes
+							'i': 'a signed integer', 'I': 'an unsigned integer', 'f': 'a float' } # 4-bytes
+			if self.formatting in dataTypes:
+				msg( 'The entered value is invalid for {} value.'.format( dataTypes[self.formatting] ) )
+			else: # I tried
+				msg( 'The entered value is invalid.' )
+			print( 'Error encountered packing value entry data; {}'.format(err) )
+			return
+
+		# Confirm whether updating is necessary by checking if this is actually new data for any of the offset locations
+		if type( self.offsets ) == list:
+			for offset in self.offsets:
+				currentFileHex = hexlify( self.fileObj.getData(offset, self.byteLength) ).upper()
+				if currentFileHex != newHex: # Found a difference
+					break
+			else: # The loop above didn't break; no change found
+				return # No change to be updated
+		else: # The offsets attribute is just a single value (the usual case)
+			currentFileHex = hexlify( self.fileObj.getData(self.offsets, self.byteLength) ).upper()
+			if currentFileHex == newHex:
+				return # No change to be updated
+
+		# Change the background color of the widget, to show that changes have been made to it and are pending saving.
+		if self.__class__ == HexEditDropdown:
+			self.configure( style='Edited.TMenubutton' )
+		else:
+			self.configure( background='#faa' )
+
+		# Update the data shown in the neiboring widget
+		if self.hexEntryWidget:
+			self.hexEntryWidget.delete( 0, 'end' )
+			self.hexEntryWidget.insert( 0, newHex )
+			self.hexEntryWidget.configure( background='#faa' )
+
+		# Replace the data in the file for each location
+		newData = bytearray.fromhex( newHex )
+		self.updateDataInFile( newData )
+
+		globalData.gui.updateProgramStatus( self.updateName + ' updated' )
+
+
+class HexEditEntry( Tk.Entry, DataEntryWidgetBase ):
+
+	""" Used for displaying some hex data or some value to the user for editing. 
 		"dataOffsets" will typically be a single int value, but may also be a list of offsets. """
 
 	def __init__( self, parent, targetFile, dataOffsets, byteLength, formatting, updateName='', valueEntry=False, width=-1 ):
@@ -1073,7 +1397,7 @@ class HexEditEntry( Tk.Entry ):
 		if valueEntry:
 			self.bind( '<Return>', self.updateValue )
 		else:
-			self.bind( '<Return>', self.updateHex )
+			self.bind( '<Return>', self.updateHexData )
 
 	def set( self, value ):
 		
@@ -1083,148 +1407,114 @@ class HexEditEntry( Tk.Entry ):
 		self.delete( 0, 'end' )
 		self.insert( 0, value )
 
-	def updateDataInFile( self, newData ):
-		
-		""" Replaces the data in the file for each offset location. """
-
-		if type( self.offsets ) == list:
-			for offset in self.offsets:
-				updateName = 'Offset ' + uHex( 0x20 + offset )
-				descriptionOfChange = updateName + ' modified in ' + self.fileObj.filename
-				self.fileObj.updateData( offset, newData, descriptionOfChange )
-		else:
-			# The offsets attribute is just a single value (the usual case)
-			descriptionOfChange = self.updateName + ' modified in ' + self.fileObj.filename
-			self.fileObj.updateData( self.offsets, newData, descriptionOfChange )
-
-	def updateHex( self, event ):
-
-		""" Validates widget input, checks if it's new/different from what's in the file, 
-			and updates the data in the file if it differs. Also triggers updating of any paired widgets. """
-
-		# Validate the input
+	def updateHexData( self, event ):
 		newHex = self.get().zfill( self.byteLength * 2 ).upper() # Pads the string with zeroes to the left if not enough characters
-		if not validHex( newHex ):
-			msg( 'The entered text is not valid hexadecimal!' )
-			return
+		self.updateHex( newHex )
 
-		# Confirm whether updating is necessary by checking if this is actually new data for any of the offset locations
-		if type( self.offsets ) == list:
-			for offset in self.offsets:
-				currentFileHex = hexlify( self.fileObj.getData(offset, self.byteLength) ).upper()
-				if currentFileHex != newHex: # Found a difference
-					break
-			else: # The loop above didn't break; no change found
-				return # No change to be updated
-		else: # The offsets attribute is just a single value (the usual case)
-			currentFileHex = hexlify( self.fileObj.getData(self.offsets, self.byteLength) ).upper()
-			if currentFileHex == newHex:
-				return # No change to be updated
 
-		# Get the data as a bytearray, and check for other GUI compoenents that may need to be updated
-		newData = bytearray.fromhex( newHex )
-		decodedValue = None
+class EnumOptionMenu( ttk.OptionMenu ):
 
-		if len( newData ) != self.byteLength: # Due to the zfill above, this should only happen if the hex entry is too long
-			msg( 'The new value must be {} characters ({} bytes) long.'.format(self.byteLength*2, self.byteLength) )
-			return
-		elif self.valueEntryWidget and self.formatting:
-			# Check that the appropriate value can be decoded from this hex (if formatting is available)
-			try:
-				decodedValue = struct.unpack( '>' + self.formatting, newData )[0]
-			except Exception as err:
-				# Construct and display an error message for the user
-				dataTypes = { 	'?': 'a boolean', 'b': 'a signed character', 'B': 'an unsigned character', 	# 1-byte
-								'h': 'a signed short (halfword)', 'H': 'an unsigned short',				# 2-bytes
-								'i': 'a signed integer', 'I': 'an unsigned integer', 'f': 'a float' } # 4-bytes
-				if self.formatting in dataTypes:
-					expectedLength = struct.calcsize( self.formatting )
-					msg( 'The entered value is invalid for {} value (should be {} byte(s) long).'.format( dataTypes[self.formatting], expectedLength ) )
-				else: # I tried
-					msg( 'The entered value is invalid.' )
-				print( 'Error encountered unpacking hex entry data; {}'.format(err) )
-				return
+	def __init__( self, parent, structures, fieldIndex ):
+		self.structures = structures
+		self.fieldIndex = fieldIndex
 
-		# Change the background color of the widget, to show that changes have been made to it and are pending saving.
-		self.configure( background='#faa' )
+		if type( structures ) == list:
+			structure = structures[0]
+		else: # It's just one structure object
+			structure = structures
 
-		# If this entry has a color swatch associated with it, redraw it
-		if self.colorSwatchWidget:
-			self.colorSwatchWidget.renderCircle( newHex )
+		# Get the current value of the enumeration
+		self.currentEnum = structure.getValues()[fieldIndex]
+		self.fieldName = structure.fields[fieldIndex]
 
-		# Update the hex shown in the widget (in case the user-entered value was zfilled; i.e. was not long enough)
-		self.delete( 0, 'end' )
-		self.insert( 0, newHex )
+		# Enumerations must be provided by the structure class
+		self.enumerations = structure.enums[self.fieldName] # Retrieves a dictionary of the form key=enumInt, value=enumNameString
+		self.optionNames = self.enumerations.values()
+		defaultOption = self.enumerations[self.currentEnum]
+		textVar = Tk.StringVar() # Required to init the optionmenu
 
-		# Update the data shown in the neighboring, decoded value widget
-		if decodedValue:
-			self.valueEntryWidget.set( decodedValue )
-			self.valueEntryWidget.configure( background='#faa' )
+		ttk.OptionMenu.__init__( self, parent, textVar, defaultOption, *self.optionNames, command=self.optionSelected )
 
-		self.updateDataInFile( newData )
+	def optionSelected( self, newOption ):
+		# Convert the option name to the enumeration value
+		newEnum = self.optionNames.index( newOption )
 
-		globalData.gui.updateProgramStatus( self.updateName + ' updated' )
+		if newEnum == self.currentEnum:
+			return # Nothing to do here
 
-	def updateValue( self, event ):
+		# Replace the data in the file and structure for each one
+		updateName = self.fieldName.replace( '\n', ' ' )
+		descriptionOfChange = updateName + ' modified in ' + self.structures[0].dat.fileName
+		if type( self.structures ) == list:
+			for structure in self.structures:
+				structure.dat.updateStructValue( structure, self.fieldIndex, newEnum, descriptionOfChange )
+		else: # The offsets attribute is just a single struct (the usual case)
+			self.structures[0].dat.updateStructValue( self.structures, self.fieldIndex, newEnum, descriptionOfChange )
 
-		""" Validates widget input, checks if it's new/different from what's in the file, 
-			and updates the data in the file if it differs. Also triggers updating of any paired widgets. """
+		printStatus( updateName + ' Updated' )
 
-		# if event.__class__ == HexEditDropdown:
-		# 	widget = event
-		# else:
-		# 	widget = event.widget
 
-		# Validate the entered value by making sure it can be correctly encoded
-		try:
-			formatting = self.formatting
+class ColorSwatch( ttk.Label, DataEntryWidgetBase ):
 
-			if formatting == 'f':
-				newHex = hexlify( struct.pack( '>f', float(self.get()) ) ).upper()
+	""" Creates a circular image (on a label widget), to show a color example and allow for editing it.
+		hexColor should be an 8 character hex string of RRGGBBAA """
+
+	def __init__( self, parent, hexColor, entryWidget=None ):
+		# Create the label itself and bind the click even handler to it
+		ttk.Label.__init__( self, parent, cursor='hand2' )
+		
+		if entryWidget:
+			self.entryWidget = entryWidget
+			self.bind( '<1>', self.editColor )
+
+		# Create the image swatch that will be displayed, and attach it to self to prevent garbage collection
+		self.colorMask = globalData.gui.imageBank( 'colorSwatch', getAsPilImage=True )
+		self.renderCircle( hexColor )
+		
+		# Optional widgets that this may be paired with
+		self.hexEntryWidget = None			# Used by HexEditEntry widgets for hex data
+		self.valueEntryWidget = None		# Used by HexEditEntry widgets for values
+		self.colorSwatchWidget = None		# Not used by this widget (keep to prevent errors)
+
+	def renderCircle( self, hexColor ):
+		# Convert the hex string provided to an RGBA values list
+		fillColor = hex2rgb( hexColor )
+
+		# Create a new, 160x160 px, blank image
+		swatchImage = Image.new( 'RGBA', (160, 160), (0, 0, 0, 0) )
+
+		# Draw a circle of the given color on the new image
+		drawable = ImageDraw.Draw( swatchImage )
+		drawable.ellipse( (10, 10, 150, 150), fill=fillColor )
+
+		# Scale down the image. It's created larger, and then scaled down to 
+		# create anti-aliased edges (it would just be a hexagon otherwise).
+		swatchImage.thumbnail( (16, 16), Image.ANTIALIAS )
+
+		# Overlay the highlight/shadow mask on top of the above color (for a depth effect)
+		swatchImage.paste( self.colorMask, (0, 0), self.colorMask )
+
+		self.swatchImage = ImageTk.PhotoImage( swatchImage )
+		self.configure( image=self.swatchImage )
+
+	def editColor( self, event ):
+		# Create a window where the user can choose a new color
+		colorPicker = MeleeColorPicker( 'Modifying ' + self.entryWidget.updateName, initialColor=self.entryWidget.get() )
+		globalData.gui.root.wait_window( colorPicker.window ) # Wait for the above window to close before proceeding
+
+		# Get the new color hex and make sure it's new (if it's not, the operation was canceled, or there's nothing to be done anyway)
+		if colorPicker.initialColor != colorPicker.currentHexColor:
+			if len( colorPicker.currentHexColor ) != self.entryWidget.byteLength * 2:
+				msg( 'The value generated from the color picker (' + colorPicker.currentHexColor + ') does not match the byte length requirement of the destination.' )
 			else:
-				newHex = hexlify( struct.pack( '>' + formatting, int(self.get()) ) ).upper()
-		except Exception as err:
-			# Construct and display an error message for the user
-			dataTypes = { 	'?': 'a boolean', 'b': 'a signed character', 'B': 'an unsigned character', 	# 1-byte
-							'h': 'a signed short (halfword)', 'H': 'an unsigned short',				# 2-bytes
-							'i': 'a signed integer', 'I': 'an unsigned integer', 'f': 'a float' } # 4-bytes
-			if formatting in dataTypes:
-				msg( 'The entered value is invalid for {} value.'.format( dataTypes[formatting] ) )
-			else: # I tried
-				msg( 'The entered value is invalid.' )
-			print( 'Error encountered packing value entry data; {}'.format(err) )
-			return
-
-		# Confirm whether updating is necessary by checking if this is actually new data for any of the offset locations
-		if type( self.offsets ) == list:
-			for offset in self.offsets:
-				currentFileHex = hexlify( self.fileObj.getData(offset, self.byteLength) ).upper()
-				if currentFileHex != newHex: # Found a difference
-					break
-			else: # The loop above didn't break; no change found
-				return # No change to be updated
-		else: # The offsets attribute is just a single value (the usual case)
-			currentFileHex = hexlify( self.fileObj.getData(self.offsets, self.byteLength) ).upper()
-			if currentFileHex == newHex:
-				return # No change to be updated
-
-		# Change the background color of the widget, to show that changes have been made to it and are pending saving.
-		# if event.__class__ == HexEditDropdown:
-		# 	self.configure( style='Edited.TMenubutton' )
-		# else:
-		self.configure( background='#faa' )
-
-		# Update the data shown in the neiboring widget
-		if self.hexEntryWidget:
-			self.hexEntryWidget.delete( 0, 'end' )
-			self.hexEntryWidget.insert( 0, newHex )
-			self.hexEntryWidget.configure( background='#faa' )
-
-		# Replace the data in the file for each location
-		newData = bytearray.fromhex( newHex )
-		self.updateDataInFile( newData )
-
-		globalData.gui.updateProgramStatus( self.updateName + ' updated' )
+				# Replace the text in the entry widget
+				self.entryWidget.delete( 0, 'end' )
+				self.entryWidget.insert( 0, colorPicker.currentHexColor )
+				
+				# Update the data in the file with the entry's data, and redraw the color swatch
+				#self.updateHex( '', widget=self.entryWidget )
+				newHex = self.get().zfill( self.byteLength * 2 ).upper() # Pads the string with zeroes to the left if not enough characters
+				self.updateHex( newHex )
 
 
 class SliderAndEntry( ttk.Frame ):
@@ -1233,7 +1523,7 @@ class SliderAndEntry( ttk.Frame ):
 		ttk.Frame.__init__( self, parent, *args, **kwargs )
 
 
-class HexEditDropdown( ttk.OptionMenu ):
+class HexEditDropdown( ttk.OptionMenu, DataEntryWidgetBase ):
 
 	""" Used for struct data display and editing, using a predefined set of choices. Similar to the 
 		HexEditEntry class, except that the widget's contents/values must be given during initialization. 
@@ -1241,7 +1531,7 @@ class HexEditDropdown( ttk.OptionMenu ):
 		widget, and the corresponding values are the data values to edit/update in the target file.
 		"dataOffsets" will typically be a single int value, but can be a list of offsets. """
 
-	def __init__( self, parent, dataOffsets, byteLength, formatting, updateName, options, defaultOption=None, **kwargs ):
+	def __init__( self, parent, targetFile, dataOffsets, byteLength, formatting, updateName, options, defaultOption=None, **kwargs ):
 
 		if defaultOption:
 			# If the default option given is a value (or non-string), translate it to the string
@@ -1256,23 +1546,99 @@ class HexEditDropdown( ttk.OptionMenu ):
 			defaultOption = options.keys()[0]
 
 		# Replace the command, if provided, with a lambda function, so its callback behaves like an Entry widget's
-		callBack = kwargs.get( 'command', None )
-		if callBack:
-			kwargs['command'] = lambda currentString: callBack( self )
+		# callBack = kwargs.get( 'command', None )
+		# if callBack:
+		#	kwargs['command'] = lambda currentString: callBack( self )
+		kwargs['command'] = self.updateValue
 
 		# Create the widget
 		self.selectedString = Tk.StringVar()
 		ttk.OptionMenu.__init__( self, parent, self.selectedString, defaultOption, *options, **kwargs )
 
+		self.fileObj	= targetFile
 		self.offsets 	= dataOffsets		# May be a single file offset (int), or a list of them
 		self.byteLength = byteLength
 		self.formatting = formatting
 		self.updateName = updateName
 
 		self.options = options				# Dict of the form, key=stringToDisplay, value=dataToSave
+		
+		# Optional widgets that this may be paired with
+		self.hexEntryWidget = None			# Used by HexEditEntry widgets for hex data
+		self.valueEntryWidget = None		# Used by HexEditEntry widgets for values
+		self.colorSwatchWidget = None
 
 	def get( self ): # Overriding the original get method, which would get the string, not the associated value
 		return self.options[self.selectedString.get()]
+
+	# def updateValueData( self, currentSelection ):
+
+	# 	self.updateValue()
+
+	# def updateValue( self, currentSelection ):
+
+	# 	""" Validates widget input, checks if it's new/different from what's in the file, 
+	# 		and updates the data in the file if it differs. Also triggers updating of any paired widgets. """
+
+	# 	# Validate the entered value by making sure it can be correctly encoded
+	# 	try:
+	# 		if self.formatting == 'f':
+	# 			newHex = hexlify( struct.pack( '>f', float(self.get()) ) ).upper()
+	# 		else:
+	# 			newHex = hexlify( struct.pack( '>' + self.formatting, int(self.get()) ) ).upper()
+	# 	except Exception as err:
+	# 		# Construct and display an error message for the user
+	# 		dataTypes = { 	'?': 'a boolean', 'b': 'a signed character', 'B': 'an unsigned character', 	# 1-byte
+	# 						'h': 'a signed short (halfword)', 'H': 'an unsigned short',				# 2-bytes
+	# 						'i': 'a signed integer', 'I': 'an unsigned integer', 'f': 'a float' } # 4-bytes
+	# 		if self.formatting in dataTypes:
+	# 			msg( 'The entered value is invalid for {} value.'.format( dataTypes[self.formatting] ) )
+	# 		else: # I tried
+	# 			msg( 'The entered value is invalid.' )
+	# 		print( 'Error encountered packing value entry data; {}'.format(err) )
+	# 		return
+
+	# 	# Confirm whether updating is necessary by checking if this is actually new data for any of the offset locations
+	# 	if type( self.offsets ) == list:
+	# 		for offset in self.offsets:
+	# 			currentFileHex = hexlify( self.fileObj.getData(offset, self.byteLength) ).upper()
+	# 			if currentFileHex != newHex: # Found a difference
+	# 				break
+	# 		else: # The loop above didn't break; no change found
+	# 			return # No change to be updated
+	# 	else: # The offsets attribute is just a single value (the usual case)
+	# 		currentFileHex = hexlify( self.fileObj.getData(self.offsets, self.byteLength) ).upper()
+	# 		if currentFileHex == newHex:
+	# 			return # No change to be updated
+
+	# 	# Change the background color of the widget, to show that changes have been made to it and are pending saving.
+	# 	self.configure( background='#faa' )
+
+	# 	# Update the data shown in the neiboring widget
+	# 	if self.hexEntryWidget:
+	# 		self.hexEntryWidget.delete( 0, 'end' )
+	# 		self.hexEntryWidget.insert( 0, newHex )
+	# 		self.hexEntryWidget.configure( background='#faa' )
+
+	# 	# Replace the data in the file for each location
+	# 	newData = bytearray.fromhex( newHex )
+	# 	self.updateDataInFile( newData )
+
+	# 	globalData.gui.updateProgramStatus( self.updateName + ' updated' )
+		
+	# def updateDataInFile( self, newData ):
+		
+	# 	""" Replaces the data in the file for each offset location. """
+
+	# 	if type( self.offsets ) == list:
+	# 		for offset in self.offsets:
+	# 			updateName = 'Offset ' + uHex( 0x20 + offset )
+	# 			descriptionOfChange = updateName + ' modified in ' + self.fileObj.filename
+	# 			self.fileObj.updateData( offset, newData, descriptionOfChange )
+	# 	else:
+	# 		# The offsets attribute is just a single value (the usual case)
+	# 		descriptionOfChange = self.updateName + ' modified in ' + self.fileObj.filename
+	# 		self.fileObj.updateData( self.offsets, newData, descriptionOfChange )
 
 
 class CodeLibrarySelector( BasicWindow ):
@@ -1763,7 +2129,7 @@ class FlagDecoder( BasicWindow ):
 
 		# Update the actual data in the file for each offset
 		#flagName = self.structure.fields[self.fieldAndValueIndex].replace( '_', ' ' ).replace( '\n', ' ' )
-		# descriptionOfChange = flagName + ' modified in ' + globalDatFile.fileName
+		# descriptionOfChange = flagName + ' modified in ' + globalDatFile.filename
 		# newData = bytearray.fromhex( newHex )
 		# if type( self.fieldOffsets ) == list:
 		# 	for offset in self.fieldOffsets:
@@ -2284,6 +2650,425 @@ class NeoTreeview( ttk.Treeview, object ):
 		if tagToRemove in currentTags:
 			currentTags.remove( tagToRemove )
 			self.item( iid, tags=currentTags )
+
+
+class MeleeColorPicker( object ):
+
+	windows = {} # Used to track multiple windows for multiple palette entries. New windows will be added with a windowId = palette entry's canvas ID
+	recentColors = [] # Colors stored as tuples of (r, g, b, a)
+	windowSpawnOffset = 0
+
+	def __init__( self, title='Color Converter', initialColor='ACACAC7F', defaultTplFormat=5, windowId='', datDataOffsets=(), targetFile=None ):
+		self.title = title
+		self.initialColor = initialColor.upper()
+		self.currentHexColor = self.initialColor
+		self.currentRGBA = hex2rgb( self.initialColor )
+		self.tplHex = TplEncoder.encodeColor( defaultTplFormat, self.currentRGBA )
+		self.windowId = windowId
+		self.datDataOffsets = datDataOffsets # ( rgbaColor, paletteEntry, paletteEntryOffset, imageDataOffset ) | paletteEntry is the original palette color hex
+		self.file = targetFile
+		self.lastUpdatedColor = ''	# Used to prevent unncessary/redundant calls to update the displayed texture
+
+		if self.windowId in self.windows: pass
+		else:
+			self.createWindow( defaultTplFormat )
+
+			# If windowId, remember it so it can be referenced later (by deiconify)
+			if self.windowId: self.windows[self.windowId] = self
+
+		self.window.deiconify()
+
+	# def getWindowGeometry( self, topLevelWindow ):
+
+	# 	""" A copy of the one in the guiSubComponents module; placed here to prevent cyclic import errors. """
+
+	# 	try:
+	# 		dimensions, topDistance, leftDistance = topLevelWindow.geometry().split( '+' )
+	# 		width, height = dimensions.split( 'x' )
+	# 		geometry = ( int(width), int(height), int(topDistance), int(leftDistance) )
+	# 	except:
+	# 		raise ValueError( "Failed to parse window geometry string: " + topLevelWindow.geometry() )
+
+	# 	return geometry
+
+	def createWindow( self, defaultTplFormat ):
+		self.window = Tk.Toplevel( globalData.gui.root )
+		self.window.title( self.title )
+		self.window.attributes( '-toolwindow', 1 ) # Makes window framing small, like a toolbox/widget.
+		self.window.resizable( width=False, height=False )
+		self.window.wm_attributes( '-topmost', 1 )
+		self.window.protocol( 'WM_DELETE_WINDOW', self.cancel ) # Overrides the 'X' close button.
+
+		# Calculate the spawning position of the new window
+		rootDistanceFromScreenLeft, rootDistanceFromScreenTop = getWindowGeometry( globalData.gui.root )[2:]
+		newWindowX = rootDistanceFromScreenLeft + 180 + self.windowSpawnOffset
+		newWindowY = rootDistanceFromScreenTop + 180 + self.windowSpawnOffset
+		self.window.geometry( '+' + str(newWindowX) + '+' + str(newWindowY) )
+		self.windowSpawnOffset += 30
+		if self.windowSpawnOffset > 150: self.windowSpawnOffset = 15
+
+		# Populate the window
+		mainFrame = Tk.Frame( self.window )
+
+		# Show any remembered colors
+		if self.recentColors:
+			self.recentColorImages = []
+			self.itemColors = {}
+			if len( self.recentColors ) < 13: canvasHeight = 19
+			else: canvasHeight = 38
+
+			ttk.Label( mainFrame, text='Recent Colors:' ).pack( anchor='w', padx=16, pady=4 )
+			self.colorsCanvas = Tk.Canvas( mainFrame, borderwidth=2, relief='ridge', background='white', width=197, height=canvasHeight )
+			self.colorsCanvas.pack( pady=4 )
+
+			x = 10
+			y = 9
+			for i, rgbaColor in enumerate( reversed(self.recentColors) ):
+				# Prepare and store an image object for the color
+				colorSwatchImage = Image.new( 'RGBA', (8, 8), rgbaColor )
+				colorSwatchWithBorder = ImageOps.expand( colorSwatchImage, border=1, fill='black' )
+				self.recentColorImages.append( ImageTk.PhotoImage(colorSwatchWithBorder) )
+
+				# Draw the image onto the canvas.
+				itemId = self.colorsCanvas.create_image( x, y, image=self.recentColorImages[i], anchor='nw', tags='swatches' )
+				self.itemColors[itemId] = rgbaColor
+
+				x += 16
+				if i == 11: # Start a new line
+					x = 10
+					y += 16
+
+			self.colorsCanvas.tag_bind( 'swatches', '<1>', self.restoreColor )
+			def onMouseEnter(e): self.colorsCanvas['cursor']='hand2'
+			def onMouseLeave(e): self.colorsCanvas['cursor']=''
+			self.colorsCanvas.tag_bind( 'swatches', '<Enter>', onMouseEnter )
+			self.colorsCanvas.tag_bind( 'swatches', '<Leave>', onMouseLeave )
+
+		# RGB Channels
+		ttk.Label( mainFrame, text='Choose the RGB Channel values:' ).pack( anchor='w', padx=16, pady=4 )
+		curtainFrame = Tk.Frame( mainFrame, borderwidth=2, relief='ridge', width=250, height=50, cursor='hand2' )
+		whiteCurtain = Tk.Frame( curtainFrame, bg='white', width=25, height=50 )
+		whiteCurtain.pack( side='left' )
+
+		focusColorsFrame = Tk.Frame( curtainFrame, width=200, height=50 )
+		# Combine the initial color with the defalt background color, to simulate alpha on the colored frame (since Frames don't support alpha)
+		bgColor16Bit = globalData.gui.root.winfo_rgb( focusColorsFrame['bg'] )
+		self.nativeBgColor = ( bgColor16Bit[0]/256, bgColor16Bit[1]/256, bgColor16Bit[2]/256 ) # Reduce it to an 8-bit colorspace
+		newColors = []
+		alphaBlending = round( self.currentRGBA[-1] / 255.0, 2 )
+		for i, colorChannel in enumerate( self.nativeBgColor ):
+			newColors.append( int(round( (alphaBlending * self.currentRGBA[i]) + (1-alphaBlending) * colorChannel )) )
+		originalColorBg = rgb2hex( newColors )
+		if self.getLuminance( originalColorBg + 'ff' ) > 127: fontColor = 'black'
+		else: fontColor = 'white'
+		self.originalColor = Tk.Frame( focusColorsFrame, bg=originalColorBg, width=200, height=25 )
+		Tk.Label( self.originalColor, text='Original Color', bg=originalColorBg, foreground=fontColor ).pack()
+		self.currentRgbDisplay = Tk.Frame( focusColorsFrame, width=200, height=25 ) # , bg='#ACACAC'
+		Tk.Label( self.currentRgbDisplay, text='New Color' ).pack()
+		focusColorsFrame.pack( side='left' )
+		for frame in [ self.originalColor, self.currentRgbDisplay ]:
+			frame.pack()
+			frame.pack_propagate( False )
+			frame.bind( '<1>', self.pickRGB )
+			frame.winfo_children()[0].bind( '<1>', self.pickRGB )
+
+		blackCurtain = Tk.Frame( curtainFrame, bg='black', width=25, height=50 )
+		blackCurtain.pack( side='left' )
+		curtainFrame.pack( padx=5, pady=4 )
+		curtainFrame.pack_propagate( False )
+		for frame in curtainFrame.winfo_children(): frame.pack_propagate( False )
+
+		# Alpha Channel
+		ttk.Label( mainFrame, text='Choose the Alpha Channel value:' ).pack( anchor='w', padx=16, pady=4 )
+		alphaRowFrame = Tk.Frame( mainFrame )
+		self.alphaEntry = ttk.Entry( alphaRowFrame, width=3 )
+		self.alphaEntry.pack( side='left', padx=4 )
+		self.alphaEntry.bind( '<KeyRelease>', self.alphaUpdated )
+		self.alphaSlider = ttk.Scale( alphaRowFrame, orient='horizontal', from_=0, to=255, length=260, command=self.alphaUpdated )
+		self.alphaSlider.pack( side='left' , padx=4 )
+		alphaRowFrame.pack( padx=5, pady=4 )
+
+		# Color Value Conversions
+		ttk.Label( mainFrame, text='Color Space Comparisons:' ).pack( anchor='w', padx=16, pady=4 )
+		colorEntryFieldsFrame = Tk.Frame( mainFrame )
+
+		# RGBA (decimal and hex forms)
+		ttk.Label( colorEntryFieldsFrame, text='RGBA:' ).grid( column=0, row=0, padx=5 )
+		self.rgbaStringVar = Tk.StringVar()
+		self.rgbaEntry = ttk.Entry( colorEntryFieldsFrame, textvariable=self.rgbaStringVar, width=16, justify='center' )		
+		self.rgbaEntry.grid( column=1, row=0, padx=5 )
+		self.rgbaEntry.bind( '<KeyRelease>', self.rgbaEntryUpdated )
+		ttk.Label( colorEntryFieldsFrame, text='RGBA Hex:' ).grid( column=2, row=0, padx=5, pady=5 )
+		self.hexColorStringVar = Tk.StringVar()
+		self.rgbaHexEntry = ttk.Entry( colorEntryFieldsFrame, textvariable=self.hexColorStringVar, width=10, justify='center' )
+		self.rgbaHexEntry.grid( column=3, row=0, padx=5 )
+		self.rgbaHexEntry.bind( '<KeyRelease>', self.hexEntryUpdated )
+
+		# TPL Formats
+		ttk.Label( colorEntryFieldsFrame, text='TPL Format:' ).grid( column=0, row=1, padx=5 )
+		self.tplFormat = Tk.StringVar()
+		if 'Palette' in self.title: # Limit the selection of formats to just those used for palettes.
+			formatList = [ '_3 (IA8)', '_4 (RGB565)', '_5 (RGB5A3)', '_6 (RGBA8)' ]
+		else: formatList = [ '_0 (I4)', '_1 (I8)', '_2 (IA4)', '_3 (IA8)', '_4 (RGB565)', '_5 (RGB5A3)', '_6 (RGBA8)' ]
+
+		self.tplFormat.set( formatList[defaultTplFormat] )
+		self.tplFormatOptionMenu = ttk.OptionMenu( colorEntryFieldsFrame, self.tplFormat, formatList[defaultTplFormat], *formatList, command=self.updateColorDisplays )
+		self.tplFormatOptionMenu.grid( column=1, row=1, padx=5, pady=5 )
+		if 'Palette' in self.title: self.tplFormatOptionMenu['state'] = 'disabled'
+
+		self.tplFormatStringVar = Tk.StringVar()
+		self.tplFormatEntry = ttk.Entry( colorEntryFieldsFrame, textvariable=self.tplFormatStringVar, width=13, justify='center' )
+		self.tplFormatEntry.grid( column=2, columnspan=2, row=1, padx=5, sticky='w' )
+		self.tplFormatEntry.bind( '<KeyRelease>', self.tplEntryUpdated )
+
+		colorEntryFieldsFrame.pack( padx=5, pady=4 )
+
+		self.updateColorDisplays( updateImage=False )
+		#self.alphaSlider.set( self.currentRGBA[-1] )
+
+		# Buttons! For use when this isn't just a comparison tool, but being used as a color picker to replace a value in a game/file
+		if self.title != 'Color Converter':
+			buttonsFrame = Tk.Frame( mainFrame )
+			ttk.Button( buttonsFrame, text='Submit', command=self.submit ).pack( side='left', ipadx=4, padx=20 )
+			ttk.Button( buttonsFrame, text='Cancel', command=self.cancel ).pack( side='left', ipadx=4, padx=20 )
+			buttonsFrame.pack( pady=8 )
+
+		mainFrame.pack()
+
+		self.updateEntryBorders( None )
+		self.window.bind( '<FocusIn>', self.updateEntryBorders ) # Allows for switching between multiple open windows to move the highlighting around
+
+	def getLuminance( self, hexColor ):
+		r, g, b, a = hex2rgb( hexColor )
+		return ( r*0.299 + g*0.587 + b*0.114 ) * a/255
+		#return ( r+r + g+g+g + b )/6 * a/255 # a quicker but less accurate calculation
+		#return math.sqrt( .299 * r**2 + .587 * g**2 + .114 * b**2 ) *a/255 / 255
+
+	def updateEntryBorders( self, event ):
+		
+		""" For use with the Change Palette Color inspection window from a texture's Palette tab. 
+			This updates the border color of palette entries to indicate whether they're selected. """
+
+		texturesTab = globalData.gui.texturesTab
+		
+		if texturesTab and 'Palette' in self.title:
+			paletteCanvas = texturesTab.paletteCanvas
+
+			# If any items are currently selected, change their border color back to normal
+			for item in paletteCanvas.find_withtag( 'selected' ):
+				paletteCanvas.itemconfig( item, fill='black' )
+				paletteCanvas.dtag( item, 'selected' ) # Removes this tag from the canvas item
+
+			# Use the paletteEntryOffset tag to locate the border item (getting its canvas ID)
+			if self.datDataOffsets != ():
+				paletteEntryOffset = self.datDataOffsets[2]
+				paletteTag = 't' + str( paletteEntryOffset )
+				borderIids = paletteCanvas.find_withtag( paletteTag )
+				if borderIids:
+					paletteCanvas.itemconfig( borderIids[0], fill=paletteCanvas.entryBorderColor, tags=('selected', paletteTag) )
+
+	def updateColorDisplays( self, updateImage=True, setAlphaEntry=True ):
+		
+		""" Updates the visual representation, alpha value/slider, and colorspace Entry values. """
+
+		currentTplFormat = int( self.tplFormat.get().split()[0][1:] )
+		if currentTplFormat in [ 0, 1, 4 ]: alphaSupported = False
+		else: alphaSupported = True
+
+		# Combine the newly selected color with the default background color, to simulate alpha on the colored frame (since Frames don't support transparency)
+		newColors = []
+		alphaBlending = round( self.currentRGBA[-1] / 255.0, 2 )
+		for i, color in enumerate( self.nativeBgColor ):
+			newColors.append( int(round( (alphaBlending * self.currentRGBA[i]) + (1-alphaBlending) * color )) )
+		currentColorLabel = self.currentRgbDisplay.winfo_children()[0]
+		currentColorBg = rgb2hex( newColors )
+		self.currentRgbDisplay['bg'] = currentColorBg
+		currentColorLabel['bg'] = currentColorBg
+		if self.getLuminance( currentColorBg + 'ff' ) > 127: currentColorLabel['fg'] = 'black'
+		else: currentColorLabel['fg'] = 'white'
+
+		# Set the alpha components of the GUI
+		self.preventNextSliderCallback = True # Prevents an infinite loop where the programmatic setting of the slider causes another update for this function
+		self.alphaEntry['state'] = 'normal'
+		self.alphaSlider.state(['!disabled'])
+		currentAlphaLevel = self.currentRGBA[-1]
+
+		if not alphaSupported: # These formats do not support alpha; max the alpha channel display and disable the widgets
+			self.alphaEntry.delete( 0, 'end' )
+			self.alphaEntry.insert( 0, '255' )
+			self.alphaSlider.set( 255 )
+			self.alphaEntry['state'] = 'disabled'
+			self.alphaSlider.state(['disabled'])
+		elif setAlphaEntry: # Prevents moving the cursor position if the user is typing into this field
+			self.alphaEntry.delete( 0, 'end' )
+			self.alphaEntry.insert( 0, str(currentAlphaLevel) ) #.lstrip('0')
+			self.alphaSlider.set( currentAlphaLevel )
+		else: self.alphaSlider.set( currentAlphaLevel ) # User entered a value into the alphaEntry; don't modify that
+
+		# Set the RGBA fields
+		if alphaSupported:
+			self.rgbaStringVar.set( ', '.join([ str(channel) for channel in self.currentRGBA ]) )
+			self.hexColorStringVar.set( self.currentHexColor )
+		else:
+			self.rgbaStringVar.set( ', '.join([ str(channel) for channel in self.currentRGBA[:-1] ]) )
+			self.hexColorStringVar.set( self.currentHexColor[:-2] )
+
+		# Set the TPL Entry field
+		self.tplHex = TplEncoder.encodeColor( currentTplFormat, self.currentRGBA )
+		if currentTplFormat < 6:
+			self.tplFormatStringVar.set( self.tplHex.upper() )
+		elif currentTplFormat == 6: # In this case, the value will actually be a tuple of the color parts
+			self.tplFormatStringVar.set( self.tplHex[0].upper() + ' | ' + self.tplHex[1].upper() )
+		else: self.tplFormatStringVar.set( 'N/A' )
+
+		if 'Palette' in self.title and updateImage:
+			# Validate the encoded color
+			if len( self.tplHex ) != 4 or not validHex( self.tplHex ):
+				msg( 'The newly generated color was not two bytes!' )
+
+			else:
+				self.updateTexture( self.tplHex )
+
+	def pickRGB( self, event ):
+		try: rgbValues, hexColor = askcolor( initialcolor='#'+self.currentHexColor[:-2], parent=self.window )
+		except: rgbValues, hexColor = '', ''
+
+		if rgbValues:
+			# Get the current alpha value, and combine it with the colors chosen above.
+			currentAlphaLevel = int( round(self.alphaSlider.get()) )
+
+			self.currentRGBA = ( rgbValues[0], rgbValues[1], rgbValues[2], currentAlphaLevel )
+			self.currentHexColor = hexColor.replace('#', '').upper() + "{0:0{1}X}".format( currentAlphaLevel, 2 )
+			self.updateColorDisplays()
+
+	def alphaUpdated( self, event ):
+		if self.preventNextSliderCallback:
+			self.preventNextSliderCallback = False
+			return
+		
+		if isinstance( event, str ): # Means this was updated from the slider widget
+			newAlphaValue = int( float(event) )
+			setAlphaEntry = True
+		else: # Updated from the Entry widget
+			newAlphaValue = int( round(float( event.widget.get() )) )
+			setAlphaEntry = False
+
+		self.currentRGBA = self.currentRGBA[:-1] + ( newAlphaValue, )
+		self.currentHexColor = self.currentHexColor[:-2] + "{0:0{1}X}".format( newAlphaValue, 2 )
+		self.updateColorDisplays( setAlphaEntry=setAlphaEntry )
+
+	def rgbaEntryUpdated( self, event ):
+		# Parse and validate the input
+		channels = event.widget.get().split( ',' )
+		channelsList = []
+		parsingError = False
+
+		for channelValue in channels:
+			try:
+				newInt = int( float(channelValue) )
+				if newInt > -1 and newInt < 256: channelsList.append( newInt )
+			except: 
+				parsingError = True
+				break
+		else: # Got through the above loop with no break. Still got one more check.
+			if len( channelsList ) != 4:
+				parsingError = True
+
+		if parsingError:
+			if event.keysym == 'Return': # User hit the "Enter" key in a confused attempt to force an update
+				msg( 'The input should be in the form, "r, g, b, a", where each value is within the range of 0 - 255.', 'Invalid input or formatting.' )
+
+		else: # Everything checks out, update the color and GUI
+			self.currentRGBA = tuple( channelsList )
+			self.currentHexColor = ''.join( [ "{0:0{1}X}".format( channel, 2 ) for channel in self.currentRGBA ] )
+			self.updateColorDisplays()
+
+	def hexEntryUpdated( self, event ):
+		# Parse and validate the input
+		inputStr = event.widget.get()
+		channelsList = hex2rgb( inputStr )
+
+		if not channelsList:
+			if event.keysym == 'Return': # User hit the "Enter" key in a confused attempt to force an update
+				msg( 'The input should be in the form, "RRGGBBAA", where each value is within the hexadecimal range of 00 - FF.', 'Invalid input or formatting.' )
+
+		else: # Everything checks out, update the color and GUI
+			self.currentRGBA = tuple( channelsList )
+			self.currentHexColor = ''.join( [ "{0:0{1}X}".format( channel, 2 ) for channel in self.currentRGBA ] )
+			self.updateColorDisplays()
+
+	def tplEntryUpdated( self, event ):
+		tplHex = self.tplFormatStringVar.get().replace('0x', '').replace('|', '')
+		nibbleCount = { 0:1, 1:2, 2:2, 3:4, 4:4, 5:4, 6:8, 8:1, 9:2, 10:4, 14:1 } # How many characters should be present in the string
+		currentTplFormat = int( self.tplFormat.get().split()[0][1:] )
+
+		if len( tplHex ) == nibbleCount[currentTplFormat] and validHex( tplHex ):
+			self.currentRGBA = TplDecoder.decodeColor( currentTplFormat, tplHex )
+			self.currentHexColor = ''.join( [ "{0:0{1}X}".format( channel, 2 ) for channel in self.currentRGBA ] )
+			self.updateColorDisplays()
+
+	def restoreColor( self, event ):
+		item = event.widget.find_closest( event.x, event.y )[0]
+		self.currentRGBA = self.itemColors[item]
+		self.currentHexColor = ''.join( [ "{0:0{1}X}".format( channel, 2 ) for channel in self.currentRGBA ] )
+		self.updateColorDisplays()
+
+	def updateRecentColors( self ):
+		# If the current color is already in the list, remove it, and add the color to the start of the list.
+		for i, colorTuple in enumerate( self.recentColors ):
+			if colorTuple == self.currentRGBA:
+				self.recentColors.pop( i )
+				break
+		self.recentColors.append( self.currentRGBA )
+
+		# Keep the list under a certain size
+		while len( self.recentColors ) > 24:
+			self.recentColors.pop( 0 )
+
+	def updateTexture( self, paletteEntryHex ): # This function only used when updating palette colors
+		texturesTab = globalData.gui.texturesTab
+		
+		if self.datDataOffsets != () and self.file and texturesTab:
+			if paletteEntryHex == self.lastUpdatedColor:
+				return
+
+			# Replace the color in the image or palette data
+			_, _, paletteEntryOffset, imageDataOffset = self.datDataOffsets
+			self.file.updateData( paletteEntryOffset, bytearray.fromhex(paletteEntryHex), 'Palette entry modified', trackChange=False )
+			
+			# Load the new data for the updated texture and display it
+			imageDataStruct = self.file.structs[imageDataOffset]
+			width, height, imageType = imageDataStruct.getAttributes()[1:4]
+			imageDataLength = imageDataStruct.getImageDataLength( width, height, imageType )
+			loadSuccessful = texturesTab.renderTextureData( imageDataOffset, width, height, imageType, imageDataLength )
+			if not loadSuccessful:
+				msg( 'There was an error rendering the new texture data.' )
+				return
+
+			# Update the Image and Palette tabs
+			texturesTab.drawTextureToMainDisplay( imageDataOffset )
+			texturesTab.populatePaletteTab( imageDataOffset, imageDataLength, imageType )
+
+			self.lastUpdatedColor = paletteEntryHex
+			globalData.gui.updateProgramStatus( 'Palette Color Updated' )
+
+	def submit( self ):
+		self.updateRecentColors()
+		if ( 'Palette' in self.title ) and self.file:
+			self.file.unsavedChanges.append( 'Palette color ' + self.initialColor + ' changed to ' + self.currentHexColor + '.' )
+		self.close()
+
+	def cancel( self ):
+		# If the window was being used to update a palette color, revert the color back to the original
+		if 'Palette' in self.title:
+			self.updateTexture( self.datDataOffsets[1] )
+		self.currentHexColor = self.initialColor
+		self.close()
+
+	def close( self ):
+		self.window.destroy()
+		if self.windowId:
+			del self.windows[self.windowId]
 
 
 class ToolTip( object ):

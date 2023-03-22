@@ -140,7 +140,7 @@ MnNamedef.dat: Name entry data
 MnSlChr.dat: Character Select Screen
 MnSlMap.dat: Stage Select Screen
 NtAppro.dat: "'New Challenger' Screens"
-opening.dat: Game banner, title, and description texts
+opening.bnr: Game banner, title, and description texts
 PlCo.dat: Textures & global data common to the cast
 usa.ini: Language indicator (tells game to use .usd)
 

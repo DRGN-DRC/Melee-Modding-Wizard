@@ -25,9 +25,9 @@ from ScrolledText import ScrolledText
 import globalData
 from FileSystem.dol import RevisionPromptWindow
 from basicFunctions import grammarfyList, msg, printStatus, openFolder, removeIllegalCharacters, uHex, validHex
-from codeMods import CodeChange, CodeMod, ConfigurationTypes, CodeLibraryParser
+from codeMods import CodeMod, ConfigurationTypes, CodeLibraryParser
 from guiSubComponents import (
-	PopupScrolledTextWindow, cmsg, exportSingleFileWithGui, VerticalScrolledFrame, LabelButton, ToolTip, CodeLibrarySelector, 
+	PopupScrolledTextWindow, exportSingleFileWithGui, cmsg, VerticalScrolledFrame, LabelButton, ToolTip, CodeLibrarySelector, 
 	CodeSpaceOptionsWindow, ColoredLabelButton, BasicWindow, DisguisedEntry
 )
 

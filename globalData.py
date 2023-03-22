@@ -12,7 +12,7 @@
 """ Container for global data that all scripts may access. 
 	Contains settings, settings-related load/save functions, and look-up tables. """
 
-programVersion = '0.9.4'
+programVersion = '0.9.5'
 
 # External Dependencies
 import os
@@ -46,8 +46,9 @@ def init( programArgs ):
 
 	scriptHomeFolder = os.path.abspath( os.path.dirname(programArgs[0]) ) # Can't use __file__; incompatible with cx_freeze process
 
-	# Internal paths (these typically don't change)
-	paths = { # Other custom/user paths that should be remembered in the settings file should be in the other two settings dicts
+	# Internal paths (these typically don't change), and will not appear in the settings.ini file
+	# Custom/user paths that should be remembered in the settings file should be in the other two settings dicts
+	paths = {
 		# Root paths
 		'fontsFolder': os.path.join( scriptHomeFolder, 'fonts' ),
 		'imagesFolder': os.path.join( scriptHomeFolder, 'imgs' ),
@@ -67,7 +68,7 @@ def init( programArgs ):
 		'codehandler': os.path.join( scriptHomeFolder, 'bin', 'codehandler.bin' ),
 	}
 
-	# These are default settings if they are not defined in the user's settings.ini file
+	# These are default settings to be used when they are not defined in the user's settings.ini file
 	defaultSettings = {
 		'codeLibraryPath': os.path.join( scriptHomeFolder, 'Code Library' ),
 		'codeLibraryIndex': '0',
@@ -78,7 +79,8 @@ def init( programArgs ):
 		'paddingBetweenFiles': '0x40',
 		'dolSource': 'vanilla',
 		'offsetView': 'ramAddress', # Alternate acceptable value=dolOffset (not case sensitive or affected by spaces)
-		'volume': '.7'
+		'volume': '.7',
+		'textureExportFormat': 'png'
 	}
 	defaultBoolSettings = { # Same as above, but for bools, which are initialized slightly differently (must be strings of 0 or 1!)
 		'useDiscConvenienceFolders': '1',
@@ -105,6 +107,7 @@ def init( programArgs ):
 		# Texture editing interface
 		'showCanvasGrid': '1',
 		'showTextureBoundary': '1',
+		'useDolphinNaming': '0',
 	}
 
 	settings = ConfigParser.SafeConfigParser()
@@ -396,6 +399,8 @@ def setLastUsedDir( savePath, category='default', fileExt='', saveSettings=True 
 			category = 'mth'
 		elif fileExt == 'dol':
 			category = 'dol'
+		elif fileExt in ( 'png', 'tpl' ): # Textures
+			category = 'png'
 		else:
 			category = 'default'
 

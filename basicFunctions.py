@@ -18,6 +18,7 @@ import time
 import json
 import errno
 import struct
+import xxhash
 import hashlib
 import subprocess
 import globalData
@@ -28,6 +29,7 @@ from collections import OrderedDict as _OrderedDict
 
 from _ctypes import PyObj_FromPtr  # see https://stackoverflow.com/a/15012814/355230
 
+#from guiSubComponents import CopyableMessageWindow
 
 # Conversion solutions:
 # 		int 			-> 		bytes objects 		struct.pack( )
@@ -376,24 +378,6 @@ def printStatus( message, warning=False, error=False, success=False, forceUpdate
 		else: print( message )
 
 
-# def cmsg( *args, **kwargs ):
-
-# 	""" Simple function to display a small, windowed message to the user, which can be selected and copied. 
-# 		This will instead print out to console if the GUI has not been initialized. 
-# 		With 1 argument provided, this simply displays a message with no window title. 
-# 		2nd optional argument adds a window title. 
-# 		3rd may be a string to change alignment (left/center/right). 
-# 		4th may be a list of (buttonText, buttonCommand) tuples 
-# 		5th may be a bool indicating whether the window should be modal """
-	
-# 	if globalData.gui:
-# 		guiSubComponents.CopyableMessageWindow( globalData.gui.root, *args, **kwargs )
-# 	else:
-# 		if len( args ) > 1:
-# 			print '\t', args[1] + ':'
-# 		print args[0]
-
-
 def copyToClipboard( text ):
 
 	""" Copies the given text to the user's clipboard. """
@@ -459,6 +443,98 @@ def getFileMd5( filePath, blocksize=65536 ): # todo: use blake2b instead for per
 			currentHash.update(block)
 
 	return currentHash.hexdigest()
+
+
+def rgb2hex( color ):
+
+	""" Converts a 4-color channel iterable of (r,g,b,a) to an RRGGBBAA string. 
+		Input can be RGB or RGBA, but output will still be RGB. """
+
+	return '#{:02x}{:02x}{:02x}'.format( color[0], color[1], color[2])
+
+
+def rgb2hsv( color ):
+	r, g, b, _ = color
+	r, g, b = r/255.0, g/255.0, b/255.0
+	mx = max(r, g, b)
+	mn = min(r, g, b)
+	df = mx-mn
+	if mx == mn: h = 0
+	elif mx == r: h = (60 * ((g-b)/df) + 360) % 360
+	elif mx == g: h = (60 * ((b-r)/df) + 120) % 360
+	elif mx == b: h = (60 * ((r-g)/df) + 240) % 360
+	if mx == 0: s = 0
+	else: s = df/mx
+	v = mx
+	return ( h, s, v )
+
+
+def hex2rgb( inputString ):
+
+	""" Converts an RRGGBBAA string to a 4-color channel iterable of (r,g,b,a). """
+
+	hexString = inputString.replace( '#', '' )
+	channelsList = []
+
+	if len( hexString ) % 2 != 0: # Checks whether the string is an odd number of characters
+		return ()
+	
+	try:
+		for i in range( 0, len(hexString), 2 ): # Iterate by 2 over the length of the input string
+			byte = hexString[i:i+2]
+			newInt = int( byte, 16 )
+			if newInt > -1 and newInt < 256:
+				channelsList.append( newInt )
+			
+	except Exception as err:
+		print( 'hex2rgb() was unable to convert {}; {}'.format(inputString, err) )
+
+	if len( channelsList ) != 4:
+		return ()
+	else:
+		return tuple( channelsList )
+
+
+def constructTextureFilename( texture, mipmapLevel=0, forceDolphinHash=False ):
+
+	""" Generates a file name for textures exported from DAT files (this is not used for banners). 
+		Depending on user settings, this may be the DTW's standard naming convention (i.e. )The file extension is not included. """
+
+	# Pull information on the texture
+	datFile = texture.dat
+	imageDataOffset, paletteDataOffset = texture.offset, texture.paletteDataOffset
+	width, height, imageType = texture.width, texture.height, texture.imageType
+
+	if not forceDolphinHash and not globalData.checkSetting( 'useDolphinNaming' ):
+		# Use DTW's standard naming convention
+		filename = '{}_0x{:X}_{}'.format( datFile.filename, 0x20+imageDataOffset, imageType )
+
+	else: # Use Dolphin's file naming convention
+		# Generate a hash on the encoded texture data
+		imageData = datFile.getData( imageDataOffset, texture.imageDataLength )
+		tex_hash = xxhash.xxh64( bytes(imageData) ).hexdigest() # Requires a byte string; can't use bytearray
+
+		# Generate a hash on the encoded palette data, if it exists
+		if imageType == 8 or imageType == 9 or imageType == 10:
+			# Get the palette data, and generate a hash from it
+			paletteData = datFile.getPaletteData( imageDataOffset, paletteDataOffset, imageData=imageData, imageType=imageType )[0]
+			tlut_hash = '_' + xxhash.xxh64( bytes(paletteData) ).hexdigest() # Requires a byte string; can't use bytearray
+		else:
+			tlut_hash = ''
+
+		# Format mipmap flags
+		if mipmapLevel == -1: # Not a mipmaped texture
+			# Assemble the finished filename, without file extension
+			filename = 'tex1_' + str(width) + 'x' + str(height) + '_' + tex_hash + tlut_hash + '_' + str(imageType)
+		else:
+			if mipmapLevel > 0:
+				mipLevel = '_mip' + str( mipmapLevel )
+			else: mipLevel = ''
+
+			# Assemble the finished filename, without file extension
+			filename = 'tex1_' + str(width) + 'x' + str(height) + '_m_' + tex_hash + tlut_hash + '_' + str(imageType) + mipLevel
+
+	return filename
 
 
 class ListDict(_OrderedDict):

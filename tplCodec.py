@@ -143,8 +143,8 @@ class CodecBase( object ): # The functions here in CodecBase are inherited by bo
 			# Determine palette encoding. This and the following operation (collecting image/palette data) must be done before closing the file buffer due to a generator function.
 			if self.paletteType == None: self.determinePaletteEncoding( pngImageInfo[3] )
 
-			print 'new palette generated, of size:', self.paletteColorCount
-			print 'new palette type:', self.paletteType
+			print( 'new palette generated, of size: ' + str(self.paletteColorCount) )
+			print( 'new palette type: ' + str(self.paletteType) )
 
 			# Collect the image data (multidimensional array of indices)
 			for row in pngImageInfo[2]:
@@ -155,8 +155,8 @@ class CodecBase( object ): # The functions here in CodecBase are inherited by bo
 			fileBuffer.close()
 
 		else:
-			print 'pngquant exit code: ' + str( exitCode )
-			print 'pngquant error: ' + cmdOutput.strip()
+			print( 'pngquant exit code: ' + str( exitCode ) )
+			print( 'pngquant error: ' + cmdOutput.strip() )
 			raise SystemError( 'An error occurred during palette generation.' )
 
 	def fromPngFile( self ):
@@ -169,7 +169,7 @@ class CodecBase( object ): # The functions here in CodecBase are inherited by bo
 			# This may be due to a bug in GIMP (Details: https://smashboards.com/threads/dat-texture-wizard-current-version-6-0.373777/post-24014857)
 			# Attempt to re-read the file, being more lenient with errors
 			if 'Checksum error in iCCP chunk' in str( err ): # Expecting a string like "ChunkError: Checksum error in iCCP chunk: 0xE94B8A86 != 0xEDF8F065."
-				print 'Encountered a bad iCCP chunk. Ignoring it.'
+				print( 'Encountered a bad iCCP chunk. Ignoring it.' )
 				pngImageInfo = pngImage.read( lenient=True ) # With lenient=True, checksum failures will raise warnings rather than exceptions
 			else:
 				raise Exception( err )
@@ -206,7 +206,7 @@ class CodecBase( object ): # The functions here in CodecBase are inherited by bo
 			self.generatePalette()
 
 		else:
-			lxrange = xrange # This localizes the xrange function, so that each call doesn't have to look through the local, then global, and then built-in function lists.
+			lxrange = range # This localizes the range function, so that each call doesn't have to look through the local, then global, and then built-in function lists.
 
 			for row in pngImageInfo[2]:
 				for pixelValues in lxrange( 0, len(row), self.channelsPerPixel ):
@@ -381,10 +381,10 @@ class TplDecoder( CodecBase ):
 			# I4 (Intensity 4-bit)
 			# Low bit-depth grayscale without transparency
 			
-			for y in xrange( 0, imageHeight, blockHeight ): # Iterates the image's blocks, vertically. (last argument is step size)
-				for x in xrange( 0, imageWidth, blockWidth ): # Iterates the image's blocks, horizontally.
-					for row in xrange( y, y + blockHeight ): # Iterates block rows, while tracking absolute image row position.
-						for column in xrange( x, x + blockWidth ): # Iterates block columns/x-axis, while tracking absolute image column position.
+			for y in range( 0, imageHeight, blockHeight ): # Iterates the image's blocks, vertically. (last argument is step size)
+				for x in range( 0, imageWidth, blockWidth ): # Iterates the image's blocks, horizontally.
+					for row in range( y, y + blockHeight ): # Iterates block rows, while tracking absolute image row position.
+						for column in range( x, x + blockWidth ): # Iterates block columns/x-axis, while tracking absolute image column position.
 
 							# Skip pixels outside the image's visible area
 							if row >= imageHeight or column >= imageWidth:
@@ -401,10 +401,10 @@ class TplDecoder( CodecBase ):
 			# I8 (Intensity 8-bit)
 			# Grayscale without transparency
 
-			for y in xrange( 0, imageHeight, blockHeight ): # Iterates the image's blocks, vertically. (last argument is step size)
-				for x in xrange( 0, imageWidth, blockWidth ): # Iterates the image's blocks, horizontally.
-					for row in xrange( y, y + blockHeight ): # Iterates block rows, while tracking absolute image row position.
-						for column in xrange( x, x + blockWidth ): # Iterates block columns/x-axis, while tracking absolute image column position.
+			for y in range( 0, imageHeight, blockHeight ): # Iterates the image's blocks, vertically. (last argument is step size)
+				for x in range( 0, imageWidth, blockWidth ): # Iterates the image's blocks, horizontally.
+					for row in range( y, y + blockHeight ): # Iterates block rows, while tracking absolute image row position.
+						for column in range( x, x + blockWidth ): # Iterates block columns/x-axis, while tracking absolute image column position.
 
 							# Skip pixels outside the image's visible area
 							if row >= imageHeight or column >= imageWidth:
@@ -421,10 +421,10 @@ class TplDecoder( CodecBase ):
 			# IA4 (Intensity Alpha 4-bit)
 			# Low bit-depth grayscale with transparency
 
-			for y in xrange( 0, imageHeight, blockHeight ): # Iterates the image's blocks, vertically. (last argument is step size)
-				for x in xrange( 0, imageWidth, blockWidth ): # Iterates the image's blocks, horizontally.
-					for row in xrange( y, y + blockHeight ): # Iterates block rows, while tracking absolute image row position.
-						for column in xrange( x, x + blockWidth ): # Iterates block columns/x-axis, while tracking absolute image column position.
+			for y in range( 0, imageHeight, blockHeight ): # Iterates the image's blocks, vertically. (last argument is step size)
+				for x in range( 0, imageWidth, blockWidth ): # Iterates the image's blocks, horizontally.
+					for row in range( y, y + blockHeight ): # Iterates block rows, while tracking absolute image row position.
+						for column in range( x, x + blockWidth ): # Iterates block columns/x-axis, while tracking absolute image column position.
 
 							# Skip pixels outside the image's visible area
 							if row >= imageHeight or column >= imageWidth:
@@ -442,10 +442,10 @@ class TplDecoder( CodecBase ):
 			# IA8 (Intensity Alpha 8-bit). This is also type 0 for palettes
 			# Grayscale with transparency
 
-			for y in xrange( 0, imageHeight, blockHeight ): # Iterates the image's blocks, vertically. (last argument is step size)
-				for x in xrange( 0, imageWidth, blockWidth ): # Iterates the image's blocks, horizontally.
-					for row in xrange( y, y + blockHeight ): # Iterates block rows, while tracking absolute image row position.
-						for column in xrange( x, x + blockWidth ): # Iterates block columns/x-axis, while tracking absolute image column position.
+			for y in range( 0, imageHeight, blockHeight ): # Iterates the image's blocks, vertically. (last argument is step size)
+				for x in range( 0, imageWidth, blockWidth ): # Iterates the image's blocks, horizontally.
+					for row in range( y, y + blockHeight ): # Iterates block rows, while tracking absolute image row position.
+						for column in range( x, x + blockWidth ): # Iterates block columns/x-axis, while tracking absolute image column position.
 
 							# Skip pixels outside the image's visible area
 							if row >= imageHeight or column >= imageWidth:
@@ -463,10 +463,10 @@ class TplDecoder( CodecBase ):
 			# RGB565. This is also type 1 for palettes, and used in CMPR
 			# Low bit-depth color without transparency
 
-			for y in xrange( 0, imageHeight, blockHeight ): # Iterates the image's blocks, vertically. (last argument is step size)
-				for x in xrange( 0, imageWidth, blockWidth ): # Iterates the image's blocks, horizontally.
-					for row in xrange( y, y + blockHeight ): # Iterates block rows, while tracking absolute image row position.
-						for column in xrange( x, x + blockWidth ): # Iterates block columns/x-axis, while tracking absolute image column position.
+			for y in range( 0, imageHeight, blockHeight ): # Iterates the image's blocks, vertically. (last argument is step size)
+				for x in range( 0, imageWidth, blockWidth ): # Iterates the image's blocks, horizontally.
+					for row in range( y, y + blockHeight ): # Iterates block rows, while tracking absolute image row position.
+						for column in range( x, x + blockWidth ): # Iterates block columns/x-axis, while tracking absolute image column position.
 
 							# Skip pixels outside the image's visible area
 							if row >= imageHeight or column >= imageWidth:
@@ -486,10 +486,10 @@ class TplDecoder( CodecBase ):
 			# RGB5A3. This is also type 2 for palettes
 			# Low bit-depth color with or without transparency (based on top bit)
 
-			for y in xrange( 0, imageHeight, blockHeight ): # Iterates the image's blocks, vertically. (last argument is step size)
-				for x in xrange( 0, imageWidth, blockWidth ): # Iterates the image's blocks, horizontally.
-					for row in xrange( y, y + blockHeight ): # Iterates block rows, while tracking absolute image row position.
-						for column in xrange( x, x + blockWidth ): # Iterates block columns/x-axis, while tracking absolute image column position.
+			for y in range( 0, imageHeight, blockHeight ): # Iterates the image's blocks, vertically. (last argument is step size)
+				for x in range( 0, imageWidth, blockWidth ): # Iterates the image's blocks, horizontally.
+					for row in range( y, y + blockHeight ): # Iterates block rows, while tracking absolute image row position.
+						for column in range( x, x + blockWidth ): # Iterates block columns/x-axis, while tracking absolute image column position.
 
 							# Skip pixels outside the image's visible area
 							if row >= imageHeight or column >= imageWidth:
@@ -518,10 +518,10 @@ class TplDecoder( CodecBase ):
 			# RGBA8 / RGBA32
 			# Full color with transparency
 
-			for y in xrange( 0, imageHeight, blockHeight ): # Iterates the image's blocks, vertically. (last argument is step size)
-				for x in xrange( 0, imageWidth, blockWidth ): # Iterates the image's blocks, horizontally.
-					for row in xrange( y, y + blockHeight ): # Iterates block rows, while tracking absolute image row position.
-						for column in xrange( x, x + blockWidth ): # Iterates block columns/x-axis, while tracking absolute image column position.
+			for y in range( 0, imageHeight, blockHeight ): # Iterates the image's blocks, vertically. (last argument is step size)
+				for x in range( 0, imageWidth, blockWidth ): # Iterates the image's blocks, horizontally.
+					for row in range( y, y + blockHeight ): # Iterates block rows, while tracking absolute image row position.
+						for column in range( x, x + blockWidth ): # Iterates block columns/x-axis, while tracking absolute image column position.
 
 							# Skip pixels outside the image's visible area
 							if row >= imageHeight or column >= imageWidth:
@@ -548,10 +548,10 @@ class TplDecoder( CodecBase ):
 			# Uses a color palette, which may use IA8, RGB565, or RGB5A3
 			# Uses 4 bits per palette index (max of 16 colors in the palette)
 
-			for y in xrange( 0, imageHeight, blockHeight ): # Iterates the image's blocks, vertically. (last argument is step size)
-				for x in xrange( 0, imageWidth, blockWidth ): # Iterates the image's blocks, horizontally.
-					for row in xrange( y, y + blockHeight ): # Iterates block rows, while tracking absolute image row position.
-						for column in xrange( x, x + blockWidth ): # Iterates block columns/x-axis, while tracking absolute image column position.
+			for y in range( 0, imageHeight, blockHeight ): # Iterates the image's blocks, vertically. (last argument is step size)
+				for x in range( 0, imageWidth, blockWidth ): # Iterates the image's blocks, horizontally.
+					for row in range( y, y + blockHeight ): # Iterates block rows, while tracking absolute image row position.
+						for column in range( x, x + blockWidth ): # Iterates block columns/x-axis, while tracking absolute image column position.
 
 							# Skip pixels outside the image's visible area
 							if row >= imageHeight or column >= imageWidth:
@@ -572,10 +572,10 @@ class TplDecoder( CodecBase ):
 			# Type 9 uses 8 bits per palette index (max of 256 colors in the palette)
 			# Type 10 uses 14 bits per palette index (max of 16,384 colors in the palette)
 
-			for y in xrange( 0, imageHeight, blockHeight ): # Iterates the image's blocks, vertically. (last argument is step size)
-				for x in xrange( 0, imageWidth, blockWidth ): # Iterates the image's blocks, horizontally.
-					for row in xrange( y, y + blockHeight ): # Iterates block rows, while tracking absolute image row position.
-						for column in xrange( x, x + blockWidth ): # Iterates block columns/x-axis, while tracking absolute image column position.
+			for y in range( 0, imageHeight, blockHeight ): # Iterates the image's blocks, vertically. (last argument is step size)
+				for x in range( 0, imageWidth, blockWidth ): # Iterates the image's blocks, horizontally.
+					for row in range( y, y + blockHeight ): # Iterates block rows, while tracking absolute image row position.
+						for column in range( x, x + blockWidth ): # Iterates block columns/x-axis, while tracking absolute image column position.
 
 							# Skip pixels outside the image's visible area
 							if row >= imageHeight or column >= imageWidth:
@@ -595,12 +595,12 @@ class TplDecoder( CodecBase ):
 
 			lint = int # Create a local instance of these two functions for quicker lookups
 			lround = round
-			for y in xrange( 0, imageHeight, 8 ): # Iterates the image's blocks, vertically. (last argument is step size)
-				for x in xrange( 0, imageWidth, 8 ): # Iterates the image's blocks, horizontally.
+			for y in range( 0, imageHeight, 8 ): # Iterates the image's blocks, vertically. (last argument is step size)
+				for x in range( 0, imageWidth, 8 ): # Iterates the image's blocks, horizontally.
 
 					# CMPR textures actually have sub-blocks. 4 sub-blocks in each block. iterate over those here.
-					for subBlockRow in xrange( 2 ): # Iterates sub-block rows
-						for subBlockColumn in xrange( 2 ): # Iterates sub-block columns/x-axis
+					for subBlockRow in range( 2 ): # Iterates sub-block rows
+						for subBlockColumn in range( 2 ): # Iterates sub-block columns/x-axis
 
 							rowTotal = 4 * subBlockRow + y
 							columnTotal = 4 * subBlockColumn + x
@@ -844,10 +844,10 @@ class TplEncoder( CodecBase ):
 
 		if imageType < 14:
 			_6GnB = [] # For image type _6, this will collect the Green & Blue portions of the pixel data for each block.
-			for y in xrange( 0, imageHeight, blockHeight ): # Iterates the image's blocks, vertically. (last arg is iteration step-size)
-				for x in xrange( 0, imageWidth, blockWidth ): # Iterates the image's blocks, horizontally.
-					for row in xrange( y, y + blockHeight ): # Iterates block rows, while tracking absolute image row position.
-						for column in xrange( x, x + blockWidth ): # Iterates block columns/x-axis, while tracking absolute image column position.
+			for y in range( 0, imageHeight, blockHeight ): # Iterates the image's blocks, vertically. (last arg is iteration step-size)
+				for x in range( 0, imageWidth, blockWidth ): # Iterates the image's blocks, horizontally.
+					for row in range( y, y + blockHeight ): # Iterates block rows, while tracking absolute image row position.
+						for column in range( x, x + blockWidth ): # Iterates block columns/x-axis, while tracking absolute image column position.
 							
 							if row >= imageHeight or column >= imageWidth: # Checks that this isn't a pixel outside the image's visible area (which will be skipped).
 								encodedPixelList.append( emptyPixel[imageType] )
@@ -878,41 +878,48 @@ class TplEncoder( CodecBase ):
 
 		else: # For image type 14 (CMPR)
 			raise TypeError( 'CMPR encoding is unsupported.' )
-			#print '- encode start -'
-			# lint = int # Create a local instance of these two functions for quicker lookup
-			# lround = round
-			# for y in xrange( 0, imageHeight, 8 ): # Iterates the image's blocks, vertically. (last argument is step size)
-			# 	for x in xrange( 0, imageWidth, 8 ): # Iterates the image's blocks, horizontally.
+			# #print '- encode start -'
+			# # lint = int # Create a local instance of these two functions for quicker lookup
+			# # lround = round
+			# for y in range( 0, imageHeight, 8 ): # Iterates the image's blocks, vertically. (last argument is step size)
+			# 	for x in range( 0, imageWidth, 8 ): # Iterates the image's blocks, horizontally.
 
 			# 		# CMPR textures actually have sub-blocks. 4 sub-blocks in each block. iterate over those here.
-			# 		for subBlockRow in xrange( 2 ): # Iterates sub-block rows
-			# 			for subBlockColumn in xrange( 2 ): # Iterates sub-block columns/x-axis
+			# 		for subBlockRow in range( 2 ): # Iterates sub-block rows
+			# 			for subBlockColumn in range( 2 ): # Iterates sub-block columns/x-axis
 
 			# 				rowTotal = 4 * subBlockRow + y
 			# 				columnTotal = 4 * subBlockColumn + x
-
 			# 				blockPixels = []
-			# 				uniqueColors = []
-			# 				redChannel = []
-			# 				greenChannel = []
-			# 				blueChannel = []
-			# 				alphaChannel = []
-			# 				minVal = 255
-			# 				maxVal = 0
+
+			# 				# uniqueColors = []
+			# 				# redChannel = []
+			# 				# greenChannel = []
+			# 				# blueChannel = []
+			# 				# alphaChannel = []
+			# 				# minVal = 255
+			# 				# maxVal = 0
 
 			# 				for row in range( rowTotal, rowTotal + 4 ):
 			# 					for column in range( columnTotal, columnTotal + 4 ):
-			# 						if row >= imageHeight or column >= imageWidth: # Skip pixels that are outside the image's visible area
-			# 							continue
+			# 						# if row >= imageHeight or column >= imageWidth: # Skip pixels that are outside the image's visible area
+			# 						# 	continue
 
-			# 						pixel = imageData[row * imageWidth + column]
+			# 						pixel = imageData[row * imageWidth + column] # RGBA tuple
 			# 						blockPixels.append( pixel )
-			# 						if pixel not in uniqueColors: uniqueColors.append( pixel )
+									
+			# 						# if pixel not in uniqueColors:
+			# 						# 	uniqueColors.append( pixel )
 
-			# 						redChannel.append( pixel[0] )
-			# 						greenChannel.append( pixel[1] )
-			# 						blueChannel.append( pixel[2] )
-			# 						alphaChannel.append( pixel[3] )
+			# 						# redChannel.append( pixel[0] )
+			# 						# greenChannel.append( pixel[1] )
+			# 						# blueChannel.append( pixel[2] )
+			# 						# alphaChannel.append( pixel[3] )
+
+			# 				palette, indices = self.quantizeCMPR( blockPixels )
+
+							# Store the above into 8 bytes
+							
 
 			# 				redMin = min( redChannel )
 			# 				greenMin = min( greenChannel )
@@ -965,13 +972,13 @@ class TplEncoder( CodecBase ):
 		if dataType == 'palette': imageType += 3 # These formats are used for both image and palette color data.
 
 		if len(pixel) == 4: r, g, b, a = pixel
-		elif len(pixel) == 3: 
+		elif len(pixel) == 3:
 			r, g, b = pixel
 			a = 255
-		elif len(pixel) == 2: 
+		elif len(pixel) == 2:
 			r, a = pixel
 			g = b = r
-		else: 
+		else:
 			r = pixel[0]
 			g = b = r
 			a = 255
@@ -1010,6 +1017,8 @@ class TplEncoder( CodecBase ):
 
 		return hexPixel
 
+	#def quantizeCMPR( self, sourceColors ):
+
 	def createTplFile( self, savePath='' ):
 
 		""" Quick method to build and save a simple, single-texture TPL file. 
@@ -1027,7 +1036,7 @@ class TplEncoder( CodecBase ):
 			if not self.encodedImageData:
 				self.blockify()
 		except Exception as err:
-			print 'TPL encoding error:', err
+			print( 'TPL encoding error: ' + str(err) )
 			return 1
 
 		# Encode width/height/image-type integers as hex, and pad the result to n zeros (the second parameter to 'format').
@@ -1078,5 +1087,5 @@ class TplEncoder( CodecBase ):
 			return 0
 
 		except Exception as err:
-			print 'Error in saving TPL file:', err
+			print( 'Error in saving TPL file: ' + str(err) )
 			return 2

@@ -15,6 +15,7 @@ import struct
 import tkMessageBox
 import Tkinter as Tk
 
+from PIL import Image, ImageTk
 from binascii import hexlify
 from itertools import izip, count
 from collections import OrderedDict
@@ -25,7 +26,8 @@ import codeRegionSettings
 
 from fileBases import FileBase
 from codeMods import ConfigurationTypes
-from basicFunctions import uHex, toInt, validHex, grammarfyList, findAll, msg
+from tplCodec import TplDecoder, TplEncoder
+from basicFunctions import uHex, toInt, validHex, printStatus, grammarfyList, findAll, msg
 from guiSubComponents import BasicWindow
 
 
@@ -1252,3 +1254,208 @@ class Dol( FileBase ):
 		# else: # Default Game Settings can't be set
 		# 	mainNotebook.tab( 2, state='disabled' ) # The Default Game Settings tab
 		# 	mainNotebook.select( 0 )
+
+	def identifyTextures( self ):
+
+		""" The DOL does not have image data headers or other structs like DAT files, yet 
+			still contains some texture data. For the most part these are textures for 
+			displaying character sets (alphanumeric and other symbols). """
+
+		# There are no headers for these images, but they all have the same properties.
+		width = 32
+		height = 32
+		imageType = 0
+		imageDataLength = 0x200
+		texturesInfo = []
+
+		if self.region == 'PAL':
+			imageDataOffset = 0x040C4E0
+			totalTextures = 146
+		elif self.version == '1.02':
+			imageDataOffset = 0x409d40
+			totalTextures = 287
+		elif self.version == '1.01':
+			imageDataOffset = 0x409060
+			totalTextures = 287
+		elif self.version == '1.00':
+			imageDataOffset = 0x407D80
+			totalTextures = 287
+		else: # Failsafe
+			printStatus( "The DOL file doesn't have a recognized revision! ({})".format(self.revision), error=True )
+			return []
+
+		# Construct the list in the same was as for DAT files, with tuples of this form:
+		# ( imageDataOffset, imageHeaderOffset, paletteDataOffset, paletteHeaderOffset, width, height, imageType, mipmapCount )
+		for _ in range( totalTextures ):
+			texturesInfo.append( (imageDataOffset, -1, -1, -1, width, height, imageType, 0) )
+			imageDataOffset += imageDataLength
+
+		return texturesInfo
+
+	def getTexture( self, imageDataOffset, width=32, height=32, imageType=0, imageDataLength=0x200, getAsPilImage=False ):
+
+		""" Decodes texture data at a given offset and creates an image out of it. 
+			getAsPilImage can be set to True if the user would like to get the PIL image instead. """
+
+		assert type( imageDataOffset ) == int, 'Invalid input to getTexture; image data offset is not an int.'
+
+		# Need to find image details if they weren't provided, so look for the image data header
+		# if imageType == -1:
+		# 	# Get the data section structure offsets, and separate out main structure references
+		# 	hI = self.headerInfo
+		# 	dataSectionStructureOffsets = set( self.structureOffsets ).difference( (-0x20, hI['rtStart'], hI['rtEnd'], hI['rootNodesEnd'], hI['stringTableStart']) )
+
+		# 	# Scan the data section by analyzing generic structures and looking for standard image data headers
+		# 	for structureOffset in dataSectionStructureOffsets:
+		# 		# Get the image data header struct's data.
+		# 		try: # Using a try block because the last structure offsets may raise an error (unable to get 0x18 bytes) which is fine
+		# 			structData = self.getData( structureOffset, 0x18 )
+		# 		except:
+		# 			continue
+
+		# 		# Unpack the values for this structure, assuming it's an image data header
+		# 		fieldValues = struct.unpack( '>IHHIIff', structData )
+		# 		headerImageDataOffset, width, height, imageType, _, _, _ = fieldValues
+
+		# 		if headerImageDataOffset == imageDataOffset:
+		# 			#print 'header seek time:', time.clock() - tic
+		# 			break
+
+		# 	else: # The loop above didn't break; unable to find the header!
+		# 		print( 'Unable to find an image data header for the imageDataOffset 0x{:X}'.format(imageDataOffset+0x20) )
+		# 		return None
+
+		# Should have details on the texture by now; calculate length if still needed
+		# if imageDataLength == -1:
+		# 	imageDataLength = hsdStructures.ImageDataBlock.getDataLength( width, height, imageType )
+
+		# try:
+		# assert imageDataLength > 0x20, 'Invalid imageDataLength given to getTexture(): ' + hex( imageDataLength )
+		imageData = self.getData( imageDataOffset, imageDataLength )
+
+		# if imageType == 8 or imageType == 9 or imageType == 10: # Gather info on the palette.
+		# 	paletteData, paletteType = self.getPaletteData( imageDataOffset )
+		# else:
+		paletteData = ''
+		paletteType = None
+
+		newImg = TplDecoder( '', (width, height), imageType, paletteType, imageData, paletteData )
+		newImg.deblockify() # This decodes the image data, creating an rgbaPixelArray.
+
+		# Create an image with the decoded data
+		textureImage = Image.new( 'RGBA', (width, height) )
+		textureImage.putdata( newImg.rgbaPixelArray )
+
+		# except Exception as errMessage:
+		# 	print 'Unable to make out a texture for data at', hex(0x20+imageDataOffset)
+		# 	print errMessage
+
+		if getAsPilImage:
+			return textureImage
+		else:
+			return ImageTk.PhotoImage( textureImage )
+
+	def setTexture( self, imageDataOffset, pilImage=None, imagePath='', textureName='Texture', paletteQuality=3 ):
+
+		""" Encodes image data into TPL format (if needed), and writes it into the file at the given offset. 
+			Input must be a data offset and either a PIL image or a file path to a texture file (PNG or TPL). 
+			The offset given should be relative to the start of the data section. 
+
+			Returns a tuple of 3 values; an exit code, and two extra values in the following cases: 
+			Return/exit codes:									Extra info:
+				0: Success; no problems								( 0, '', '' )
+				1: Unable to find palette information 				( 1, '', '' )
+				2: The new image data is too large 					( 2, origImageDataLength, newImageDataLength )
+				3: The new palette data is too large 				( 3, maxPaletteColorCount, newPaletteColorCount )
+		"""
+
+		#self.initialize()
+
+		# Gather info on the texture currently in the file
+		# imageDataStruct = self.initDataBlock( hsdStructures.ImageDataBlock, imageDataOffset )
+		# _, origWidth, origHeight, origImageType, isMipMap, minLOD, maxLOD = imageDataStruct.getAttributes()
+		# origImageDataLength = imageDataStruct.getDataLength( origWidth, origHeight, origImageType )
+		origImageDataLength = 0x200
+
+		# Gather palette information on the texture currently in the file
+		# if origImageType in ( 8, 9, 10 ):
+		# 	# Find information on the associated palette (if unable to, return)
+		# 	paletteDataOffset, paletteHeaderOffset, paletteLength, origPaletteType, origPaletteColorCount = self.getPaletteInfo( imageDataOffset )
+		# 	if paletteDataOffset == -1:
+		# 		return 1, '', ''
+
+		# 	# If not updating data headers, assume the current palette format must be preserved, and prevent the tplCodec from choosing one (if it creates a palette)
+		# 	# In other words, if there are data headers, leave this unspecified so that the codec may intelligently choose the best palette type.
+		# 	# if updateDataHeaders and headersAvailable:
+		# 	# 	origPaletteType = None # No known value descriptiong for palette type in effects files
+
+		# 	maxPaletteColorCount = paletteLength / 2
+		# else:
+			#origPaletteType = None
+			# origPaletteColorCount = 255
+			# maxPaletteColorCount = 255
+
+		# Initialize a TPL image object (and create a new palette for it, if needed)
+		if pilImage:
+			pilImage = pilImage.convert( 'RGBA' )
+			newImage = TplEncoder( '', pilImage.size, 0 )
+			newImage.imageDataArray = pilImage.getdata()
+			newImage.rgbaPaletteArray = pilImage.getpalette()
+			width, height = pilImage.size
+
+		elif imagePath:
+			newImage = TplEncoder( imagePath, imageType=0 )
+			width, height = newImage.width, newImage.height
+			
+		else:
+			raise IOError( 'Invalid input to .setTexture(); no PIL image or texture filepath provided.' )
+
+		# Decode the image into TPL format
+		newImage.blockify()
+		newImageData = newImage.encodedImageData
+		newPaletteData = newImage.encodedPaletteData
+
+		# Make sure the new image isn't too large
+		newImageDataLength = len( newImage.encodedImageData )
+		if newImageDataLength > origImageDataLength:
+			return 2, origImageDataLength, newImageDataLength
+
+		# Check if the file needs to be expanded for a larger texture
+		# if isMipMap:
+		# 	# Calculate space needed and make sure the data can fit, just in case
+		
+		# Replace the palette data in the file
+		# if origImageType in ( 8, 9, 10 ):
+		# 	# Make sure there is space for the new palette, and update the dat's data with it.
+		# 	newPaletteColorCount = len( newPaletteData ) / 2 # All of the palette types (IA8, RGB565, and RGB5A3) are 2 bytes per color entry
+		# 	if newPaletteColorCount > maxPaletteColorCount:
+		# 		return 3, maxPaletteColorCount, newPaletteColorCount
+
+		# 	entriesToFill = origPaletteColorCount - newPaletteColorCount
+		# 	nullBytes = bytearray( entriesToFill )
+			
+		# 	# Update the palette data headers
+		# 	if origPaletteType != newImage.paletteType:
+		# 		self.updateData( paletteHeaderOffset+7, newImage.paletteType, trackChange=False )
+				
+		# 	# Update the palette data
+		# 	self.updateData( paletteDataOffset, newPaletteData + nullBytes, trackChange=False )
+
+		# Update the image data header(s)
+		# newHeaderData = struct.pack( '>HHI', width, height, origImageType )
+		# for offset in imageDataStruct.getParents():
+		# 	self.updateData( offset+4, newHeaderData, trackChange=False )
+
+		# If the new texture is smaller than the original, fill the extra space with zeroes
+		# if newImageDataLength < origImageDataLength:
+		# 	newImageData.extend( bytearray(origImageDataLength - newImageDataLength) ) # Adds n bytes of null data
+
+		# Update the texture image data in the file
+		self.updateData( imageDataOffset, newImageData, trackChange=False )
+		self.recordChange( '{} updated at 0x{:X}'.format(textureName, 0x20+imageDataOffset) )
+
+		# if isMipMap:
+		# 	# Calculate space needed and make sure the data can fit, just in case
+		# 	for i in range( maxLOD )
+
+		return 0, '', ''
