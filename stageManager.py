@@ -23,7 +23,6 @@ from PIL import Image, ImageTk, ImageDraw, ImageFont
 # Internal dependencies
 import globalData
 
-from tplCodec import TplEncoder
 from FileSystem import StageFile
 from FileSystem.hsdStructures import MapMusicTable
 from basicFunctions import uHex, validHex, humansize, msg, createFolders
@@ -1164,7 +1163,7 @@ class StageManager( ttk.Frame ):
 		else:
 			texture = canvas.sssFile.getTexture( iconTextureOffset, 64, 56, 9, 0xE00, getAsPilImage=True )
 
-		exportSingleTexture( filename, texture )
+		exportSingleTexture( filename, texture, imageType=9 )
 	
 	def importIconTexture( self ):
 
@@ -1718,7 +1717,7 @@ class StageManager( ttk.Frame ):
 			globalData.gui.updateProgramStatus( 'No texture to export. Choose a stage to begin' )
 			return
 
-		exportSingleTexture( "Stage preview text.png", self.previewTextCanvas.pilImage )
+		exportSingleTexture( "Stage preview text.png", self.previewTextCanvas.pilImage, imageType=0 )
 
 	def importPreviewText( self ):
 

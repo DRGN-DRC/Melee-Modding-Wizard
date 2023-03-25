@@ -1831,7 +1831,7 @@ class DiscDetailsTab( ttk.Frame ):
 		self.helpText.set( helpText )
 
 	def exportBanner( self ):
-		exportSingleTexture( globalData.disc.gameId + ' Banner.png', self.bannerCanvas.pilImage )
+		exportSingleTexture( globalData.disc.gameId + ' Banner.png', self.bannerCanvas.pilImage, imageType=5 )
 
 	def importBanner( self ):
 		imagePath = importSingleTexture( "Choose a banner texture of 96x32 to import" )

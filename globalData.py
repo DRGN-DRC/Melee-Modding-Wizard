@@ -451,6 +451,11 @@ def getLastUsedDir( category='default', fileExt='' ):
 	# Get a default directory location for this specific type of file
 	try:
 		directoryPath = settings.get( 'Default Search Directories', category.replace( '.', '' ).lower() )
+
+		# For PNG directories, we can start off by assuming this texture will be saved with its dat
+		if not directoryPath and category == 'png':
+			directoryPath = settings.get( 'Default Search Directories', 'dat' )
+
 	except ConfigParser.NoOptionError:
 		if category == 'codeLibrary':
 			directoryPath = getModsFolderPath()

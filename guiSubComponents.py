@@ -225,7 +225,7 @@ def importSingleFileWithGui( origFileObj, validate=True, title='' ):
 	return True
 
 
-def exportSingleTexture( defaultFilename, texture=None, fileObj=None, textureOffset=-1 ):
+def exportSingleTexture( defaultFilename, texture=None, fileObj=None, textureOffset=-1, imageType=-1 ):
 
 	""" Exports a single texture, while prompting the user on where they'd like to save it. 
 		The 'defaultFilename' argument should include a file extension (typically .png). 
@@ -248,7 +248,7 @@ def exportSingleTexture( defaultFilename, texture=None, fileObj=None, textureOff
 	savePath = tkFileDialog.asksaveasfilename(
 		title="Where would you like to export the file?",
 		parent=globalData.gui.root,
-		initialdir=globalData.getLastUsedDir( 'dat' ), # Assuming this texture will be saved with its dat
+		initialdir=globalData.getLastUsedDir( 'png' ),
 		initialfile=defaultFilename,
 		filetypes=filetypes )
 
@@ -272,11 +272,17 @@ def exportSingleTexture( defaultFilename, texture=None, fileObj=None, textureOff
 
 	# Convert the image into TPL format or save it as-is
 	if savePath.lower().endswith( '.tpl' ):
-		texture = texture.convert( 'RGBA' ) # Returns a modified image without affecting the original
+		#texture = texture.convert( 'RGBA' ) # Returns a modified image without affecting the original
 
-		newImage = TplEncoder( '', texture.size, 0 )
-		newImage.imageDataArray = texture.getdata()
-		newImage.rgbaPaletteArray = texture.getpalette()
+		if imageType == -1:
+			imageType = 0 #todo
+			# Determine the image type
+			# texture = texturesTab.file.structs.get( imageDataOffset )
+			# width, height, imageType = texture.width, texture.height, texture.imageType
+
+		newImage = TplEncoder( '', texture, imageType )
+		# newImage.imageDataArray = texture.getdata()
+		# newImage.rgbaPaletteArray = texture.getpalette()
 
 		returnCode = newImage.createTplFile( savePath )
 	else:
@@ -362,7 +368,7 @@ def exportMultipleTextures( texturesTab, exportAll=False ):
 			# Prompt for a filename, and a place to save the file.
 			savePath = tkFileDialog.asksaveasfilename(
 				title="Where would you like to export the file?",
-				initialdir=globalData.getLastUsedDir( 'dat' ), # Assuming this texture will be saved with its dat
+				initialdir=globalData.getLastUsedDir( 'png' ),
 				initialfile=defaultFilename,
 				defaultextension='.' + exportFormat,
 				filetypes=filetypes )
@@ -381,7 +387,7 @@ def exportMultipleTextures( texturesTab, exportAll=False ):
 		# Instead of having the user choose a file name and save location, have them choose just the save location.
 		directoryPath = tkFileDialog.askdirectory(
 			title='Where would you like to save these textures?',
-			initialdir=globalData.getLastUsedDir( 'dat' ), # Assuming this texture will be saved with its dat
+			initialdir=globalData.getLastUsedDir( 'png' ),
 			parent=globalData.gui.root,
 			mustexist=True )
 
@@ -425,7 +431,9 @@ def exportMultipleTextures( texturesTab, exportAll=False ):
 
 		try: # Save the file to be exported
 			if exportFormat == 'tpl':
-				tplImage = TplEncoder( imageDimensions=(width, height), imageType=imageType, paletteType=paletteType )
+				tplImage = TplEncoder( imageType=imageType, paletteType=paletteType )
+				tplImage.width = width
+				tplImage.height = height
 				tplImage.encodedImageData = imageData
 				tplImage.encodedPaletteData = paletteData
 				tplImage.createTplFile( savePath )

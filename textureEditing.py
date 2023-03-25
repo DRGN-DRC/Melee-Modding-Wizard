@@ -206,7 +206,7 @@ class TexturesEditorTab( ttk.Frame ):
 		datFileDetails = ttk.Labelframe( datPreviewPaneBottomRow, text='  File Details  ', labelanchor='n' )
 		self.datFilesizeText = Tk.StringVar()
 		self.datFilesizeText.set( 'File Size:  ' )
-		ttk.Label( datFileDetails, textvariable=self.datFilesizeText, width=23 )
+		ttk.Label( datFileDetails, textvariable=self.datFilesizeText )
 		self.totalTextureSpaceText = Tk.StringVar()
 		self.totalTextureSpaceText.set( 'Total Texture Size:  ' )
 		ttk.Label( datFileDetails, textvariable=self.totalTextureSpaceText )
@@ -1659,7 +1659,7 @@ class TexturesContextMenu( Tk.Menu, object ):
 			self.lastItem = self.iids[-1] # Selects the lowest position item selected in the treeview.
 			self.add_command( label='Export Selected Texture(s)', underline=0, command=self.exportSelectedTextures )				# E
 			self.add_command( label='Export All', underline=7, command=self.exportAllTextures )										# A
-			self.add_command( label='Import Texture', underline=0, command=self.importTexture )									# I
+			self.add_command( label='Import Texture', underline=0, command=self.importTexture )										# I
 			self.add_separator()
 			#self.add_command( label='Blank Texture (Zero-out)', underline=0, command=blankTextures )								# B
 			#self.add_command(label='Disable (Prevents Rendering)', underline=0, command=disableTextures )
@@ -1910,10 +1910,11 @@ class TexturesContextMenu( Tk.Menu, object ):
 				return
 
 		# Get the disc file and save the image data to it
-		try:
-			returnCode, origLimit, newLimit = self.texturesTab.file.setTexture( imageDataOffset, newImage )
-		except Exception as err:
-			msg( 'An unexpected error occurred importing the texture; {}'.format(err), 'Import Error', error=True )
+		# try:
+		returnCode, origLimit, newLimit = self.texturesTab.file.setTexture( imageDataOffset, newImage )
+		# except Exception as err:
+		# 	returnCode = -1
+		# 	msg( 'An unexpected error occurred importing the texture; {}'.format(err), 'Import Error', error=True )
 
 		# Give a warning or success message
 		if returnCode == 0:

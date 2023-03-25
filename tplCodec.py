@@ -26,7 +26,7 @@ except: from StringIO import StringIO
 
 # These paths cannot be left as relative, because drag-n-drop functionality with the main program (when opening) may change the active working directory.
 scriptHomeFolder = os.path.abspath( os.path.dirname(sys.argv[0]) ) # Can't use __file__ after freeze
-pathToPngquant = scriptHomeFolder + '\\bin\\pngquant.exe'
+pathToPngquant = os.path.join( scriptHomeFolder, 'bin', 'pngquant.exe' )
 
 
 class missingType( Exception ): pass
@@ -51,15 +51,14 @@ class CodecBase( object ): # The functions here in CodecBase are inherited by bo
 
 	""" Provides file reading and palette generation methods to the primary encoding and decoding classes. """
 
-	version = 2.1
+	version = 3.0
 	
 	blockDimensions = { # Defines the block width and height, in texels (pixels, basically), respectively, for each image type.
 		0: (8,8), 1: (8,4), 2: (8,4), 3: (4,4), 4: (4,4), 5: (4,4), 6: (4,4), 8: (8,8), 9: (8,4), 10: (4,4), 14: (8,8) } 
 		# For type 14, it's technically 8x8 pixels with 2x2 sub-blocks
 
-	def __init__( self, filepath, imageDimensions, imageType, paletteType, maxPaletteColors, paletteQuality ):
+	def __init__( self, filepath, imageType, paletteType, maxPaletteColors, paletteQuality ):
 		self.filepath = filepath
-		self.width, self.height = imageDimensions
 		self.imageType = imageType
 		self.paletteType = paletteType
 		self.paletteColorCount = 0
@@ -92,9 +91,9 @@ class CodecBase( object ): # The functions here in CodecBase are inherited by bo
 			return ( process.returncode, stderr_data )
 
 	def readImageData( self ):
-		# If an imageType is found in the filepath, use that to override the default imageType given during initialization.
-		# filepathImageType = CodecBase.parseFilename( self.filepath )[0]
-		# if filepathImageType != -1: self.imageType = filepathImageType
+
+		""" Reads the given image file to collect basic properties and image and/or palette data. """
+
 		if self.imageType == None:
 			raise missingType( 'No image type was provided or determined.' )
 
@@ -106,51 +105,73 @@ class CodecBase( object ): # The functions here in CodecBase are inherited by bo
 			raise IOError( "Unsupported file type." )
 
 	def determinePaletteEncoding( self, imageProperties ):
+
+		""" Determines the type of encoding that should be used if this texture 
+			is to be written into the game. First checks some image properties, 
+			but if they are indeterminable, the palette colors will be analyzed. """
+
 		# If no palette type was provided, analyze the file and/or palette entries to determine what the type and encoding should be.
 		if imageProperties['greyscale'] == 'True':
 			self.paletteType = 0
 		elif imageProperties['alpha'] == 'False':
 			self.paletteType = 1
 		else: # Image is RGBA, which doesn't necessarily mean it's actually utilizing all of the channels.
-			utilizesAlpha = False
 			for paletteEntry in self.rgbaPaletteArray:
 				if paletteEntry[3] != 255:
-					utilizesAlpha = True
+					self.paletteType = 2
 					break
-			if utilizesAlpha:
-				self.paletteType = 2
-			else: # Continue the investigation with a grayscale check on the palette.
-				greyscale = True
+			else: # The loop above didn't break; continue the investigation with a greyscale check on the palette.
 				for paletteEntry in self.rgbaPaletteArray:
 					r, g, b, _ = paletteEntry
 					if r != g or g != b:
-						greyscale = False
+						self.paletteType = 1
 						break
-				if greyscale: self.paletteType = 0
-				else: self.paletteType = 1
+				else: # The loop above didn't break; the image is greyscale
+					self.paletteType = 0
 
 	def generatePalette( self ):
-		exitCode, cmdOutput = self.cmdChannel( '"{}" --speed {} {} -- <"{}"'.format(pathToPngquant, self.paletteQuality, self.maxPaletteColors, self.filepath) )
-																# Above ^: --speed is a speed/quality balance. 1=slow, 3=default, 11=fast & rough
+
+		""" Opens a command-line interface to pngquant with a command to create 
+			a new palette with the required color count. """
+
+		# Send pngquant the current file
+		if self.filepath:
+			exitCode, cmdOutput = self.cmdChannel( '"{}" --speed {} {} -- <"{}"'.format(pathToPngquant, self.paletteQuality, self.maxPaletteColors, self.filepath) )
+														 # Above ^: --speed is a speed/quality balance. 1=slow, 3=default, 11=fast & rough
+		# No file available, send pngquant the PIL image using the stdin buffer
+		elif self.pilImage:
+			# Save the PIL image into a buffer so it can be sent to pngquant's stdin
+			pilInputBuffer = StringIO()
+			self.pilImage.save( pilInputBuffer, 'png' )
+			stdin = pilInputBuffer.getvalue()
+
+			exitCode, cmdOutput = self.cmdChannel( '"{}" --speed {} {} - '.format(pathToPngquant, self.paletteQuality, self.maxPaletteColors), standardInput=stdin )
+														 # Above ^: --speed is a speed/quality balance. 1=slow, 3=default, 11=fast & rough
+			pilInputBuffer.close()
+
+		else: # :O
+			raise IOError( "No filepath or PIL image provided to the TPL Codec's generatePalette method." )
+
 		if exitCode == 0: # Success
+			# Connect to the output buffer (stdout)
 			fileBuffer = StringIO( cmdOutput )
+
 			pngImage = png.Reader( fileBuffer )
 			pngImageInfo = pngImage.read()
 			self.channelsPerPixel = pngImageInfo[3]['planes']
 			self.rgbaPaletteArray = pngImage.palette( alpha='force' ) # 1D list
 			self.paletteColorCount = len( self.rgbaPaletteArray )
 
-			# Determine palette encoding. This and the following operation (collecting image/palette data) must be done before closing the file buffer due to a generator function.
-			if self.paletteType == None: self.determinePaletteEncoding( pngImageInfo[3] )
+			# Determine palette encoding. This and the following operation (collecting image/palette data) 
+			# must be done before closing the file buffer due to a generator function.
+			if self.paletteType == None:
+				self.determinePaletteEncoding( pngImageInfo[3] )
 
 			print( 'new palette generated, of size: ' + str(self.paletteColorCount) )
 			print( 'new palette type: ' + str(self.paletteType) )
 
 			# Collect the image data (multidimensional array of indices)
-			for row in pngImageInfo[2]:
-				for index in row:
-					self.imageDataArray.append( index )
-					self.rgbaPixelArray.append( self.rgbaPaletteArray[index] )
+			self.collectImageDataIndices( pngImageInfo[2] )
 			
 			fileBuffer.close()
 
@@ -158,6 +179,18 @@ class CodecBase( object ): # The functions here in CodecBase are inherited by bo
 			print( 'pngquant exit code: ' + str( exitCode ) )
 			print( 'pngquant error: ' + cmdOutput.strip() )
 			raise SystemError( 'An error occurred during palette generation.' )
+
+	def collectImageDataIndices( self, paletteData ):
+
+		""" Flushes current image data and repopulates it with indices into the current palette. """
+
+		self.imageDataArray = []
+		self.rgbaPixelArray = []
+
+		for row in paletteData:
+			for index in row:
+				self.imageDataArray.append( index )
+				self.rgbaPixelArray.append( self.rgbaPaletteArray[index] )
 
 	def fromPngFile( self ):
 		pngImage = png.Reader( filename=self.filepath )
@@ -172,6 +205,7 @@ class CodecBase( object ): # The functions here in CodecBase are inherited by bo
 				print( 'Encountered a bad iCCP chunk. Ignoring it.' )
 				pngImageInfo = pngImage.read( lenient=True ) # With lenient=True, checksum failures will raise warnings rather than exceptions
 			else:
+				print( 'The TPL codec ran into an unrecognized error reading the given file.' )
 				raise Exception( err )
 		except:
 			raise
@@ -186,25 +220,23 @@ class CodecBase( object ): # The functions here in CodecBase are inherited by bo
 			self.originalPaletteColorCount = len( self.rgbaPaletteArray ) # Useful to remember in case the palette is regenerated.
 			self.paletteColorCount = self.originalPaletteColorCount
 
-			if self.paletteColorCount > self.maxPaletteColors: # The palette is too large. Generate a smaller one.
+			# If the palette is too large, generate a smaller one
+			if self.paletteColorCount > self.maxPaletteColors:
 				self.generatePalette()
 				self.paletteRegenerated = True
 
-			elif self.paletteType == None: self.determinePaletteEncoding( pngImageInfo[3] )
+			elif self.paletteType == None:
+				self.determinePaletteEncoding( pngImageInfo[3] )
 
 			# Collect the image data (multidimensional array of indices)
 			if len( self.imageDataArray ) == 0:
-				self.imageDataArray = []
-				self.rgbaPixelArray = []
-				for row in pngImageInfo[2]:
-					for index in row:
-						self.imageDataArray.append( index )
-						self.rgbaPixelArray.append( self.rgbaPaletteArray[index] )
+				self.collectImageDataIndices( pngImageInfo[2] )
 
+		# If a palette is not present, but the intended encoding needs one, generate it
 		elif self.imageType in ( 8, 9, 10 ):
-			# No palette found. But it should have one for this type. Generate one.
 			self.generatePalette()
 
+		# Collect pixels from the image data into the image data pixel array
 		else:
 			lxrange = range # This localizes the range function, so that each call doesn't have to look through the local, then global, and then built-in function lists.
 
@@ -251,6 +283,8 @@ class CodecBase( object ): # The functions here in CodecBase are inherited by bo
 			binaryFile.seek( imageDataOffset )
 			self.encodedImageData = bytearray( binaryFile.read() )
 
+	#def fromPilImage( self, ):
+
 	@staticmethod # This allows this function to be called externally from this class, without initializing it. e.g. CodecBase.parseFilename()
 	def parseFilename( filepath ): # Returns ( textureType, offset, sourceFile ), or empty strings if these are not found.
 		filename = os.path.basename( filepath ) # The filepath argument could also just be a file name instead.
@@ -291,9 +325,9 @@ class CodecBase( object ): # The functions here in CodecBase are inherited by bo
 			return ( imageType, offset, sourceFile ) # Returns a tuple of ( int, int, str )
 
 
-																			# ==========================
-																			# -= Decoder begins here. =-
-																			# ==========================
+														# ==========================
+														# -= Decoder begins here. =-
+														# ==========================
 
 class TplDecoder( CodecBase ):
 
@@ -303,10 +337,13 @@ class TplDecoder( CodecBase ):
 		raw data instead. imageType and imageDimensions are also mandatory. """
 
 	def __init__( self, filepath='', imageDimensions=(0, 0), imageType=None, paletteType=None, encodedImageData='', encodedPaletteData='', maxPaletteColors=256, paletteQuality=3 ):
-		super( TplDecoder, self ).__init__( filepath, imageDimensions, imageType, paletteType, maxPaletteColors, paletteQuality )
+		
+		super( TplDecoder, self ).__init__( filepath, imageType, paletteType, maxPaletteColors, paletteQuality )
 		
 		self.encodedImageData = encodedImageData
 		self.encodedPaletteData = encodedPaletteData
+		self.width, self.height = imageDimensions
+		self.pilImage = None
 
 		# If the filepath is not empty, get the data from a file
 		if filepath:
@@ -626,7 +663,7 @@ class TplDecoder( CodecBase ):
 							
 							for row in range( rowTotal, rowTotal + 4 ):
 								# Skip rows that aren't part of the visible dimensions
-								if row >= imageHeight: 
+								if row >= imageHeight:
 									readPosition += 1
 									continue
 
@@ -770,27 +807,46 @@ class TplDecoder( CodecBase ):
 				pngData.write_array( newFile, flattenedArray )
 
 
-																			# ==========================
-																			# -= Encoder begins here. =-
-																			# ==========================
+														# ==========================
+														# -= Encoder begins here. =-
+														# ==========================
 
 class TplEncoder( CodecBase ):
 
-	""" Converts PNG data to TPL format. Can return just the TPL [image and palette] data, or create a TPL file.
+	""" Converts PNG data to TPL format. Can return just the TPL image and palette data, or create a TPL file.
 
-		Pass a filepath to get data from a file, or image data [and palette data if needed] to work with raw data instead.
-		The arguments imageDataArray and rgbaPaletteArray expect a list, where each pixel is an RGBA tuple. """
+		Pass a filepath, a PIL image, or raw image and/or palette data.
+		The arguments imageDataArray and rgbaPaletteArray expect a 1D list, where each pixel is an RGBA tuple. """
 
-	def __init__( self, filepath='', imageDimensions=(0, 0), imageType=None, paletteType=None, imageDataArray=None, rgbaPaletteArray=None, maxPaletteColors=256, paletteQuality=3 ):
-		super( TplEncoder, self ).__init__( filepath, imageDimensions, imageType, paletteType, maxPaletteColors, paletteQuality )
+	def __init__( self, filepath='', pilImage=None, imageType=None, paletteType=None, imageDataArray=None, rgbaPaletteArray=None, maxPaletteColors=256, paletteQuality=3 ):
+		
+		super( TplEncoder, self ).__init__( filepath, imageType, paletteType, maxPaletteColors, paletteQuality )
 
-		self.imageDataArray = imageDataArray or [] # Replacing "None" in the __init__ declaration because [] is mutable, meaning it would not be created anew each time.
+		# Set data arrays to what's given, or initialize with an empty list
+		self.imageDataArray = imageDataArray or [] # Not set in the __init__ declaration because [] is mutable, and would not be created anew each time
 		self.rgbaPaletteArray = rgbaPaletteArray or []
+		self.pilImage = pilImage
 
-		# If the filepath is not empty, get the data from a file
-		if filepath != '':
+		# Initialize data from a PIL image, if provided
+		if pilImage:
+			# Convert to RGBA, and collect width/height and image data
+			pilImage = pilImage.convert( 'RGBA' )
+			self.width, self.height = pilImage.size
+			self.imageDataArray = pilImage.getdata()
+
+			# Collect palette data or create one, if needed
+			if imageType in ( 8, 9, 10 ):
+				self.rgbaPaletteArray = pilImage.getpalette()
+
+				if not self.rgbaPaletteArray:
+					self.generatePalette()
+
+		# If the filepath is not empty, get image data from a file
+		elif filepath != '':
 			self.readImageData()
-			if os.path.splitext( filepath )[1].lower() == '.png': self.blockify()
+
+			if os.path.splitext( filepath )[1].lower() == '.png':
+				self.blockify()
 
 	# def resize( self, dimensions ):
 	# 	# Decode the image first if it's still in only TPL format
@@ -876,96 +932,54 @@ class TplEncoder( CodecBase ):
 						encodedPixelList.extend( _6GnB )
 						_6GnB = []
 
+			self.encodedImageData = bytearray.fromhex( ''.join(encodedPixelList) )
+
 		else: # For image type 14 (CMPR)
-			raise TypeError( 'CMPR encoding is unsupported.' )
-			# #print '- encode start -'
-			# # lint = int # Create a local instance of these two functions for quicker lookup
-			# # lround = round
-			# for y in range( 0, imageHeight, 8 ): # Iterates the image's blocks, vertically. (last argument is step size)
-			# 	for x in range( 0, imageWidth, 8 ): # Iterates the image's blocks, horizontally.
+			#raise TypeError( 'CMPR encoding is unsupported.' )
 
-			# 		# CMPR textures actually have sub-blocks. 4 sub-blocks in each block. iterate over those here.
-			# 		for subBlockRow in range( 2 ): # Iterates sub-block rows
-			# 			for subBlockColumn in range( 2 ): # Iterates sub-block columns/x-axis
+			self.encodedImageData = bytearray()
 
-			# 				rowTotal = 4 * subBlockRow + y
-			# 				columnTotal = 4 * subBlockColumn + x
-			# 				blockPixels = []
+			for y in range( 0, imageHeight, 8 ): # Iterates the image's blocks, vertically. (last argument is step size)
+				for x in range( 0, imageWidth, 8 ): # Iterates the image's blocks, horizontally.
 
-			# 				# uniqueColors = []
-			# 				# redChannel = []
-			# 				# greenChannel = []
-			# 				# blueChannel = []
-			# 				# alphaChannel = []
-			# 				# minVal = 255
-			# 				# maxVal = 0
+					# CMPR textures actually have sub-blocks. 4 sub-blocks in each block. iterate over those here.
+					for subBlockRow in range( 2 ): # Iterates sub-block rows
+						for subBlockColumn in range( 2 ): # Iterates sub-block columns/x-axis
 
-			# 				for row in range( rowTotal, rowTotal + 4 ):
-			# 					for column in range( columnTotal, columnTotal + 4 ):
-			# 						# if row >= imageHeight or column >= imageWidth: # Skip pixels that are outside the image's visible area
-			# 						# 	continue
+							rowTotal = 4 * subBlockRow + y
+							columnTotal = 4 * subBlockColumn + x
+							blockPixels = []
 
-			# 						pixel = imageData[row * imageWidth + column] # RGBA tuple
-			# 						blockPixels.append( pixel )
-									
-			# 						# if pixel not in uniqueColors:
-			# 						# 	uniqueColors.append( pixel )
+							# Get the original 16 pixels/colors for this block
+							for row in range( rowTotal, rowTotal + 4 ):
+								for column in range( columnTotal, columnTotal + 4 ):
+									# Skip pixels that are outside the image's visible area
+									if row >= imageHeight or column >= imageWidth:
+										continue
 
-			# 						# redChannel.append( pixel[0] )
-			# 						# greenChannel.append( pixel[1] )
-			# 						# blueChannel.append( pixel[2] )
-			# 						# alphaChannel.append( pixel[3] )
+									pixel = imageData[row * imageWidth + column] # An RGBA tuple
+									blockPixels.append( pixel )
 
-			# 				palette, indices = self.quantizeCMPR( blockPixels )
+							# Determine new colors to use as a palette to represent the pixels collected above
+							p1, p2, indices, useTransparency = self.quantizeCMPR( blockPixels )
+
+							# Encode the two palette entries, which should be in RGB565 (RRRRRGGGGGGBBBBB) format
+							p1Value = p1[0]/8 << 11 | p1[1]/4 << 5 | p1[2]/8
+							p2Value = p2[0]/8 << 11 | p2[1]/4 << 5 | p2[2]/8
 
 							# Store the above into 8 bytes
-							
-
-			# 				redMin = min( redChannel )
-			# 				greenMin = min( greenChannel )
-			# 				blueMin = min( blueChannel )
-			# 				alphaMin = min( alphaChannel )
-			# 				redMax = max( redChannel )
-			# 				greenMax = max( greenChannel )
-			# 				blueMax = max( blueChannel )
-			# 				alphaMax = max( alphaChannel )
-
-			# 				print blockPixels
-							
-
-			# 				blockImage = Image.new( 'RGBA', (4, 4) )
-			# 				blockImage.putdata( blockPixels )
-			# 				#blockImage.show()
-
-			# 				# Save the temp block image into a buffer (rather than a file) so it can be sent to pngquant
-			# 				blockImageBuffer = StringIO()
-			# 				blockImage.save( blockImageBuffer, 'png' )
-
-			# 				exitCode, outputStream = self.cmdChannel( '"' + pathToPngquant + '" --speed 6 2 - ', standardInput=blockImageBuffer.getvalue() )
-			# 																			# Above ^: --speed is a speed/quality balance. 1=slow, 3=default, 11=fast & rough
-			# 				blockImageBuffer.close()
-
-			# 				if exitCode != 0:
-			# 					print 'Error while generating super image palette; exit code:', exitCode
-			# 					print outputStream
-			# 					return
-
-			# 				palettedFileBuffer = StringIO( outputStream )
-			# 				pngImage = png.Reader( palettedFileBuffer )
-			# 				pngImageInfo = pngImage.read() # necessary for pulling the palette; don't really need to assign to a variable though, but it might be useful to print
-			# 				generatedPalette = pngImage.palette( alpha='force' )
-			# 				palettedFileBuffer.close()
-
-			# 				print generatedPalette, '\n'
-
-			# 				RGBA0 = ( redMin, greenMin, blueMin, alphaMin )
-
-
-			# 				#if len( uniqueColors ) < 3:
-
-			# 		print '\t\t-'
-
-		self.encodedImageData = bytearray.fromhex( ''.join(encodedPixelList) )
+							if useTransparency:
+								# Place the smaller palette entry value first
+								if p1Value > p2Value:
+									self.encodedImageData.extend( struct.pack('>HHI', p2Value, p1Value, indices) )
+								else:
+									self.encodedImageData.extend( struct.pack('>HHI', p1Value, p2Value, indices) )
+							else:
+								# Place the larger palette entry value first
+								if p1Value > p2Value:
+									self.encodedImageData.extend( struct.pack('>HHI', p1Value, p2Value, indices) )
+								else:
+									self.encodedImageData.extend( struct.pack('>HHI', p2Value, p1Value, indices) )
 
 	@staticmethod # This allows this function to be called externally from this class, without initializing it.
 	def encodeColor( imageType, pixel, dataType='image' ):
@@ -1017,7 +1031,123 @@ class TplEncoder( CodecBase ):
 
 		return hexPixel
 
-	#def quantizeCMPR( self, sourceColors ):
+	def quantizeCMPR( self, sourceColors ):
+
+		colors = sourceColors[:] # Copy the list to not modify the original
+
+		# Calculate all pairwise distances between the colors in the given colorspace
+		pointCount = len( colors )
+		maxDistance = 0
+		p1Index = -1
+		p2Index = -1
+		useTransparency = False
+		for i in range( pointCount ):
+			for j in range( i+1, pointCount ):
+				p_1 = colors[i]
+				p_2 = colors[j]
+
+				# Check the alpha channel for transparent pixels
+				if p_1[3] < 128 or p_2[3] < 128:
+					useTransparency = True
+
+					# Ignore sufficiently invisible pixels
+					if p_1[3] < 26 or p_2[3] < 26: # ~ 90% transparent
+						continue
+
+				#distance = math.sqrt( (p_1[0] - p_2[0])**2 + (p_1[1] - p_2[1])**2 + (p_1[2] - p_2[2])**2 )
+				distance = (p_1[0] - p_2[0])**2 + (p_1[1] - p_2[1])**2 + (p_1[2] - p_2[2])**2
+				if distance > maxDistance:
+					maxDistance = distance
+					p1Index = i
+					p2Index = j
+
+		# If no distances were calculated, the colors are too transparent to matter
+		if p1Index == -1:
+			return colors[:3], colors[3:6]
+
+		# Remove the colors furthest from each other (identified above)
+		p2 = colors.pop( p2Index ) # Always a larger index
+		p1 = colors.pop( p1Index )
+
+		# Isolate two clusters of 3 colors as rough endpoints of the occupied area of the colorspace
+		distancesToP1 = []
+		distancesToP2 = []
+		for p in colors:
+			# distancesToP1.append( (p, math.sqrt((p1[0] - p[0])**2 + (p1[1] - p[1])**2 + (p1[2] - p[2])**2)) )
+			# distancesToP2.append( (p, math.sqrt((p2[0] - p[0])**2 + (p2[1] - p[1])**2 + (p2[2] - p[2])**2)) )
+			distancesToP1.append( (p, (p1[0] - p[0])**2 + (p1[1] - p[1])**2 + (p1[2] - p[2])**2) )
+			distancesToP2.append( (p, (p2[0] - p[0])**2 + (p2[1] - p[1])**2 + (p2[2] - p[2])**2) )
+
+		# Sort the above lists to find the colors closest to p1 and p2
+		distancesToP1.sort( key=lambda x: x[1] )
+		distancesToP2.sort( key=lambda x: x[1] )
+
+		# Get the midpoints of the two groups, which gives us endpoints to draw a line through the colorspace
+		# p1 = np.mean( [ p1, distancesToP1[0][0], distancesToP1[1][0] ], axis=0 )
+		# p2 = np.mean( [ p2, distancesToP2[0][0], distancesToP2[1][0] ], axis=0 )
+		r1 = ( p1[0] + distancesToP1[0][0][0] + distancesToP1[1][0][0] ) / 3.0
+		g1 = ( p1[1] + distancesToP1[0][0][1] + distancesToP1[1][0][1] ) / 3.0
+		b1 = ( p1[2] + distancesToP1[0][0][2] + distancesToP1[1][0][2] ) / 3.0
+		p1 = [ r1, g1, b1 ]
+		r2 = ( p2[0] + distancesToP2[0][0][0] + distancesToP2[1][0][0] ) / 3.0
+		g2 = ( p2[1] + distancesToP2[0][0][1] + distancesToP2[1][0][1] ) / 3.0
+		b2 = ( p2[2] + distancesToP2[0][0][2] + distancesToP2[1][0][2] ) / 3.0
+		p2 = [ r2, g2, b2 ]
+		
+		# Interpolate the latter colors
+		if useTransparency:
+			#p3 = (p1[0] + (1/2)*vx, p1[1] + (1/2)*vy, p1[2] + (1/2)*vz) # 1/2 interpolation
+			p3 = tuple(map(lambda x, y: (x + y) / 2, p1, p2))
+			p4 = ( 0, 0, 0, 0 )
+			
+			# Determine the pixel data (indices into the palette)
+			#indices = []
+			indices = 0
+			bitPosition = 30
+			for point in sourceColors:
+				if point[3] < 128:
+					#indices.append( 3 )
+					indices += 3 << bitPosition
+				else:
+					smallestDistance = float( "inf" )
+					closestPoint = -1
+					for i, cp in enumerate( [p1, p2, p3] ):
+						#distance = math.sqrt((point[0]-cp[0])**2 + (point[1]-cp[1])**2 + (point[2]-cp[2])**2) # Use **0.5 instead?
+						distance = (point[0]-cp[0])**2 + (point[1]-cp[1])**2 + (point[2]-cp[2])**2
+						if distance < smallestDistance:
+							smallestDistance = distance
+							closestPoint = i
+					#indices.append( closestPoint )
+					indices += closestPoint << bitPosition
+				bitPosition -= 2
+		else:
+			# p3 = (p1[0] + (1/3)*vx, p1[1] + (1/3)*vy, p1[2] + (1/3)*vz) # 1/3 interpolation
+			# p4 = (p1[0] + (2/3)*vx, p1[1] + (2/3)*vy, p1[2] + (2/3)*vz) # 2/3 interpolation
+			p3 = tuple(map(lambda x, y: (2*x + y) / 3, p1, p2))
+			p4 = tuple(map(lambda x, y: (x + 2*y) / 3, p1, p2))
+			
+			# Determine the pixel data (indices into the palette), and pack them into 4 bytes
+			#indices = []
+			indices = 0
+			bitPosition = 30
+			for point in sourceColors:
+				smallestDistance = float( "inf" )
+				closestPoint = -1
+				for i, cp in enumerate( [p1, p2, p3, p4] ):
+					#distance = math.sqrt((point[0]-cp[0])**2 + (point[1]-cp[1])**2 + (point[2]-cp[2])**2) # Use **0.5 instead?
+					distance = (point[0]-cp[0])**2 + (point[1]-cp[1])**2 + (point[2]-cp[2])**2
+					if distance < smallestDistance:
+						smallestDistance = distance
+						closestPoint = i
+				#indices.append( closestPoint )
+				indices += closestPoint << bitPosition
+				bitPosition -= 2
+
+		# Cast all channel values back to ints
+		p1 = [ int(value) for value in p1 ]
+		p2 = [ int(value) for value in p2 ]
+
+		return p1, p2, indices, useTransparency
 
 	def createTplFile( self, savePath='' ):
 

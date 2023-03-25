@@ -585,21 +585,16 @@ class BannerFile( FileBase ):
 
 		# Initialize a TPL image object (and create a new palette for it, if needed)
 		if pilImage:
-			pilImage = pilImage.convert( 'RGBA' )
-			newImage = TplEncoder( '', pilImage.size, 5 )
-			newImage.imageDataArray = pilImage.getdata()
-			newImage.rgbaPaletteArray = pilImage.getpalette()
-			width, height = pilImage.size
+			newImage = TplEncoder( '', pilImage, 5 )
 
 		elif imagePath:
 			newImage = TplEncoder( imagePath, imageType=5 )
-			width, height = newImage.width, newImage.height
 			
 		else:
 			raise IOError( 'Invalid input to .setTexture(); no PIL image or texture filepath provided.' )
 
 		# Validate dimensions
-		if width != 96 or height != 32:
+		if newImage.width != 96 or newImage.height != 32:
 			return 2
 
 		# Decode the image into TPL format
@@ -2098,10 +2093,10 @@ class DatFile( FileBase ):
 
 		# Initialize a TPL image object (and create a new palette for it, if needed)
 		if pilImage:
-			pilImage = pilImage.convert( 'RGBA' )
-			newImage = TplEncoder( '', pilImage.size, origImageType, None, maxPaletteColors=origPaletteColorCount, paletteQuality=paletteQuality )
-			newImage.imageDataArray = pilImage.getdata()
-			newImage.rgbaPaletteArray = pilImage.getpalette()
+			#pilImage = pilImage.convert( 'RGBA' )
+			newImage = TplEncoder( '', pilImage, origImageType, None, maxPaletteColors=origPaletteColorCount, paletteQuality=paletteQuality )
+			# newImage.imageDataArray = pilImage.getdata()
+			# newImage.rgbaPaletteArray = pilImage.getpalette()
 			width, height = pilImage.size
 
 		elif imagePath:

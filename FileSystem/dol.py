@@ -1369,43 +1369,12 @@ class Dol( FileBase ):
 				3: The new palette data is too large 				( 3, maxPaletteColorCount, newPaletteColorCount )
 		"""
 
-		#self.initialize()
-
-		# Gather info on the texture currently in the file
-		# imageDataStruct = self.initDataBlock( hsdStructures.ImageDataBlock, imageDataOffset )
-		# _, origWidth, origHeight, origImageType, isMipMap, minLOD, maxLOD = imageDataStruct.getAttributes()
-		# origImageDataLength = imageDataStruct.getDataLength( origWidth, origHeight, origImageType )
-		origImageDataLength = 0x200
-
-		# Gather palette information on the texture currently in the file
-		# if origImageType in ( 8, 9, 10 ):
-		# 	# Find information on the associated palette (if unable to, return)
-		# 	paletteDataOffset, paletteHeaderOffset, paletteLength, origPaletteType, origPaletteColorCount = self.getPaletteInfo( imageDataOffset )
-		# 	if paletteDataOffset == -1:
-		# 		return 1, '', ''
-
-		# 	# If not updating data headers, assume the current palette format must be preserved, and prevent the tplCodec from choosing one (if it creates a palette)
-		# 	# In other words, if there are data headers, leave this unspecified so that the codec may intelligently choose the best palette type.
-		# 	# if updateDataHeaders and headersAvailable:
-		# 	# 	origPaletteType = None # No known value descriptiong for palette type in effects files
-
-		# 	maxPaletteColorCount = paletteLength / 2
-		# else:
-			#origPaletteType = None
-			# origPaletteColorCount = 255
-			# maxPaletteColorCount = 255
-
 		# Initialize a TPL image object (and create a new palette for it, if needed)
 		if pilImage:
-			pilImage = pilImage.convert( 'RGBA' )
-			newImage = TplEncoder( '', pilImage.size, 0 )
-			newImage.imageDataArray = pilImage.getdata()
-			newImage.rgbaPaletteArray = pilImage.getpalette()
-			width, height = pilImage.size
+			newImage = TplEncoder( '', pilImage, 0 )
 
 		elif imagePath:
 			newImage = TplEncoder( imagePath, imageType=0 )
-			width, height = newImage.width, newImage.height
 			
 		else:
 			raise IOError( 'Invalid input to .setTexture(); no PIL image or texture filepath provided.' )
@@ -1413,49 +1382,14 @@ class Dol( FileBase ):
 		# Decode the image into TPL format
 		newImage.blockify()
 		newImageData = newImage.encodedImageData
-		newPaletteData = newImage.encodedPaletteData
 
 		# Make sure the new image isn't too large
 		newImageDataLength = len( newImage.encodedImageData )
-		if newImageDataLength > origImageDataLength:
-			return 2, origImageDataLength, newImageDataLength
-
-		# Check if the file needs to be expanded for a larger texture
-		# if isMipMap:
-		# 	# Calculate space needed and make sure the data can fit, just in case
-		
-		# Replace the palette data in the file
-		# if origImageType in ( 8, 9, 10 ):
-		# 	# Make sure there is space for the new palette, and update the dat's data with it.
-		# 	newPaletteColorCount = len( newPaletteData ) / 2 # All of the palette types (IA8, RGB565, and RGB5A3) are 2 bytes per color entry
-		# 	if newPaletteColorCount > maxPaletteColorCount:
-		# 		return 3, maxPaletteColorCount, newPaletteColorCount
-
-		# 	entriesToFill = origPaletteColorCount - newPaletteColorCount
-		# 	nullBytes = bytearray( entriesToFill )
-			
-		# 	# Update the palette data headers
-		# 	if origPaletteType != newImage.paletteType:
-		# 		self.updateData( paletteHeaderOffset+7, newImage.paletteType, trackChange=False )
-				
-		# 	# Update the palette data
-		# 	self.updateData( paletteDataOffset, newPaletteData + nullBytes, trackChange=False )
-
-		# Update the image data header(s)
-		# newHeaderData = struct.pack( '>HHI', width, height, origImageType )
-		# for offset in imageDataStruct.getParents():
-		# 	self.updateData( offset+4, newHeaderData, trackChange=False )
-
-		# If the new texture is smaller than the original, fill the extra space with zeroes
-		# if newImageDataLength < origImageDataLength:
-		# 	newImageData.extend( bytearray(origImageDataLength - newImageDataLength) ) # Adds n bytes of null data
+		if newImageDataLength > 0x200:
+			return 2, 0x200, newImageDataLength
 
 		# Update the texture image data in the file
 		self.updateData( imageDataOffset, newImageData, trackChange=False )
 		self.recordChange( '{} updated at 0x{:X}'.format(textureName, 0x20+imageDataOffset) )
-
-		# if isMipMap:
-		# 	# Calculate space needed and make sure the data can fit, just in case
-		# 	for i in range( maxLOD )
 
 		return 0, '', ''
