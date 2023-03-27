@@ -1949,6 +1949,7 @@ class MainGui( Tk.Frame, object ):
 
 		else: # Valid file path given
 			extension = os.path.splitext( filepath )[1].lower()
+
 			if extension == '.iso' or extension == '.gcm':
 				# Check whether there are changes that the user wants to save for files that must be unloaded
 				if self.changesNeedSaving( globalData.disc ):
@@ -1956,7 +1957,10 @@ class MainGui( Tk.Frame, object ):
 
 				self.loadRootOrDisc( filepath, updateDefaultDirectory )
 
-			else: # Assuming it's some form of DAT
+			else: # Likely some form of DAT or an image file for the texture editing tabs
+				# Get the widget of the currently selected tab (a ttk.Frame or ttk.Notebook)
+				currentTab = self.root.nametowidget( self.mainTabFrame.select() )
+
 				# Perform some rudimentary validation; if the file passes, remember it and load it
 				if os.path.getsize( filepath ) > 20971520: # i.e. 20 MB
 					msg("The recieved file doesn't appear to be a DAT or other type of texture file, as it's larger than 20 MB. "
@@ -1968,6 +1972,29 @@ class MainGui( Tk.Frame, object ):
 				# 	if not globalData.dat.noChangesToBeSaved( globalData.programEnding ): return
 				# 	else: # No changes that the user wants to save; OK to clear the DAT file.
 				# 		globalData.dat = None
+
+				elif currentTab == self.texturesTab and extension in ( '.tpl', '.png' ):
+					# Get the sub-tab that's currently selected
+					texturesSubTab = self.root.nametowidget( self.texturesTab.select() )
+					iids = texturesSubTab.datTextureTree.selection() # Returns a tuple of iids, or an empty string if nothing is selected.
+					if not iids:
+						msg( 'Please select a texture to replace!', 'No Textures Selected', warning=True )
+						return
+					
+					# Load the image and replace the texture currently in the file
+					try:
+						newImage = Image.open( filepath ) # Loads the texture as a PIL image
+					except Exception as err:
+						self.updateProgramStatus( 'Unable to open the texture due to an unrecognized error. Check the log for details', error=True )
+						print( 'Unable to load image for preview text; {}'.format(err) )
+						return
+
+					# Check the texture(s) currently selected to replace it(them)
+					if len( iids ) > 1:
+						imageDataOffsets = [ int(iid) for iid in iids ]
+						texturesSubTab.replaceMultipleTextures( newImage, imageDataOffsets )
+					else: # Only replacing one texture (one texture selected)
+						texturesSubTab.replaceSingleTexture( newImage, int(iids[0]) )
 
 				else:
 					#restoreEditedEntries( editedDatEntries )

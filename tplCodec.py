@@ -936,6 +936,7 @@ class TplEncoder( CodecBase ):
 
 		else: # For image type 14 (CMPR)
 			#raise TypeError( 'CMPR encoding is unsupported.' )
+			tic = time.time()
 
 			self.encodedImageData = bytearray()
 
@@ -961,25 +962,28 @@ class TplEncoder( CodecBase ):
 									blockPixels.append( pixel )
 
 							# Determine new colors to use as a palette to represent the pixels collected above
-							p1, p2, indices, useTransparency = self.quantizeCMPR( blockPixels )
+							p1Value, p2Value, indices, useTransparency = self.quantizeCMPR( blockPixels )
 
 							# Encode the two palette entries, which should be in RGB565 (RRRRRGGGGGGBBBBB) format
-							p1Value = p1[0]/8 << 11 | p1[1]/4 << 5 | p1[2]/8
-							p2Value = p2[0]/8 << 11 | p2[1]/4 << 5 | p2[2]/8
+							# p1Value = p1[0]/8 << 11 | p1[1]/4 << 5 | p1[2]/8
+							# p2Value = p2[0]/8 << 11 | p2[1]/4 << 5 | p2[2]/8
 
-							# Store the above into 8 bytes
-							if useTransparency:
-								# Place the smaller palette entry value first
-								if p1Value > p2Value:
-									self.encodedImageData.extend( struct.pack('>HHI', p2Value, p1Value, indices) )
-								else:
-									self.encodedImageData.extend( struct.pack('>HHI', p1Value, p2Value, indices) )
-							else:
-								# Place the larger palette entry value first
-								if p1Value > p2Value:
-									self.encodedImageData.extend( struct.pack('>HHI', p1Value, p2Value, indices) )
-								else:
-									self.encodedImageData.extend( struct.pack('>HHI', p2Value, p1Value, indices) )
+							# # Store the above into 8 bytes
+							# if useTransparency:
+							# 	# Place the smaller palette entry value first
+							# 	if p1Value > p2Value:
+							# 		self.encodedImageData.extend( struct.pack('>HHI', p2Value, p1Value, indices) )
+							# 	else:
+							# 		self.encodedImageData.extend( struct.pack('>HHI', p1Value, p2Value, indices) )
+							# else:
+							# 	# Place the larger palette entry value first
+							# 	if p1Value > p2Value:
+							# 		self.encodedImageData.extend( struct.pack('>HHI', p1Value, p2Value, indices) )
+							# 	else:
+							self.encodedImageData.extend( struct.pack('>HHI', p1Value, p2Value, indices) )
+			
+			toc = time.time()
+			print( 'encoding time: ' + str(toc-tic) )
 
 	@staticmethod # This allows this function to be called externally from this class, without initializing it.
 	def encodeColor( imageType, pixel, dataType='image' ):
@@ -1035,23 +1039,41 @@ class TplEncoder( CodecBase ):
 
 		colors = sourceColors[:] # Copy the list to not modify the original
 
-		# Calculate all pairwise distances between the colors in the given colorspace
 		pointCount = len( colors )
+		distance = -1
 		maxDistance = 0
 		p1Index = -1
 		p2Index = -1
 		useTransparency = False
+		pixelsToIgnore = set()
+		
+		# Calculate all pairwise distances between the colors in the given colorspace
 		for i in range( pointCount ):
+			p_1 = colors[i]
+
+			if p_1[3] < 128:
+				useTransparency = True
+				
+				# Ignore sufficiently invisible pixels (~ 90% transparent)
+				if p_1[3] < 26:
+					pixelsToIgnore.add( p_1 )
+					continue
+
 			for j in range( i+1, pointCount ):
-				p_1 = colors[i]
+				#p_1 = colors[i]
 				p_2 = colors[j]
 
 				# Check the alpha channel for transparent pixels
-				if p_1[3] < 128 or p_2[3] < 128:
+				#if p_1[3] < 128 or p_2[3] < 128:
+				if p_2[3] < 128:
 					useTransparency = True
 
-					# Ignore sufficiently invisible pixels
-					if p_1[3] < 26 or p_2[3] < 26: # ~ 90% transparent
+					# Ignore sufficiently invisible pixels (~ 90% transparent)
+					# if p_1[3] < 26:
+					# 	pixelsToIgnore.append( i )
+					# 	continue
+					if p_2[3] < 26:
+						pixelsToIgnore.add( p_2 )
 						continue
 
 				#distance = math.sqrt( (p_1[0] - p_2[0])**2 + (p_1[1] - p_2[1])**2 + (p_1[2] - p_2[2])**2 )
@@ -1061,44 +1083,97 @@ class TplEncoder( CodecBase ):
 					p1Index = i
 					p2Index = j
 
-		# If no distances were calculated, the colors are too transparent to matter
-		if p1Index == -1:
-			return colors[:3], colors[3:6]
+		# Check if any disntaces were calculated and a selection of colors was made
+		if maxDistance == 0:
+			p1 = colors[0]
+			p2 = colors[15]
+			p1Value = int(p1[0])/8 << 11 | int(p1[1])/4 << 5 | int(p1[2])/8
+			p2Value = int(p2[0])/8 << 11 | int(p2[1])/4 << 5 | int(p2[2])/8
+			if distance == -1:
+				# No distance calculations were made; all of the colors are too transparent to matter
+				# All indices will point to the transparent palette entry
+				#return colors[0], colors[15], 0xFFFFFFFF, useTransparency
+				return p1Value, p2Value, 0xFFFFFFFF, useTransparency
+			else:
+				# All the pixels must be the same
+				#return colors[0], colors[15], 0, useTransparency
+				return p1Value, p1Value, 0, useTransparency
 
 		# Remove the colors furthest from each other (identified above)
 		p2 = colors.pop( p2Index ) # Always a larger index
 		p1 = colors.pop( p1Index )
 
+		# Exclude transparent pixels from the following searches
+		# if pixelsToIgnore:
+		# 	pixelsToIgnore = list( pixelsToIgnore )
+		# 	if p1Index in pixelsToIgnore:
+		# 		pixelsToIgnore.remove( p1Index )
+		# 	if p2Index in pixelsToIgnore:
+		# 		pixelsToIgnore.remove( p2Index )
+		# 	pixelsToIgnore.sort( reverse=True )
+		# 	for i in pixelsToIgnore:
+		# 		colors.pop( i )
+
 		# Isolate two clusters of 3 colors as rough endpoints of the occupied area of the colorspace
 		distancesToP1 = []
 		distancesToP2 = []
 		for p in colors:
+			if p in pixelsToIgnore:
+				continue
 			# distancesToP1.append( (p, math.sqrt((p1[0] - p[0])**2 + (p1[1] - p[1])**2 + (p1[2] - p[2])**2)) )
 			# distancesToP2.append( (p, math.sqrt((p2[0] - p[0])**2 + (p2[1] - p[1])**2 + (p2[2] - p[2])**2)) )
 			distancesToP1.append( (p, (p1[0] - p[0])**2 + (p1[1] - p[1])**2 + (p1[2] - p[2])**2) )
 			distancesToP2.append( (p, (p2[0] - p[0])**2 + (p2[1] - p[1])**2 + (p2[2] - p[2])**2) )
 
-		# Sort the above lists to find the colors closest to p1 and p2
-		distancesToP1.sort( key=lambda x: x[1] )
-		distancesToP2.sort( key=lambda x: x[1] )
-
 		# Get the midpoints of the two groups, which gives us endpoints to draw a line through the colorspace
-		# p1 = np.mean( [ p1, distancesToP1[0][0], distancesToP1[1][0] ], axis=0 )
-		# p2 = np.mean( [ p2, distancesToP2[0][0], distancesToP2[1][0] ], axis=0 )
-		r1 = ( p1[0] + distancesToP1[0][0][0] + distancesToP1[1][0][0] ) / 3.0
-		g1 = ( p1[1] + distancesToP1[0][0][1] + distancesToP1[1][0][1] ) / 3.0
-		b1 = ( p1[2] + distancesToP1[0][0][2] + distancesToP1[1][0][2] ) / 3.0
-		p1 = [ r1, g1, b1 ]
-		r2 = ( p2[0] + distancesToP2[0][0][0] + distancesToP2[1][0][0] ) / 3.0
-		g2 = ( p2[1] + distancesToP2[0][0][1] + distancesToP2[1][0][1] ) / 3.0
-		b2 = ( p2[2] + distancesToP2[0][0][2] + distancesToP2[1][0][2] ) / 3.0
-		p2 = [ r2, g2, b2 ]
+		if len( distancesToP1 ) >= 2:
+			distancesToP1.sort( key=lambda x: x[1] )
+			# p1 = np.mean( [ p1, distancesToP1[0][0], distancesToP1[1][0] ], axis=0 )
+			r1 = ( p1[0] + distancesToP1[0][0][0] + distancesToP1[1][0][0] ) / 3.0
+			g1 = ( p1[1] + distancesToP1[0][0][1] + distancesToP1[1][0][1] ) / 3.0
+			b1 = ( p1[2] + distancesToP1[0][0][2] + distancesToP1[1][0][2] ) / 3.0
+			p1 = [ r1, g1, b1 ]
+		elif distancesToP1: # Just one other color/distance (len(distancesToP1) = 1)
+			r1 = ( p1[0] + distancesToP1[0][0][0] ) / 2.0
+			g1 = ( p1[1] + distancesToP1[0][0][1] ) / 2.0
+			b1 = ( p1[2] + distancesToP1[0][0][2] ) / 2.0
+			p1 = [ r1, g1, b1 ]
+
+		if len( distancesToP2 ) >= 2:
+			# Sort the above lists to find the colors closest to p1 and p2
+			distancesToP2.sort( key=lambda x: x[1] )
+			# p2 = np.mean( [ p2, distancesToP2[0][0], distancesToP2[1][0] ], axis=0 )
+			r2 = ( p2[0] + distancesToP2[0][0][0] + distancesToP2[1][0][0] ) / 3.0
+			g2 = ( p2[1] + distancesToP2[0][0][1] + distancesToP2[1][0][1] ) / 3.0
+			b2 = ( p2[2] + distancesToP2[0][0][2] + distancesToP2[1][0][2] ) / 3.0
+			p2 = [ r2, g2, b2 ]
+		elif distancesToP2: # Just one other color/distance (len(distancesToP2) = 1)
+			r2 = ( p2[0] + distancesToP2[0][0][0] ) / 2.0
+			g2 = ( p2[1] + distancesToP2[0][0][1] ) / 2.0
+			b2 = ( p2[2] + distancesToP2[0][0][2] ) / 2.0
+			p2 = [ r2, g2, b2 ]
+		
+		# Encode the two palette entries, which should be in RGB565 (RRRRRGGGGGGBBBBB) format
+		p1Value = int(p1[0])/8 << 11 | int(p1[1])/4 << 5 | int(p1[2])/8
+		p2Value = int(p2[0])/8 << 11 | int(p2[1])/4 << 5 | int(p2[2])/8
 		
 		# Interpolate the latter colors
 		if useTransparency:
+			# Ensure the smaller value is first
+			if p1Value > p2Value:
+				RGBA0 = p2
+				RGBA1 = p1
+				firstValue = p2Value
+				secondValue = p1Value
+			else:
+				RGBA0 = p1
+				RGBA1 = p2
+				firstValue = p1Value
+				secondValue = p2Value
+
 			#p3 = (p1[0] + (1/2)*vx, p1[1] + (1/2)*vy, p1[2] + (1/2)*vz) # 1/2 interpolation
-			p3 = tuple(map(lambda x, y: (x + y) / 2, p1, p2))
-			p4 = ( 0, 0, 0, 0 )
+			RGBA2 = tuple(map(lambda x, y: (x + y) / 2, RGBA0, RGBA1))
+			RGBA3 = ( 0, 0, 0, 0 )
 			
 			# Determine the pixel data (indices into the palette)
 			#indices = []
@@ -1111,7 +1186,7 @@ class TplEncoder( CodecBase ):
 				else:
 					smallestDistance = float( "inf" )
 					closestPoint = -1
-					for i, cp in enumerate( [p1, p2, p3] ):
+					for i, cp in enumerate( [RGBA0, RGBA1, RGBA2] ):
 						#distance = math.sqrt((point[0]-cp[0])**2 + (point[1]-cp[1])**2 + (point[2]-cp[2])**2) # Use **0.5 instead?
 						distance = (point[0]-cp[0])**2 + (point[1]-cp[1])**2 + (point[2]-cp[2])**2
 						if distance < smallestDistance:
@@ -1121,10 +1196,24 @@ class TplEncoder( CodecBase ):
 					indices += closestPoint << bitPosition
 				bitPosition -= 2
 		else:
-			# p3 = (p1[0] + (1/3)*vx, p1[1] + (1/3)*vy, p1[2] + (1/3)*vz) # 1/3 interpolation
-			# p4 = (p1[0] + (2/3)*vx, p1[1] + (2/3)*vy, p1[2] + (2/3)*vz) # 2/3 interpolation
-			p3 = tuple(map(lambda x, y: (2*x + y) / 3, p1, p2))
-			p4 = tuple(map(lambda x, y: (x + 2*y) / 3, p1, p2))
+			# Ensure the larger value is first
+			if p1Value > p2Value:
+				RGBA0 = p1
+				RGBA1 = p2
+				firstValue = p1Value
+				secondValue = p2Value
+			else:
+				RGBA0 = p2
+				RGBA1 = p1
+				firstValue = p2Value
+				secondValue = p1Value
+
+			# RGBA2 = (p1[0] + (1/3)*vx, p1[1] + (1/3)*vy, p1[2] + (1/3)*vz) # 1/3 interpolation
+			# RGBA3 = (p1[0] + (2/3)*vx, p1[1] + (2/3)*vy, p1[2] + (2/3)*vz) # 2/3 interpolation
+			# RGBA2 = tuple(map(lambda x, y: (2*x + y) / 3, p1, p2))
+			# RGBA3 = tuple(map(lambda x, y: (x + 2*y) / 3, p1, p2))
+			RGBA2 = tuple(map(lambda x, y: (2*x + y) / 3, RGBA0, RGBA1))
+			RGBA3 = tuple(map(lambda x, y: (x + 2*y) / 3, RGBA0, RGBA1))
 			
 			# Determine the pixel data (indices into the palette), and pack them into 4 bytes
 			#indices = []
@@ -1133,7 +1222,7 @@ class TplEncoder( CodecBase ):
 			for point in sourceColors:
 				smallestDistance = float( "inf" )
 				closestPoint = -1
-				for i, cp in enumerate( [p1, p2, p3, p4] ):
+				for i, cp in enumerate( [RGBA0, RGBA1, RGBA2, RGBA3] ):
 					#distance = math.sqrt((point[0]-cp[0])**2 + (point[1]-cp[1])**2 + (point[2]-cp[2])**2) # Use **0.5 instead?
 					distance = (point[0]-cp[0])**2 + (point[1]-cp[1])**2 + (point[2]-cp[2])**2
 					if distance < smallestDistance:
@@ -1144,10 +1233,10 @@ class TplEncoder( CodecBase ):
 				bitPosition -= 2
 
 		# Cast all channel values back to ints
-		p1 = [ int(value) for value in p1 ]
-		p2 = [ int(value) for value in p2 ]
+		# RGBA0 = [ int(value) for value in RGBA0 ]
+		# RGBA1 = [ int(value) for value in RGBA1 ]
 
-		return p1, p2, indices, useTransparency
+		return firstValue, secondValue, indices, useTransparency
 
 	def createTplFile( self, savePath='' ):
 
