@@ -325,13 +325,12 @@ class TexturesEditorTab( ttk.Frame ):
 		self.texturesFilteredText.set( 'Filtered Out:  ' )
 
 		# Disable some tabs by default (within the DAT Texture Tree tab), and if viewing one of them, switch to the Image tab
-		if self.root.nametowidget( self.imageManipTabs.select() ) != self.textureTreeImagePane:
-			self.imageManipTabs.select( self.textureTreeImagePane )
+		self.imageManipTabs.select( 0 )
 		self.imageManipTabs.tab( self.palettePane, state='disabled' )
 		self.imageManipTabs.tab( self.modelPropertiesPane, state='disabled' )
 		self.imageManipTabs.tab( self.texturePropertiesPane, state='disabled' )
 
-		# Clear the repositories for storing image data (used to prevent garbage collected)
+		# Clear the repositories for storing image data (used to prevent garbage collection)
 		self.datTextureTree.fullTextureRenders = {}
 		self.datTextureTree.textureThumbnails = {}
 
@@ -410,17 +409,17 @@ class TexturesEditorTab( ttk.Frame ):
 		
 		self.scanningFile = True
 		self.datTextureTreeBg.place_forget() # Removes the drag-and-drop image
+
 		printStatus( 'Scanning File...' )
 		
 		texturesInfo = self.file.identifyTextures()
 		texturesFound = totalTextureSpace = 0
 		filteredTexturesInfo = []
 
-		if self.rescanPending(): return
+		if self.rescanPending():
+			return
 
 		elif texturesInfo: # i.e. textures were found
-			#texturesInfo.sort( key=lambda infoTuple: infoTuple[0] ) # Sorts the textures by file offset
-			#dumpImages = generalBoolSettings['dumpPNGs'].get()
 			loadingImage = globalData.gui.imageBank( 'loading' )
 			
 			for imageDataOffset, imageHeaderOffset, paletteDataOffset, paletteHeaderOffset, width, height, imageType, mipmapCount in texturesInfo:
@@ -485,7 +484,7 @@ class TexturesEditorTab( ttk.Frame ):
 						# Add this texture to the DAT Texture Tree tab, using the thumbnail generated above
 						self.datTextureTree.insert( parent, 'end', 									# 'end' = insertion position
 							iid=str( imageDataOffset ),
-							image=loadingImage, 	
+							image=loadingImage,
 							values=(
 								uHex(0x20 + imageDataOffset) + '\n('+uHex(imageDataLength)+')', 	# offset to image data, and data length
 								(str(width)+' x '+str(height)), 								# width and height
@@ -511,9 +510,10 @@ class TexturesEditorTab( ttk.Frame ):
 		self.texturesFoundText.set( 'Textures Found:  ' + str(texturesFound) )
 		self.texturesFilteredText.set( 'Filtered Out:  ' + str(texturesFound-len( filteredTexturesInfo )) )
 
-		if self.rescanPending(): return
+		if self.rescanPending():
+			return
 
-		if filteredTexturesInfo:
+		elif filteredTexturesInfo:
 			# tic = time.clock()
 			# if 0: # Disabled, until this process can be made more efficient
 			# 	#print 'using multiprocessing decoding'
@@ -587,10 +587,24 @@ class TexturesEditorTab( ttk.Frame ):
 			pilImage.thumbnail( (64, 64), Image.ANTIALIAS )
 			self.datTextureTree.textureThumbnails[imageDataOffset] = ImageTk.PhotoImage( pilImage )
 
-		# If this item has already been added to the treeview, update the preview thumbnail of the texture.
+		# If this item is in the treeview, update the preview thumbnail/icon and the image details of the texture
 		iid = str( imageDataOffset )
 		if self.datTextureTree.exists( iid ):
-			self.datTextureTree.item( iid, image=self.datTextureTree.textureThumbnails[imageDataOffset] )
+			# Collect texture properties
+			if imageType == -1:
+				width, height, imageType = self.file.getTextureInfo( imageDataOffset )[:3]
+				assert imageType != -1, 'Unable to get texture info for the texture at 0x{:X}'.format( 0x20+imageDataOffset )
+			imageDataLength = hsdStructures.ImageDataBlock.getDataLength( width, height, imageType )
+			
+			# Build new strings for the properties
+			newValues = (
+						uHex(0x20 + imageDataOffset) + '\n('+uHex(imageDataLength)+')', 	# offset to image data, and data length
+						(str(width)+' x '+str(height)), 								# width and height
+						'_'+str(imageType)+' ('+imageFormats[imageType]+')' 			# the image type and format
+						)
+			
+			# Update the icon and info display
+			self.datTextureTree.item( iid, image=self.datTextureTree.textureThumbnails[imageDataOffset], values=newValues )
 
 		if not problem: return True
 		else: return False
@@ -600,13 +614,18 @@ class TexturesEditorTab( ttk.Frame ):
 		""" This is only called by pressing Enter/Return on the top file path display/entry of
 			the DAT Texture Tree tab. Verifies given the path and loads the file for viewing. """
 
-		filepath = self.datDestination.get().replace( '"', '' )
+		path = self.datDestination.get().replace( '"', '' )
 
-		# if pathIsFromDisc( filepath ):
-		# 	iid = filepath.lower()
-		# 	loadFileWithinDisc( iid )
-		# else:
-		# 	fileHandler( [filepath] )
+		if path in globalData.disc.files:
+			# Change the file associated with this tab
+			self.file = globalData.disc.files[path]
+		
+			# Restart the DAT/DOL file scan
+			self.clearDatTab()
+			self.populate()
+
+		else:
+			msg( 'Unable to find "{}" in the disc.'.format(path), 'File Not Found', warning=True )
 
 	def treeview_sort_column( self, col, reverse ):
 		# Create a list of the items, as tuples of (statOfInterest, iid), and sort them
@@ -1673,21 +1692,14 @@ class TexturesEditorTab( ttk.Frame ):
 				return
 
 		# Get the disc file and save the image data to it
-		# try:
-		returnCode, origLimit, newLimit = self.file.setTexture( imageDataOffset, newImage )
-		# except Exception as err:
-		# 	returnCode = -1
-		# 	msg( 'An unexpected error occurred importing the texture; {}'.format(err), 'Import Error', error=True )
-		
-		# Check for a texture that's currently selected and should be displayed in the Image tab
-		# if self.iids: # Returns a tuple of iids, or an empty string if nothing is selected.
-		# 	displayedTexture = int( self.iids[-1] ) # Selects the lowest position item selected in the treeview if multiple items are selected.
-		# else:
-		# 	displayedTexture = -1
+		try:
+			returnCode, origLimit, newLimit = self.file.setTexture( imageDataOffset, newImage, texture )
+		except Exception as err:
+			returnCode = -1
+			msg( 'An error occurred importing the texture; {}'.format(err), 'Import Error', error=True )
 
 		# Update the new texture's icon in the GUI
 		self.renderTextureData( texture.offset, problem=returnCode )
-		#if texture.offset == displayedTexture:
 		self.drawTextureToMainDisplay( texture.offset )
 
 		# Give a warning or success message
@@ -1703,8 +1715,62 @@ class TexturesEditorTab( ttk.Frame ):
 		else: #todo: clean up
 			printStatus( 'Unable to import; an unexpected error occurred '
 				'(return code: {}, l1: 0x{:X}, l2: 0x{:X})'.format(returnCode, origLimit, newLimit), error=True )
-			msg( 'Unable to import; an unexpected error occurred '
-				'(return code: {}, l1: 0x{:X}, l2: 0x{:X})'.format(returnCode, origLimit, newLimit), error=True )
+			# msg( 'Unable to import; an unexpected error occurred '
+			# 	'(return code: {}, l1: 0x{:X}, l2: 0x{:X})'.format(returnCode, origLimit, newLimit), error=True )
+
+	def _replaceTextures( self, textureObjects, newImage, completedEncodings, selectedIid, allowResizing=False ):
+		
+		""" A helper function to self.replaceMultipleTextures(). """
+
+		successCount = 0
+
+		for texture in textureObjects:
+			returnCode = -1
+
+			try:
+				# Check if we've already encoded this data
+				encodingSignature = ( texture.width, texture.height, texture.imageType )
+				preEncodedTexture = completedEncodings.get( encodingSignature )
+
+				# Save the new texture to the file
+				if preEncodedTexture:
+					returnCode = self.file.setPreEncodedTexture( texture.offset, preEncodedTexture )[0]
+				elif allowResizing:
+					resizedImage = newImage.resize( (texture.width, texture.height) )
+					returnCode = self.file.setTexture( texture.offset, resizedImage, texture )[0]
+				else:
+					returnCode = self.file.setTexture( texture.offset, newImage, texture )[0]
+
+			except Exception as err:
+				print( 'An error occurred importing the texture to 0x{:X}; {}'.format(0x20+texture.offset, err) )
+
+			# Track successes and store completed encodings to avoid repeating work
+			if returnCode == 0:
+				if not preEncodedTexture:
+					completedEncodings[encodingSignature] = texture
+				successCount += 1
+
+			# Update the new texture's icon and main image display in the GUI
+			self.renderTextureData( texture.offset, problem=returnCode )
+			if texture.offset == selectedIid:
+				self.drawTextureToMainDisplay( texture.offset )
+
+		return successCount
+
+	def _expansionRequired( self, newImage, uniqueDims, texture ):
+
+		""" Check if the imported texture (newImage) is larger than any of the selected textures. """
+		
+		newLength = texture.getDataLength( newImage.size[0], newImage.size[1], texture.imageType )
+
+		for ( width, height, imageType ) in uniqueDims:
+			origLength = texture.getDataLength( width, height, imageType )
+
+			if newLength > origLength: # More space is needed
+				return True
+		else:
+			# The loop above didn't break; no texture spaces are too small
+			return False
 
 	def replaceMultipleTextures( self, newImage, imageDataOffsets ):
 
@@ -1715,6 +1781,7 @@ class TexturesEditorTab( ttk.Frame ):
 		structsNotFound = [] # Failsafe; not expected
 		fileStructs = self.file.structs
 		uniqueDims = set()
+		completedEncodings = {} # Key=tuple(width, height, imageType, paletteType), value=(imageData, paletteData)
 		successCount = 0
 		
 		# Collect the textures to be replaced, and number of unique texture dimensions
@@ -1723,7 +1790,7 @@ class TexturesEditorTab( ttk.Frame ):
 
 			if texture:
 				selectedTextureObjects.append( texture )
-				uniqueDims.add( (texture.width, texture.height) )
+				uniqueDims.add( (texture.width, texture.height, texture.imageType) )
 			else:
 				structsNotFound.append( offset )
 
@@ -1731,14 +1798,8 @@ class TexturesEditorTab( ttk.Frame ):
 		if not selectedTextureObjects: # Failsafe; unlikely
 			printStatus( 'Unable to import; the selected texture objects could not be loaded', error=True )
 			missingStructs = [ uHex(offset) for offset in structsNotFound ]
-			print( 'These structs could not be found in the file: {}'.format(missingStructs))
+			print( 'These structs could not be found or initialized in the file: {}'.format(missingStructs) )
 			return
-
-		# Check for a texture that's currently selected and should be displayed in the Image tab
-		# if self.iids: # Returns a tuple of iids, or an empty string if nothing is selected.
-		# 	displayedTexture = int( self.iids[-1] ) # Selects the lowest position item selected in the treeview if multiple items are selected.
-		# else:
-		# 	displayedTexture = -1
 
 		# Warn the user if there are textures with differing dimensions
 		if len( uniqueDims ) > 1:
@@ -1748,22 +1809,33 @@ class TexturesEditorTab( ttk.Frame ):
 				
 			if allowResize:
 				# Resize the new image to match each texture it's replacing
-				for texture in selectedTextureObjects:
-					try:
-						resizedImage = newImage.resize( (texture.width, texture.height) )
-						returnCode = self.texturesTab.file.setTexture( texture.offset, resizedImage )[0]
-					except Exception as err:
-						print( 'An unexpected error occurred importing the texture; {}'.format(err) )
+				# for texture in selectedTextureObjects:
+				# 	encodingSignature = ( texture.width, texture.height, texture.imageType )
 
-					if returnCode == 0:
-						successCount += 1
+				# 	try:
+				# 		# Check if we've already encoded this data
+				# 		preEncodedTexture = completedEncodings.get( encodingSignature )
 
-					# Update the new texture's icon in the GUI
-					self.texturesTab.renderTextureData( texture.offset, problem=returnCode )
-					if texture.offset == imageDataOffsets[0]:
-						self.texturesTab.drawTextureToMainDisplay( texture.offset )
+				# 		if preEncodedTexture:
+				# 			returnCode = self.file.setPreEncodedTexture( texture.offset, preEncodedTexture )[0]
+				# 		else:
+				# 			resizedImage = newImage.resize( (texture.width, texture.height) )
+				# 			returnCode, imageData, paletteData = self.file.setTexture( texture.offset, resizedImage )
+				# 	except Exception as err:
+				# 		print( 'An unexpected error occurred importing the texture; {}'.format(err) )
+
+				# 	if returnCode == 0:
+				# 		if not preEncodedTexture:
+				# 			completedEncodings[encodingSignature] = texture
+				# 		successCount += 1
+
+				# 	# Update the new texture's icon in the GUI
+				# 	self.renderTextureData( texture.offset, problem=returnCode )
+				# 	if texture.offset == imageDataOffsets[0]:
+				# 		self.drawTextureToMainDisplay( texture.offset )
+				successCount += self._replaceTextures( selectedTextureObjects, newImage, completedEncodings, imageDataOffsets[0], allowResizing=True )
 			
-			elif self.expansionRequired( newImage, uniqueDims, texture ): # User declined the resize offering above and more space is needed
+			elif self._expansionRequired( newImage, uniqueDims, texture ): # User declined the resize offering above and more space is needed
 				# lengthDiff = newImageDataLength - origImageDataLength
 				# if not tkMessageBox.askyesno( 'Expand data space?', "The texture you're importing requires more "
 				# 		"space in the file than what's available. Would you like to expand the space in the file "
@@ -1772,47 +1844,74 @@ class TexturesEditorTab( ttk.Frame ):
 				# 	printStatus( 'Operation aborted', warning=True )
 				# 	return
 				#printStatus( "The given image's dimensions are too large", error=True )
-				# Some of the textures may be able to be imported, but not all. Warn the user!
-				msg( "The texture you're importing requires more space in the file than "
-					"what's available, and will not be able to replace some or all of "
-					"the selected textures.", 'Not enough space' )
+
+				# Create a list of textures that can be replaced
+				textureObjects = []
+				for texture in selectedTextureObjects:
+					requiredSpace = texture.getDataLength( newImage.size[0], newImage.size[1], texture.imageType )
+					existingSpace = texture.getDataLength( texture.width, texture.height, texture.imageType )
+					
+					if requiredSpace <= existingSpace:
+						textureObjects.append( texture )
+				
+				if not textureObjects:
+					# No imports can be completed
+					printStatus( "The given image's dimensions are too large", error=True )
+					msg( "The texture you're importing requires more space in the file than what's available "
+						"for the textures you've selected.", 'Not enough space' )
+					return
+				else:
+					# Some of the textures may be able to be imported, but not all. Warn the user!
+					msg( "The texture you're importing requires more space in the file than what's available, "
+						"and it cannot be used to replace some or all of "
+						"the selected textures.", 'Not enough space' )
 
 				# Replace all textures where there is enough space
-				requiredSpace = texture.getDataLength( newImage.size[0], newImage.size[1], texture.imageType )
-				for texture in selectedTextureObjects:
-					try:
-						# Check how much space is available to this texture
-						existingSpace = texture.getDataLength( texture.width, texture.height, texture.imageType )
+				# requiredSpace = texture.getDataLength( newImage.size[0], newImage.size[1], texture.imageType )
+				# for texture in selectedTextureObjects:
+				# 	encodingSignature = ( texture.width, texture.height, texture.imageType )
 
-						if requiredSpace <= existingSpace:
-							returnCode = self.texturesTab.file.setTexture( texture.offset, newImage )[0]
-						else:
-							returnCode = 2
-					except Exception as err:
-						print( 'An unexpected error occurred importing the texture; {}'.format(err) )
+				# 	try:
+				# 		# Check how much space is available to this texture
+				# 		existingSpace = texture.getDataLength( texture.width, texture.height, texture.imageType )
 
-					if returnCode == 0:
-						successCount += 1
+				# 		if requiredSpace <= existingSpace:
+				# 			returnCode, imageData, paletteData = self.file.setTexture( texture.offset, newImage )
+				# 		else:
+				# 			returnCode = 2
+				# 	except Exception as err:
+				# 		print( 'An unexpected error occurred importing the texture at 0x{:X}; {}'.format(texture.offset, err) )
 
-					# Update the new texture's icon in the GUI
-					self.texturesTab.renderTextureData( texture.offset, problem=returnCode )
-					if texture.offset == imageDataOffsets[0]:
-						self.texturesTab.drawTextureToMainDisplay( texture.offset )
+				# 	if returnCode == 0:
+				# 		completedEncodings[(texture.width, texture.height, texture.imageType)] = ( imageData, paletteData )
+				# 		successCount += 1
+
+				# 	# Update the new texture's icon in the GUI
+				# 	self.renderTextureData( texture.offset, problem=returnCode )
+				# 	if texture.offset == imageDataOffsets[0]:
+				# 		self.drawTextureToMainDisplay( texture.offset )
+						
+				successCount += self._replaceTextures( textureObjects, newImage, completedEncodings, imageDataOffsets[0] )
 
 			else: # No extra space needed; no special procedures needed
-				for texture in selectedTextureObjects:
-					try:
-						returnCode = self.texturesTab.file.setTexture( texture.offset, newImage )[0]
-					except Exception as err:
-						print( 'An unexpected error occurred importing the texture; {}'.format(err) )
-						
-					if returnCode == 0:
-						successCount += 1
+				# for texture in selectedTextureObjects:
+				# 	encodingSignature = ( texture.width, texture.height, texture.imageType )
 
-					# Update the new texture's icon in the GUI
-					self.texturesTab.renderTextureData( texture.offset, problem=returnCode )
-					if texture.offset == imageDataOffsets[0]:
-						self.texturesTab.drawTextureToMainDisplay( texture.offset )
+				# 	try:
+				# 		returnCode, imageData, paletteData = self.file.setTexture( texture.offset, newImage )
+				# 	except Exception as err:
+				# 		print( 'An unexpected error occurred importing the texture; {}'.format(err) )
+						
+				# 	if returnCode == 0:
+				# 		completedEncodings[(texture.width, texture.height, texture.imageType)] = ( imageData, paletteData )
+				# 		successCount += 1
+
+				# 	# Update the new texture's icon in the GUI
+				# 	self.renderTextureData( texture.offset, problem=returnCode )
+				# 	if texture.offset == imageDataOffsets[0]:
+				# 		self.drawTextureToMainDisplay( texture.offset )
+
+				successCount += self._replaceTextures( selectedTextureObjects, newImage, completedEncodings, imageDataOffsets[0] )
 
 			# Give a warning or success message
 			# if returnCode == 1:
@@ -1820,7 +1919,7 @@ class TexturesEditorTab( ttk.Frame ):
 			# elif returnCode == 0:
 			# 	printStatus( 'Banner texture imported', success=True )
 		
-		else: # All dimensions of the in-file textures are the same
+		else: # All dimensions of the selected in-file textures are the same
 			# Check if more file space is needed, and offer to resize the given texture if it is
 			texture = selectedTextureObjects[0] # Any sample will do, since they're all the same
 			if ( texture.width, texture.height ) != newImage.size:
@@ -1829,7 +1928,7 @@ class TexturesEditorTab( ttk.Frame ):
 
 				if newImageDataLength > origImageDataLength:
 					if tkMessageBox.askyesno( 'Resize texture?', "The dimensions of the texture you're "
-						"importing don't match the dimensions of the textures you've selected to replace."
+						"importing don't match those of the textures you've selected to replace."
 						"\n\nThe textures you've selected to replace are {}x{}.".format( texture.width, texture.height ) + \
 						"\nThe texture you've selected to import is {}x{}.".format( newImage.size[0], newImage.size[1] ) + \
 						"\n\nWould you like to resize the texture you're importing to match the selected textures?" ):
@@ -1838,8 +1937,8 @@ class TexturesEditorTab( ttk.Frame ):
 
 					else: # Oh noes!
 
-					# if expansionRequired:
-					# elif self.expansionRequired( newImage, uniqueDims, texture ): # User declined the resize offering above and more space is needed
+					# if _expansionRequired:
+					# elif self._expansionRequired( newImage, uniqueDims, texture ): # User declined the resize offering above and more space is needed
 					# 	# lengthDiff = newImageDataLength - origImageDataLength
 					# 	# if not tkMessageBox.askyesno( 'Expand data space?', "The texture you're importing requires more "
 					# 	# 		"space in the file than what's available. Would you like to expand the space in the file "
@@ -1854,27 +1953,30 @@ class TexturesEditorTab( ttk.Frame ):
 						return
 		
 			# Save the image data to the disc file
-			for texture in selectedTextureObjects:
-				try:
-					returnCode = self.texturesTab.file.setTexture( texture.offset, newImage )[0]
-				except Exception as err:
-					print( 'An unexpected error occurred importing the texture; {}'.format(err) )
-					
-				if returnCode == 0:
-					successCount += 1
+			# for texture in selectedTextureObjects:
+			# 	try:
+			# 		returnCode, imageData, paletteData = self.file.setTexture( texture.offset, newImage )
+			# 	except Exception as err:
+			# 		print( 'An unexpected error occurred importing the texture; {}'.format(err) )
+				
+			# 	if returnCode == 0:
+			# 		completedEncodings[(texture.width, texture.height, texture.imageType)] = ( imageData, paletteData )
+			# 		successCount += 1
 
-				# Update the new texture's icon in the GUI
-				self.texturesTab.renderTextureData( texture.offset, problem=returnCode )
-				if texture.offset == imageDataOffsets[0]:
-					self.texturesTab.drawTextureToMainDisplay( texture.offset )
+			# 	# Update the new texture's icon in the GUI
+			# 	self.renderTextureData( texture.offset, problem=returnCode )
+			# 	if texture.offset == imageDataOffsets[0]:
+			# 		self.drawTextureToMainDisplay( texture.offset )
 
+			successCount += self._replaceTextures( selectedTextureObjects, newImage, completedEncodings, imageDataOffsets[0] )
+			
 		# Update the program's status bar
-		if len( self.iids ) == successCount:
+		if len( imageDataOffsets ) == successCount:
 			printStatus( 'All selected textures replaced successfully', success=True )
 		elif successCount == 0:
 			printStatus( 'The selected textures could not be replaced', error=True )
 		else:
-			failCount = len( self.iids ) - successCount
+			failCount = len( imageDataOffsets ) - successCount
 			printStatus( '{} textures were replaced, however {} texture replacements failed'.format(successCount, failCount), warning=True )
 
 
@@ -1930,19 +2032,6 @@ class TexturesContextMenu( Tk.Menu, object ):
 				 'you have texture filters blocking your results.)' )
 		else:
 			exportMultipleTextures( self.texturesTab, exportAll=True )
-
-	def expansionRequired( self, newImage, uniqueDims, texture ):
-
-		""" Check if the imported texture (newImage) is larger than any of the selected textures. """
-		
-		newLength = texture.getDataLength( newImage.size[0], newImage.size[1], texture.imageType )
-		for tex in uniqueDims:
-			origLength = texture.getDataLength( tex.width, tex.height, tex.imageType )
-
-			if newLength > origLength: # User declined the resize offering above and more space is needed
-				return True
-		else: # The loop above didn't break; no texture spaces are too small
-			return False
 
 	def importTexture( self ):
 

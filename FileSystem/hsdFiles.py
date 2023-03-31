@@ -353,7 +353,7 @@ class CssFile( DatFile ):
 
 		# Calculate the offset of the CSP texture and import the texture there
 		cspOffset = self.cspBaseOffset + ( cspIndex * self.cspStride ) - 0x20
-		returnInfo = self.setTexture( cspOffset, None, filepath, textureName, 1 )
+		returnInfo = self.setTexture( cspOffset, None, None, filepath, textureName, 1 )
 
 		return returnInfo
 

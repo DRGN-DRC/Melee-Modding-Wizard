@@ -1159,8 +1159,8 @@ class DiscTab( ttk.Frame ):
 		mainGui.mainTabFrame.select( mainGui.texturesTab )
 		
 		# Add a tab for the current file and populate it
-		mainGui.texturesTab.addTab( fileObj )
 		mainGui.playSound( 'menuSelect' )
+		mainGui.texturesTab.addTab( fileObj )
 
 	def analyzeFileFromDisc( self ):
 		mainGui = globalData.gui

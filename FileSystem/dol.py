@@ -1355,7 +1355,7 @@ class Dol( FileBase ):
 		else:
 			return ImageTk.PhotoImage( textureImage )
 
-	def setTexture( self, imageDataOffset, pilImage=None, imagePath='', textureName='Texture', paletteQuality=3 ):
+	def setTexture( self, imageDataOffset, pilImage=None, texture=None, imagePath='', textureName='Texture', paletteQuality=3 ):
 
 		""" Encodes image data into TPL format (if needed), and writes it into the file at the given offset. 
 			Input must be a data offset and either a PIL image or a file path to a texture file (PNG or TPL). 
@@ -1377,7 +1377,7 @@ class Dol( FileBase ):
 			newImage = TplEncoder( imagePath, imageType=0 )
 			
 		else:
-			raise IOError( 'Invalid input to .setTexture(); no PIL image or texture filepath provided.' )
+			raise IOError( 'Invalid input; no PIL image or texture filepath provided.' )
 
 		# Decode the image into TPL format
 		newImage.blockify()

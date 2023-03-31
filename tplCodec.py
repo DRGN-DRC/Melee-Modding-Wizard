@@ -13,6 +13,7 @@ import os, sys
 import struct, time
 import png, subprocess 	# Used for png reading/writing, and command-line communication
 
+import numpy as np
 #from PIL import Image
 from itertools import chain
 from string import hexdigits
@@ -816,7 +817,7 @@ class TplEncoder( CodecBase ):
 	""" Converts PNG data to TPL format. Can return just the TPL image and palette data, or create a TPL file.
 
 		Pass a filepath, a PIL image, or raw image and/or palette data.
-		The arguments imageDataArray and rgbaPaletteArray expect a 1D list, where each pixel is an RGBA tuple. """
+		The arguments imageDataArray and rgbaPaletteArray expect a list of pixels, where each pixel is an RGBA tuple. """
 
 	def __init__( self, filepath='', pilImage=None, imageType=None, paletteType=None, imageDataArray=None, rgbaPaletteArray=None, maxPaletteColors=256, paletteQuality=3 ):
 		
@@ -825,18 +826,17 @@ class TplEncoder( CodecBase ):
 		# Set data arrays to what's given, or initialize with an empty list
 		self.imageDataArray = imageDataArray or [] # Not set in the __init__ declaration because [] is mutable, and would not be created anew each time
 		self.rgbaPaletteArray = rgbaPaletteArray or []
-		self.pilImage = pilImage
+		self.pilImage = pilImage.convert( 'RGBA' )
 
 		# Initialize data from a PIL image, if provided
-		if pilImage:
+		if self.pilImage:
 			# Convert to RGBA, and collect width/height and image data
-			pilImage = pilImage.convert( 'RGBA' )
-			self.width, self.height = pilImage.size
-			self.imageDataArray = pilImage.getdata()
+			self.width, self.height = self.pilImage.size
+			self.imageDataArray = self.pilImage.getdata()
 
 			# Collect palette data or create one, if needed
 			if imageType in ( 8, 9, 10 ):
-				self.rgbaPaletteArray = pilImage.getpalette()
+				self.rgbaPaletteArray = self.pilImage.getpalette()
 
 				if not self.rgbaPaletteArray:
 					self.generatePalette()
@@ -936,9 +936,26 @@ class TplEncoder( CodecBase ):
 
 		else: # For image type 14 (CMPR)
 			#raise TypeError( 'CMPR encoding is unsupported.' )
+
 			tic = time.time()
 
+			# dataArray = np.array( imageData )
+			# pixelArray = dataArray.reshape( self.pilImage.size[1], self.pilImage.size[0], -1 )
+			#print( pixelArray.shape )
+
+			# s = self.pilImage.shape
+			# imageData = np.asarray( self.pilImage )
 			self.encodedImageData = bytearray()
+			#data = []
+
+			# rowTotal = 0
+			# columnTotal = 0
+			# rowTotal = 0
+			# columnTotal = 0
+			# block_X = 0
+			# block_Y = 0
+			# blockRight = 0
+			# blockBottom = 0
 
 			for y in range( 0, imageHeight, 8 ): # Iterates the image's blocks, vertically. (last argument is step size)
 				for x in range( 0, imageWidth, 8 ): # Iterates the image's blocks, horizontally.
@@ -947,41 +964,65 @@ class TplEncoder( CodecBase ):
 					for subBlockRow in range( 2 ): # Iterates sub-block rows
 						for subBlockColumn in range( 2 ): # Iterates sub-block columns/x-axis
 
+			# while 1:
+
 							rowTotal = 4 * subBlockRow + y
 							columnTotal = 4 * subBlockColumn + x
-							blockPixels = []
+							
+							sourceColors = []
 
 							# Get the original 16 pixels/colors for this block
 							for row in range( rowTotal, rowTotal + 4 ):
-								for column in range( columnTotal, columnTotal + 4 ):
-									# Skip pixels that are outside the image's visible area
-									if row >= imageHeight or column >= imageWidth:
-										continue
+								if row >= imageHeight:
+									sourceColors.extend( [None, None, None, None] )
+									continue
+								
+								if columnTotal + 3 < imageWidth: # Get 4 pixels (the whole row for this block)
+									pixel1 = imageData[row * imageWidth + columnTotal]
+									pixel2 = imageData[row * imageWidth + columnTotal + 1]
+									pixel3 = imageData[row * imageWidth + columnTotal + 2]
+									pixel4 = imageData[row * imageWidth + columnTotal + 3]
+								elif columnTotal + 2 < imageWidth: # Get 3 pixels
+									pixel1 = imageData[row * imageWidth + columnTotal]
+									pixel2 = imageData[row * imageWidth + columnTotal + 1]
+									pixel3 = imageData[row * imageWidth + columnTotal + 2]
+									pixel4 = None
+								elif columnTotal + 1 < imageWidth: # Get 2 pixels
+									pixel1 = imageData[row * imageWidth + columnTotal]
+									pixel2 = imageData[row * imageWidth + columnTotal + 1]
+									pixel3 = None
+									pixel4 = None
+								elif columnTotal < imageWidth: # Get 1 pixel
+									pixel1 = imageData[row * imageWidth + columnTotal]
+									pixel2 = None
+									pixel3 = None
+									pixel4 = None
+								else:
+									pixel1 = None
+									pixel2 = None
+									pixel3 = None
+									pixel4 = None
 
-									pixel = imageData[row * imageWidth + column] # An RGBA tuple
-									blockPixels.append( pixel )
+								sourceColors.extend( [pixel1, pixel2, pixel3, pixel4] )
 
 							# Determine new colors to use as a palette to represent the pixels collected above
-							p1Value, p2Value, indices, useTransparency = self.quantizeCMPR( blockPixels )
-
-							# Encode the two palette entries, which should be in RGB565 (RRRRRGGGGGGBBBBB) format
-							# p1Value = p1[0]/8 << 11 | p1[1]/4 << 5 | p1[2]/8
-							# p2Value = p2[0]/8 << 11 | p2[1]/4 << 5 | p2[2]/8
-
-							# # Store the above into 8 bytes
-							# if useTransparency:
-							# 	# Place the smaller palette entry value first
-							# 	if p1Value > p2Value:
-							# 		self.encodedImageData.extend( struct.pack('>HHI', p2Value, p1Value, indices) )
-							# 	else:
-							# 		self.encodedImageData.extend( struct.pack('>HHI', p1Value, p2Value, indices) )
-							# else:
-							# 	# Place the larger palette entry value first
-							# 	if p1Value > p2Value:
-							# 		self.encodedImageData.extend( struct.pack('>HHI', p1Value, p2Value, indices) )
-							# 	else:
+							p1Value, p2Value, indices = self.quantizeCMPR( sourceColors )
 							self.encodedImageData.extend( struct.pack('>HHI', p1Value, p2Value, indices) )
-			
+
+							# columnTotal += 4 + ( blockRight * (1-blockBottom) * -8 )
+							# rowTotal += ( blockRight * 4 ) + ( blockRight * blockBottom * -8 )
+
+							# blockBottom = ( blockRight * (1-blockBottom) ) | ( (1-blockRight) * blockBottom )
+							# blockRight = 1 - blockRight
+
+							# if columnTotal >= imageWidth:
+
+							# 	columnTotal = 0
+							# 	rowTotal += 8
+
+							# 	if rowTotal >= imageHeight:
+							# 		break
+
 			toc = time.time()
 			print( 'encoding time: ' + str(toc-tic) )
 
@@ -1039,44 +1080,39 @@ class TplEncoder( CodecBase ):
 
 		colors = sourceColors[:] # Copy the list to not modify the original
 
-		pointCount = len( colors )
 		distance = -1
 		maxDistance = 0
 		p1Index = -1
 		p2Index = -1
 		useTransparency = False
-		pixelsToIgnore = set()
 		
 		# Calculate all pairwise distances between the colors in the given colorspace
-		for i in range( pointCount ):
+		for i in range( 16 ):
 			p_1 = colors[i]
 
-			if p_1[3] < 128:
+			if p_1 == None:
+				continue
+			elif p_1[3] < 128:
 				useTransparency = True
 				
 				# Ignore sufficiently invisible pixels (~ 90% transparent)
 				if p_1[3] < 26:
-					pixelsToIgnore.add( p_1 )
+					colors[i] = None
 					continue
 
-			for j in range( i+1, pointCount ):
-				#p_1 = colors[i]
+			for j in range( i + 1, 16 ):
 				p_2 = colors[j]
 
-				# Check the alpha channel for transparent pixels
-				#if p_1[3] < 128 or p_2[3] < 128:
-				if p_2[3] < 128:
+				if p_2 == None:
+					continue
+				elif p_2[3] < 128:
 					useTransparency = True
 
 					# Ignore sufficiently invisible pixels (~ 90% transparent)
-					# if p_1[3] < 26:
-					# 	pixelsToIgnore.append( i )
-					# 	continue
 					if p_2[3] < 26:
-						pixelsToIgnore.add( p_2 )
+						colors[j] = None
 						continue
 
-				#distance = math.sqrt( (p_1[0] - p_2[0])**2 + (p_1[1] - p_2[1])**2 + (p_1[2] - p_2[2])**2 )
 				distance = (p_1[0] - p_2[0])**2 + (p_1[1] - p_2[1])**2 + (p_1[2] - p_2[2])**2
 				if distance > maxDistance:
 					maxDistance = distance
@@ -1085,43 +1121,27 @@ class TplEncoder( CodecBase ):
 
 		# Check if any disntaces were calculated and a selection of colors was made
 		if maxDistance == 0:
-			p1 = colors[0]
-			p2 = colors[15]
-			p1Value = int(p1[0])/8 << 11 | int(p1[1])/4 << 5 | int(p1[2])/8
-			p2Value = int(p2[0])/8 << 11 | int(p2[1])/4 << 5 | int(p2[2])/8
+
 			if distance == -1:
 				# No distance calculations were made; all of the colors are too transparent to matter
 				# All indices will point to the transparent palette entry
-				#return colors[0], colors[15], 0xFFFFFFFF, useTransparency
-				return p1Value, p2Value, 0xFFFFFFFF, useTransparency
+				return 0, 0, 0xFFFFFFFF
 			else:
-				# All the pixels must be the same
-				#return colors[0], colors[15], 0, useTransparency
-				return p1Value, p1Value, 0, useTransparency
+				# All the pixels must be the same. Ensure the first value is larger (via LSB of green channel)
+				p1 = colors[0]
+				p1Value = p1[0]/8 << 11 | p1[1]/4 << 5 | p1[2]/8
+				return p1Value | 0b100000, p1Value & 0b1111111111011111, 0
 
 		# Remove the colors furthest from each other (identified above)
-		p2 = colors.pop( p2Index ) # Always a larger index
+		p2 = colors.pop( p2Index ) # Always a larger index; remove it first
 		p1 = colors.pop( p1Index )
-
-		# Exclude transparent pixels from the following searches
-		# if pixelsToIgnore:
-		# 	pixelsToIgnore = list( pixelsToIgnore )
-		# 	if p1Index in pixelsToIgnore:
-		# 		pixelsToIgnore.remove( p1Index )
-		# 	if p2Index in pixelsToIgnore:
-		# 		pixelsToIgnore.remove( p2Index )
-		# 	pixelsToIgnore.sort( reverse=True )
-		# 	for i in pixelsToIgnore:
-		# 		colors.pop( i )
 
 		# Isolate two clusters of 3 colors as rough endpoints of the occupied area of the colorspace
 		distancesToP1 = []
 		distancesToP2 = []
 		for p in colors:
-			if p in pixelsToIgnore:
+			if not p:
 				continue
-			# distancesToP1.append( (p, math.sqrt((p1[0] - p[0])**2 + (p1[1] - p[1])**2 + (p1[2] - p[2])**2)) )
-			# distancesToP2.append( (p, math.sqrt((p2[0] - p[0])**2 + (p2[1] - p[1])**2 + (p2[2] - p[2])**2)) )
 			distancesToP1.append( (p, (p1[0] - p[0])**2 + (p1[1] - p[1])**2 + (p1[2] - p[2])**2) )
 			distancesToP2.append( (p, (p2[0] - p[0])**2 + (p2[1] - p[1])**2 + (p2[2] - p[2])**2) )
 
@@ -1132,12 +1152,16 @@ class TplEncoder( CodecBase ):
 			r1 = ( p1[0] + distancesToP1[0][0][0] + distancesToP1[1][0][0] ) / 3.0
 			g1 = ( p1[1] + distancesToP1[0][0][1] + distancesToP1[1][0][1] ) / 3.0
 			b1 = ( p1[2] + distancesToP1[0][0][2] + distancesToP1[1][0][2] ) / 3.0
-			p1 = [ r1, g1, b1 ]
+			p1 = ( r1, g1, b1 )
 		elif distancesToP1: # Just one other color/distance (len(distancesToP1) = 1)
 			r1 = ( p1[0] + distancesToP1[0][0][0] ) / 2.0
 			g1 = ( p1[1] + distancesToP1[0][0][1] ) / 2.0
 			b1 = ( p1[2] + distancesToP1[0][0][2] ) / 2.0
-			p1 = [ r1, g1, b1 ]
+			p1 = ( r1, g1, b1 )
+		else:
+			r1 = p1[0]
+			g1 = p1[1]
+			b1 = p1[2]
 
 		if len( distancesToP2 ) >= 2:
 			# Sort the above lists to find the colors closest to p1 and p2
@@ -1146,16 +1170,20 @@ class TplEncoder( CodecBase ):
 			r2 = ( p2[0] + distancesToP2[0][0][0] + distancesToP2[1][0][0] ) / 3.0
 			g2 = ( p2[1] + distancesToP2[0][0][1] + distancesToP2[1][0][1] ) / 3.0
 			b2 = ( p2[2] + distancesToP2[0][0][2] + distancesToP2[1][0][2] ) / 3.0
-			p2 = [ r2, g2, b2 ]
+			p2 = ( r2, g2, b2 )
 		elif distancesToP2: # Just one other color/distance (len(distancesToP2) = 1)
 			r2 = ( p2[0] + distancesToP2[0][0][0] ) / 2.0
 			g2 = ( p2[1] + distancesToP2[0][0][1] ) / 2.0
 			b2 = ( p2[2] + distancesToP2[0][0][2] ) / 2.0
-			p2 = [ r2, g2, b2 ]
+			p2 = ( r2, g2, b2 )
+		else:
+			r2 = p2[0]
+			g2 = p2[1]
+			b2 = p2[2]
 		
 		# Encode the two palette entries, which should be in RGB565 (RRRRRGGGGGGBBBBB) format
-		p1Value = int(p1[0])/8 << 11 | int(p1[1])/4 << 5 | int(p1[2])/8
-		p2Value = int(p2[0])/8 << 11 | int(p2[1])/4 << 5 | int(p2[2])/8
+		p1Value = int(round(r1))/8 << 11 | int(round(g1))/4 << 5 | int(round(b1))/8
+		p2Value = int(round(r2))/8 << 11 | int(round(g2))/4 << 5 | int(round(b2))/8
 		
 		# Interpolate the latter colors
 		if useTransparency:
@@ -1165,6 +1193,17 @@ class TplEncoder( CodecBase ):
 				RGBA1 = p1
 				firstValue = p2Value
 				secondValue = p1Value
+			elif p1Value == p2Value:
+				# Clear LSB on p1 green channel and set it on p2
+				p1 = ( r1, int(round(g1)) & 0b111110, b1 )
+				p2 = ( r2, int(round(g2)) | 1, b2 )
+				p1Value = p1Value & 0b1111111111011111
+				p2Value = p2Value | 0b100000
+				
+				RGBA0 = p1
+				RGBA1 = p2
+				firstValue = p1Value
+				secondValue = p2Value
 			else:
 				RGBA0 = p1
 				RGBA1 = p2
@@ -1172,32 +1211,52 @@ class TplEncoder( CodecBase ):
 				secondValue = p2Value
 
 			#p3 = (p1[0] + (1/2)*vx, p1[1] + (1/2)*vy, p1[2] + (1/2)*vz) # 1/2 interpolation
-			RGBA2 = tuple(map(lambda x, y: (x + y) / 2, RGBA0, RGBA1))
-			RGBA3 = ( 0, 0, 0, 0 )
+			#RGBA2 = tuple(map(lambda x, y: (x + y) / 2, RGBA0, RGBA1))
+			RGBA2 = ( (r1 + r2) /2.0, (g1 + g2) /2.0, (b1 + b2) /2.0 )
+			RGBA3 = ( 0, 0, 0 )
 			
 			# Determine the pixel data (indices into the palette)
-			#indices = []
 			indices = 0
 			bitPosition = 30
 			for point in sourceColors:
-				if point[3] < 128:
-					#indices.append( 3 )
+				if not point:
+					indices += 3 << bitPosition
+					bitPosition -= 2
+					continue
+				
+				r, g, b, a = point
+
+				# Identify transparent pixels (anything with alpha less than 50%)
+				if a < 128:
 					indices += 3 << bitPosition
 				else:
-					smallestDistance = float( "inf" )
-					closestPoint = -1
-					for i, cp in enumerate( [RGBA0, RGBA1, RGBA2] ):
-						#distance = math.sqrt((point[0]-cp[0])**2 + (point[1]-cp[1])**2 + (point[2]-cp[2])**2) # Use **0.5 instead?
-						distance = (point[0]-cp[0])**2 + (point[1]-cp[1])**2 + (point[2]-cp[2])**2
-						if distance < smallestDistance:
-							smallestDistance = distance
-							closestPoint = i
-					#indices.append( closestPoint )
+					# Compare the current point to each palette entry color to find the closest match
+					smallestDistance = (r-RGBA0[0])**2 + (g-RGBA0[1])**2 + (b-RGBA0[2])**2
+					closestPoint = 0
+					distance = (r-RGBA1[0])**2 + (g-RGBA1[1])**2 + (b-RGBA1[2])**2
+					if distance < smallestDistance:
+						smallestDistance = distance
+						closestPoint = 1
+					distance = (r-RGBA2[0])**2 + (g-RGBA2[1])**2 + (b-RGBA2[2])**2
+					if distance < smallestDistance:
+						closestPoint = 2
+
 					indices += closestPoint << bitPosition
 				bitPosition -= 2
 		else:
 			# Ensure the larger value is first
 			if p1Value > p2Value:
+				RGBA0 = p1
+				RGBA1 = p2
+				firstValue = p1Value
+				secondValue = p2Value
+			elif p1Value == p2Value:
+				# Clear LSB on p2 green channel and set it on p1
+				p1 = ( r1, int(round(g1)) | 1, b1 )
+				p2 = ( r2, int(round(g2)) & 0b111110, b2 )
+				p1Value = p1Value | 0b100000
+				p2Value = p2Value & 0b1111111111011111
+				
 				RGBA0 = p1
 				RGBA1 = p2
 				firstValue = p1Value
@@ -1212,31 +1271,41 @@ class TplEncoder( CodecBase ):
 			# RGBA3 = (p1[0] + (2/3)*vx, p1[1] + (2/3)*vy, p1[2] + (2/3)*vz) # 2/3 interpolation
 			# RGBA2 = tuple(map(lambda x, y: (2*x + y) / 3, p1, p2))
 			# RGBA3 = tuple(map(lambda x, y: (x + 2*y) / 3, p1, p2))
-			RGBA2 = tuple(map(lambda x, y: (2*x + y) / 3, RGBA0, RGBA1))
-			RGBA3 = tuple(map(lambda x, y: (x + 2*y) / 3, RGBA0, RGBA1))
+			# RGBA2 = tuple( map(lambda x, y: (2*x + y) / 3, RGBA0, RGBA1) )
+			# RGBA3 = tuple( map(lambda x, y: (x + 2*y) / 3, RGBA0, RGBA1) )
+			RGBA2 = ( (RGBA0[0] * 2 + RGBA1[0]) /3.0, (RGBA0[1] * 2 + RGBA1[1]) /3.0, (RGBA0[2] * 2 + RGBA1[2]) /3.0 )
+			RGBA3 = ( (RGBA0[0] + RGBA1[0] * 2) /3.0, (RGBA0[1] + RGBA1[1] * 2) /3.0, (RGBA0[2] + RGBA1[2] * 2) /3.0 )
 			
 			# Determine the pixel data (indices into the palette), and pack them into 4 bytes
-			#indices = []
 			indices = 0
 			bitPosition = 30
 			for point in sourceColors:
-				smallestDistance = float( "inf" )
-				closestPoint = -1
-				for i, cp in enumerate( [RGBA0, RGBA1, RGBA2, RGBA3] ):
-					#distance = math.sqrt((point[0]-cp[0])**2 + (point[1]-cp[1])**2 + (point[2]-cp[2])**2) # Use **0.5 instead?
-					distance = (point[0]-cp[0])**2 + (point[1]-cp[1])**2 + (point[2]-cp[2])**2
-					if distance < smallestDistance:
-						smallestDistance = distance
-						closestPoint = i
-				#indices.append( closestPoint )
+				if not point:
+					indices += 3 << bitPosition
+					bitPosition -= 2
+					continue
+
+				r, g, b, _ = point
+				
+				# Compare the current point to each palette entry color to find the closest match
+				smallestDistance = (r-RGBA0[0])**2 + (g-RGBA0[1])**2 + (b-RGBA0[2])**2
+				closestPoint = 0
+				distance = (r-RGBA1[0])**2 + (g-RGBA1[1])**2 + (b-RGBA1[2])**2
+				if distance < smallestDistance:
+					smallestDistance = distance
+					closestPoint = 1
+				distance = (r-RGBA2[0])**2 + (g-RGBA2[1])**2 + (b-RGBA2[2])**2
+				if distance < smallestDistance:
+					smallestDistance = distance
+					closestPoint = 2
+				distance = (r-RGBA3[0])**2 + (g-RGBA3[1])**2 + (b-RGBA3[2])**2
+				if distance < smallestDistance:
+					closestPoint = 3
+
 				indices += closestPoint << bitPosition
 				bitPosition -= 2
 
-		# Cast all channel values back to ints
-		# RGBA0 = [ int(value) for value in RGBA0 ]
-		# RGBA1 = [ int(value) for value in RGBA1 ]
-
-		return firstValue, secondValue, indices, useTransparency
+		return firstValue, secondValue, indices
 
 	def createTplFile( self, savePath='' ):
 
