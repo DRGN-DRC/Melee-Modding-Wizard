@@ -2366,9 +2366,9 @@ class MainGui( Tk.Frame, object ):
 		globalData.saveProgramSettings()
 
 		if not self.changesNeedSaving( globalData.disc, True ):
-			if self.texturesTab:
-				self.texturesTab.haltAllScans( programClosing=True )
-
+			# if self.texturesTab:
+			# 	self.texturesTab.haltAllScans( programClosing=True )
+			# else:
 			self.root.destroy() # Stops the GUI's mainloop and destroys all widgets. https://stackoverflow.com/a/42928131/8481154
 
 	def addCodeConstructionTab( self ):
@@ -3098,7 +3098,7 @@ if __name__ == '__main__':
 		globalData.gui = gui = MainGui()
 		gui.audioEngine = AudioEngine()
 
-		#gui.fileHandler( [r"D:\Tex\SSBM ISO\vanilla test iso\SSBM TEST (v1.02).iso"] )
+		#gui.fileHandler( [r"D:\Tex\SSBM ISO\vanilla test iso\Super Smash Bros. Melee (v1.02).iso"] )
 		#gui.fileMenu.browseCodeLibrary()
 
 		# Start the GUI's mainloop (blocks until the GUI is taken down by .destroy or .quit)

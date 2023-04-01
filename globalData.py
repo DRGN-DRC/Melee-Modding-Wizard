@@ -12,11 +12,12 @@
 """ Container for global data that all scripts may access. 
 	Contains settings, settings-related load/save functions, and look-up tables. """
 
-programVersion = '0.9.5'
+programVersion = '0.9.6'
 
 # External Dependencies
 import os
 import csv
+import time
 #import enum
 import ConfigParser
 import tkMessageBox
@@ -106,7 +107,7 @@ def init( programArgs ):
 
 		# Texture editing interface
 		'showCanvasGrid': '1',
-		'showTextureBoundary': '1',
+		'showTextureBoundary': '0',
 		'useDolphinNaming': '0',
 	}
 

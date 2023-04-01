@@ -12,6 +12,7 @@
 # External dependencies
 import ttk
 import math
+import time
 import tkMessageBox
 import Tkinter as Tk
 from PIL import Image, ImageTk
@@ -23,10 +24,10 @@ from collections import OrderedDict
 import globalData
 from tplCodec import TplDecoder
 from FileSystem import hsdStructures, DatFile
-from basicFunctions import isNaN, humansize, grammarfyList, msg, copyToClipboard, printStatus, uHex, constructTextureFilename
-from guiSubComponents import ( exportMultipleTextures, importSingleTexture, 
+from basicFunctions import isNaN, validHex, humansize, grammarfyList, msg, copyToClipboard, printStatus, uHex, constructTextureFilename
+from guiSubComponents import ( exportMultipleTextures, importSingleTexture, BasicWindow, 
 		HexEditEntry, EnumOptionMenu, HexEditDropdown, ColorSwatch, MeleeColorPicker, 
-		FlagDecoder, ToolTip, VerticalScrolledFrame )
+		FlagDecoder, ToolTip, VerticalScrolledFrame, ClickText )
 
 
 imageFormats = { 0:'I4', 1:'I8', 2:'IA4', 3:'IA8', 4:'RGB565', 5:'RGB5A3', 6:'RGBA8', 8:'CI4', 9:'CI8', 10:'CI14x2', 14:'CMPR' }
@@ -65,24 +66,24 @@ class TexturesEditor( ttk.Notebook ):
 			the scan loops acting on a GUI that no longer exists. """
 
 		# Instruct all tabs to stop current scans
-		tabWidgets = []
+		# tabWidgets = []
 		for tabName in self.tabs():
 			tabWidget = globalData.gui.root.nametowidget( tabName )
 			tabWidget.haltScan = True
-			tabWidgets.append( tabWidget )
+			# tabWidgets.append( tabWidget )
 
 		# Wait until all tabs have stopped scanning (waits for GUI event loop to iterate and cancel all scan loops)
-		while 1:
-			for tab in tabWidgets:
-				if tab.scanningFile:
-					break
-			else: # The loop above didn't break; no tabs are currently scanning
-				break # From the while loop
+		# while 1:
+		# 	for tab in tabWidgets:
+		# 		if tab.scanningFile:
+		# 			break
+		# 	else: # The loop above didn't break; no tabs are currently scanning
+		# 		break # From the while loop
 
-		# Reset the haltScan flag if the progrom isn't closing
-		if not programClosing:
-			for tab in tabWidgets:
-				tab.haltScan = False
+		# # Reset the haltScan flag if the progrom isn't closing
+		# if not programClosing:
+		# 	for tab in tabWidgets:
+		# 		tab.haltScan = False
 
 	def closeCurrentTab( self ):
 
@@ -108,7 +109,9 @@ class TexturesEditorTab( ttk.Frame ):
 	def __init__( self, parent, fileObj=None ):
 		ttk.Frame.__init__( self, parent )
 
+		self.tabManager = parent
 		self.file = fileObj
+		self.texturesInfo = []
 		self.scanningFile = False
 		self.restartFileScan = False
 		self.haltScan = False
@@ -126,13 +129,8 @@ class TexturesEditorTab( ttk.Frame ):
 		ttk.Label( topRow, text=" DAT / USD:" ).pack( side='left' )
 		self.datDestination = Tk.StringVar()
 		datDestinationLabel = ttk.Entry( topRow, textvariable=self.datDestination )
-		datDestinationLabel.bind( '<Return>', self.openDatDestination )
+		datDestinationLabel.bind( '<Return>', self.openNewFile )
 		datDestinationLabel.pack( side='left', fill='x', expand=1, padx=12 )
-
-		if fileObj.source == 'disc':
-			self.datDestination.set( fileObj.isoPath )
-		elif fileObj.source == 'file':
-			self.datDestination.set( fileObj.extPath )
 
 		closeBtn = ttk.Button( topRow, text='X', command=parent.closeCurrentTab, width=4 )
 		closeBtn.pack( side='right' )
@@ -184,8 +182,9 @@ class TexturesEditorTab( ttk.Frame ):
 		self.imageManipTabs.add( self.textureTreeImagePane, text=' Image ', sticky='nsew' )
 
 		canvasOptionsPane = ttk.Frame( self.textureTreeImagePane, padding='0 15 0 0' )
-		ttk.Checkbutton( canvasOptionsPane, command=self.updateCanvasGrid, text='Show Grid', variable=globalData.boolSettings['showCanvasGrid'] ).pack(side='left', padx=7)
-		ttk.Checkbutton( canvasOptionsPane, command=self.updateCanvasTextureBoundary, text='Show Texture Boundary', variable=globalData.boolSettings['showTextureBoundary'] ).pack(side='left', padx=7)
+		ClickText( canvasOptionsPane, 'Texture Filters', self.adjustTextureFilters ).pack( side='left', padx=7 )
+		ttk.Checkbutton( canvasOptionsPane, command=self.updateCanvasGrid, text='Show Grid', variable=globalData.boolSettings['showCanvasGrid'] ).pack( side='left', padx=7 )
+		ttk.Checkbutton( canvasOptionsPane, command=self.updateCanvasTextureBoundary, text='Show Texture Boundary', variable=globalData.boolSettings['showTextureBoundary'] ).pack( side='left', padx=7 )
 		canvasOptionsPane.pack()
 
 		self.textureDisplayFrame = Tk.Frame( self.textureTreeImagePane ) # The border and highlightthickness for the canvas below must be set to 0, so that the canvas has a proper origin of (0, 0).
@@ -199,38 +198,34 @@ class TexturesEditorTab( ttk.Frame ):
 		datPreviewPaneBottomRow = Tk.Frame( self.textureTreeImagePane ) # This object uses grid alignment for its children so that they're centered and equally spaced amongst each other.
 
 		self.previousDatButton = ttk.Label( datPreviewPaneBottomRow, image=globalData.gui.imageBank('previousDatButton') )
-		self.previousDatButton.grid( column=0, row=0, ipadx=5, pady=(10, 0), sticky='e' )
+		self.previousDatButton.grid( column=0, row=0, sticky='e', ipadx=10, pady=(10, 0) )
 		self.previousDatText = Tk.StringVar()
 		ToolTip( self.previousDatButton, textvariable=self.previousDatText, delay=300, location='n' )
 
-		datFileDetails = ttk.Labelframe( datPreviewPaneBottomRow, text='  File Details  ', labelanchor='n' )
-		self.datFilesizeText = Tk.StringVar()
-		self.datFilesizeText.set( 'File Size:  ' )
+		datFileDetails = ttk.Labelframe( datPreviewPaneBottomRow, text='   File Details   ', labelanchor='n' )
+		self.datFilesizeText = Tk.StringVar( value='File Size:  ' )
 		ttk.Label( datFileDetails, textvariable=self.datFilesizeText )
-		self.totalTextureSpaceText = Tk.StringVar()
-		self.totalTextureSpaceText.set( 'Total Texture Size:  ' )
+		self.totalTextureSpaceText = Tk.StringVar( value='Total Texture Size:  ' )
 		ttk.Label( datFileDetails, textvariable=self.totalTextureSpaceText )
-		self.texturesFoundText = Tk.StringVar()
-		self.texturesFoundText.set( 'Textures Found:  ' )
+		self.texturesFoundText = Tk.StringVar( value='Textures Found:  ' )
 		ttk.Label( datFileDetails, textvariable=self.texturesFoundText )
-		self.texturesFilteredText = Tk.StringVar()
-		self.texturesFilteredText.set( 'Filtered Out:  ' )
+		self.texturesFilteredText = Tk.StringVar( value='Filtered Out:  ' )
 		ttk.Label( datFileDetails, textvariable=self.texturesFilteredText )
 		for widget in datFileDetails.winfo_children():
 			widget.pack( padx=20, pady=0, anchor='w' )
-		datFileDetails.grid( column=1, row=0, ipady=4 )
+		datFileDetails.grid( column=1, row=0, ipady=4, sticky='ew', padx=(10, 34) )
 
 		self.nextDatButton = ttk.Label( datPreviewPaneBottomRow, image=globalData.gui.imageBank('nextDatButton') )
-		self.nextDatButton.grid( column=2, row=0, ipadx=5, pady=(10, 0), sticky='w' )
+		self.nextDatButton.grid( column=2, row=0, sticky='w', ipadx=10, pady=(10, 0) )
 		self.nextDatText = Tk.StringVar()
 		ToolTip( self.nextDatButton, textvariable=self.nextDatText, delay=300, location='n' )
 
 		datPreviewPaneBottomRow.columnconfigure( 0, weight=1 )
-		datPreviewPaneBottomRow.columnconfigure( 1, weight=1 )
+		datPreviewPaneBottomRow.columnconfigure( 1, weight=2 )
 		datPreviewPaneBottomRow.columnconfigure( 2, weight=1 )
 		datPreviewPaneBottomRow.rowconfigure( 0, weight=1 )
 
-		datPreviewPaneBottomRow.pack( side='bottom', pady=7, fill='x' )
+		datPreviewPaneBottomRow.pack( side='bottom', fill='x', padx=20, pady=7 )
 
 		# Palette tab
 		self.palettePane = ttk.Frame( self.imageManipTabs, padding='16 0 0 0' )
@@ -300,8 +295,31 @@ class TexturesEditorTab( ttk.Frame ):
 		self.imageManipTabs.pack( fill='both', expand=1 )
 
 		secondRow.pack( fill='both', expand=1 )
+
+	def openNewFile( self, event=None, path='', newTab=False ):
+
+		""" This is only called by pressing Enter/Return on the top file path display/entry of
+			the DAT Texture Tree tab. Verifies given the path and loads the file for viewing. """
+
+		if not path:
+			path = self.datDestination.get().replace( '"', '' )
+
+		if path not in globalData.disc.files:
+			msg( 'Unable to find "{}" in the disc.'.format(path), 'File Not Found', warning=True )
+			return
+
+		if newTab:
+			self.tabManager.addTab( globalData.disc.files[path] )
+		else:
+			# Change the file associated with this tab
+			self.file = globalData.disc.files[path]
 		
-	def clearDatTab( self, restoreBackground=False ):
+			# Clear and repopulate the tab
+			self.clear()
+			self.update_idletasks() # Visual indication for the user that the tab has refreshed
+			self.populate()
+
+	def clear( self ):
 		# Remove any existing entries in the treeview.
 		for item in self.datTextureTree.get_children():
 			self.datTextureTree.delete( item )
@@ -311,28 +329,20 @@ class TexturesEditorTab( ttk.Frame ):
 		self.textureDisplay.delete( self.textureDisplay.find_withtag('border') )
 		self.textureDisplay.delete( self.textureDisplay.find_withtag('texture') )
 
-		# Add or remove the background drag-n-drop image
-		# if restoreBackground:
-		# 	self.datTextureTreeBg.place( relx=0.5, rely=0.5, anchor='center' )
-		# else: # This function removes them by default
-		# 	self.datTextureTreeBg.place_forget()
+		# Remove the background drag-n-drop image
 		self.datTextureTreeStatusLabel.place_forget()
 
 		# Reset the values on the Image tab.
-		self.datFilesizeText.set( 'File Size:  ' )
-		self.totalTextureSpaceText.set( 'Total Texture Size:  ' )
-		self.texturesFoundText.set( 'Textures Found:  ' )
-		self.texturesFilteredText.set( 'Filtered Out:  ' )
+		# self.datFilesizeText.set( 'File Size:  ' )
+		# self.totalTextureSpaceText.set( 'Total Texture Size:  ' )
+		# self.texturesFoundText.set( 'Textures Found:  ' )
+		# self.texturesFilteredText.set( 'Filtered Out:  ' )
 
 		# Disable some tabs by default (within the DAT Texture Tree tab), and if viewing one of them, switch to the Image tab
 		self.imageManipTabs.select( 0 )
 		self.imageManipTabs.tab( self.palettePane, state='disabled' )
 		self.imageManipTabs.tab( self.modelPropertiesPane, state='disabled' )
 		self.imageManipTabs.tab( self.texturePropertiesPane, state='disabled' )
-
-		# Clear the repositories for storing image data (used to prevent garbage collection)
-		self.datTextureTree.fullTextureRenders = {}
-		self.datTextureTree.textureThumbnails = {}
 
 	def rescanPending( self ):
 
@@ -348,7 +358,7 @@ class TexturesEditorTab( ttk.Frame ):
 			self.restartFileScan = False
 
 			# Restart the DAT/DOL file scan
-			self.clearDatTab()
+			self.clear()
 			self.populate()
 
 			return True
@@ -356,6 +366,7 @@ class TexturesEditorTab( ttk.Frame ):
 		elif self.haltScan:
 			self.scanningFile = False
 			self.restartFileScan = False
+			printStatus( 'File scan stopped', warning=True )
 			return True
 
 		else:
@@ -405,47 +416,52 @@ class TexturesEditorTab( ttk.Frame ):
 
 		return True
 
-	def populate( self, priorityTargets=() ):
+	def populate( self, priorityTargets=(), useCache=False ):
 		
 		self.scanningFile = True
 		self.datTextureTreeBg.place_forget() # Removes the drag-and-drop image
 
-		printStatus( 'Scanning File...' )
-		
-		texturesInfo = self.file.identifyTextures()
-		texturesFound = totalTextureSpace = 0
+		# Update the name of the tab, top DAT/USD file path bar, and the Prev./Next buttons
+		fileName = self.file.isoPath.split( '/' )[-1]
+		self.tabManager.tab( self, text=fileName )
+		self.datDestination.set( self.file.isoPath )
+		self.updatePrevNextFileButtons()
+
+		tic = time.clock()
+
+		texturesShown = totalTextureSpace = 0
 		filteredTexturesInfo = []
+
+		if not useCache:
+			# Scan the file for textures
+			printStatus( 'Scanning File...' )
+			self.texturesInfo = self.file.identifyTextures()
+
+			# Clear the repositories for storing image data (used to prevent garbage collection)
+			self.datTextureTree.fullTextureRenders = {}
+			self.datTextureTree.textureThumbnails = {}
 
 		if self.rescanPending():
 			return
 
-		elif texturesInfo: # i.e. textures were found
+		elif self.texturesInfo: # i.e. textures were found
 			loadingImage = globalData.gui.imageBank( 'loading' )
 			
-			for imageDataOffset, imageHeaderOffset, paletteDataOffset, paletteHeaderOffset, width, height, imageType, mipmapCount in texturesInfo:
+			for imageDataOffset, imageHeaderOffset, paletteDataOffset, paletteHeaderOffset, width, height, imageType, mipmapCount in self.texturesInfo:
 				# Ignore textures that don't match the user's filters
 				if not self.passesImageFilters( imageDataOffset, width, height, imageType ):
-					if imageDataOffset in priorityTargets: pass # Overrides the filter
+					if imageDataOffset in priorityTargets:
+						pass # Overrides the filter
 					else:
 						continue
 
-				# Initialize a structure for the image data (this will be stored in the file and accessed later)
-				# imageDataLength = hsdStructures.ImageDataBlock.getDataLength( width, height, imageType ) # Returns an int (counts in bytes)
-				# imageDataStruct = self.file.initDataBlock( hsdStructures.ImageDataBlock, imageDataOffset, imageHeaderOffset, dataLength=imageDataLength )
-				# imageDataStruct.imageHeaderOffset = imageHeaderOffset
-				# imageDataStruct.paletteDataOffset = paletteDataOffset # Ad hoc way to locate palettes in files with no palette data headers
-				# imageDataStruct.paletteHeaderOffset = paletteHeaderOffset
-				# imageDataStruct.width = width
-				# imageDataStruct.height = height
-				# imageDataStruct.imageType = imageType
-				# imageDataStruct.imageDataLength = imageDataLength
-
+				# Initialize a structure for the image data
 				texture = self.file.initTexture( imageDataOffset, imageHeaderOffset, paletteDataOffset, paletteHeaderOffset, width, height, imageType, mipmapCount )
 				imageDataLength = texture.imageDataLength
+				texturesShown += 1
 
 				filteredTexturesInfo.append( (imageDataOffset, width, height, imageType, imageDataLength) )
 				totalTextureSpace += texture.length
-				texturesFound += 1
 
 				# Highlight any textures that need to stand out
 				tags = []
@@ -462,7 +478,6 @@ class TexturesEditorTab( ttk.Frame ):
 							uHex(0x20 + imageDataOffset) + '\n('+uHex(imageDataLength)+')', 	# offset to image data, and data length
 							str(width)+' x '+str(height), 										# width and height
 							'_'+str(imageType)+' ('+imageFormats[imageType]+')' 				# the image type and format
-							#imageDataOffset, imageDataLength, width, height, imageType			# storing the above for easy access later
 						),
 						tags=tags
 					)
@@ -496,19 +511,19 @@ class TexturesEditorTab( ttk.Frame ):
 
 			# Immediately decode and display any high-priority targets
 			if priorityTargets:
-				for textureInfo in texturesInfo:
+				for textureInfo in self.texturesInfo:
 					if textureInfo[0] not in priorityTargets: continue
 
 					imageDataOffset, _, _, _, width, height, imageType, _ = textureInfo
 					dataBlockStruct = self.file.getStruct( imageDataOffset )
 
-					self.renderTextureData( imageDataOffset, width, height, imageType, dataBlockStruct.length )
+					self.renderTextureData( imageDataOffset, width, height, imageType, dataBlockStruct.length, useCache=useCache )
 
 		# Update the GUI with some of the file's main info regarding textures
 		self.datFilesizeText.set( "File Size:  {} ({:,} bytes)".format(humansize(self.file.size), self.file.size) )
 		self.totalTextureSpaceText.set( "Total Texture Size:  {} ({:,} b)".format(humansize(totalTextureSpace), totalTextureSpace) )
-		self.texturesFoundText.set( 'Textures Found:  ' + str(texturesFound) )
-		self.texturesFilteredText.set( 'Filtered Out:  ' + str(texturesFound-len( filteredTexturesInfo )) )
+		self.texturesFoundText.set( 'Textures Found:  ' + str(len(self.texturesInfo)) )
+		self.texturesFilteredText.set( 'Filtered Out:  ' + str(len(self.texturesInfo)-texturesShown) )
 
 		if self.rescanPending():
 			return
@@ -535,7 +550,7 @@ class TexturesEditorTab( ttk.Frame ):
 				if imageDataOffset in priorityTargets: continue
 
 				# Update this item
-				self.renderTextureData( imageDataOffset, width, height, imageType, imageDataLength )
+				self.renderTextureData( imageDataOffset, width, height, imageType, imageDataLength, useCache=useCache )
 
 				# Update the GUI to show new renders every n textures
 				if i % 10 == 0:
@@ -545,26 +560,36 @@ class TexturesEditorTab( ttk.Frame ):
 
 		self.scanningFile = False
 
-			# toc = time.clock()
-			# print 'image rendering time:', toc - tic
+		toc = time.clock()
+		print( 'scan time: ' + str(toc - tic) )
 
-		printStatus( 'File Scan Complete', success=True )
+		if useCache:
+			printStatus( 'Filtering complete', success=True )
+		else:
+			printStatus( 'File scan complete', success=True )
 
 		if self.datTextureTree.get_children() == (): # Display a message that no textures were found, or they were filtered out.
-			if not texturesFound:
+			if not self.texturesInfo:
 				self.datTextureTreeStatusMsg.set( 'No textures were found.' )
 			else:
 				self.datTextureTreeStatusMsg.set( 'No textures were found that pass your current filters.' )
 			self.datTextureTreeStatusLabel.place( relx=0.5, rely=0.5, anchor='center' )
 
-	def renderTextureData( self, imageDataOffset, width=-1, height=-1, imageType=-1, imageDataLength=-1, problem=False ):
+	def renderTextureData( self, imageDataOffset, width=-1, height=-1, imageType=-1, imageDataLength=-1, problem=False, useCache=False ):
 
 		""" Decodes image data from the globally loaded DAT file at a given offset and creates an image out of it. This then
 			stores/updates the full image and a preview/thumbnail image (so that they're not garbage collected) and displays it in the GUI.
 			The image and its info is then displayed in the DAT Texture Tree tab's treeview (does not update the Dat Texture Tree subtabs). """
 
-		#tic = time.clock()
+		iid = str( imageDataOffset )
+
+		# If using the cache, there's no need to re-decode texture data (useful when just applying texture filtering)
+		if useCache:
+			self.datTextureTree.item( iid, image=self.datTextureTree.textureThumbnails[imageDataOffset] )
+			return
+
 		if not problem:
+			#tic = time.clock()
 			try:
 				pilImage = self.file.getTexture( imageDataOffset, width, height, imageType, imageDataLength, getAsPilImage=True )
 
@@ -573,8 +598,8 @@ class TexturesEditorTab( ttk.Frame ):
 				print( errMessage )
 				problem = True
 
-		# toc = time.clock()
-		# print 'time to decode image for', hex(0x20+imageDataOffset) + ':', toc-tic
+			# toc = time.clock()
+			# print 'time to decode image for', hex(0x20+imageDataOffset) + ':', toc-tic
 
 		# Store the full image (or error image) so it's not garbage collected, and generate the preview thumbnail.
 		if problem:
@@ -588,7 +613,6 @@ class TexturesEditorTab( ttk.Frame ):
 			self.datTextureTree.textureThumbnails[imageDataOffset] = ImageTk.PhotoImage( pilImage )
 
 		# If this item is in the treeview, update the preview thumbnail/icon and the image details of the texture
-		iid = str( imageDataOffset )
 		if self.datTextureTree.exists( iid ):
 			# Collect texture properties
 			if imageType == -1:
@@ -606,26 +630,46 @@ class TexturesEditorTab( ttk.Frame ):
 			# Update the icon and info display
 			self.datTextureTree.item( iid, image=self.datTextureTree.textureThumbnails[imageDataOffset], values=newValues )
 
-		if not problem: return True
-		else: return False
+	def updatePrevNextFileButtons( self ):
 
-	def openDatDestination( self, event ):
+		""" Updates the Next/Previous DAT buttons on the DAT Texture Tree tab. Sets their target file to load,
+			their tooltip/pop-up text, and the mouse cursor to appear when hovering over it. 'currentFile' will
+			be an iid for the file in the Disc File Tree tab. """
 
-		""" This is only called by pressing Enter/Return on the top file path display/entry of
-			the DAT Texture Tree tab. Verifies given the path and loads the file for viewing. """
+		isoFileTree = globalData.gui.discTab.isoFileTree
+		currentFile = self.file.isoPath
 
-		path = self.datDestination.get().replace( '"', '' )
-
-		if path in globalData.disc.files:
-			# Change the file associated with this tab
-			self.file = globalData.disc.files[path]
-		
-			# Restart the DAT/DOL file scan
-			self.clearDatTab()
-			self.populate()
-
+		# Update the prev. file button
+		prevItem = isoFileTree.prev( currentFile )
+		while prevItem != '' and isoFileTree.item( prevItem, 'values' )[1] != 'file':
+			prevItem = isoFileTree.prev( prevItem ) # Skips over any folders.
+		if prevItem != '':
+			text = 'Click to load {}\nShift-click to open in a new tab.'.format( prevItem )
+			self.previousDatText.set( text )
+			self.previousDatButton.bind( '<Button-1>', lambda event, item=prevItem: self.openNewFile(path=item) )
+			self.previousDatButton.bind( '<Shift-Button-1>', lambda event, item=prevItem: self.openNewFile(path=item, newTab=True) )
+			self.previousDatButton.config( cursor='hand2' )
 		else:
-			msg( 'Unable to find "{}" in the disc.'.format(path), 'File Not Found', warning=True )
+			self.previousDatText.set( 'No more!' )
+			self.previousDatButton.unbind('<Button-1>')
+			self.previousDatButton.unbind('<Shift-Button-1>')
+			self.previousDatButton.config( cursor='' )
+
+		# Update the next file button
+		nextItem = isoFileTree.next( currentFile )
+		while nextItem != '' and isoFileTree.item( nextItem, 'values' )[1] != 'file':
+			nextItem = isoFileTree.next( nextItem ) # Skips over any folders.
+		if nextItem != '':
+			text = 'Click to load {}\nShift-click to open in a new tab.'.format( nextItem )
+			self.nextDatText.set( text )
+			self.nextDatButton.bind( '<Button-1>', lambda event, item=nextItem: self.openNewFile(path=item) )
+			self.nextDatButton.bind( '<Shift-Button-1>', lambda event, item=nextItem: self.openNewFile(path=item, newTab=True) )
+			self.nextDatButton.config( cursor='hand2' )
+		else:
+			self.nextDatText.set( 'No more!' )
+			self.nextDatButton.unbind('<Button-1>')
+			self.nextDatButton.unbind('<Shift-Button-1>')
+			self.nextDatButton.config( cursor='' )
 
 	def treeview_sort_column( self, col, reverse ):
 		# Create a list of the items, as tuples of (statOfInterest, iid), and sort them
@@ -1558,6 +1602,10 @@ class TexturesEditorTab( ttk.Frame ):
 		contextMenu.repopulate()
 		contextMenu.post( event.x_root, event.y_root )
 
+	def adjustTextureFilters( self, event ):
+
+		TextureFiltersWindow( self )
+
 	def updateCanvasGrid( self, saveChange=True ):
 
 		"""	Shows/hides the grid behind textures displayed in the DAT Texture Tree's 'Image' tab. """
@@ -2097,3 +2145,152 @@ class TexturesContextMenu( Tk.Menu, object ):
 			hashedFileNames.append( constructTextureFilename(texture, mipmapLevel) )
 
 		copyToClipboard( ', '.join(hashedFileNames) )
+
+
+class TextureFiltersWindow( BasicWindow ):
+
+	def __init__( self, editorTab ):
+
+		BasicWindow.__init__( self, globalData.gui.root, 'Texture Filters', offsets=(450, 200), unique=True )
+
+		self.editorTab = editorTab
+		imageFilters = editorTab.imageFilters
+
+		ttk.Label(self.window, text='Only show textures that meet this criteria:').pack(padx=10, pady=4)
+
+		widthTuple = imageFilters['widthFilter']
+		row1 = Tk.Frame(self.window)
+		ttk.Label(row1, text='Width: ').pack(side='left')
+		self.widthComparator = Tk.StringVar()
+		self.widthComparator.set( widthTuple[0] )
+		Tk.OptionMenu(row1, self.widthComparator, '<', '<=', '=', '>', '>=').pack(side='left')
+		self.widthValue = Tk.StringVar()
+		self.widthValue.set( widthTuple[1] )
+		Tk.Entry(row1, textvariable=self.widthValue, width=6).pack(side='left')
+		row1.pack(padx=10, pady=4)
+
+		heightTuple = imageFilters['heightFilter']
+		row2 = Tk.Frame(self.window)
+		ttk.Label(row2, text='Height: ').pack(side='left')
+		self.heightComparator = Tk.StringVar()
+		self.heightComparator.set( heightTuple[0] )
+		Tk.OptionMenu(row2, self.heightComparator, '<', '<=', '=', '>', '>=').pack(side='left')
+		self.heightValue = Tk.StringVar()
+		self.heightValue.set( heightTuple[1] )
+		Tk.Entry(row2, textvariable=self.heightValue, width=6).pack(side='left')
+		row2.pack(padx=10, pady=4)
+
+		aspectRatioTuple = imageFilters['aspectRatioFilter']
+		row3 = Tk.Frame(self.window)
+		ttk.Label(row3, text='Aspect Ratio: ').pack(side='left')
+		self.aspectRatioComparator = Tk.StringVar()
+		self.aspectRatioComparator.set( aspectRatioTuple[0] )
+		Tk.OptionMenu(row3, self.aspectRatioComparator, '<', '<=', '=', '>', '>=').pack(side='left')
+		self.aspectRatioValue = Tk.StringVar()
+		self.aspectRatioValue.set( aspectRatioTuple[1] )
+		Tk.Entry(row3, textvariable=self.aspectRatioValue, width=6).pack(side='left')
+		row3.pack(padx=10, pady=4)
+
+		imageTypeTuple = imageFilters['imageTypeFilter']
+		row4 = Tk.Frame(self.window)
+		ttk.Label(row4, text='Texture Type: ').pack(side='left')
+		self.imageTypeComparator = Tk.StringVar()
+		self.imageTypeComparator.set( imageTypeTuple[0] )
+		Tk.OptionMenu(row4, self.imageTypeComparator, '<', '<=', '=', '>', '>=').pack(side='left')
+		self.imageTypeValue = Tk.StringVar()
+		self.imageTypeValue.set( imageTypeTuple[1] )
+		Tk.Entry(row4, textvariable=self.imageTypeValue, width=6).pack(side='left')
+		row4.pack(padx=10, pady=4)
+
+		offsetTuple = imageFilters['offsetFilter']
+		row5 = Tk.Frame(self.window)
+		ttk.Label(row5, text='Offset: ').pack(side='left')
+		self.offsetComparator = Tk.StringVar()
+		self.offsetComparator.set( offsetTuple[0] )
+		Tk.OptionMenu(row5, self.offsetComparator, '<', '<=', '=', '>', '>=').pack(side='left')
+		self.offsetValue = Tk.StringVar()
+		self.offsetValue.set( offsetTuple[1] )
+		Tk.Entry(row5, textvariable=self.offsetValue, width=10).pack(side='left')
+		row5.pack(padx=10, pady=4)
+
+		# The buttons
+		btnFrame = Tk.Frame(self.window)
+		ttk.Button( btnFrame, text='Apply', command=self.apply ).pack( side='right', padx=5 )
+		ttk.Button( btnFrame, text='Clear',command=self.clear ).pack( side='left', padx=5 )
+		ttk.Button( btnFrame, text='Close', command=self.close ).pack( side='right', padx=5 )
+		btnFrame.pack( pady=(5, 7) )
+
+	def apply( self ):
+
+		""" Update the image filters dictionary for the current tab and rescan the file. """
+
+		imageFilters = self.editorTab.imageFilters
+		unsavedSettings = []
+
+		# For each setting, if the value is a number or blank, update the value and its comparitor in the program and settings file.
+		width = self.widthValue.get().replace(',', '')
+		if not isNaN(width) or width == '':
+			imageFilters['widthFilter'] = ( self.widthComparator.get(), width )
+		else: unsavedSettings.append( 'width' )
+		height = self.heightValue.get().replace(',', '')
+		if not isNaN(height) or height == '':
+			imageFilters['heightFilter'] = ( self.heightComparator.get(), height )
+		else: unsavedSettings.append( 'height' )
+
+		aspectRatio = self.aspectRatioValue.get()
+		try:
+			# Make sure that the aspect ratio can be converted to a number.
+			if ':' in aspectRatio:
+				numerator, denomenator = aspectRatio.split(':')
+				convertedAspectRatio = float(numerator) / float(denomenator)
+			elif '/' in aspectRatio:
+				numerator, denomenator = aspectRatio.split('/')
+				convertedAspectRatio = float(numerator) / float(denomenator)
+			elif aspectRatio != '': convertedAspectRatio = float(aspectRatio)
+
+			if aspectRatio == '' or not isNaN( convertedAspectRatio ):	
+				imageFilters['aspectRatioFilter'] = ( self.aspectRatioComparator.get(), aspectRatio )
+			else: unsavedSettings.append( 'aspect ratio' )
+		except:
+			unsavedSettings.append( 'aspect ratio' )
+
+		imageType = self.imageTypeValue.get().replace('_', '')
+		if not isNaN(imageType) or imageType == '':
+			imageFilters['imageTypeFilter'] = ( self.imageTypeComparator.get(), imageType ) # str(int()) is in case the value was in hex
+		else: unsavedSettings.append( 'texture type' )
+		offset = self.offsetValue.get().replace(',', '')
+		if (validHex(offset) and not isNaN(int(offset,16))) or offset == '':
+			imageFilters['offsetFilter'] = ( self.offsetComparator.get(), offset )
+		else: unsavedSettings.append( 'offset' )
+
+		if unsavedSettings:
+			msg('The filters for ' + grammarfyList( unsavedSettings ) + ' could not set. The '
+				'entries must be a number or left blank, with the exception of aspect ratio, '
+				'which may be a number, fraction, float, or a ratio like "4:3".')
+			self.lift()
+
+		self.editorTab.clear()
+		self.editorTab.populate( useCache=True )
+
+	def clear( self ):
+		
+		""" Sets all values back to default for the current tab and this window. """
+
+		self.editorTab.imageFilters = {
+			'widthFilter': ( '=', '' ),
+			'heightFilter': ( '=', '' ),
+			'aspectRatioFilter': ( '=', '' ),
+			'imageTypeFilter': ( '=', '' ),
+			'offsetFilter': ( '=', '' ),
+		}
+
+		self.widthComparator.set( '=' )
+		self.widthValue.set( '' )
+		self.heightComparator.set( '=' )
+		self.heightValue.set( '' )
+		self.aspectRatioComparator.set( '=' )
+		self.aspectRatioValue.set( '' )
+		self.imageTypeComparator.set( '=' )
+		self.imageTypeValue.set( '' )
+		self.offsetComparator.set( '=' )
+		self.offsetValue.set( '' )

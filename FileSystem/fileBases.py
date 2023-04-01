@@ -2037,7 +2037,7 @@ class DatFile( FileBase ):
 			imageDataLength = hsdStructures.ImageDataBlock.getDataLength( width, height, imageType )
 
 		# try:
-		assert imageDataLength > 0x20, 'Invalid imageDataLength given to getTexture(): ' + hex( imageDataLength )
+		assert imageDataLength >= 0x20, 'Invalid imageDataLength given to getTexture(): ' + hex( imageDataLength )
 		imageData = self.getData( imageDataOffset, imageDataLength )
 
 		if imageType == 8 or imageType == 9 or imageType == 10: # Gather info on the palette.
