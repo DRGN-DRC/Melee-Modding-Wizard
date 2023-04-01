@@ -629,15 +629,23 @@ class SisFile( DatFile ):
 		self.initialize()
 
 		# Get the first pointer in the SIS table
-		#imageDataStart = self.getStruct( 0 ).getValues()[0]
-		sisTable = self.initGenericStruct( 0, structDepth=(3, 0), asPointerTable=True )
+		sisTable = self.initGenericStruct( 0, asPointerTable=True )
 		imageDataStart = sisTable.getValues()[0]
-		imageDataStruct = self.getStruct( imageDataStart )
-		#imageCount = imageDataStruct.length / 0x380
-		imageDataEnd = imageDataStart + imageDataStruct.length
 
-		for imageDataOffset in range( imageDataStart, imageDataEnd, 0x380 ):
-			print( hex(imageDataOffset+0x20) )
+		# Check whether this points to a valid struct (some don't!)
+		imageDataLength = self.getStructLength( imageDataStart )
+		if imageDataLength < 0x200 or imageDataStart >= self.headerInfo['rtStart']:
+			print( 'image data length: ' +str(imageDataLength) )
+			print( '{} >= {}?'.format(imageDataStart, self.headerInfo['rtStart']) )
+			return []
+
+		imageDataEnd = imageDataStart + imageDataLength
+		texturesInfo = []
+
+		for imageDataOffset in range( imageDataStart, imageDataEnd, 0x200 ):
+			texturesInfo.append( (imageDataOffset, -1, -1, -1, 32, 32, 0, 0) )
+
+		return texturesInfo
 
 
 class StageFile( DatFile ):

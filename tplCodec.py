@@ -13,7 +13,7 @@ import os, sys
 import struct, time
 import png, subprocess 	# Used for png reading/writing, and command-line communication
 
-import numpy as np
+#import numpy as np
 #from PIL import Image
 from itertools import chain
 from string import hexdigits

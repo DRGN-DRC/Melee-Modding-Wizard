@@ -62,7 +62,7 @@ class DiscTab( ttk.Frame ):
 		mainGui.dnd.bindtarget( self, mainGui.dndHandler, 'text/uri-list' )
 
 		# Disc shortcut links
-		fileTreeColumn = Tk.Frame( self )
+		fileTreeColumn = ttk.Frame( self, width=350 )
 		isoQuickLinks = Tk.Frame( fileTreeColumn )
 		ttk.Label( isoQuickLinks, text='Disc Shortcuts:' ).pack( side='left', padx=4 )
 		ttk.Label( isoQuickLinks, text='System', foreground='#00F', cursor='hand2' ).pack( side='left', padx=4 )
@@ -83,16 +83,16 @@ class DiscTab( ttk.Frame ):
 		self.isoFileScroller = Tk.Scrollbar( isoFileTreeWrapper )
 		self.isoFileTree = NeoTreeview( isoFileTreeWrapper, columns=('description'), yscrollcommand=self.isoFileScroller.set )
 		self.isoFileTree.heading( '#0', anchor='center', text='File     (Sorted by FST)' ) # , command=lambda: treeview_sort_column(self.isoFileTree, 'file', False)
-		self.isoFileTree.column( '#0', anchor='center', minwidth=180, stretch=1, width=230 ) # "#0" is implicit in the columns definition above.
+		self.isoFileTree.column( '#0', anchor='center', minwidth=160, stretch=1, width=180 ) # "#0" is implicit in the columns definition above.
 		self.isoFileTree.heading( 'description', anchor='center', text='Description' )
-		self.isoFileTree.column( 'description', anchor='w', minwidth=180, stretch=1, width=312 )
+		self.isoFileTree.column( 'description', anchor='w', minwidth=180, stretch=1, width=330 )
 		self.isoFileTree.tag_configure( 'changed', foreground='red' )
 		self.isoFileTree.tag_configure( 'changesSaved', foreground='#292' ) # The 'save' green color
 		self.isoFileTree.tag_configure( 'cFolder', foreground='#006ea9' )
 		self.isoFileTree.tag_configure( 'nFolder', foreground='#006ea9' )
-		self.isoFileTree.pack( side='left', fill='both', expand=1 )
+		self.isoFileTree.grid( column=0, row=0, sticky='nsew' )
 		self.isoFileScroller.config( command=self.isoFileTree.yview )
-		self.isoFileScroller.pack( side='left', fill='y' )
+		self.isoFileScroller.grid( column=1, row=0, sticky='ns' )
 
 		# Add the background image to the file tree
 		self.isoFileTreeBg = Tk.Label( self.isoFileTree, image=mainGui.imageBank('dndTarget'), borderwidth=0, highlightthickness=0 )
@@ -104,7 +104,11 @@ class DiscTab( ttk.Frame ):
 		self.isoFileTree.bind( "<3>", self.createContextMenu ) # Right-click
 
 		isoFileTreeWrapper.pack( fill='both', expand=1 )
+		isoFileTreeWrapper.columnconfigure( 0, weight=1 )
+		isoFileTreeWrapper.columnconfigure( 1, weight=0 )
+		isoFileTreeWrapper.rowconfigure( 0, weight=1 )
 		fileTreeColumn.pack( side='left', fill='both', expand=1 )
+		fileTreeColumn.pack_propagate( False )
 
 				# ISO File Tree end, and ISO Information panel begins here
 
@@ -158,6 +162,7 @@ class DiscTab( ttk.Frame ):
 		kamekFrame.pack( fill='both', expand=1 )
 
 		isoOpsPanel.pack( side='left', fill='both', expand=1 )
+		isoOpsPanel.pack_propagate( False )
 
 	def clear( self ):
 
