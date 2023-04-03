@@ -1447,7 +1447,7 @@ class SisTextEditor( BasicWindow ):
 		BasicWindow.__init__( self, globalData.gui.root, 'SIS Text Editor', resizable=True, topMost=False, offsets=(180, 50), minsize=(380, 500) )
 
 		self.sisFile = sisFile
-		self.stringsPerPage = 400
+		self.stringsPerPage = 200
 
 		# Get pointers for the text structures
 		sisFile.initialize()
@@ -1457,7 +1457,7 @@ class SisTextEditor( BasicWindow ):
 		# Add header string and a spacer
 		totalTextStructs = len( sisTablePointers ) - 2 # Skip first two structures
 		symbol = ', '.join( [node[1] for node in sisFile.rootNodes] ).encode( 'utf8' )
-		header = '\t\tBrowsing {}\n\t\tTotal Strings:  {}\n\t\tRoot Symbol:    {}\n\n      SIS Index:     Offset:'.format( self.sisFile.filename, totalTextStructs, symbol )
+		header = '\t\tBrowsing {}\n\t\tTotal Strings:  {}\n\t\tRoot Symbol:    {}\n\n      SIS Index:      Offset:'.format( self.sisFile.filename, totalTextStructs, symbol )
 		ttk.Label( self.window, text=header ).grid( column=0, row=0, sticky='w', pady=(10, 4) )
 		ttk.Separator( self.window ).grid( column=0, row=1, sticky='ew', padx=20, pady=2 )
 
@@ -1468,7 +1468,7 @@ class SisTextEditor( BasicWindow ):
 
 		# Display page buttons if there are too many strings to display on one
 		if totalTextStructs > self.stringsPerPage:
-			pageCount = math.ceil( totalTextStructs / self.stringsPerPage ) # Rounds up
+			pageCount = math.ceil( totalTextStructs / float(self.stringsPerPage) ) # Rounds up
 
 			# Add the page label
 			self.buttonsFrame = ttk.Frame( self.window )
@@ -1477,11 +1477,11 @@ class SisTextEditor( BasicWindow ):
 			label.pack( side='left', padx=10 )
 
 			# Add the page "buttons"
-			for i in range( 1, int(pageCount)+1 ):
-				if i == 1: # Clicking not enabled (show disabled)
-					pageBtn = ttk.Label( self.buttonsFrame, text=i, foreground='#555', cursor='' )
+			for i in range( 0, int(pageCount) ):
+				if i == 0: # Clicking not enabled (show disabled)
+					pageBtn = ttk.Label( self.buttonsFrame, text=i+1, foreground='#555', cursor='' )
 				else: # Set up as a clickable button
-					pageBtn = ttk.Label( self.buttonsFrame, text=i, foreground='#00F', cursor='hand2' )
+					pageBtn = ttk.Label( self.buttonsFrame, text=i+1, foreground='#00F', cursor='hand2' )
 					pageBtn.bind( '<1>', self.loadPage )
 				pageBtn.isButton = True
 				pageBtn.startIndex = 2 + ( i * self.stringsPerPage )

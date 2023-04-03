@@ -727,31 +727,31 @@ class TexturesEditorTab( ttk.Frame ):
 
 		wraplength = self.imageManipTabs.winfo_width() - 20
 		lackOfUsefulStructsDescription = ''
-		effectTextureRange = getattr( self.file, 'effTexRange', (-1, -1) ) # Only relevant with effects files and some stages
+		# effectTextureRange = getattr( self.file, 'effTexRange', (-1, -1) ) # Only relevant with effects files and some stages
 
 		# Check if this is a file that doesn't have image data headers :(
 		if (0x1E00, 'MemSnapIconData') in self.file.rootNodes: # The file is LbMcSnap.usd or LbMcSnap.dat (Memory card banner/icon file from SSB Melee)
-			lackOfUsefulStructsDescription = 'This file has no known image data headers, or other structures to modify.'
+			lackOfUsefulStructsDescription = 'This file has no known image data headers or other structures to modify.'
 
 		elif (0x4E00, 'MemCardIconData') in self.file.rootNodes: # The file is LbMcGame.usd or LbMcGame.dat (Memory card banner/icon file from SSB Melee)
-			lackOfUsefulStructsDescription = 'This file has no known image data headers, or other structures to modify.'
+			lackOfUsefulStructsDescription = 'This file has no known image data headers or other structures to modify.'
 
-		elif (0, 'SIS_MenuData') in self.file.rootNodes: # SdMenu.dat/.usd
-			lackOfUsefulStructsDescription = 'This file has no known image data headers, or other structures to modify.'
+		elif self.file.rootNodes[0][1].startswith( 'SIS_' ): # SdMenu.dat/.usd
+			lackOfUsefulStructsDescription = 'This file has no known image data headers or other structures to modify.'
 
-		elif imageDataOffset >= effectTextureRange[0] and imageDataOffset <= effectTextureRange[1]:
-			# e2eHeaderOffset = imageDataStruct.imageHeaderOffset
-			# textureCount = struct.unpack( '>I', self.file.getData(e2eHeaderOffset, 4) )[0]
+		# elif imageDataOffset >= effectTextureRange[0] and imageDataOffset <= effectTextureRange[1]:
+		# 	# e2eHeaderOffset = imageDataStruct.imageHeaderOffset
+		# 	# textureCount = struct.unpack( '>I', self.file.getData(e2eHeaderOffset, 4) )[0]
 
-			lackOfUsefulStructsDescription = ( 'Effects files and some stages have unique structuring for some textures, like this one, '
-											'which do not have a typical image data header, texture object, or other common structures.' )
-			# if textureCount == 1:
-			# 	lackOfUsefulStructsDescription += ' This texture is not grouped with any other textures,'
-			# elif textureCount == 2:
-			# 	lackOfUsefulStructsDescription += ' This texture is grouped with 1 other texture,'
-			# else:
-			# 	lackOfUsefulStructsDescription += ' This texture is grouped with {} other textures,'.format( textureCount )
-			# lackOfUsefulStructsDescription += ' with an E2E header at 0x{:X}.'.format( 0x20+e2eHeaderOffset )
+		# 	lackOfUsefulStructsDescription = ( 'Effects files and some stages have unique structuring for some textures, like this one, '
+		# 									'which do not have a typical image data header, texture object, or other common structures.' )
+		# 	# if textureCount == 1:
+		# 	# 	lackOfUsefulStructsDescription += ' This texture is not grouped with any other textures,'
+		# 	# elif textureCount == 2:
+		# 	# 	lackOfUsefulStructsDescription += ' This texture is grouped with 1 other texture,'
+		# 	# else:
+		# 	# 	lackOfUsefulStructsDescription += ' This texture is grouped with {} other textures,'.format( textureCount )
+		# 	# lackOfUsefulStructsDescription += ' with an E2E header at 0x{:X}.'.format( 0x20+e2eHeaderOffset )
 
 		elif not imageDataStruct: # Make sure an image data struct exists to check if this might be something like a DOL texture
 			lackOfUsefulStructsDescription = (  'There are no image data headers or other structures associated '
@@ -759,7 +759,7 @@ class TexturesEditorTab( ttk.Frame ):
 												'other similar textures.' )
 
 		elif not imageDataHeaderOffsets:
-			lackOfUsefulStructsDescription = 'This file has no known image data headers, or other structures to modify.'
+			lackOfUsefulStructsDescription = 'This file has no known image data headers or other structures to modify.'
 
 		self.texturePropertiesPane.clear()
 		self.texturePropertiesPane.flagWidgets = [] # Useful for the Flag Decoder to more easily find widgets that need updating

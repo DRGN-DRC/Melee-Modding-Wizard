@@ -635,8 +635,6 @@ class SisFile( DatFile ):
 		# Check whether this points to a valid struct (some don't!)
 		imageDataLength = self.getStructLength( imageDataStart )
 		if imageDataLength < 0x200 or imageDataStart >= self.headerInfo['rtStart']:
-			print( 'image data length: ' +str(imageDataLength) )
-			print( '{} >= {}?'.format(imageDataStart, self.headerInfo['rtStart']) )
 			return []
 
 		imageDataEnd = imageDataStart + imageDataLength
