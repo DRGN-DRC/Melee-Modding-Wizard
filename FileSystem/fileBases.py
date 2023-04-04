@@ -2256,13 +2256,6 @@ class DatFile( FileBase ):
 		# elif (0x4E00, 'MemCardIconData') in datFile.rootNodes: # The file is LbMcGame.usd or LbMcGame.dat (Memory card banner/icon file from SSB Melee)
 		# 	return 0x4C00, -1, 0x200, 2, 256
 
-		# elif isEffectsFile( datFile ): # These have normal structuring as well as some unique table structuring
-		# 	imageDataStruct = datFile.getStruct( imageDataOffset )
-
-		# 	# The unique structuring should have already saved the palette info
-		# 	if imageDataStruct and imageDataStruct.paletteDataOffset != -1 and imageDataStruct.paletteHeaderOffset != -1:
-		# 		return ( imageDataStruct.paletteDataOffset, imageDataStruct.paletteHeaderOffset, 0x200, 2, 256 )
-
 		# Proceeding to check within standard DAT/USD files
 		headerOffsets = self.getStruct( imageDataOffset ).getParents()
 		paletteHeaderStruct = None

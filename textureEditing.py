@@ -594,8 +594,7 @@ class TexturesEditorTab( ttk.Frame ):
 				pilImage = self.file.getTexture( imageDataOffset, width, height, imageType, imageDataLength, getAsPilImage=True )
 
 			except Exception as errMessage:
-				print( 'Unable to make out a texture for data at ' + uHex(0x20+imageDataOffset) )
-				print( errMessage )
+				print( 'Unable to make out a texture for data at 0x{:X}; {}'.format(0x20+imageDataOffset, errMessage) )
 				problem = True
 
 			# toc = time.clock()
@@ -727,7 +726,6 @@ class TexturesEditorTab( ttk.Frame ):
 
 		wraplength = self.imageManipTabs.winfo_width() - 20
 		lackOfUsefulStructsDescription = ''
-		# effectTextureRange = getattr( self.file, 'effTexRange', (-1, -1) ) # Only relevant with effects files and some stages
 
 		# Check if this is a file that doesn't have image data headers :(
 		if (0x1E00, 'MemSnapIconData') in self.file.rootNodes: # The file is LbMcSnap.usd or LbMcSnap.dat (Memory card banner/icon file from SSB Melee)

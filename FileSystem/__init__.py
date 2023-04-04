@@ -76,9 +76,6 @@ def fileFactory( *args, **kwargs ):
 			if 'map_head' in fileObj.stringDict.values():
 				return StageFile( *args, **kwargs )
 
-			elif len( fileObj.stringDict ) == 1 and symbol.startswith( 'SIS_' ):
-				return SisFile( *args, **kwargs )
-
 			elif fileObj.rootNodes[0][1].startswith( 'ftData' ):
 				return CharDataFile( *args, **kwargs )
 
@@ -87,6 +84,12 @@ def fileFactory( *args, **kwargs ):
 
 			elif fileObj.rootNodes[0][1].endswith( '_Share_joint' ): # Indexing a list of tuples
 				return CharCostumeFile( *args, **kwargs )
+
+			elif symbol.startswith( 'eff' ) and symbol.endswith( 'Table' ):
+				return EffectsFile( *args, **kwargs )
+
+			elif len( fileObj.stringDict ) == 1 and symbol.startswith( 'SIS_' ):
+				return SisFile( *args, **kwargs )
 
 			elif 'MnSelectChrDataTable' in fileObj.stringDict.values():
 				return CssFile( *args, **kwargs )
@@ -107,9 +110,6 @@ def fileFactory( *args, **kwargs ):
 		
 		if filename.startswith( 'Gr' ):
 			return StageFile( *args, **kwargs )
-
-		elif filename.startswith( 'Sd' ):
-			return SisFile( *args, **kwargs )
 
 		# Character costume files; excludes 'PlBo.dat'/'PlCa.dat'/etc. and character animation files
 		elif filename.startswith( 'Pl' ):
@@ -147,6 +147,12 @@ def fileFactory( *args, **kwargs ):
 				charFile._colorAbbr = filename[4:6]
 
 				return charFile
+
+		elif filename.startswith( 'Ef' ):
+			return EffectsFile( *args, **kwargs )
+
+		elif filename.startswith( 'Sd' ):
+			return SisFile( *args, **kwargs )
 
 		elif filename.startswith( 'MnSlChr' ):
 			return CssFile( *args, **kwargs )

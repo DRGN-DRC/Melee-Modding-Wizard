@@ -422,7 +422,7 @@ class SssFile( DatFile ):
 			raise Exception( 'Invalid stage select file; MnSelectStageDataTable symbol not found.' )
 
 
-#class EffectsFile( DatFile ):
+class EffectsFile( DatFile ):
 
 	# Shared Effects files:
 	#
@@ -432,6 +432,107 @@ class SssFile( DatFile ):
 	# EfZdData:		Zelda & Sheik
 	# EfLkData:		Link & Y. Link
 	# EfPkData:		Pikachu & Pichu
+
+	def validate( self ):
+
+		""" Verifies whether this is actually a menu text file by checking the string table. """
+
+		self.initialize()
+
+		symbols = self.stringDict.values()
+		symbol0 = symbols[0]
+
+		if not len( symbols ) == 1 or not symbol0.startswith( 'eff' ) or not symbol0.endswith( 'Table' ):
+			raise Exception( 'Invalid effects file; effects symbol node found.' )
+
+	def identifyTextures( self ):
+
+		""" Returns a list of tuples containing texture information. Each tuple is of the following form: 
+				( imageDataOffset, imageHeaderOffset, paletteDataOffset, paletteHeaderOffset, width, height, imageType, mipmapCount ) """
+
+		self.initialize()
+		
+		texturesInfo = []
+
+		try:
+			# Initialize Struct 0x20 (present in all effects files)
+			rootNodeOffset = self.headerInfo['rtEnd']
+			rootStruct = self.getStruct( 0, rootNodeOffset, (2, 0) ) # 0 is the 0x20 offset relative to the data section
+
+			# Check children of Struct 0x20 until a Joint Object is found; structs up until this may be large blocks of image data with rudimentary headers
+			imageBlockOffsets = []
+			for childStructOffset in rootStruct.getChildren():
+				jointObj = self.initSpecificStruct( hsdStructures.JointObjDesc, childStructOffset, 0, (3, 0), printWarnings=False )
+
+				# The above will return None if the struct isn't a joint
+				if jointObj: break
+				else:
+					imageBlockOffsets.append( childStructOffset )
+
+			for mainEffHeaderTableOffset in imageBlockOffsets:
+				# Check the first two bytes; values of 0042 indicate that the header actually starts 0x8 bytes in
+				if self.data[mainEffHeaderTableOffset+1] == 0x42:
+					mainHeaderStart = mainEffHeaderTableOffset + 8
+					continue # Unsure if these tables even point to textures; if they do, they seem to be in another structure format
+				else: mainHeaderStart = mainEffHeaderTableOffset
+
+				# Get the entry count of the table (number of table pointers it contains), and the entries themselves
+				mainTableEntryCount = toInt( self.data[mainHeaderStart:mainHeaderStart+4] )
+				headerTableData = self.data[mainHeaderStart+4:mainHeaderStart+4+(mainTableEntryCount*4)]
+				headerTablePointers = struct.unpack( '>' + str(mainTableEntryCount) + 'I', headerTableData )
+
+				for pointer in headerTablePointers:
+					# Process the E2E (End 2 End) header. These pointers are relative to the start of the specific structure
+					e2eHeaderOffset = mainEffHeaderTableOffset + pointer
+
+					textureCount, imageType, _, _, width, height = struct.unpack( '>IIHHII', self.data[e2eHeaderOffset:e2eHeaderOffset+0x14] )
+					imageDataPointersStart = e2eHeaderOffset + 0x18
+					imageDataPointersEnd = imageDataPointersStart + ( 4 * textureCount )
+					imageDataPointers = struct.unpack( '>' + textureCount * 'I', self.data[imageDataPointersStart:imageDataPointersEnd] )
+
+					if imageType in ( 8, 9, 10 ):
+						paletteDataPointersEnd = imageDataPointersEnd + ( 4 * textureCount )
+						paletteDataPointers = struct.unpack( '>' + textureCount * 'I', self.data[imageDataPointersEnd:paletteDataPointersEnd] )
+
+						for imageDataOffset, paletteDataOffset in zip( imageDataPointers, paletteDataPointers ):
+							imageDataOffset += mainEffHeaderTableOffset
+							paletteDataOffset += mainEffHeaderTableOffset
+							texturesInfo.append( (imageDataOffset, -1, paletteDataOffset, -1, width, height, imageType, 0) )
+
+					else:
+						for imageDataOffset in imageDataPointers:
+							imageDataOffset += mainEffHeaderTableOffset
+							texturesInfo.append( (imageDataOffset, -1, -1, -1, width, height, imageType, 0) )
+							
+			# Call the original DatFile method to check for the usual texture headers
+			texturesInfo.extend( super(EffectsFile, self).identifyTextures() )
+			
+		except Exception as err:
+			print( 'Encountered an error during texture identification: {}'.format(err) )
+
+		# Sort the texture info tuples by offset
+		texturesInfo.sort()
+
+		return texturesInfo
+
+	def getPaletteInfo( self, imageDataOffset ):
+
+		""" Since this file uses some unique structuring, this uses two different methods to 
+			look up palette information. The first is to check for palette info saved in the 
+			texture info method above this one, and if that fails this will fall back to the 
+			standard DatFile class lookup method.
+			
+			This returns a tuple of info in the form ( paletteDataOffset, paletteHeaderOffset, paletteLength, paletteType, paletteColorCount ) """
+
+		# Check for the unique table structuring
+		texture = self.getStruct( imageDataOffset )
+
+		# The unique structuring should have already saved the palette info
+		if texture and texture.paletteDataOffset != -1 and texture.paletteHeaderOffset == -1:
+			return ( texture.paletteDataOffset, -1, 0x200, 2, 256 )
+
+		# If the above failed, call the original DatFile method to check in the usual way
+		return super(EffectsFile, self).getPaletteInfo( imageDataOffset )
 
 
 class SisFile( DatFile ):

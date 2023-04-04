@@ -216,7 +216,7 @@ def importSingleFileWithGui( origFileObj, validate=True, title='' ):
 
 	# Replace the file and update the program status bar
 	globalData.disc.replaceFile( origFileObj, newFileObj )
-	globalData.gui.updateProgramStatus( 'File Replaced. Awaiting Save' )
+	globalData.gui.updateProgramStatus( 'File replaced. Awaiting save' )
 
 	# Color the file in the Disc File Tree if that tab is open
 	if globalData.gui.discTab:
@@ -2686,19 +2686,6 @@ class MeleeColorPicker( object ):
 
 		self.window.deiconify()
 
-	# def getWindowGeometry( self, topLevelWindow ):
-
-	# 	""" A copy of the one in the guiSubComponents module; placed here to prevent cyclic import errors. """
-
-	# 	try:
-	# 		dimensions, topDistance, leftDistance = topLevelWindow.geometry().split( '+' )
-	# 		width, height = dimensions.split( 'x' )
-	# 		geometry = ( int(width), int(height), int(topDistance), int(leftDistance) )
-	# 	except:
-	# 		raise ValueError( "Failed to parse window geometry string: " + topLevelWindow.geometry() )
-
-	# 	return geometry
-
 	def createWindow( self, defaultTplFormat ):
 		self.window = Tk.Toplevel( globalData.gui.root )
 		self.window.title( self.title )
@@ -2852,12 +2839,25 @@ class MeleeColorPicker( object ):
 		#return ( r+r + g+g+g + b )/6 * a/255 # a quicker but less accurate calculation
 		#return math.sqrt( .299 * r**2 + .587 * g**2 + .114 * b**2 ) *a/255 / 255
 
+	def getTextureEditorTab( self ):
+
+		""" Scans the Texture Editor interface for a tab using the same file as this window. """
+
+		for tabName in globalData.gui.texturesTab.tabs():
+			tabWidget = globalData.gui.root.nametowidget( tabName )
+
+			if tabWidget.file == self.file:
+				return tabWidget
+
+		else: # Tab not found
+			return None
+
 	def updateEntryBorders( self, event ):
 		
 		""" For use with the Change Palette Color inspection window from a texture's Palette tab. 
 			This updates the border color of palette entries to indicate whether they're selected. """
 
-		texturesTab = globalData.gui.texturesTab
+		texturesTab = self.getTextureEditorTab()
 		
 		if texturesTab and 'Palette' in self.title:
 			paletteCanvas = texturesTab.paletteCanvas
@@ -3033,32 +3033,40 @@ class MeleeColorPicker( object ):
 		while len( self.recentColors ) > 24:
 			self.recentColors.pop( 0 )
 
-	def updateTexture( self, paletteEntryHex ): # This function only used when updating palette colors
-		texturesTab = globalData.gui.texturesTab
+	def updateTexture( self, paletteEntryHex, canceling=False ):
+		
+		""" Updates palette colors for a texture and re-renders it for 
+			the icon and main display (in the Image tab). """
+
+		texturesTab = self.getTextureEditorTab()
 		
 		if self.datDataOffsets != () and self.file and texturesTab:
 			if paletteEntryHex == self.lastUpdatedColor:
 				return
 
-			# Replace the color in the image or palette data
-			_, _, paletteEntryOffset, imageDataOffset = self.datDataOffsets
-			self.file.updateData( paletteEntryOffset, bytearray.fromhex(paletteEntryHex), 'Palette entry modified', trackChange=False )
-			
-			# Load the new data for the updated texture and display it
-			imageDataStruct = self.file.structs[imageDataOffset]
-			width, height, imageType = imageDataStruct.getAttributes()[1:4]
-			imageDataLength = imageDataStruct.getImageDataLength( width, height, imageType )
-			loadSuccessful = texturesTab.renderTextureData( imageDataOffset, width, height, imageType, imageDataLength )
-			if not loadSuccessful:
-				msg( 'There was an error rendering the new texture data.' )
-				return
+			try:
+				# Replace the color in the image or palette data
+				_, _, paletteEntryOffset, imageDataOffset = self.datDataOffsets
+				self.file.updateData( paletteEntryOffset, bytearray.fromhex(paletteEntryHex), 'Palette entry modified', trackChange=False )
+				
+				# Load the new data for the updated texture and display it
+				imageDataStruct = self.file.structs[imageDataOffset]
+				width, height, imageType = imageDataStruct.width, imageDataStruct.height, imageDataStruct.imageType
+				imageDataLength = imageDataStruct.getDataLength( width, height, imageType )
+				texturesTab.renderTextureData( imageDataOffset, width, height, imageType, imageDataLength )
 
-			# Update the Image and Palette tabs
-			texturesTab.drawTextureToMainDisplay( imageDataOffset )
-			texturesTab.populatePaletteTab( imageDataOffset, imageDataLength, imageType )
+				# Update the Image and Palette tabs
+				texturesTab.drawTextureToMainDisplay( imageDataOffset )
+				texturesTab.populatePaletteTab( imageDataOffset, imageDataLength, imageType )
 
-			self.lastUpdatedColor = paletteEntryHex
-			globalData.gui.updateProgramStatus( 'Palette Color Updated' )
+				self.lastUpdatedColor = paletteEntryHex
+				if canceling:
+					printStatus( 'Color edit canceled; the color has been reverted back to the original' )
+				else:
+					printStatus( 'Palette color updated' )
+
+			except Exception as err:
+				printStatus( 'Unable to update the palette color; {}'.format(err) )
 
 	def submit( self ):
 		self.updateRecentColors()
@@ -3069,7 +3077,8 @@ class MeleeColorPicker( object ):
 	def cancel( self ):
 		# If the window was being used to update a palette color, revert the color back to the original
 		if 'Palette' in self.title:
-			self.updateTexture( self.datDataOffsets[1] )
+			self.updateTexture( self.datDataOffsets[1], True )
+
 		self.currentHexColor = self.initialColor
 		self.close()
 
