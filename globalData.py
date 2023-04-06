@@ -37,6 +37,15 @@ from basicFunctions import msg, printStatus
 from guiSubComponents import PopupEntryWindow, VanillaDiscEntry
 from tools import DolphinController
 
+resamplingFilters = { 
+	'nearest': 0, 
+	'lanczos': 1, 
+	'bilinear': 2, 
+	'bicubic': 3, 
+	'box': 4,
+	'hamming': 5
+}
+
 
 def init( programArgs ):
 
@@ -81,7 +90,8 @@ def init( programArgs ):
 		'dolSource': 'vanilla',
 		'offsetView': 'ramAddress', # Alternate acceptable value=dolOffset (not case sensitive or affected by spaces)
 		'volume': '.7',
-		'textureExportFormat': 'png'
+		'textureExportFormat': 'png', 
+		'resampleFilter': 'lanczos'
 	}
 	defaultBoolSettings = { # Same as above, but for bools, which are initialized slightly differently (must be strings of 0 or 1!)
 		'useDiscConvenienceFolders': '1',
@@ -242,7 +252,18 @@ def checkSetting( settingName ):
 		raise Exception( 'Setting {} defined as both a regular setting and bool setting!'.format(settingName) )
 
 	elif settingName in defaultSettings: # Not a bool or region overwrite setting
-		return settings.get( 'General Settings', settingName )
+		settingValue = settings.get( 'General Settings', settingName )
+
+		if settingName == 'resampleFilter':
+			# Validate it
+			if settingValue.lower() not in resamplingFilters:
+				defaultValue = defaultSettings['resampleFilter']
+				printStatus( 'Warning, {} is not a valid resampling filter! Defaulting to "{}"'.format(settingValue, defaultValue), warning=True )
+				return 1
+			else:
+				settingValue = resamplingFilters[settingValue]
+
+		return settingValue
 
 	# Must be a bool or BooleanVar; check for it in the bools dict
 	boolSetting = boolSettings.get( settingName, 'notFound' )

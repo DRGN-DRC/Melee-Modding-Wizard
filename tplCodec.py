@@ -937,7 +937,7 @@ class TplEncoder( CodecBase ):
 		else: # For image type 14 (CMPR)
 			#raise TypeError( 'CMPR encoding is unsupported.' )
 
-			tic = time.time()
+			#tic = time.time()
 
 			# dataArray = np.array( imageData )
 			# pixelArray = dataArray.reshape( self.pilImage.size[1], self.pilImage.size[0], -1 )
@@ -1023,8 +1023,8 @@ class TplEncoder( CodecBase ):
 							# 	if rowTotal >= imageHeight:
 							# 		break
 
-			toc = time.time()
-			print( 'encoding time: ' + str(toc-tic) )
+			# toc = time.time()
+			# print( 'encoding time: ' + str(toc-tic) )
 
 	@staticmethod # This allows this function to be called externally from this class, without initializing it.
 	def encodeColor( imageType, pixel, dataType='image' ):

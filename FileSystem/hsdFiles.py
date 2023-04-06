@@ -448,7 +448,7 @@ class EffectsFile( DatFile ):
 	def identifyTextures( self ):
 
 		""" Returns a list of tuples containing texture information. Each tuple is of the following form: 
-				( imageDataOffset, imageHeaderOffset, paletteDataOffset, paletteHeaderOffset, width, height, imageType, mipmapCount ) """
+				( imageDataOffset, imageHeaderOffset, paletteDataOffset, paletteHeaderOffset, width, height, imageType, maxLOD ) """
 
 		self.initialize()
 		
@@ -497,12 +497,12 @@ class EffectsFile( DatFile ):
 						for imageDataOffset, paletteDataOffset in zip( imageDataPointers, paletteDataPointers ):
 							imageDataOffset += mainEffHeaderTableOffset
 							paletteDataOffset += mainEffHeaderTableOffset
-							texturesInfo.append( (imageDataOffset, -1, paletteDataOffset, -1, width, height, imageType, 0) )
+							texturesInfo.append( (imageDataOffset, -1, paletteDataOffset, -1, width, height, imageType, 0.0) )
 
 					else:
 						for imageDataOffset in imageDataPointers:
 							imageDataOffset += mainEffHeaderTableOffset
-							texturesInfo.append( (imageDataOffset, -1, -1, -1, width, height, imageType, 0) )
+							texturesInfo.append( (imageDataOffset, -1, -1, -1, width, height, imageType, 0.0) )
 							
 			# Call the original DatFile method to check for the usual texture headers
 			texturesInfo.extend( super(EffectsFile, self).identifyTextures() )
@@ -725,7 +725,7 @@ class SisFile( DatFile ):
 	def identifyTextures( self ):
 
 		""" Returns a list of tuples containing texture info. Each tuple is of the following form: 
-				( imageDataOffset, imageHeaderOffset, paletteDataOffset, paletteHeaderOffset, width, height, imageType, mipmapCount ) """
+				( imageDataOffset, imageHeaderOffset, paletteDataOffset, paletteHeaderOffset, width, height, imageType, maxLOD ) """
 
 		self.initialize()
 
@@ -742,7 +742,7 @@ class SisFile( DatFile ):
 		texturesInfo = []
 
 		for imageDataOffset in range( imageDataStart, imageDataEnd, 0x200 ):
-			texturesInfo.append( (imageDataOffset, -1, -1, -1, 32, 32, 0, 0) )
+			texturesInfo.append( (imageDataOffset, -1, -1, -1, 32, 32, 0, 0.0) )
 
 		return texturesInfo
 
@@ -1004,7 +1004,7 @@ class StageFile( DatFile ):
 	def identifyTextures( self ):
 
 		""" Returns a list of tuples containing texture information. Each tuple is of the following form: 
-				( imageDataOffset, imageHeaderOffset, paletteDataOffset, paletteHeaderOffset, width, height, imageType, mipmapCount ) """
+				( imageDataOffset, imageHeaderOffset, paletteDataOffset, paletteHeaderOffset, width, height, imageType, maxLOD ) """
 
 		self.initialize()
 
@@ -1046,9 +1046,9 @@ class StageFile( DatFile ):
 						if imageType == 9:
 							# Need to get the palette data's offset too. Its pointer is within a list following the image data pointer list
 							paletteDataOffset = structStart + paletteDataPointerValues[i]
-							texturesInfo.append( (imageDataOffset, e2eHeaderOffset, paletteDataOffset, e2eHeaderOffset, width, height, imageType, 0) )
+							texturesInfo.append( (imageDataOffset, e2eHeaderOffset, paletteDataOffset, e2eHeaderOffset, width, height, imageType, 0.0) )
 						else:
-							texturesInfo.append( (imageDataOffset, e2eHeaderOffset, -1, -1, width, height, imageType, 0) )
+							texturesInfo.append( (imageDataOffset, e2eHeaderOffset, -1, -1, width, height, imageType, 0.0) )
 
 			# Call the original DatFile method to check for the usual texture headers
 			texturesInfo.extend( super(StageFile, self).identifyTextures() )

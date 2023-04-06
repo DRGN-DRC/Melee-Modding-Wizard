@@ -338,6 +338,9 @@ class TexturesEditorTab( ttk.Frame ):
 		# self.texturesFoundText.set( 'Textures Found:  ' )
 		# self.texturesFilteredText.set( 'Filtered Out:  ' )
 
+		# Reset scroll position to the top
+		self.datTextureTree.yview_moveto( 0 )
+
 		# Disable some tabs by default (within the DAT Texture Tree tab), and if viewing one of them, switch to the Image tab
 		self.imageManipTabs.select( 0 )
 		self.imageManipTabs.tab( self.palettePane, state='disabled' )
@@ -447,7 +450,7 @@ class TexturesEditorTab( ttk.Frame ):
 		elif self.texturesInfo: # i.e. textures were found
 			loadingImage = globalData.gui.imageBank( 'loading' )
 			
-			for imageDataOffset, imageHeaderOffset, paletteDataOffset, paletteHeaderOffset, width, height, imageType, mipmapCount in self.texturesInfo:
+			for imageDataOffset, imageHeaderOffset, paletteDataOffset, paletteHeaderOffset, width, height, imageType, maxLOD in self.texturesInfo:
 				# Ignore textures that don't match the user's filters
 				if not self.passesImageFilters( imageDataOffset, width, height, imageType ):
 					if imageDataOffset in priorityTargets:
@@ -456,68 +459,71 @@ class TexturesEditorTab( ttk.Frame ):
 						continue
 
 				# Initialize a structure for the image data
-				texture = self.file.initTexture( imageDataOffset, imageHeaderOffset, paletteDataOffset, paletteHeaderOffset, width, height, imageType, mipmapCount )
+				texture = self.file.initTexture( imageDataOffset, imageHeaderOffset, paletteDataOffset, paletteHeaderOffset, width, height, imageType, maxLOD, 0 )
 				imageDataLength = texture.imageDataLength
 				texturesShown += 1
 
-				filteredTexturesInfo.append( (imageDataOffset, width, height, imageType, imageDataLength) )
-				totalTextureSpace += texture.length
+				filteredTexturesInfo.append( (imageDataOffset, width, height, imageType, imageDataLength, maxLOD, 0) )
+				totalTextureSpace += texture.length # Length of the struct (includes all mipmap levels)
 
 				# Highlight any textures that need to stand out
-				tags = []
-				#if width > 1024 or width % 2 != 0 or height > 1024 or height % 2 != 0: tags.append( 'warn' )
-				if width % 2 != 0 or height % 2 != 0: tags.append( 'warn' )
-				if mipmapCount > 0: tags.append( 'mipmap' )
+				# tags = []
+				# #if width > 1024 or width % 2 != 0 or height > 1024 or height % 2 != 0: tags.append( 'warn' )
+				# if width % 2 != 0 or height % 2 != 0: tags.append( 'warn' )
+				# if maxLOD > 0: tags.append( 'mipmap' )
 
 				# Add this texture to the DAT Texture Tree tab, using the thumbnail generated above
 				try:
 					self.datTextureTree.insert( '', 'end', 									# '' = parent/root, 'end' = insert position
 						iid=str( imageDataOffset ),
-						image=loadingImage,
-						values=(
-							uHex(0x20 + imageDataOffset) + '\n('+uHex(imageDataLength)+')', 	# offset to image data, and data length
-							str(width)+' x '+str(height), 										# width and height
-							'_'+str(imageType)+' ('+imageFormats[imageType]+')' 				# the image type and format
-						),
-						tags=tags
+						image=loadingImage
+						# values=(
+						# 	uHex(0x20 + imageDataOffset) + '\n('+uHex(imageDataLength)+')', 	# offset to image data, and data length
+						# 	str(width)+' x '+str(height), 										# width and height
+						# 	'_'+str(imageType)+' ('+imageFormats[imageType]+')' 				# the image type and format
+						# ),
+						# tags=tags
 					)
 				except TclError:
 					print( hex(imageDataOffset) + ' already exists!' )
 					continue
 
 				# Add any associated mipmap images, as treeview children
-				if mipmapCount > 0:
+				if maxLOD > 0:
 					parent = imageDataOffset
 
-					for i in range( mipmapCount ):
+					for i in range( int(maxLOD) ):
 						# Adjust the parameters for the next mipmap image
 						imageDataOffset += imageDataLength # This is of the last image, not the current imageDataLength below
 						width = int( math.ceil(width / 2.0) )
 						height = int( math.ceil(height / 2.0) )
 						imageDataLength = hsdStructures.ImageDataBlock.getDataLength( width, height, imageType )
 
+						# Create a new structure for this block of data
+						self.file.initTexture( imageDataOffset, imageHeaderOffset, paletteDataOffset, paletteHeaderOffset, width, height, imageType, maxLOD, i+1 )
+
 						# Add this texture to the DAT Texture Tree tab, using the thumbnail generated above
 						self.datTextureTree.insert( parent, 'end', 									# 'end' = insertion position
 							iid=str( imageDataOffset ),
-							image=loadingImage,
-							values=(
-								uHex(0x20 + imageDataOffset) + '\n('+uHex(imageDataLength)+')', 	# offset to image data, and data length
-								(str(width)+' x '+str(height)), 								# width and height
-								'_'+str(imageType)+' ('+imageFormats[imageType]+')' 			# the image type and format
-							),
-							tags=tags
+							image=loadingImage
+							# values=(
+							# 	uHex(0x20 + imageDataOffset) + '\n('+uHex(imageDataLength)+')', 	# offset to image data, and data length
+							# 	(str(width)+' x '+str(height)), 									# width and height
+							# 	'_'+str(imageType)+' ('+imageFormats[imageType]+')' 				# the image type and format
+							# ),
+							# tags=tags
 						)
-						filteredTexturesInfo.append( (imageDataOffset, width, height, imageType, imageDataLength) )
+						filteredTexturesInfo.append( (imageDataOffset, width, height, imageType, imageDataLength, maxLOD, i+1) )
 
 			# Immediately decode and display any high-priority targets
 			if priorityTargets:
-				for textureInfo in self.texturesInfo:
+				for textureInfo in filteredTexturesInfo:
 					if textureInfo[0] not in priorityTargets: continue
 
-					imageDataOffset, _, _, _, width, height, imageType, _ = textureInfo
-					dataBlockStruct = self.file.getStruct( imageDataOffset )
+					#imageDataOffset, _, _, _, width, height, imageType, _, maxLOD = textureInfo
+					#dataBlockStruct = self.file.getStruct( imageDataOffset )
 
-					self.renderTextureData( imageDataOffset, width, height, imageType, dataBlockStruct.length, useCache=useCache )
+					self.renderTextureData( *textureInfo, useCache=useCache )
 
 		# Update the GUI with some of the file's main info regarding textures
 		self.datFilesizeText.set( "File Size:  {} ({:,} bytes)".format(humansize(self.file.size), self.file.size) )
@@ -545,12 +551,12 @@ class TexturesEditorTab( ttk.Frame ):
 			#print 'using standard, single-process decoding'
 
 			i = 1
-			for imageDataOffset, width, height, imageType, imageDataLength in filteredTexturesInfo:
+			for textureInfo in filteredTexturesInfo:
 				# Skip items that should have already been processed
 				if imageDataOffset in priorityTargets: continue
 
 				# Update this item
-				self.renderTextureData( imageDataOffset, width, height, imageType, imageDataLength, useCache=useCache )
+				self.renderTextureData( *textureInfo, useCache=useCache )
 
 				# Update the GUI to show new renders every n textures
 				if i % 10 == 0:
@@ -575,59 +581,67 @@ class TexturesEditorTab( ttk.Frame ):
 				self.datTextureTreeStatusMsg.set( 'No textures were found that pass your current filters.' )
 			self.datTextureTreeStatusLabel.place( relx=0.5, rely=0.5, anchor='center' )
 
-	def renderTextureData( self, imageDataOffset, width=-1, height=-1, imageType=-1, imageDataLength=-1, problem=False, useCache=False ):
+	def renderTextureData( self, imageDataOffset, width=-1, height=-1, imageType=-1, imageDataLength=-1, maxLOD=0, mipLevel=-1, problem=False, useCache=False ):
 
 		""" Decodes image data from the globally loaded DAT file at a given offset and creates an image out of it. This then
 			stores/updates the full image and a preview/thumbnail image (so that they're not garbage collected) and displays it in the GUI.
 			The image and its info is then displayed in the DAT Texture Tree tab's treeview (does not update the Dat Texture Tree subtabs). """
 
-		iid = str( imageDataOffset )
-
 		# If using the cache, there's no need to re-decode texture data (useful when just applying texture filtering)
-		if useCache:
-			self.datTextureTree.item( iid, image=self.datTextureTree.textureThumbnails[imageDataOffset] )
-			return
+		if not useCache or imageDataOffset not in self.datTextureTree.textureThumbnails:
+			if not problem:
+				#tic = time.clock()
+				try:
+					pilImage = self.file.getTexture( imageDataOffset, width, height, imageType, imageDataLength, getAsPilImage=True )
 
-		if not problem:
-			#tic = time.clock()
-			try:
-				pilImage = self.file.getTexture( imageDataOffset, width, height, imageType, imageDataLength, getAsPilImage=True )
+				except Exception as errMessage:
+					print( 'Unable to make out a texture for data at 0x{:X}; {}'.format(0x20+imageDataOffset, errMessage) )
+					problem = True
 
-			except Exception as errMessage:
-				print( 'Unable to make out a texture for data at 0x{:X}; {}'.format(0x20+imageDataOffset, errMessage) )
-				problem = True
+				# toc = time.clock()
+				# print 'time to decode image for', hex(0x20+imageDataOffset) + ':', toc-tic
 
-			# toc = time.clock()
-			# print 'time to decode image for', hex(0x20+imageDataOffset) + ':', toc-tic
+			# Store the full image (or error image) so it's not garbage collected, and generate the preview thumbnail.
+			if problem:
+				# The error image is already 64x64, so it doesn't need to be resized for the thumbnail.
+				errorImage = globalData.gui.imageBank( 'noImage' )
+				self.datTextureTree.fullTextureRenders[imageDataOffset] = errorImage
+				self.datTextureTree.textureThumbnails[imageDataOffset] = errorImage
+			else:
+				self.datTextureTree.fullTextureRenders[imageDataOffset] = ImageTk.PhotoImage( pilImage )
+				pilImage.thumbnail( (64, 64), Image.ANTIALIAS )
+				self.datTextureTree.textureThumbnails[imageDataOffset] = ImageTk.PhotoImage( pilImage )
 
-		# Store the full image (or error image) so it's not garbage collected, and generate the preview thumbnail.
-		if problem:
-			# The error image is already 64x64, so it doesn't need to be resized for the thumbnail.
-			errorImage = globalData.gui.imageBank( 'noImage' )
-			self.datTextureTree.fullTextureRenders[imageDataOffset] = errorImage
-			self.datTextureTree.textureThumbnails[imageDataOffset] = errorImage
-		else:
-			self.datTextureTree.fullTextureRenders[imageDataOffset] = ImageTk.PhotoImage( pilImage )
-			pilImage.thumbnail( (64, 64), Image.ANTIALIAS )
-			self.datTextureTree.textureThumbnails[imageDataOffset] = ImageTk.PhotoImage( pilImage )
+		# Collect texture properties
+		if imageType == -1:
+			width, height, imageType, _, _, maxLOD, mipLevel = self.file.getTextureInfo( imageDataOffset )
+			assert imageType != -1, 'Unable to get texture info for the texture at 0x{:X}'.format( 0x20+imageDataOffset )
+		imageDataLength = hsdStructures.ImageDataBlock.getDataLength( width, height, imageType )
+		
+		# Highlight any textures that need to stand out
+		tags = []
+		if maxLOD > 0: tags.append( 'mipmap' )
+		elif width % 2 != 0 or height % 2 != 0: tags.append( 'warn' )
+		
+		# Build new strings for the properties
+		newValues = (
+					uHex(0x20 + imageDataOffset) + '\n('+uHex(imageDataLength)+')', 	# offset to image data, and data length
+					(str(width)+' x '+str(height)), 								# width and height
+					'_'+str(imageType)+' ('+imageFormats[imageType]+')' 			# the image type and format
+					)
+		
+		# Update the icon and info display
+		iid = str( imageDataOffset )
+		self.datTextureTree.item( iid, image=self.datTextureTree.textureThumbnails[imageDataOffset], values=newValues, tags=tags )
 
-		# If this item is in the treeview, update the preview thumbnail/icon and the image details of the texture
-		if self.datTextureTree.exists( iid ):
-			# Collect texture properties
-			if imageType == -1:
-				width, height, imageType = self.file.getTextureInfo( imageDataOffset )[:3]
-				assert imageType != -1, 'Unable to get texture info for the texture at 0x{:X}'.format( 0x20+imageDataOffset )
+		# Update any mipmap textures below this one
+		if maxLOD > 0 and mipLevel < maxLOD:
+			width = int( math.ceil(width / 2.0) )
+			height = int( math.ceil(height / 2.0) )
+			imageDataOffset += imageDataLength
 			imageDataLength = hsdStructures.ImageDataBlock.getDataLength( width, height, imageType )
-			
-			# Build new strings for the properties
-			newValues = (
-						uHex(0x20 + imageDataOffset) + '\n('+uHex(imageDataLength)+')', 	# offset to image data, and data length
-						(str(width)+' x '+str(height)), 								# width and height
-						'_'+str(imageType)+' ('+imageFormats[imageType]+')' 			# the image type and format
-						)
-			
-			# Update the icon and info display
-			self.datTextureTree.item( iid, image=self.datTextureTree.textureThumbnails[imageDataOffset], values=newValues )
+			mipLevel += 1
+			self.renderTextureData( imageDataOffset, width, height, imageType, imageDataLength, maxLOD, mipLevel, problem )
 
 	def updatePrevNextFileButtons( self ):
 
@@ -699,25 +713,23 @@ class TexturesEditorTab( ttk.Frame ):
 		iid = iid[-1] # Selects the lowest position item selected in the treeview if multiple items are selected.
 
 		# Update the main display with the texture's stored image.
-		self.drawTextureToMainDisplay( iid )
+		imageDataOffset = int( iid )
+		self.drawTextureToMainDisplay( imageDataOffset )
 
 		# Stop here if this is not a typical DAT file
 		if not isinstance( self.file, DatFile ):
 			return
 
 		# Get the texture struct
-		imageDataOffset = int( iid )
-		imageDataStruct = self.file.structs.get( imageDataOffset )
-		width, height, imageType = imageDataStruct.width, imageDataStruct.height, imageDataStruct.imageType
-		if imageDataStruct:
-			imageDataHeaderOffsets = imageDataStruct.getParents()
+		texture = self.file.structs[imageDataOffset]
+		imageDataHeaderOffsets = texture.getParents()
 
 		# Determine whether to enable and update the Palette tab.
 		currentTab = globalData.gui.root.nametowidget( self.imageManipTabs.select() )
-		if imageType == 8 or imageType == 9 or imageType == 10:
+		if texture.imageType in ( 8, 9, 10 ):
 			# Enable the palette tab and prepare the data displayed on it.
 			self.imageManipTabs.tab( 1, state='normal' )
-			self.populatePaletteTab( imageDataOffset, imageDataStruct.imageDataLength, imageType )
+			self.populatePaletteTab( imageDataOffset, texture.imageDataLength, texture.imageType )
 		else:
 			# No palette for this texture. Check the currently viewed tab, and if it's the Palette tab, switch to the Image tab.
 			if currentTab == self.palettePane:
@@ -751,7 +763,7 @@ class TexturesEditorTab( ttk.Frame ):
 		# 	# 	lackOfUsefulStructsDescription += ' This texture is grouped with {} other textures,'.format( textureCount )
 		# 	# lackOfUsefulStructsDescription += ' with an E2E header at 0x{:X}.'.format( 0x20+e2eHeaderOffset )
 
-		elif not imageDataStruct: # Make sure an image data struct exists to check if this might be something like a DOL texture
+		elif not texture: # Make sure an image data struct exists to check if this might be something like a DOL texture
 			lackOfUsefulStructsDescription = (  'There are no image data headers or other structures associated '
 												'with this texture. These are stored end-to-end in this file with '
 												'other similar textures.' )
@@ -781,25 +793,25 @@ class TexturesEditorTab( ttk.Frame ):
 
 		# Enable and update the Properties tab
 		self.imageManipTabs.tab( self.texturePropertiesPane, state='normal' )
-		self.populateTexPropertiesTab( wraplength, width, height, imageType )
+		self.populateTexPropertiesTab( wraplength, texture )
 
-	def drawTextureToMainDisplay( self, iid ):
+	def drawTextureToMainDisplay( self, imageDataOffset ):
 
 		""" Updates the main display area (the Image tab of the DAT Texture Tree tab) with a 
 			texture's stored full-render image, if it has been rendered, and adjusts GUI size. """
 		
-		# Get the texture struct and pull info on the texture
-		imageDataOffset = int( iid )
-		imageDataStruct = self.file.structs.get( imageDataOffset )
-		textureWidth = imageDataStruct.width
-		textureHeight = imageDataStruct.height
+		texture = self.file.structs[imageDataOffset]
+		textureWidth = texture.width
+		textureHeight = texture.height
+
+		# Check for a previously rendered texture image (should exist)
 		textureImage = self.datTextureTree.fullTextureRenders.get( imageDataOffset )
 		if not textureImage:
 			print( 'Unable to get a texture image for ' + hex(imageDataOffset) )
 			return # May not have been rendered yet
 
 		# Get the current dimensions of the program.
-		self.textureDisplay.update() # Ensures the info gathered below is accurate
+		self.textureDisplay.update_idletasks() # Ensures the info gathered below is accurate
 		programWidth = globalData.gui.root.winfo_width()
 		programHeight = globalData.gui.root.winfo_height()
 		canvasWidth = self.textureDisplay.winfo_width()
@@ -1374,7 +1386,7 @@ class TexturesEditorTab( ttk.Frame ):
 			self.modelPropertiesPane.interior.opacityEntry.insert( 0, str(newValue*10) + '%' )
 			self.modelPropertiesPane.interior.opacityEntry.configure( validate='key' )
 
-	def populateTexPropertiesTab( self, wraplength, width, height, thisImageType ):
+	def populateTexPropertiesTab( self, wraplength, texture ):
 
 		""" Populates the Properties tab of the DAT Texture Tree interface. At this point, the pane has already been cleared. """
 
@@ -1581,13 +1593,13 @@ class TexturesEditorTab( ttk.Frame ):
 		altImageSizesFrame = Tk.Frame( propertiesPane )
 		sizesDict = OrderedDict()
 		for i, imageType in enumerate( ( 0, 1, 2, 3, 4, 5, 6, 8, 9, 10, 14 ) ):
-			thisSize = hsdStructures.ImageDataBlock.getDataLength( width, height, imageType )
-			if imageType == thisImageType: continue
+			if imageType == texture.imageType:
+				continue
 
-			if not thisSize in sizesDict:
-				sizesDict[thisSize] = [userFriendlyFormatList[i]]
+			if not texture.imageDataLength in sizesDict:
+				sizesDict[texture.imageDataLength] = [userFriendlyFormatList[i]]
 			else:
-				sizesDict[thisSize].append( userFriendlyFormatList[i] )
+				sizesDict[texture.imageDataLength].append( userFriendlyFormatList[i] )
 		row = 0
 		for size, formatList in sizesDict.items():
 			ttk.Label( altImageSizesFrame, text='  /  '.join( formatList ) ).grid( column=0, row=row, sticky='w' )
@@ -1685,18 +1697,18 @@ class TexturesEditorTab( ttk.Frame ):
 	def getMipmapLevel( self, iid ):
 
 		if self.datTextureTree.exists( iid ) and 'mipmap' in self.datTextureTree.item( iid, 'tags' ):
-			mipmapLevel = 0
+			mipLevel = 0
 
 			if self.datTextureTree.parent( iid ): # This item is a child of a parent mipmap texture
 
 				for level in self.datTextureTree.get_children( self.datTextureTree.parent(iid) ):
-					mipmapLevel += 1
+					mipLevel += 1
 					if level == iid:
 						break
 		else:
-			mipmapLevel = -1
+			mipLevel = -1
 
-		return mipmapLevel
+		return mipLevel
 
 	def replaceSingleTexture( self, newImage, imageDataOffset ):
 
@@ -1722,7 +1734,7 @@ class TexturesEditorTab( ttk.Frame ):
 					"\n\nWould you like to resize the texture you're importing to match "
 					"the selected texture?".format(texture.width, texture.height, newImage.size[0], newImage.size[1])
 				):
-				newImage = newImage.resize( (texture.width, texture.height) )
+				newImage = newImage.resize( (texture.width, texture.height), resample=globalData.checkSetting('resampleFilter') )
 
 			elif newImageDataLength > origImageDataLength: # User declined the resize offering above and more space is needed
 				# lengthDiff = newImageDataLength - origImageDataLength
@@ -1749,7 +1761,9 @@ class TexturesEditorTab( ttk.Frame ):
 		self.drawTextureToMainDisplay( texture.offset )
 
 		# Give a warning or success message
-		if returnCode == 0:
+		if returnCode == -1:
+			printStatus( 'Error: {}'.format(err), error=True )
+		elif returnCode == 0:
 			printStatus( 'Texture imported successfully', success=True )
 		elif returnCode == 1:
 			printStatus( 'Unable to import; palette information could not be found for the selected texture(s)', error=True )
@@ -1782,7 +1796,7 @@ class TexturesEditorTab( ttk.Frame ):
 				if preEncodedTexture:
 					returnCode = self.file.setPreEncodedTexture( texture.offset, preEncodedTexture )[0]
 				elif allowResizing:
-					resizedImage = newImage.resize( (texture.width, texture.height) )
+					resizedImage = newImage.resize( (texture.width, texture.height), resample=globalData.checkSetting('resampleFilter') )
 					returnCode = self.file.setTexture( texture.offset, resizedImage, texture )[0]
 				else:
 					returnCode = self.file.setTexture( texture.offset, newImage, texture )[0]
@@ -1825,14 +1839,13 @@ class TexturesEditorTab( ttk.Frame ):
 
 		selectedTextureObjects = []
 		structsNotFound = [] # Failsafe; not expected
-		fileStructs = self.file.structs
 		uniqueDims = set()
 		completedEncodings = {} # Key=tuple(width, height, imageType, paletteType), value=(imageData, paletteData)
 		successCount = 0
 		
 		# Collect the textures to be replaced, and number of unique texture dimensions
 		for offset in imageDataOffsets:
-			texture = fileStructs.get( offset )
+			texture = self.file.structs.get( offset )
 
 			if texture:
 				selectedTextureObjects.append( texture )
@@ -1979,7 +1992,7 @@ class TexturesEditorTab( ttk.Frame ):
 						"\nThe texture you've selected to import is {}x{}.".format( newImage.size[0], newImage.size[1] ) + \
 						"\n\nWould you like to resize the texture you're importing to match the selected textures?" ):
 					
-						newImage = newImage.resize( (texture.width, texture.height) )
+						newImage = newImage.resize( (texture.width, texture.height), resample=globalData.checkSetting('resampleFilter') )
 
 					else: # Oh noes!
 
@@ -2139,8 +2152,8 @@ class TexturesContextMenu( Tk.Menu, object ):
 		for iid in self.iids:
 			imageDataOffset = int( iid )
 			texture = self.texturesTab.file.structs.get( imageDataOffset )
-			mipmapLevel = self.texturesTab.getMipmapLevel( iid )
-			hashedFileNames.append( constructTextureFilename(texture, mipmapLevel) )
+			mipLevel = self.texturesTab.getMipmapLevel( iid )
+			hashedFileNames.append( constructTextureFilename(texture, mipLevel) )
 
 		copyToClipboard( ', '.join(hashedFileNames) )
 

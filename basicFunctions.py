@@ -495,7 +495,7 @@ def hex2rgb( inputString ):
 		return tuple( channelsList )
 
 
-def constructTextureFilename( texture, mipmapLevel=0, forceDolphinHash=False ):
+def constructTextureFilename( texture, mipLevel=0, forceDolphinHash=False ):
 
 	""" Generates a file name for textures exported from DAT files (this is not used for banners). 
 		Depending on user settings, this may be the DTW's standard naming convention (i.e. )The file extension is not included. """
@@ -523,12 +523,12 @@ def constructTextureFilename( texture, mipmapLevel=0, forceDolphinHash=False ):
 			tlut_hash = ''
 
 		# Format mipmap flags
-		if mipmapLevel == -1: # Not a mipmaped texture
+		if mipLevel == -1: # Not a mipmaped texture
 			# Assemble the finished filename, without file extension
 			filename = 'tex1_' + str(width) + 'x' + str(height) + '_' + tex_hash + tlut_hash + '_' + str(imageType)
 		else:
-			if mipmapLevel > 0:
-				mipLevel = '_mip' + str( mipmapLevel )
+			if mipLevel > 0:
+				mipLevel = '_mip' + str( mipLevel )
 			else: mipLevel = ''
 
 			# Assemble the finished filename, without file extension

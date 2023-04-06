@@ -1191,7 +1191,7 @@ class StageManager( ttk.Frame ):
 			# Get the new texture data, so we can show it in the GUI
 			if internalStageId == 0x24 or internalStageId == 0x25: # Resize Battlefield and FD, since that's how they appear in-game
 				origImage = sssFile.getTexture( imageDataOffset, 64, 56, 9, 0xE00, getAsPilImage=True )
-				resizedImage = origImage.resize( (48, 48), Image.ANTIALIAS )
+				resizedImage = origImage.resize( (48, 48), resample=globalData.checkSetting('resampleFilter') )
 				canvas.iconImages[internalStageId] = ImageTk.PhotoImage( resizedImage )
 
 			elif internalStageId in ( 0x1C, 0x1D, 0x1E ):

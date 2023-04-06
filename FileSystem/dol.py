@@ -1285,9 +1285,9 @@ class Dol( FileBase ):
 			return []
 
 		# Construct the list in the same was as for DAT files, with tuples of this form:
-		# ( imageDataOffset, imageHeaderOffset, paletteDataOffset, paletteHeaderOffset, width, height, imageType, mipmapCount )
+		# ( imageDataOffset, imageHeaderOffset, paletteDataOffset, paletteHeaderOffset, width, height, imageType, maxLOD )
 		for _ in range( totalTextures ):
-			texturesInfo.append( (imageDataOffset, -1, -1, -1, width, height, imageType, 0) )
+			texturesInfo.append( (imageDataOffset, -1, -1, -1, width, height, imageType, 0.0) )
 			imageDataOffset += imageDataLength
 
 		return texturesInfo

@@ -346,18 +346,11 @@ def exportMultipleTextures( texturesTab, exportAll=False ):
 	workingFile = 1
 
 	if len( iidSelectionsTuple ) == 1:
-		# Construct a default filename
-		# imageDataOffset, imageDataLength, width, height, imageType = datTextureTree.item( iid, 'values' )[3:]
-		# textureDetails = int(imageDataOffset), int(imageDataLength), int(width), int(height), int(imageType)
-		
-		# Get the texture struct
+		# Get the texture struct and construct a default filename
 		imageDataOffset = int( iidSelectionsTuple[0] )
 		texture = texturesTab.file.structs.get( imageDataOffset )
-		#textureDetails = ( imageDataOffset, texture.imageDataLength, texture.width, texture.height, texture.imageType )
-		mipmapLevel = texturesTab.getMipmapLevel( iidSelectionsTuple[0] )
-
-		#defaultFilename = constructTextureFilename( texturesTab.file, iidSelectionsTuple[0], textureDetails=textureDetails )
-		defaultFilename = constructTextureFilename( texture, mipmapLevel )
+		mipLevel = texturesTab.getMipmapLevel( iidSelectionsTuple[0] )
+		defaultFilename = constructTextureFilename( texture, mipLevel )
 
 		# Set up the drop-down list to save the file as a certain type
 		if exportFormat == 'png': filetypes = [('PNG files', '*.png'), ('TPL files', '*.tpl'), ("All files", "*.*")]
@@ -403,10 +396,8 @@ def exportMultipleTextures( texturesTab, exportAll=False ):
 		workingFile += 1
 
 		# Collect data/info on this texture
-		# imageDataOffset, imageDataLength, width, height, imageType = datTextureTree.item( iid, 'values' )[3:]
-		# textureDetails = int(imageDataOffset), int(imageDataLength), int(width), int(height), int(imageType)
 		imageDataOffset = int( iid )
-		texture = texturesTab.file.structs.get( imageDataOffset )
+		texture = texturesTab.file.structs[imageDataOffset]
 		width, height, imageType = texture.width, texture.height, texture.imageType
 		imageData = texturesTab.file.getData( imageDataOffset, texture.imageDataLength )
 
@@ -414,10 +405,8 @@ def exportMultipleTextures( texturesTab, exportAll=False ):
 		if textureFilename: # May be a custom name from the user if only one texture is being exported.
 			savePath = directoryPath + '/' + textureFilename
 		else:
-			#textureDetails = ( imageDataOffset, texture.imageDataLength, width, height, imageType )
-			#savePath = directoryPath + '/' + constructTextureFilename( texturesTab.file, iid, textureDetails=textureDetails ) + '.' + exportFormat
-			mipmapLevel = texturesTab.getMipmapLevel( iid )
-			savePath = directoryPath + '/' + constructTextureFilename( texture, mipmapLevel ) + '.' + exportFormat
+			mipLevel = texturesTab.getMipmapLevel( iid )
+			savePath = directoryPath + '/' + constructTextureFilename( texture, mipLevel ) + '.' + exportFormat
 
 		# Collect the palette data, if needed
 		if imageType == 8 or imageType == 9 or imageType == 10:

@@ -899,13 +899,13 @@ class ImageDataBlock( DataBlock ):
 		return int( trueWidth * trueHeight * byteMultiplier[imageType] )
 
 	@staticmethod
-	def getMipmapLength( baseLevelSize, mipmapCount ):
+	def getMipmapLength( baseLevelSize, maxLOD ):
 
 		""" Calculates the total size of an image and all of its mipmap levels. """
 
 		totalSize = baseLevelSize
 
-		for mipmapDepth in range( 1, mipmapCount ):
+		for mipmapDepth in range( 1, int(maxLOD) ):
 			textureSize = baseLevelSize >> ( mipmapDepth * 2 )
 			
 			if textureSize < 0x20:

@@ -119,7 +119,7 @@ class FileBase( object ):
 			# Unknown problem parsing the file
 			msg( 'There was an error while parsing the {}.yaml config file:\n\n{}'.format(gameId, err) )
 
-	def initTexture( self, offset, imageHeaderOffset, paletteDataOffset, paletteHeaderOffset, width, height, imageType, mipmapCount ):
+	def initTexture( self, offset, imageHeaderOffset, paletteDataOffset, paletteHeaderOffset, width, height, imageType, maxLOD, mipLevel ):
 
 		""" Initializes a raw block of image data without validation; these will have mostly 
 			the same methods as a standard struct and can be handled similarly. These will 
@@ -152,15 +152,6 @@ class FileBase( object ):
 			newStructure = hsdStructures.ImageDataBlock( self, offset, imageHeaderOffset )
 		newStructure.name = 'Texture ' + newStructure.name.split()[-1]
 
-		# Get the data length, if not provided. Deterimined by a parent struct, if possible
-		# if dataLength == -1 and imageHeaderOffset != -1:
-		# 	# Try to initialize an image data header, and get info from that
-		# 	imageDataHeader = self.initSpecificStruct( hsdStructures.ImageObjDesc, imageHeaderOffset )
-
-		# 	if imageDataHeader:
-		# 		width, height, imageType = imageDataHeader.getValues()[1:4]
-		# 		dataLength = hsdStructures.ImageDataBlock.getDataLength( width, height, imageType )
-
 		# Add texture-specific properties
 		newStructure.paletteDataOffset = paletteDataOffset
 		newStructure.paletteHeaderOffset = paletteHeaderOffset # Ad hoc way to more easily locate palettes in files with no palette data headers
@@ -171,31 +162,14 @@ class FileBase( object ):
 		newStructure.height = height
 		newStructure.imageType = imageType
 		newStructure.imageDataLength = dataLength = newStructure.getDataLength( width, height, imageType )
+		newStructure.maxLOD = maxLOD
+		newStructure.mipLevel = mipLevel
 
 		# Add the normal struct properties
 		newStructure.data = self.getData( offset, dataLength )
 		newStructure.length = dataLength
 		newStructure.branchSize = dataLength
 		newStructure.formatting = '>' + 'B' * dataLength
-
-		# Determine padding
-		if isinstance( self, DatFile ):
-			deducedStructLength = self.getStructLength( offset ) # This length will include any padding or mipmap texture resizes too
-			
-			if mipmapCount > 0:
-				# totalSize = newStructure.imageDataLength
-				# for mipmapDepth in range( 1, mipmapCount ):
-				# 	textureSize = newStructure.imageDataLength >> ( mipmapDepth * 2 )
-				# 	if textureSize < 0x20:
-				# 		totalSize += 0x20 # A texture can't be smaller than this
-				# 	else:
-				# 		totalSize += textureSize
-				# newStructure.padding = deducedStructLength - totalSize
-				newStructure.padding = deducedStructLength - newStructure.getMipmapLength( dataLength, mipmapCount )
-			else:
-				newStructure.padding = deducedStructLength - newStructure.imageDataLength
-
-			assert newStructure.padding >= 0, 'Error; negative padding detected (invalid data length calculation).'
 
 		# Add this struct to the DAT's structure dictionary
 		self.structs[offset] = newStructure
@@ -614,9 +588,9 @@ class BannerFile( FileBase ):
 	def identifyTextures( self ):
 
 		""" Analagous to the DAT file's class to give just the one texture in this file. The returned tuple is of the following form: 
-				( imageDataOffset, imageHeaderOffset, paletteDataOffset, paletteHeaderOffset, width, height, imageType, mipmapCount ) """
+				( imageDataOffset, imageHeaderOffset, paletteDataOffset, paletteHeaderOffset, width, height, imageType, maxLOD ) """
 
-		return [ (0x20, -1, -1, -1, 96, 32, 5, 0) ]
+		return [ (0x20, -1, -1, -1, 96, 32, 5, 0.0) ]
 
 
 					# = ------------------------- = #
@@ -1204,8 +1178,6 @@ class DatFile( FileBase ):
 		""" Initializes a raw block of image/palette/etc. data without validation; these will have mostly 
 			the same methods as a standard struct and can be handled similarly. """
 
-		assert offset in self.structureOffsets, 'Invalid offset to initDataBlock; 0x{:X} does not appear to be a valid struct'.format( 0x20+offset )
-
 		# If the requested struct has already been created, return it
 		existingStruct = self.structs.get( offset, None )
 
@@ -1220,6 +1192,8 @@ class DatFile( FileBase ):
 			else: # If the struct has already been initialized as something else, return None
 				print( 'Attempted to initialize a {} for Struct 0x{:X}, but a {} already existed'.format(newDataClass.__name__, 0x20+offset, existingStruct.__class__.__name__) )
 				return None
+
+		assert offset in self.structureOffsets, 'Invalid offset to initDataBlock; 0x{:X} does not appear to be a valid struct'.format( 0x20+offset )
 
 		deducedStructLength = self.getStructLength( offset ) # This length will include any padding too
 		newStructure = newDataClass( self, offset, parentOffset, structDepth )
@@ -1910,7 +1884,7 @@ class DatFile( FileBase ):
 	def identifyTextures( self ):
 
 		""" Returns a list of tuples containing texture info. Each tuple is of the following form: 
-				( imageDataOffset, imageHeaderOffset, paletteDataOffset, paletteHeaderOffset, width, height, imageType, mipmapCount ) """
+				( imageDataOffset, imageHeaderOffset, paletteDataOffset, paletteHeaderOffset, width, height, imageType, maxLOD ) """
 
 		self.initialize()
 
@@ -1968,7 +1942,7 @@ class DatFile( FileBase ):
 				structLength = self.getStructLength( structureOffset ) # This length will include any padding too
 				if structLength < 0x18 or structLength > 0x38: continue # 0x18 + 0x20
 
-				texturesInfo.append( (imageDataOffset, structureOffset, -1, -1, width, height, imageType, int(maxLOD)) ) # Palette info will be found later
+				texturesInfo.append( (imageDataOffset, structureOffset, -1, -1, width, height, imageType, maxLOD) ) # Palette info will be found later
 				imageDataOffsetsFound.add( imageDataOffset )
 
 		except Exception as err:
@@ -1982,18 +1956,21 @@ class DatFile( FileBase ):
 
 		return texturesInfo
 
-	def getTextureInfo( self, imageDataOffset ):
+	def getTextureInfo( self, imageDataOffset, texture=None ):
 
 		""" This is a more efficient alternative to getting the image data struct 
 			and calling .getParents() or .getAttributes() on it. """
 
-		# Get the data section structure offsets, and separate out main structure references
 		#tic = time.clock()
-		hI = self.headerInfo
-		dataSectionStructureOffsets = set( self.structureOffsets ).difference( (-0x20, hI['rtStart'], hI['rtEnd'], hI['rootNodesEnd'], hI['stringTableStart']) )
+
+		# Get the data section structure offsets, and separate out main structure references
+		# hI = self.headerInfo
+		# dataSectionStructureOffsets = set( self.structureOffsets ).difference( (-0x20, hI['rtStart'], hI['rtEnd'], hI['rootNodesEnd'], hI['stringTableStart']) )
+
+		imageDataStructOffset = self.getPointerOwner( imageDataOffset, offsetOnly=True )
 
 		# Scan the data section by analyzing generic structures and looking for standard image data headers
-		for structureOffset in dataSectionStructureOffsets:
+		for structureOffset in self.structureOffsets:
 			# Get the image data header struct's data.
 			try: # Using a try block because the last structure offsets may raise an error (unable to get 0x18 bytes) which is fine
 				structData = self.getData( structureOffset, 0x18 )
@@ -2004,16 +1981,38 @@ class DatFile( FileBase ):
 			fieldValues = struct.unpack( '>IHHIIff', structData )
 			headerImageDataOffset, width, height, imageType, isMipMap, minLOD, maxLOD = fieldValues
 
-			if headerImageDataOffset == imageDataOffset:
+			if headerImageDataOffset == imageDataStructOffset:
 				break
 
 		else: # The loop above didn't break; unable to find the header!
 			print( 'Unable to find an image data header for the imageDataOffset 0x{:X}'.format(imageDataOffset+0x20) )
 			return None
 
-		#print 'header seek time:', time.clock() - tic
+		# Check for mipmap textures
+		if imageDataStructOffset < imageDataOffset:
+			baseSize = hsdStructures.ImageDataBlock.getDataLength( width, height, imageType )
+			width = int( math.ceil(width / 2.0) )
+			height = int( math.ceil(height / 2.0) )
 
-		return width, height, imageType, isMipMap, minLOD, int(maxLOD)
+			offset = baseSize
+			mipLevel = 1
+			while imageDataStructOffset + offset < imageDataOffset:
+				textureSize = baseSize >> ( mipLevel * 2 )
+				
+				if textureSize < 0x20:
+					offset += 0x20 # A texture can't be smaller than this
+				else:
+					offset += textureSize
+					
+				width = int( math.ceil(width / 2.0) )
+				height = int( math.ceil(height / 2.0) )
+				mipLevel += 1
+		else:
+			mipLevel = -1
+
+		#print('header seek time: ' + str(time.clock() - tic) )
+
+		return width, height, imageType, isMipMap, int(minLOD), int(maxLOD), mipLevel
 
 	def getTexture( self, imageDataOffset, width=-1, height=-1, imageType=-1, imageDataLength=-1, getAsPilImage=False ):
 
@@ -2082,11 +2081,17 @@ class DatFile( FileBase ):
 
 		# Create a texture struct if not already done and gather info on the texture currently in the file
 		if not texture:
+			# Initialize a new basic structure or get an existing one
 			texture = self.initDataBlock( hsdStructures.ImageDataBlock, imageDataOffset )
-			origImageType, isMipMap, minLOD, maxLOD = texture.getAttributes()[3:]
-			imageHeaderOffsets = texture.getParents()
 			
-			if texture.imageType in ( 8, 9, 10 ):
+			width, height, imageType, _, _, maxLOD, mipLevel = self.getTextureInfo( imageDataOffset )
+			imageHeaderOffsets = texture.getParents()
+			if imageHeaderOffsets:
+				imageHeaderOffset = list( imageHeaderOffsets )[0]
+			else:
+				imageHeaderOffset = -1
+			
+			if imageType in ( 8, 9, 10 ):
 				# Find information on the associated palette (if unable to, return)
 				paletteDataOffset, paletteHeaderOffset, paletteLength, origPaletteType, origPaletteColorCount = self.getPaletteInfo( imageDataOffset )
 				if paletteDataOffset == -1:
@@ -2094,8 +2099,12 @@ class DatFile( FileBase ):
 			else:
 				paletteDataOffset = -1
 				paletteHeaderOffset = -1
+				paletteLength = -1
+				origPaletteType = -1
+				origPaletteColorCount = -1
 
-			texture = self.initTexture( imageDataOffset, imageHeaderOffsets[0], paletteDataOffset, paletteHeaderOffset, width, height, origImageType, int(maxLOD) )
+			# Set the properties found above
+			texture = self.initTexture( imageDataOffset, imageHeaderOffset, paletteDataOffset, paletteHeaderOffset, width, height, imageType, int(maxLOD), mipLevel )
 
 		elif texture.imageType in ( 8, 9, 10 ):
 			if texture.paletteHeaderOffset == -1:
@@ -2139,14 +2148,18 @@ class DatFile( FileBase ):
 		newImageData = newImage.encodedImageData
 		newPaletteData = newImage.encodedPaletteData
 
-		# Make sure the new image isn't too large
-		newImageDataLength = len( newImage.encodedImageData )
-		if newImageDataLength > texture.imageDataLength:
-			return 2, texture.imageDataLength, newImageDataLength
-
 		# Check if the file needs to be expanded for a larger texture
-		# if isMipMap:
-		# 	# Calculate space needed and make sure the data can fit, just in case
+		newImageDataLength = len( newImage.encodedImageData )
+		if texture.maxLOD > 0: # Mipmap texture
+			# Calculate space needed and make sure the data can fit, just in case
+			origTotalLength = texture.getMipmapLength( texture.imageDataLength, texture.maxLOD )
+			newTotalLength = texture.getMipmapLength( newImageDataLength, texture.maxLOD )
+
+			if newTotalLength > origTotalLength:
+				return 2, origTotalLength, newTotalLength
+
+		elif newImageDataLength > texture.imageDataLength: # Standard texture
+			return 2, texture.imageDataLength, newImageDataLength
 		
 		# Replace the palette data in the file
 		if texture.imageType in ( 8, 9, 10 ):
@@ -2183,9 +2196,19 @@ class DatFile( FileBase ):
 		self.updateData( imageDataOffset, newImageData, trackChange=False )
 		self.recordChange( '{} updated at 0x{:X}'.format(textureName, 0x20+imageDataOffset) )
 
-		# if isMipMap:
-		# 	# Calculate space needed and make sure the data can fit, just in case
-		# 	for i in range( maxLOD )
+		# Cascade mipmap changes, if they're present
+		if texture.maxLOD > 0 and texture.mipLevel < texture.maxLOD:
+			# Get the current level image to use it as a source for resizes
+			if not pilImage:
+				pilImage = self.getTexture( imageDataOffset, width, height, texture.imageType, texture.imageDataLength, getAsPilImage=True )
+			
+			# Resize the above image to replace each of the lower-level mips
+			width = int( math.ceil(texture.width / 2.0) )
+			height = int( math.ceil(texture.height / 2.0) )
+			resizedImage = pilImage.resize( (width, height), resample=globalData.checkSetting('resampleFilter') )
+
+			imageDataOffset += texture.imageDataLength
+			self.setTexture( imageDataOffset, pilImage=resizedImage, paletteQuality=paletteQuality )
 
 		return 0, '', ''
 
@@ -2234,6 +2257,12 @@ class DatFile( FileBase ):
 		imageData = self.getData( texture.offset, texture.length )
 		self.updateData( imageDataOffset, imageData, trackChange=False )
 		self.recordChange( '{} updated at 0x{:X}'.format(texture.name, 0x20+imageDataOffset) )
+
+		# Cascade mipmap changes, if they're present
+		if texture.maxLOD > 0 and texture.mipLevel < texture.maxLOD:
+			imageDataOffset += texture.imageDataLength
+			sourceTexture = self.structs[texture.offset + texture.imageDataLength]
+			self.setPreEncodedTexture( imageDataOffset, sourceTexture )
 
 		return 0, '', ''
 
