@@ -1,0 +1,125 @@
+
+
+                            ███╗   ███╗ ███╗   ███╗ ██╗    ██╗
+                            ████╗ ████║ ████╗ ████║ ██║    ██║
+                            ██╔████╔██║ ██╔████╔██║ ██║ █╗ ██║
+                            ██║╚██╔╝██║ ██║╚██╔╝██║ ██║███╗██║
+                            ██║ ╚═╝ ██║ ██║ ╚═╝ ██║ ╚███╔███╔╝
+                            ╚═╝     ╚═╝ ╚═╝     ╚═╝  ╚══╝╚══╝ 
+                              -  - Melee Modding Wizard -  -  
+
+          # -=======---------------------------------------------------=======- #
+         # ~ ~ Written by DRGN of SmashBoards (Daniel R. Cappel);  May, 2020 ~ ~ #
+          #            [ Built with Python v2.7.16 and Tkinter 8.5 ]            #
+           # -======---------------------------------------------------======- #
+
+
+	Here you'll find an overview of the things that you can modify using this 
+	program. This includes details on features and tools that may not be self-
+	evident or as easy to find in the GUI.
+
+Many features may be self-evident or easy to find, 
+	but there are some that may not be 
+	obvious. 
+
+	There are also some program settings in the "settings.ini" file 
+	that aren't present in the GUI (covered in detail below). For more advanced 
+	usage, you can also use various features through command line. For details 
+	on that, see the "Command-Line Usage.txt" file.
+
+
+		Main Features so far:
+
+			Disc Management
+			Disc Details Editor
+			Textures Editor
+			Code Manager
+			Code Construction
+			20XX Menu Editor
+			Stage Editor
+			Music Manager
+			Sound Effect Editor
+			Character Modding
+
+		Tools:
+
+
+	 Disc Management:
+	------------------
+
+	    This can be used to operate on disc files or Root Folders (discs that have 
+	    been extracted into its individual files). 
+
+		- Export / Export Files(s): Exports one or more currently selected files.
+		  See the "Use Disc Convenience Folders with File Exports" for details.
+		- Import / Import File: Import a single file, replacing the currently 
+		  selected file.
+		- Auto Import: Import multiple files (selected by the user). Unlike with 
+		  the single-file import method above, this doesn't use a current selection 
+		  to determine a file to import over. Instead, each file will be identified 
+		  by dat file symbols or file name to determine a file to replace.
+		- Restore to Vanilla: This is a handy feature which replaces the currently 
+		  selected file (or files) with a copy of the file from a vanilla NTSC 
+		  copy of the game. You'll need to provide the program a filepath to this 
+		  vanilla disc just the first time that you use any feature that needs it. 
+		- Browse Textures: Like in DTW, this opens the file in a new tab, allowing 
+		  you to see the file's textures and edit them (see Textures Editor section).
+		- Add File(s) to Disc: Adds one or more files to the disc, not replacing 
+		  any current files. If only one file is provided, you will also be prompted 
+		  to choose a new filename. Otherwise, the files will all use their original 
+		  filename. If a file is currently selected in the Disc File Tree, the new 
+		  file(s) will be added just before it. If a folder is selected, the new 
+		  file(s) will be added to the end of that folder. However, since it's 
+		  likely a convenience folder (one not actually in the disc), the behavior  
+		  is to add to the disc before the first file following the folder.
+		- Rename (in disc filesystem): This renames the internal game name of the 
+		  file. It's recommended to not use this unless you know what you're doing.
+		- Edit Description (in yaml): As you might guess, this updates what's shown 
+		  in the Description column of the Disc File Tree. These descriptions can 
+		  be anything and will not hurt anything if they're updated. This is a 
+		  shortcut to editing the '\File Descriptions\GALE01.yaml' file, which 
+		  contains the disc's file descriptions, besides some dynamically generated 
+		  ones.
+		- Delete Selected Item(s): Completely removes the file from the disc. Not 
+		  recommended unless you're sure the game won't reference it at all.
+		- View Hex: Opens a file in your hex editor of choice.
+		- Copy Offset(s) to Clipboard: Copies the offsets of all currently selected 
+		  files to your clipboard.
+
+
+	 Disc Details Editor
+	---------------------
+
+	    This edi
+
+	    This provides a simple way to modify the metadata of a disc, such as Game ID, 
+	    banner, Image Name, titles, and game descriptions. This is accessed by the 
+	    "Edit Disc Details" button, on the top-right side of the Disc File Tree tab.
+	    Most data here is read by various GC/Wii game launchers. Hover over 
+	    any particular field in the interface to learn what uses it and what disc file 
+	    the info is actually stored in.
+
+	    The "Encoding" option does not change the region of the disc or any data in it, 
+	    it is only used for parsing/decoding information on this tab.
+
+
+	 Tools:
+	--------
+
+
+	 Program Settings:
+	-------------------
+
+		- Use Disc Convenience Folders:
+			This organizes files of certain types into folders. This is 
+			useful because these folders do not actually exist in the disc,
+			which normally results in one very long list of files.
+
+		- Use Disc Convenience Folders with File Exports:
+			Adds a heirachy of folders (matching the conveneince folders 
+			shown) when files are export. If this is turned off, all files
+			will simply be output into the same folder selected from the GUI.
+
+
+
+

@@ -15,6 +15,8 @@ import ttk
 import time
 import struct
 import tkFont
+import random
+import webbrowser
 import tkFileDialog
 import Tkinter as Tk
 
@@ -430,7 +432,7 @@ def exportMultipleTextures( texturesTab, exportAll=False ):
 			elif exportFormat == 'png': # Decode the image data
 				pngImage = TplDecoder( '', (width, height), imageType, paletteType, imageData, paletteData )
 				pngImage.deblockify()
-				pngImage.createPngFile( savePath, creator='DTW - v' + globalData.programVersion )
+				pngImage.createPngFile( savePath, creator='MMW - v' + globalData.programVersion )
 
 		except Exception as err:
 			print( 'Error during texture decoding/saving: {}'.format(err) )
@@ -1126,6 +1128,235 @@ class PopupScrolledTextWindow( BasicWindow ):
 		#self.window.destroy()
 		self.close()
 
+
+class GeneralHelpWindow( BasicWindow ):
+
+	proTips = {
+		1: ( "Did you know that you can drag-and-drop files directly onto "
+			"the program icon (the .exe file) or the GUI to open them?" ),
+
+		2: ( "For CSPs (Character Select Portraits), if you're trying to mimic "
+			"the game's original CSP shadows, they are 10px down and 10px to the left." ),
+
+		3: ( "When working in GIMP and opting to use a palette, it's important that you delete "
+			"ALL hidden and unused layers BEFORE generating a palette for your texture. "
+			"This is because if other layers are present, even if not visible, GIMP "
+			"will take their colors into consideration to generate the palette. (If you have a lot of "
+			"layers, a simple option is to create a 'New from Visible' layer, and then copy it "
+			"to a new, blank image before creating the palette.)" ),
+
+		4: ( "Did you know that if you hold SHIFT while right-clicking on a file in Windows, "
+			"there appears a context menu option called 'Copy as path'? This will copy the "
+			"file's full path into your clipboard, so you can then easily paste "
+			"it into one of this program's text fields, when needed." ),
+
+		5: ( "Use the boost to chase!" ),
+
+		6: ( "You don't have to close this program in order to run your disc in Dolphin (the disc file will not "
+			'be write-locked). Tthough you do need to stop emulation if you want to save changes to the disc.' ),
+
+		7: ( "Have you ever noticed those dotted lines at the top of the 'Open Recent' "
+			"and 'Tools' menus? Try clicking on one sometime! It will turn the menu into a window for fast-access." ),
+
+		8: ( "If you click on one of the 'Disc Shortcuts' before loading a disc, the program will load the "
+			"last disc that you've used, and then jump to the appropriate section. They're two shortcuts in one!" ),
+
+		9: ( "When MMW builds a disc from a root folder of files, it can build a ISO that's a good amount smaller than the "
+			"standard disc size of ~1.35 GB (1,459,978,240 bytes). Useful if you want to add more or larger files. However, "
+			"this is option, and can be enabled or disabled by the 'paddingBetweenFiles' setting. This can be set to a specific "
+			"value, which MMW will attempt to honor, or to 'auto' to pad the disc to the standard size." ),
+
+		10: ( "DODONGO DISLIKES SMOKE." ),
+
+		11: ( 'You can actually modify the amount of empty space, or "padding", present between files in your ISO. A small '
+			'amount of padding allows for more files or total data in the same size ISO. While more padding allows you to '
+			'replace/import larger files without having to rebuild the disc.' ),
+
+		12: ( "This program has a lot of lesser-known but very useful features, some of which aren't easily found "
+			"by browsing the GUI. Check out the Program Usage.txt to find them all." )
+
+		# 15: ( "Did you notice the cheese in the toilet? It's in every level." ),
+
+		# 2: ( "There are multiple useful behaviors you can call upon when importing textures:"
+		# 	"\n- When viewing the contents of a disc on the 'Disc File Tree' tab. The imported "
+		# 	"texture's destination will be determined by the file's name. For example, "
+		# 	'the file "MnSlMap.usd_0x38840_2.png" would be imported into the disc in the file "MnSlMap.usd" '
+		# 	"at offset 0x38840. This can be very useful for bulk importing many textures at once."
+		# 	"\n- Navigate to a specific texture in the 'DAT Texture Tree' tab, select a texture, and you "
+		# 	'can import a texture to replace it with without concern for how the file is named.' ),
+
+		# 8: ( 'A quick and easy way to view file structures relating to a given texture is to use '
+		# 	'the "Show in Structural Analysis" feature, found by right-clicking on a texture.' ),
+
+		#17: ( '' ),
+		#18: ( '' ),
+		#19: ( '' ),
+		#20: ( "IT'S A SECRET TO EVERYBODY." ),
+	}
+
+	def __init__( self, *args, **kwargs ):
+		# Set up the main window
+		if not BasicWindow.__init__( self, globalData.gui.root, *args, unique=False, **kwargs ):
+			return # If the above returned false, it displayed an existing window, so we should exit here
+
+		divider = globalData.gui.imageBank( 'helpWindowDivider' )
+
+		label = ttk.Label( self.window, text='- =  The Melee Workshop  = -', foreground='#00F', cursor='hand2' )
+		label.bind( '<1>', self.gotoWorkshop )
+		label.pack( pady=4 )
+
+		gridSection = Tk.Frame( self.window )
+		ttk.Label( gridSection, image=divider ).grid( column=0, row=0, columnspan=2 )
+		label = ttk.Label( gridSection, text='Read Up on Program Usage', foreground='#00F', cursor='hand2', justify='center' )
+		label.bind( '<1>', self.viewManual )
+		label.grid( column=0, row=1 )
+		ttk.Label( gridSection, text='Read the MMW Manual for usage documentation on this program', justify='center' ).grid( column=1, row=1 )
+
+		ttk.Label( gridSection, image=divider ).grid( column=0, row=2, columnspan=2 )
+		label = ttk.Label( gridSection, text='The Melee Workshop\nDiscord Server', foreground='#00F', cursor='hand2', justify='center' )
+		label.bind( '<1>', self.gotoDiscord )
+		label.grid( column=0, row=3 )
+		ttk.Label( gridSection, text='Chat with other modders on a variety of modding subjects', justify='center' ).grid( column=1, row=3 )
+
+		ttk.Label( gridSection, image=divider ).grid( column=0, row=4, columnspan=2 )
+		label = ttk.Label( gridSection, text="MMW's Official Thread", foreground='#00F', cursor='hand2', justify='center' )
+		label.bind( '<1>', self.gotoOfficialThread )
+		label.grid( column=0, row=5 )
+		ttk.Label( gridSection, text='Questions, feature requests, and other discussion on '
+			'this program can be posted here', justify='center' ).grid( column=1, row=5 )
+
+		ttk.Label( gridSection, image=divider ).grid( column=0, row=6, columnspan=2 )
+		label = ttk.Label( gridSection, text='How to Hack Any Texture', foreground='#00F', cursor='hand2', justify='center' )
+		label.bind( '<1>', self.gotoHowToHackAnyTexture )
+		label.grid( column=0, row=7 )
+		ttk.Label( gridSection, text="If for some reason your texture doesn't "
+			"appear in this program, then you can fall back onto this thread", justify='center' ).grid( column=1, row=7 )
+
+		ttk.Label( gridSection, image=divider ).grid( column=0, row=8, columnspan=2 )
+		label = ttk.Label( gridSection, text='OP of Melee Hacks and You', foreground='#00F', cursor='hand2', justify='center' )
+		label.bind( '<1>', self.gotoMeleeHacksAndYou )
+		label.grid( column=0, row=9 )
+		ttk.Label( gridSection, text='The first post in this thread contains many '
+			'resources on all subjects to help you get started', justify='center' ).grid( column=1, row=9 )
+
+		ttk.Label( gridSection, image=divider ).grid( column=0, row=10, columnspan=2 )
+
+		for label in gridSection.grid_slaves( column=1 ):
+			label.config( wraplength=220 )
+
+		for label in gridSection.winfo_children():
+			label.grid_configure( ipady=4, padx=7 )
+
+		gridSection.pack( padx=4 )
+
+		tipIndex = random.randint( 1, len(self.proTips) )
+		ttk.Label( self.window, text='Random Pro-tip: ' + self.proTips[tipIndex], wraplength=380 ).pack( padx=4, pady=12 )
+
+	def gotoWorkshop( self, event ):
+		webbrowser.open( 'http://smashboards.com/forums/melee-workshop.271/' )
+
+	def viewManual( self, event=None ): # May take a click event from the help window click binding
+		try:
+			readMeFilePath = os.path.join( globalData.scriptHomeFolder, 'MMW Manual.txt' )
+			os.startfile( readMeFilePath )
+		except:
+			msg( "Couldn't find the 'MMW Manual.txt' file!", 'File not found', self.window )
+
+	def gotoDiscord( self, event ):
+		webbrowser.open( 'https://discord.gg/rBxF8hFbrX' )
+	def gotoOfficialThread( self, event ):
+		webbrowser.open( 'https://smashboards.com/threads/melee-modding-wizard-beta-v0-9-4.517823/' )
+	def gotoHowToHackAnyTexture( self, event ):
+		webbrowser.open( 'http://smashboards.com/threads/how-to-hack-any-texture.388956/' )
+	def gotoMeleeHacksAndYou( self, event ):
+		webbrowser.open( 'http://smashboards.com/threads/melee-hacks-and-you-updated-5-21-2015.247119/#post-4917885' )
+
+
+# def showAboutWindow(): # todo: should be a class based off of basicWindow
+# 	if Gui.root.aboutWindow != None: Gui.root.aboutWindow.deiconify()
+# 	else:
+# 		# Define the window
+# 		aboutWindow = Tk.Toplevel( Gui.root )
+# 		aboutWindow.title( 'DAT Texture Wizard' )
+# 		aboutWindow.attributes( '-toolwindow', 1 ) # Makes window framing small, like a toolbox/widget.
+# 		aboutWindow.resizable( width=False, height=False )
+# 		aboutWindow.wm_attributes( '-topmost', 1 )
+# 		Gui.root.aboutWindow = aboutWindow
+
+# 		# lulz
+# 		Gui.root.aboutWindow.originalProgramStatus = Gui.programStatus.get()
+# 		updateProgramStatus( 'Too good!' )
+
+# 		# Calculate the spawning position of the new window
+# 		rootDistanceFromScreenLeft, rootDistanceFromScreenTop = getWindowGeometry( Gui.root )[2:]
+# 		aboutWindow.geometry( '+' + str(rootDistanceFromScreenLeft + 240) + '+' + str(rootDistanceFromScreenTop + 170) )
+# 		aboutWindow.focus()
+
+# 		aboutWindow.protocol( 'WM_DELETE_WINDOW', close ) # Overrides the 'X' close button.
+
+# class AboutWindow( BasicWindow ):
+
+	
+# 	def __init__( self, *args, **kwargs ):
+# 		# Set up the main window
+# 		if not BasicWindow.__init__( self, globalData.gui.root, *args, unique=False, **kwargs ):
+# 			return # If the above returned false, it displayed an existing window, so we should exit here
+
+# 		# Create the canvas
+# 		aboutCanvas = Tk.Canvas( aboutWindow, bg='#101010', width=350, height=247 )
+# 		aboutCanvas.pack()
+
+# 		# Define a few images
+# 		aboutCanvas.bannerImage = Gui.imageBank( 'pannerBanner' ) # 604x126
+# 		aboutCanvas.hoverOverlayImage = Gui.imageBank('hoverOverlay')
+# 		aboutCanvas.blankBoxImage = ImageTk.PhotoImage( Image.new('RGBA', (182,60)) ) # Sits behind the main background (same size/position as bgbg).
+
+# 		# Attach the images to the canvas
+# 		aboutCanvas.create_image( 88, 98, image=Gui.imageBank('bgbg'), anchor='nw' ) # Sits behind the main background (182x60).
+# 		aboutCanvas.create_image( 10, 123, image=aboutCanvas.bannerImage, anchor='w', tags='r2lBanners' )
+# 		aboutCanvas.create_image( 340, 123, image=aboutCanvas.bannerImage, anchor='e', tags='l2rBanners' )
+# 		foregroundObject = aboutCanvas.create_image( 2, 2, image=Gui.imageBank('bg'), anchor='nw' ) # The main background, the mask (350x247).
+
+# 		# Define and attach the text to the canvas
+# 		windowFont = tkFont.Font(family='MS Serif', size=11, weight='normal')
+# 		aboutCanvas.create_text( 207, 77, text='C r e a t e d   b y', fill='#d4d4ef', font=windowFont )
+# 		aboutCanvas.create_text( 207, 174, text='Version ' + programVersion, fill='#d4d4ef', font=windowFont )
+# 		aboutCanvas.create_text( 207, 204, text='Written in Python v' + sys.version.split()[0] + '\nand tKinter v' + str( Tk.TkVersion ), 
+# 											justify='center', fill='#d4d4ef', font=windowFont )
+
+# 		# Create a "button", and bind events for the mouse pointer, and for going to my profile page on click.
+# 		aboutCanvas.create_image( 82, 98, image=aboutCanvas.blankBoxImage, activeimage=aboutCanvas.hoverOverlayImage, anchor='nw', tags='profileLink' ) # 88 in v4.3
+# 		def gotoProfile( event ): webbrowser.open( 'http://smashboards.com/members/drgn.21936/' )
+# 		def changeCursorToHand( event ): aboutWindow.config( cursor='hand2' )
+# 		def changeCursorToArrow( event ): aboutWindow.config( cursor='' )
+# 		aboutCanvas.tag_bind( 'profileLink', '<1>', gotoProfile )
+# 		aboutCanvas.tag_bind( 'profileLink', '<Enter>', changeCursorToHand )
+# 		aboutCanvas.tag_bind( 'profileLink', '<Leave>', changeCursorToArrow )
+
+# 		# v Creates an infinite "revolving" image between the two background elements.
+# 		i = 0
+# 		while Gui.root.aboutWindow != None:
+# 			if i == 0: 
+# 				aboutCanvas.create_image( 614, 123, image=aboutCanvas.bannerImage, anchor='w', tags='r2lBanners' )
+# 				aboutCanvas.create_image( 340 - 604, 123, image=aboutCanvas.bannerImage, anchor='e', tags='l2rBanners' )
+# 				aboutCanvas.tag_lower( 'r2lBanners', foregroundObject ) # Update the layer order to keep the foreground on top.
+# 				aboutCanvas.tag_lower( 'l2rBanners', foregroundObject ) # Update the layer order to keep the foreground on top.
+# 			i += 1
+# 			aboutCanvas.move( 'r2lBanners', -1, 0 )
+# 			aboutCanvas.move( 'l2rBanners', 1, 0 )
+# 			time.sleep( .13 ) # Value in seconds
+# 			aboutCanvas.update()
+
+# 			if i == 604: # Delete the first banner, so the canvas isn't infinitely long
+# 				aboutCanvas.delete( aboutCanvas.find_withtag('r2lBanners')[0] )
+# 				aboutCanvas.delete( aboutCanvas.find_withtag('l2rBanners')[0] )
+# 				i = 0
+
+
+# 	def close( self ):
+# 		updateProgramStatus( Gui.root.aboutWindow.originalProgramStatus )
+# 		Gui.root.aboutWindow.destroy()
+# 		Gui.root.aboutWindow = None
 
 class VanillaDiscEntry( PopupEntryWindow ):
 

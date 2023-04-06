@@ -134,6 +134,9 @@ class DiscTab( ttk.Frame ):
 		self.isoPathShorthandLabel = ttk.Label( isoOpsPanel, textvariable=self.isoPathShorthand )
 		self.isoPathShorthandLabel.pack()
 
+		# Add the button to open Disc Details
+		ttk.Button( isoOpsPanel, text='Edit Disc Details', command=self.addDiscDetailsTab, width=20 ).pack( pady=(12, 8) )
+
 		# Selected file details
 		internalFileDetails = ttk.Labelframe( isoOpsPanel, text='  File Details  ', labelanchor='n' )
 		self.isoOffsetText = Tk.StringVar()
@@ -163,6 +166,23 @@ class DiscTab( ttk.Frame ):
 
 		isoOpsPanel.pack( side='left', fill='both', expand=1 )
 		isoOpsPanel.pack_propagate( False )
+
+	def addDiscDetailsTab( self ):
+
+		""" Adds the Disc Details tab to the GUI, if it has not already been added, 
+			populates it, and then switches to it. """
+
+		mainGui = globalData.gui
+		
+		# Add/initialize the Disc Details tab, and load the disc's info into it
+		if not mainGui.discDetailsTab:
+			mainGui.discDetailsTab = DiscDetailsTab( mainGui.mainTabFrame, mainGui )
+		
+		mainGui.discDetailsTab.loadDiscDetails()
+
+		# Switch to the new tab
+		mainGui.discTab.updateBanner( mainGui.discDetailsTab )
+		mainGui.mainTabFrame.select( mainGui.discDetailsTab )
 
 	def clear( self ):
 
@@ -1594,7 +1614,7 @@ class DiscDetailsTab( ttk.Frame ):
 		filepath = self.isoDestination.get().replace( '"', '' )
 		self.mainGui.fileHandler( [filepath] )
 
-	def clearStyles( self ):
+	def resetWidgetBackgrounds( self ):
 
 		""" Revert widget background colors to detault. """
 
@@ -1619,9 +1639,9 @@ class DiscDetailsTab( ttk.Frame ):
 			This function also updates the disc filepath on the Disc File Tree tab (and the hover/tooltip text for it). """
 
 		disc = globalData.disc
-		discTab = self.mainGui.discTab
+		#discTab = self.mainGui.discTab
 
-		self.clearStyles()
+		self.resetWidgetBackgrounds()
 
 		# Set the Game ID (and associated components)
 		self.gameIdText.set( disc.gameId )
@@ -1661,7 +1681,7 @@ class DiscDetailsTab( ttk.Frame ):
 
 		self.populateTexts()
 
-		discTab.updateBanner( self )
+		#discTab.updateBanner( self )
 
 	def populateTexts( self ):
 
@@ -1792,7 +1812,7 @@ class DiscDetailsTab( ttk.Frame ):
 			helpText = ( "The number of files in the disc's filesystem (excludes folders), including system files." )
 		
 		elif updateName == 'Disc Size':
-			helpText = ( 'Full file size of the GCM/ISO disc image. This differs from clicking on the root item in the Disc File Tree tab because the latter '
+			helpText = ( 'Full file size of the GCM/ISO disc image. This differs from clicking on the root item in the Disc File Tree tab\nbecause the latter '
 						'does not include padding (extra space) between files.\n\nThe standard for GameCube discs is ~1.36 GB, or 1,459,978,240 bytes.' )
 
 		elif updateName == 'Image Name':
@@ -1879,6 +1899,10 @@ class DiscMenu( Tk.Menu, object ):
 		self.delete( 0, 'last' )
 
 		# Determine the kind of file(s)/folder(s) we're working with, to determine menu options
+		self.entity = ''
+		self.fileObj = None
+		self.entityName = ''
+		#lastSeperatorAdded = False
 		self.discTab = globalData.gui.discTab
 		self.fileTree = self.discTab.isoFileTree
 		self.iidSelectionsTuple = self.fileTree.selection()
@@ -1894,11 +1918,6 @@ class DiscMenu( Tk.Menu, object ):
 			else:
 				self.entity = 'folder'
 				self.entityName = os.path.basename( self.iidSelectionsTuple[0] )
-		else:
-			self.fileObj = None
-			self.entity = ''
-			self.entityName = ''
-		#lastSeperatorAdded = False
 
 		# Add main import/export options																					# Keyboard shortcuts:
 		if self.iidSelectionsTuple:

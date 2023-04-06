@@ -46,9 +46,9 @@ from FileSystem.disc import Disc, isExtractedDirectory
 from basicFunctions import grammarfyList, msg, openFolder
 from guiSubComponents import (
 		ToolTip, importGameFiles, cmsg, 
-		CharacterChooser
+		CharacterChooser, GeneralHelpWindow
 	)
-from guiDisc import DiscTab, DiscDetailsTab
+from guiDisc import DiscTab
 from codesManager import CodeManagerTab, CodeConstructor
 from debugMenuEditor import DebugMenuEditor
 from stageManager import StageManager
@@ -639,6 +639,37 @@ class ToolsMenu( Tk.Menu, object ):
 			print( charName, '', timerStart, actionTag, actionId, speedMultiplier )
 
 
+class AboutMenu( Tk.Menu, object ):
+
+	def __init__( self, parent, tearoff=False, *args, **kwargs ): # Create the menu and its contents
+		super( AboutMenu, self ).__init__( parent, tearoff=tearoff, *args, **kwargs )
+		self.open = False
+																									# Key shortcut (using alt key)
+		self.add_cascade( label="General Help", command=self.showGeneralHelp, underline=8 )				# H
+		self.add_cascade( label="View the Manual", command=self.showManual, underline=9 )				# M
+		self.add_cascade( label="Support", command=self.showSupport, underline=1 )						# S
+		self.add_cascade( label="About", command=self.showAbout, underline=1 )							# A
+
+	def showGeneralHelp( self ):
+		GeneralHelpWindow()
+
+	def showManual( self ):
+
+		""" Open the settings file in the user's default text editor. """
+		
+		usageFilePath = os.path.join( globalData.scriptHomeFolder, 'MMW Manual.txt' )
+
+		try:
+			os.startfile( usageFilePath )
+		except:
+			filename = os.path.basename( usageFilePath )
+			msg( "Unable to find and open the '{}' file!".format(filename), error=True )
+
+	def showSupport( self ):pass
+
+	def showAbout( self ):pass
+
+
 class MainMenuOption( object ):
 
 	""" A primary menu option button on the Main Menu tab.
@@ -782,8 +813,8 @@ class MainMenuCanvas( Tk.Canvas ):
 		self.topLayerId = -1
 		self.afterId = -1
 		self.animId = -1
-		self.minIdleTime = 12 # Before next animation (character swap or wireframe effect)
-		self.maxIdleTime = 28 # Must be at least double the minimum (due to halving in first use)
+		self.minIdleTime = 16 # Before next animation (character swap or wireframe effect)
+		self.maxIdleTime = 34 # Must be at least double the minimum (due to halving in first use)
 
 		self.currentBorderColor = ''
 		self.borderImgs = {}	# key=color, value=imagesDict (key=imageName, value=image)
@@ -1197,11 +1228,11 @@ class MainMenuCanvas( Tk.Canvas ):
 
 		# Start a timer to count down to creating the wireframe effect or swap images
 		if shortFirstIdle:
-			maxIdle = self.maxIdleTime / 2
+			maxIdle = self.maxIdleTime / 2 # Shorter first idle
 		else:
 			maxIdle = self.maxIdleTime
 
-		timeTilNextAnim = random.randint( self.minIdleTime, maxIdle ) # Shorter first idle
+		timeTilNextAnim = random.randint( self.minIdleTime, maxIdle )
 		self.afterId = self.after( timeTilNextAnim*1000, self.animateCharImage )
 
 	def animateCharImage( self ):
@@ -1417,14 +1448,15 @@ class MainMenuCanvas( Tk.Canvas ):
 		self.mainGui.discTab.loadDisc( switchTab=True )
 
 		# Add/initialize the Disc Details tab, and load the disc's info into it
-		if not self.mainGui.discDetailsTab:
-			self.mainGui.discDetailsTab = DiscDetailsTab( self.mainGui.mainTabFrame, self.mainGui )
-		self.mainGui.discDetailsTab.loadDiscDetails()
+		# if not self.mainGui.discDetailsTab:
+		# 	self.mainGui.discDetailsTab = DiscDetailsTab( self.mainGui.mainTabFrame, self.mainGui )
+		# self.mainGui.discDetailsTab.loadDiscDetails()
 
 		# self.mainGui.root.update() # Flush pending hover events that will try to change the program status
 		# globalData.gui.updateProgramStatus( 'Ready' )
+
+		# Play a sound effect and start the banner animation
 		self.mainGui.playSound( 'menuSelect' )
-		
 		self.mainGui.discTab.updateBanner( self.mainGui.discTab )
 
 	def loadStageEditor( self, event=None ):
@@ -1576,7 +1608,7 @@ class MainGui( Tk.Frame, object ):
 		self.menubar.add_cascade( label='File', menu=self.fileMenu, underline=0 )										# File			[F]
 		self.menubar.add_cascade( label='Settings', menu=SettingsMenu( self.menubar ), underline=0 )					# Settings		[S]
 		self.menubar.add_cascade( label='Tools', menu=ToolsMenu( self.menubar ), underline=0 )							# Tools			[T]
-		#self.menubar.add_cascade( label='About', menu=AboutMenu( self.menubar ), underline=0 )							# About			[A]
+		self.menubar.add_cascade( label='About', menu=AboutMenu( self.menubar ), underline=0 )							# About			[A]
 
 		self.mainTabFrame = ttk.Notebook( self.root )
 		self.dnd.bindtarget( self.mainTabFrame, self.dndHandler, 'text/uri-list' )
@@ -2091,8 +2123,11 @@ class MainGui( Tk.Frame, object ):
 
 		self.playSound( 'menuSelect' )
 		
+		# Start the banner animation now that everything is done loading
 		if self.discTab:
 			self.discTab.updateBanner( self.discTab )
+			if self.discDetailsTab:
+				self.discTab.updateBanner( self.discDetailsTab )
 
 	def saveAs( self ):
 
