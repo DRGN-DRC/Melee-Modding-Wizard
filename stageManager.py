@@ -27,8 +27,8 @@ from FileSystem import StageFile
 from FileSystem.hsdStructures import MapMusicTable
 from basicFunctions import uHex, validHex, humansize, msg, createFolders
 from guiSubComponents import (
-	LabelButton, exportSingleTexture, getColoredShape, importGameFiles, exportSingleFileWithGui, importSingleFileWithGui, importSingleTexture,
-	getNewNameFromUser, BasicWindow, HexEditDropdown, ToolTip, ToolTipEditor, ToolTipButton )
+	LabelButton, exportSingleTexture, getColoredShape, importGameFiles, exportSingleFileWithGui, importSingleFileWithGui, 
+	importSingleTexture, getNewNameFromUser, BasicWindow, ToolTip, ToolTipEditor, ToolTipButton )
 from audioManager import AudioControlModule
 
 

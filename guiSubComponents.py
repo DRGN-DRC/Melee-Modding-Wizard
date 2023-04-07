@@ -11,6 +11,7 @@
 
 # External dependencies
 import os
+import sys
 import ttk
 import time
 import struct
@@ -1196,7 +1197,7 @@ class GeneralHelpWindow( BasicWindow ):
 
 	def __init__( self, *args, **kwargs ):
 		# Set up the main window
-		if not BasicWindow.__init__( self, globalData.gui.root, *args, unique=False, **kwargs ):
+		if not BasicWindow.__init__( self, globalData.gui.root, *args, unique=True, **kwargs ):
 			return # If the above returned false, it displayed an existing window, so we should exit here
 
 		divider = globalData.gui.imageBank( 'helpWindowDivider' )
@@ -1272,91 +1273,100 @@ class GeneralHelpWindow( BasicWindow ):
 		webbrowser.open( 'http://smashboards.com/threads/melee-hacks-and-you-updated-5-21-2015.247119/#post-4917885' )
 
 
-# def showAboutWindow(): # todo: should be a class based off of basicWindow
-# 	if Gui.root.aboutWindow != None: Gui.root.aboutWindow.deiconify()
-# 	else:
-# 		# Define the window
-# 		aboutWindow = Tk.Toplevel( Gui.root )
-# 		aboutWindow.title( 'DAT Texture Wizard' )
-# 		aboutWindow.attributes( '-toolwindow', 1 ) # Makes window framing small, like a toolbox/widget.
-# 		aboutWindow.resizable( width=False, height=False )
-# 		aboutWindow.wm_attributes( '-topmost', 1 )
-# 		Gui.root.aboutWindow = aboutWindow
+class SupportWindow( BasicWindow ):
 
-# 		# lulz
-# 		Gui.root.aboutWindow.originalProgramStatus = Gui.programStatus.get()
-# 		updateProgramStatus( 'Too good!' )
+	def __init__( self, *args, **kwargs ):
+		# Set up the main window
+		if not BasicWindow.__init__( self, globalData.gui.root, 'Support MMW', *args, unique=True, **kwargs ):
+			return # If the above returned false, it displayed an existing window, so we should exit here
 
-# 		# Calculate the spawning position of the new window
-# 		rootDistanceFromScreenLeft, rootDistanceFromScreenTop = getWindowGeometry( Gui.root )[2:]
-# 		aboutWindow.geometry( '+' + str(rootDistanceFromScreenLeft + 240) + '+' + str(rootDistanceFromScreenTop + 170) )
-# 		aboutWindow.focus()
+		mainCanvas = Tk.Canvas( self.window, bg='#101010', width=640, height=394, borderwidth=0, highlightthickness=0 )
 
-# 		aboutWindow.protocol( 'WM_DELETE_WINDOW', close ) # Overrides the 'X' close button.
+		# Create and attach the background
+		mainCanvas.create_image( 0, 0, image=globalData.gui.imageBank('support'), anchor='nw' )
 
-# class AboutWindow( BasicWindow ):
+		# Create rectangles over the image to use as buttons
+		mainCanvas.create_rectangle( 291, 218, 362, 239, outline="", tags=('paypalLink', 'link') )
+		mainCanvas.create_rectangle( 355, 285, 438, 304, outline="", tags=('patreonLink', 'link') )
 
-	
-# 	def __init__( self, *args, **kwargs ):
-# 		# Set up the main window
-# 		if not BasicWindow.__init__( self, globalData.gui.root, *args, unique=False, **kwargs ):
-# 			return # If the above returned false, it displayed an existing window, so we should exit here
+		# Bind a click event on the buttons to hyperlinks
+		mainCanvas.tag_bind( 'paypalLink', '<1>', self.gotoPaypal )
+		mainCanvas.tag_bind( 'patreonLink', '<1>', self.gotoPatreon )
 
-# 		# Create the canvas
-# 		aboutCanvas = Tk.Canvas( aboutWindow, bg='#101010', width=350, height=247 )
-# 		aboutCanvas.pack()
+		# Bind mouse hover events for buttons, for the cursor
+		mainCanvas.tag_bind( 'link', '<Enter>', self.changeCursorToHand )
+		mainCanvas.tag_bind( 'link', '<Leave>', self.changeCursorToArrow )
 
-# 		# Define a few images
-# 		aboutCanvas.bannerImage = Gui.imageBank( 'pannerBanner' ) # 604x126
-# 		aboutCanvas.hoverOverlayImage = Gui.imageBank('hoverOverlay')
-# 		aboutCanvas.blankBoxImage = ImageTk.PhotoImage( Image.new('RGBA', (182,60)) ) # Sits behind the main background (same size/position as bgbg).
+		mainCanvas.pack( pady=0, padx=0 )
 
-# 		# Attach the images to the canvas
-# 		aboutCanvas.create_image( 88, 98, image=Gui.imageBank('bgbg'), anchor='nw' ) # Sits behind the main background (182x60).
-# 		aboutCanvas.create_image( 10, 123, image=aboutCanvas.bannerImage, anchor='w', tags='r2lBanners' )
-# 		aboutCanvas.create_image( 340, 123, image=aboutCanvas.bannerImage, anchor='e', tags='l2rBanners' )
-# 		foregroundObject = aboutCanvas.create_image( 2, 2, image=Gui.imageBank('bg'), anchor='nw' ) # The main background, the mask (350x247).
+	def gotoPaypal( self, event ): webbrowser.open( r'https://www.paypal.com/donate/?business=K95AJCMZDR7CG&no_recurring=0&item_name=Support+like+this+helps+to+tell+me+that+the+time+and+effort+put+into+MMW+are+worth+it%21+Thank+you+so+much%21&currency_code=USD' )
+	def gotoPatreon( self, event ): webbrowser.open( r'https://www.patreon.com/drgn' )
 
-# 		# Define and attach the text to the canvas
-# 		windowFont = tkFont.Font(family='MS Serif', size=11, weight='normal')
-# 		aboutCanvas.create_text( 207, 77, text='C r e a t e d   b y', fill='#d4d4ef', font=windowFont )
-# 		aboutCanvas.create_text( 207, 174, text='Version ' + programVersion, fill='#d4d4ef', font=windowFont )
-# 		aboutCanvas.create_text( 207, 204, text='Written in Python v' + sys.version.split()[0] + '\nand tKinter v' + str( Tk.TkVersion ), 
-# 											justify='center', fill='#d4d4ef', font=windowFont )
-
-# 		# Create a "button", and bind events for the mouse pointer, and for going to my profile page on click.
-# 		aboutCanvas.create_image( 82, 98, image=aboutCanvas.blankBoxImage, activeimage=aboutCanvas.hoverOverlayImage, anchor='nw', tags='profileLink' ) # 88 in v4.3
-# 		def gotoProfile( event ): webbrowser.open( 'http://smashboards.com/members/drgn.21936/' )
-# 		def changeCursorToHand( event ): aboutWindow.config( cursor='hand2' )
-# 		def changeCursorToArrow( event ): aboutWindow.config( cursor='' )
-# 		aboutCanvas.tag_bind( 'profileLink', '<1>', gotoProfile )
-# 		aboutCanvas.tag_bind( 'profileLink', '<Enter>', changeCursorToHand )
-# 		aboutCanvas.tag_bind( 'profileLink', '<Leave>', changeCursorToArrow )
-
-# 		# v Creates an infinite "revolving" image between the two background elements.
-# 		i = 0
-# 		while Gui.root.aboutWindow != None:
-# 			if i == 0: 
-# 				aboutCanvas.create_image( 614, 123, image=aboutCanvas.bannerImage, anchor='w', tags='r2lBanners' )
-# 				aboutCanvas.create_image( 340 - 604, 123, image=aboutCanvas.bannerImage, anchor='e', tags='l2rBanners' )
-# 				aboutCanvas.tag_lower( 'r2lBanners', foregroundObject ) # Update the layer order to keep the foreground on top.
-# 				aboutCanvas.tag_lower( 'l2rBanners', foregroundObject ) # Update the layer order to keep the foreground on top.
-# 			i += 1
-# 			aboutCanvas.move( 'r2lBanners', -1, 0 )
-# 			aboutCanvas.move( 'l2rBanners', 1, 0 )
-# 			time.sleep( .13 ) # Value in seconds
-# 			aboutCanvas.update()
-
-# 			if i == 604: # Delete the first banner, so the canvas isn't infinitely long
-# 				aboutCanvas.delete( aboutCanvas.find_withtag('r2lBanners')[0] )
-# 				aboutCanvas.delete( aboutCanvas.find_withtag('l2rBanners')[0] )
-# 				i = 0
+	def changeCursorToHand( self, event ): self.window.config( cursor='hand2' )
+	def changeCursorToArrow( self, event ): self.window.config( cursor='' )
 
 
-# 	def close( self ):
-# 		updateProgramStatus( Gui.root.aboutWindow.originalProgramStatus )
-# 		Gui.root.aboutWindow.destroy()
-# 		Gui.root.aboutWindow = None
+class AboutWindow( BasicWindow ):
+
+	def __init__( self, *args, **kwargs ):
+		# Set up the main window
+		if not BasicWindow.__init__( self, globalData.gui.root, 'About MMW', *args, unique=True, **kwargs ):
+			return # If the above returned false, it displayed an existing window, so we should exit here
+
+		# Create the canvas
+		aboutCanvas = Tk.Canvas( self.window, bg='#101010', width=350, height=247 )
+		aboutCanvas.pack()
+
+		# Define a few images
+		aboutCanvas.bannerImage = globalData.gui.imageBank( 'pannerBanner' ) # 604x126
+		aboutCanvas.hoverOverlayImage = globalData.gui.imageBank('hoverOverlay')
+		aboutCanvas.blankBoxImage = ImageTk.PhotoImage( Image.new('RGBA', (182, 60)) ) # Sits behind the main background (same size/position as bgbg).
+
+		# Attach the images to the canvas
+		aboutCanvas.create_image( 88, 98, image=globalData.gui.imageBank('bgbg'), anchor='nw' ) # Sits behind the main background (182x60).
+		aboutCanvas.create_image( 10, 123, image=aboutCanvas.bannerImage, anchor='w', tags='r2lBanners' )
+		aboutCanvas.create_image( 340, 123, image=aboutCanvas.bannerImage, anchor='e', tags='l2rBanners' )
+		foregroundObject = aboutCanvas.create_image( 2, 2, image=globalData.gui.imageBank('bg'), anchor='nw' ) # The main background, the mask (350x247).
+
+		# Define and attach the text to the canvas
+		windowFont = tkFont.Font( family='MS Serif', size=11, weight='normal' )
+		aboutCanvas.create_text( 207, 77, text='C r e a t e d   b y', fill='#d4d4ef', font=windowFont )
+		aboutCanvas.create_text( 207, 174, text='Version ' + globalData.programVersion, fill='#d4d4ef', font=windowFont )
+		aboutCanvas.create_text( 207, 204, text='Written in Python v' + sys.version.split()[0] + '\nand tKinter v' + str( Tk.TkVersion ), 
+											justify='center', fill='#d4d4ef', font=windowFont )
+
+		# Create a "button", and bind events for the mouse pointer, and for going to my profile page on click.
+		aboutCanvas.create_image( 82, 98, image=aboutCanvas.blankBoxImage, activeimage=aboutCanvas.hoverOverlayImage, anchor='nw', tags='profileLink' )
+		aboutCanvas.tag_bind( 'profileLink', '<1>', self.gotoProfile )
+		aboutCanvas.tag_bind( 'profileLink', '<Enter>', self.changeCursorToHand )
+		aboutCanvas.tag_bind( 'profileLink', '<Leave>', self.changeCursorToArrow )
+
+		# v Creates an infinite "revolving" image between the two background elements.
+		try:
+			i = 0
+			while self.window:
+				if i == 0:
+					aboutCanvas.create_image( 614, 123, image=aboutCanvas.bannerImage, anchor='w', tags='r2lBanners' )
+					aboutCanvas.create_image( 340 - 604, 123, image=aboutCanvas.bannerImage, anchor='e', tags='l2rBanners' )
+					aboutCanvas.tag_lower( 'r2lBanners', foregroundObject ) # Update the layer order to keep the foreground on top.
+					aboutCanvas.tag_lower( 'l2rBanners', foregroundObject ) # Update the layer order to keep the foreground on top.
+				i += 1
+				aboutCanvas.move( 'r2lBanners', -1, 0 )
+				aboutCanvas.move( 'l2rBanners', 1, 0 )
+				time.sleep( .14 ) # Value in seconds
+				aboutCanvas.update()
+
+				if i == 604: # Reached pannerBanner image width; delete the first banner, so the canvas isn't infinitely long
+					aboutCanvas.delete( aboutCanvas.find_withtag('r2lBanners')[0] )
+					aboutCanvas.delete( aboutCanvas.find_withtag('l2rBanners')[0] )
+					i = 0
+		except: # Once the window is closed, the while loop will likely exit gracefully. But there's still a race condition
+			pass
+
+	def gotoProfile( self, event ): webbrowser.open( 'http://smashboards.com/members/drgn.21936/' )
+	def changeCursorToHand( self, event ): self.window.config( cursor='hand2' )
+	def changeCursorToArrow( self, event ): self.window.config( cursor='' )
+
 
 class VanillaDiscEntry( PopupEntryWindow ):
 

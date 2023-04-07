@@ -26,12 +26,11 @@ import pyaudio, wave
 import Tkinter as Tk
 import ttk, tkMessageBox, tkFileDialog
 
-#from tkinter import StringVar
 from threading import Thread, Event
 from collections import OrderedDict
 from subprocess import Popen, PIPE, CalledProcessError
 from sys import argv as programArgs 	# Access command line arguments, and files given (drag-and-dropped) to the program icon
-from PIL import Image, ImageTk, ImageDraw, ImageFilter, ImageChops
+from PIL import Image, ImageTk
 from ctypes import windll, byref, create_unicode_buffer, create_string_buffer
 FR_PRIVATE  = 0x10
 FR_NOT_ENUM = 0x20
@@ -45,8 +44,8 @@ from FileSystem import CssFile, SssFile, StageFile, MusicFile
 from FileSystem.disc import Disc, isExtractedDirectory
 from basicFunctions import grammarfyList, msg, openFolder
 from guiSubComponents import (
-		ToolTip, importGameFiles, cmsg, 
-		CharacterChooser, GeneralHelpWindow
+		ToolTip, importGameFiles, cmsg, CharacterChooser, 
+		GeneralHelpWindow, SupportWindow, AboutWindow
 	)
 from guiDisc import DiscTab
 from codesManager import CodeManagerTab, CodeConstructor
@@ -177,11 +176,7 @@ class SettingsMenu( Tk.Menu, object ):
 		super( SettingsMenu, self ).__init__( parent, tearoff=tearoff, *args, **kwargs )
 		self.open = False
 		
-		#self.add_command( label='Adjust Texture Filters', underline=15, command=setImageFilters )								# F
-		
 		# Disc related options
-		#self.add_separator()		
-		# self.add_command(label='Set General Preferences', command=setPreferences)
 		self.add_checkbutton( label='Use Disc Convenience Folders', underline=9, 												# C
 				variable=globalData.boolSettings['useDiscConvenienceFolders'], command=globalData.saveProgramSettings )
 		self.add_checkbutton( label='Use Disc Convenience Folders with File Exports', underline=39, 							# E
@@ -655,7 +650,7 @@ class AboutMenu( Tk.Menu, object ):
 
 	def showManual( self ):
 
-		""" Open the settings file in the user's default text editor. """
+		""" Open the manual file in the user's default text editor. """
 		
 		usageFilePath = os.path.join( globalData.scriptHomeFolder, 'MMW Manual.txt' )
 
@@ -665,9 +660,11 @@ class AboutMenu( Tk.Menu, object ):
 			filename = os.path.basename( usageFilePath )
 			msg( "Unable to find and open the '{}' file!".format(filename), error=True )
 
-	def showSupport( self ):pass
+	def showSupport( self ):
+		SupportWindow()
 
-	def showAbout( self ):pass
+	def showAbout( self ):
+		AboutWindow()
 
 
 class MainMenuOption( object ):
@@ -1236,14 +1233,22 @@ class MainMenuCanvas( Tk.Canvas ):
 		self.afterId = self.after( timeTilNextAnim*1000, self.animateCharImage )
 
 	def animateCharImage( self ):
-		# if not self.winfo_ismapped():
-		# 	return
+
+		""" Begins a new animation for the character image. Has a 2/3 chance to 
+			start a wireframe pass, or a 1/3 chance to swap the character image. 
+			Certain conditions may delay (re-queue) the animation for a later time. """
 
 		# If the main menu isn't currently visible, skip this animation and queue a new one
 		if not self.mainMenuSelected() or not self.isVisible():
 			self.queueNewAnimation()
 			return
 
+		# If the About window is open, prevent Main Menu animations to preserve performance
+		elif self.mainGui.getOpenWindow( 'About MMW' ):
+			self.queueNewAnimation()
+			return
+
+		# Decide on an animation and start it
 		if random.choice( (0, 1, 2) ): # Wireframe pass (2/3 chance)
 			self.startWireframePass()
 
@@ -1270,7 +1275,6 @@ class MainMenuCanvas( Tk.Canvas ):
 
 	def startWireframePass( self ):
 		self._maskPosition = -self.origMask.height
-		#self.times = []
 		self.animId = self.after_idle( self.updateWireframePass )
 
 	def updateWireframePass( self ):
@@ -1282,21 +1286,18 @@ class MainMenuCanvas( Tk.Canvas ):
 
 		# Update the display with the new image
 		self.itemconfigure( self.topLayerId, image=self.topLayer )
-		#self.update_idletasks()
 
 		self._maskPosition += 2
 
 		if self._maskPosition < (self.origMask.height + self.origTopLayer.height):
+			# Check how much time was needed to perform the pass, and subtract that from the target iteration duration
 			toc = time.clock()
-			#self.times.append( toc-tic )
 			timeToSleep = int( (.040 - (toc - tic)) * 1000 )
-			#print('timeToSleep', timeToSleep)
 			if timeToSleep < 0:
 				timeToSleep = 0
 			self.animId = self.after( timeToSleep, self.updateWireframePass )
 		else:
 			# This animation is complete
-			#print( 'avg. time:', sum(self.times)/len(self.times) )
 			self.queueNewAnimation()
 
 	def updateBgFadeSwap( self ):
@@ -1708,6 +1709,12 @@ class MainGui( Tk.Frame, object ):
 		if forceUpdate:
 			self.statusLabel.update()
 
+	def getOpenWindow( self, windowName ):
+		if hasattr( self.root, 'uniqueWindows' ):
+			return self.root.uniqueWindows.get( windowName, None )
+		else:
+			return None
+
 	def imageBank( self, imageName, subFolder='', showWarnings=True, getAsPilImage=False ):
 
 		""" Loads and stores images required by the GUI. This allows all of the images to be 
@@ -1718,7 +1725,8 @@ class MainGui( Tk.Frame, object ):
 			
 			One or more subFolders may be provided as 'subFolder' or 'subFolder/deeperSubs'. """
 
-		image = self._imageBank.get( imageName )
+		key = subFolder + '/' + imageName
+		image = self._imageBank.get( key )
 
 		if not image: # Hasn't yet been loaded
 			# Build the file path
@@ -1732,9 +1740,9 @@ class MainGui( Tk.Frame, object ):
 			# Get the image
 			try:
 				if getAsPilImage:
-					image = self._imageBank[imageName] = Image.open(imagePath)
+					image = self._imageBank[key] = Image.open(imagePath)
 				else:
-					image = self._imageBank[imageName] = ImageTk.PhotoImage( Image.open(imagePath) )
+					image = self._imageBank[key] = ImageTk.PhotoImage( Image.open(imagePath) )
 			except:
 				if showWarnings:
 					print( 'Unable to load the image, "' + imagePath + '"' )
