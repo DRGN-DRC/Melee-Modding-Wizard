@@ -122,15 +122,8 @@ class CharModding( ttk.Notebook ):
 			else:
 				icon = None
 
-			# Name the button
-			if fileObj.charAbbr == 'Nn':
-				charName = ' Nana'
-			elif fileObj.charAbbr == 'Pp':
-				charName = ' Popo'
-			else:
-				charName = ' ' + fileObj.charName
-
-			button = ttk.Button( self.charBtnsTab, image=icon, text=charName, compound=Tk.LEFT, width=22 )
+			# Create the button
+			button = ttk.Button( self.charBtnsTab, image=icon, text=' ' + fileObj.charName, compound=Tk.LEFT, width=22 )
 			button.charFile = fileObj
 			button.icon = icon # Stored to prevent garbage collection
 			button.bind( '<1>', self.selectCharacter )
@@ -239,7 +232,7 @@ class CharModding( ttk.Notebook ):
 		propStruct = parent.charFile.getGeneralProperties()
 		propertyValues = propStruct.getValues()
 		if not propertyValues:
-			msg( message='Unable to get fighter properties for {}. Most likely there was a problem initializing the Pl__.dat file.', 
+			msg( message='Unable to get fighter properties for {}. Most likely there was a problem initializing the Pl__.dat file.'.format(parent.charFile.charName), 
 				 title='Unable to get Struct Values', 
 				 parent=globalData.gui,
 				 error=True )

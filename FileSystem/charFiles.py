@@ -87,6 +87,13 @@ class CharFileBase( object ):
 	def getCharName( self, extCharId ):
 		if extCharId < 0 or extCharId >= len( globalData.charList ):
 			return 'Unidentified'
+		elif extCharId == 0xE: # "Ice Climbers" in the character list
+			if self.charAbbr == 'Nn':
+				return 'Nana'
+			elif self.charAbbr == 'Pp':
+				return 'Popo'
+			else: # Failsafe; not expected
+				return 'ICies'
 		else:
 			return globalData.charList[extCharId]
 

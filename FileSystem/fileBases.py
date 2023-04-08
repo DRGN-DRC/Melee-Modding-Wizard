@@ -941,6 +941,17 @@ class DatFile( FileBase ):
 		else: # The loop above didn't return; no match was found
 			return ''
 
+	def getStructByLabel( self, label ):
+
+		""" Gets a structure by a string from the strings table. """
+
+		for structOffset, string in self.rootNodes + self.referenceNodes:
+			if string == label:
+				return self.getStruct( structOffset )
+
+		# The loop above didn't break; no match found!
+		return None
+
 	def getPointerOwner( self, pointerOffset, offsetOnly=False ):
 
 		""" Returns the offset of the structure which owns/contains a given pointer (or a given offset).
@@ -1005,17 +1016,6 @@ class DatFile( FileBase ):
 			structure = self.structureFactory( structOffset, parentOffset, structDepth )
 
 		return structure
-
-	def getStructByLabel( self, label ):
-
-		""" Gets a structure by a string from the strings table. """
-
-		for structOffset, string in self.rootNodes + self.referenceNodes:
-			if string == label:
-				return self.getStruct( structOffset )
-
-		# The loop above didn't break; no match found!
-		return None
 
 	def structureFactory( self, structOffset, parentOffset=-1, structDepth=None ):
 

@@ -24,11 +24,12 @@ from PIL import Image, ImageTk, ImageDraw, ImageFont
 import globalData
 
 from FileSystem import StageFile
-from FileSystem.hsdStructures import MapMusicTable
+from FileSystem.hsdStructures import MapMusicTable, MapGeneralPointsArray, MapGameObjectsArray
 from basicFunctions import uHex, validHex, humansize, msg, createFolders
 from guiSubComponents import (
-	LabelButton, exportSingleTexture, getColoredShape, importGameFiles, exportSingleFileWithGui, importSingleFileWithGui, 
-	importSingleTexture, getNewNameFromUser, BasicWindow, ToolTip, ToolTipEditor, ToolTipButton )
+	LabelButton, exportSingleTexture, getColoredShape, importGameFiles, 
+	exportSingleFileWithGui, importSingleFileWithGui, importSingleTexture, getNewNameFromUser, 
+	BasicWindow, ToolTip, ToolTipEditor, ToolTipButton, HexEditEntry, VerticalScrolledFrame )
 from audioManager import AudioControlModule
 
 
@@ -693,14 +694,13 @@ class StageManager( ttk.Frame ):
 		
 		# Basic Info
 		basicLabelFrame = ttk.LabelFrame( row1, text='  Basic Info  ', labelanchor='n', padding=8 )
-		# self.stageNameLabel = ttk.Label( basicLabelFrame, font="-weight bold" )
-		# self.stageNameLabel.grid( column=0, columnspan=2, row=0 )
 		ttk.Label( basicLabelFrame, text=('RSSS Name:\n'
 										'File Size:\n'
 										'Init Function:\n'
-										'OnGo Function:') ).grid( column=0, row=1, padx=(0, 5) )
+										'OnGo Function:') ).grid( column=0, row=0, padx=(0, 5) )
 		self.basicInfoLabel = ttk.Label( basicLabelFrame, width=25 )
-		self.basicInfoLabel.grid( column=1, row=1 )
+		self.basicInfoLabel.grid( column=1, row=0 )
+		#ttk.Button( basicLabelFrame, text='Edit Basic Properties', width=24, command=self.editBasicProperties ).grid( column=0, columnspan=2, row=1, pady=(3, 0) )
 		basicLabelFrame.grid( column=0, row=0, padx=(padding, 0), pady=padding )
 
 		# Stage Swap Details
@@ -897,6 +897,19 @@ class StageManager( ttk.Frame ):
 		readableSize = humansize( stageFile.size )
 
 		self.basicInfoLabel['text'] = '{}\n{}\n{:X}\n{:X}'.format( rsssName, readableSize, stageFile.initFunction, stageFile.onGoFunction )
+
+	def editBasicProperties( self ):
+		
+		""" Creates a new tab in the Textures Editor interface for the given file. """
+		
+		# Create the new tab for the given file
+		# stageFile = self.getSelectedStage()
+		# newTab = StagePropertyEditor( self, stageFile )
+		# self.add( newTab, text=stageFile.filename )
+
+		# # Switch to and populate the new tab
+		# self.select( newTab )
+		#newTab.populate()
 
 	def updateSwapDetails( self, newIntStageId, newExtStageId, iFilenameOffset, byteReplacePointer, byteReplacement, randByteReplacements, stageFlags ):
 
@@ -2098,7 +2111,7 @@ class StageManager( ttk.Frame ):
 		self.selectedStage.updateStructValue( self.musicTableStruct, 5, newValue, userMessage, 'Song behavior updated', entryIndex=entryIndex )
 
 		# Update the GUI
-		psuedoEntryName = str( entryIndex+1 ) + '|' # Don't need to feed it the whole selection name, just the entry index
+		psuedoEntryName = 'Entry {}|'.format( entryIndex + 1 ) # Don't need to feed it the whole selection name, just the entry index
 		self.selectMusicTableEntry( psuedoEntryName ) # Repopulates the Music Table interface.
 		globalData.gui.updateProgramStatus( userMessage )
 	
@@ -2767,25 +2780,156 @@ class MusicBehaviorEditor( BasicWindow ):
 		self.window.grab_set()
 		globalData.gui.root.wait_window( self.window )
 
-	#def updateValue( self ):
 
+# class StagePropertyEditor( ttk.Frame ):
 
-	# def optionSelected( self, selectedOption ):
-	# 	# Get the stage ID by itself
-	# 	stageId = selectedOption.split( '/' )[1]
-	# 	self.stageId = int( stageId.strip(), 16 )
+# 	propertyGroups = {
+# 		0x8: 'Default Camera',
+# 		0x4C: 'Pause Camera',
+# 		0x68: 'Fixed Camera',
+# 		0xB8: 'Off-Screen Bubble Colors'
+# 	}
 
-	# 	# Figure out which list widget this selection is from, and blank out the rest
-	# 	for widget in self.listWidgets:
-	# 		if self.stageId < widget.stageList[0][0] or self.stageId > widget.stageList[-1][0]:
-	# 			widget.var.set( self.emptySelection )
-	# 	# else: # Loop above didn't break; unable to find the list!
-	# 	# 	self.stageId = None
-	# 	# 	return
+# 	def __init__( self, stageFile ):
 
-	# 	#self.stageId = stageId
-	# 	print 'stage ID set to', self.stageId
+# 		self.file = stageFile
+# 		self.grGroundParam = stageFile.getStructByLabel( 'grGroundParam' )
 
-	# def cancel( self ):
-	# 	self.selectedBehavior.set( self.initialValue )
-	# 	self.close()
+# 		# Add the headlines
+# 		ttk.Label( self, text='Basic Stage Properties (grGroundParam)' ).grid( column=0, row=0, pady=12 )
+# 		ttk.Label( self, text='Game Objects (GOBJs Array' ).grid( column=1, row=0 )
+		
+# 		# Collect general properties
+# 		propertyValues = self.grGroundParam.getValues()
+# 		if not propertyValues:
+# 			msg( message='Unable to get stage properties for {}. Most likely there was a problem initializing the file.', 
+# 				 title='Unable to get Struct Values', 
+# 				 parent=globalData.gui,
+# 				 error=True )
+# 			return
+
+# 		# Create the properties table for Stage Properties
+# 		structTable = VerticalScrolledFrame( self )
+# 		offset = 0
+# 		row = 0
+# 		for name, formatting, value in zip( self.grGroundParam.fields, self.grGroundParam.formatting[1:], propertyValues ):
+# 			propertyName = name.replace( '_', ' ' ).lstrip( 'Pause ' ).lstrip( 'Fixed Camera ' )
+# 			absoluteFieldOffset = self.grGroundParam.offset + offset
+
+# 			# Skip item stuff for now
+# 			if offset >= 0x68 and offset < 0xB8:
+# 				offset += 4
+# 				row += 1
+# 				continue
+
+# 			if offset == 0x180:
+# 				fieldByteLength = 1
+# 			else:
+# 				fieldByteLength = 4
+			
+# 			# Add a section header if appropriate
+# 			if offset in self.propertyGroups:
+# 				sectionName = self.propertyGroups[offset]
+# 				ttk.Label( structTable.interior, text=sectionName ).grid( columnspan=3, column=0, row=row, padx=(100, 10), pady=(14, 6) )
+# 				row += 1
+			
+# 			# Add a little bit of spacing before some items to group similar or related properties
+# 			# if offset in (0x18, 0x1C, 0x38, 0x58, 0x7C, 0xBC, 0xD0, 0xE4, 0xFC, 0x114, 0x130, 0x150, 0x164 ):
+# 			# 	verticalPadding = ( 10, 0 )
+# 			# else:
+# 			verticalPadding = ( 0, 0 )
+
+# 			fieldLabel = ttk.Label( structTable.interior, text=propertyName + ':', wraplength=200, justify='center' )
+# 			fieldLabel.grid( column=0, row=row, padx=(25, 10), sticky='e', pady=verticalPadding )
+# 			if formatting == 'I':
+# 				typeName = 'Integer'
+# 			else:
+# 				typeName = 'Float'
+# 			ToolTip( fieldLabel, text='Offset in struct: 0x{:X}\nOffset in file: 0x{:X}\nType: {}'.format(offset, 0x20 + absoluteFieldOffset, typeName), delay=300 )
+
+# 			# Add an editable field for the raw hex data
+# 			hexEntry = HexEditEntry( structTable.interior, self.file, absoluteFieldOffset, fieldByteLength, formatting, propertyName, width=11 )
+# 			rawData = self.grGroundParam.data[offset:offset+fieldByteLength]
+# 			hexEntry.insert( 0, hexlify(rawData).upper() )
+# 			hexEntry.grid( column=1, row=row, pady=verticalPadding )
+			
+# 			# Add an editable field for this field's actual decoded value (and attach the hex edit widget for later auto-updating)
+# 			valueEntry = HexEditEntry( structTable.interior, self.file, absoluteFieldOffset, fieldByteLength, formatting, propertyName, valueEntry=True, width=15 )
+# 			valueEntry.set( value )
+# 			valueEntry.hexEntryWidget = hexEntry
+# 			hexEntry.valueEntryWidget = valueEntry
+# 			valueEntry.grid( column=2, row=row, pady=verticalPadding, padx=(5, 20) )
+
+# 			# if offset == 0x180:
+# 			# 	break # Only padding follows this
+
+# 			offset += 4
+# 			row += 1
+
+# 		structTable.grid( column=0, row=1, sticky='nsew' )
+
+# 		# Initialize the map head struct
+# 		mapHead = self.file.getStructByLabel( 'map_head' )
+# 		generalPointsPointer, generalPointsCount, gobjsArrayPointer, arrayCount = mapHead.getValues()[:4]
+
+# 		# Initialize the structs for general points and the GObjs array
+# 		genPoints = self.file.getStruct( generalPointsPointer, mapHead.offset )
+# 		gobjsArray = self.file.getStruct( gobjsArrayPointer, mapHead.offset )
+
+# 		# if generalPointsCount != len( genPoints.length ) / 0xC:
+# 		# 	msg(  )
+		
+# 		# Create the properties table for Special Character Attributes
+# 		structTable = VerticalScrolledFrame( self )
+# 		currentSection = ''
+# 		offset = 0
+# 		row = 0
+# 		for name, formatting, value, note in zip( gobjsArray.fields, gobjsArray.formatting[1:], propertyValues, attrStruct.notes ):
+# 			propertyName = name.replace( '_', ' ' )
+
+# 			absoluteFieldOffset = gobjsArray.offset + offset
+# 			verticalPadding = ( 0, 0 )
+
+# 			# Split section and value names, if present
+# 			if '|' in propertyName:
+# 				nextSection, propertyName = propertyName.split( '|', 1 )
+# 				if not propertyName:
+# 					propertyName = 'Unknown 0x{:X}'.format( offset )
+# 			else:
+# 				nextSection = ''
+			
+# 			# Add a section header if appropriate
+# 			if nextSection and nextSection != currentSection:
+# 				ttk.Label( structTable.interior, text=nextSection ).grid( columnspan=3, column=0, row=row, padx=(100, 10), pady=(14, 6) )
+# 				currentSection = nextSection
+# 				row += 1
+
+# 			# Add the property label and a tooltip for it
+# 			fieldLabel = ttk.Label( structTable.interior, text=propertyName + ':', wraplength=200, justify='center' )
+# 			fieldLabel.grid( column=0, row=row, padx=(25, 10), sticky='e', pady=verticalPadding )
+# 			if formatting == 'I':
+# 				typeName = 'Integer'
+# 			else:
+# 				typeName = 'Float'
+# 			toolTipText = 'Offset in struct: 0x{:X}\nOffset in file: 0x{:X}\nType: {}'.format(offset, 0x20 + absoluteFieldOffset, typeName)
+# 			if note:
+# 				toolTipText += '\n\n' + note
+# 			ToolTip( fieldLabel, text=toolTipText, delay=300, wraplength=400 )
+
+# 			# Add an editable field for the raw hex data
+# 			hexEntry = HexEditEntry( structTable.interior, parent.charFile, absoluteFieldOffset, 4, formatting, propertyName, width=11 )
+# 			rawData = gobjsArray.data[offset:offset+4]
+# 			hexEntry.insert( 0, hexlify(rawData).upper() )
+# 			hexEntry.grid( column=1, row=row, pady=verticalPadding )
+			
+# 			# Add an editable field for this field's actual decoded value (and attach the hex edit widget for later auto-updating)
+# 			valueEntry = HexEditEntry( structTable.interior, parent.charFile, absoluteFieldOffset, 4, formatting, propertyName, valueEntry=True, width=15 )
+# 			valueEntry.set( value )
+# 			valueEntry.hexEntryWidget = hexEntry
+# 			hexEntry.valueEntryWidget = valueEntry
+# 			valueEntry.grid( column=2, row=row, pady=verticalPadding, padx=(5, 20) )
+
+# 			offset += 4
+# 			row += 1
+
+# 		structTable.grid( column=1, row=1, sticky='nsew' )

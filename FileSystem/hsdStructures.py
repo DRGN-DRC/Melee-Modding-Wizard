@@ -2338,10 +2338,10 @@ class MapGroundParameters( StructBase ): # grGroundParam
 		self.formatting = '>fIIIIIfffffIIIIffffIffffffHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHIIIIIIIIIII'
 		self.fields = ( 'Stage_Scaling',
 						'Shadow_Intensity',
-						'Camera_FoV_Depth/Delta?',
-						'Min_Camera_Distance',
+						'Camera_FieldOfView',
+						'Min._Camera_Distance',
 						'Max_Camera_Distance',			# 0x10
-						'Minimum_Tilt_and_Tilt_Scaling?',			# FOV_Up?
+						'Pitch_Scaling_(Vertical_Rotation)',
 						'Pitch_Bias_(Vertical_Rotation)',
 						'Yaw_Bias_(Horizontal_Rotation)',
 						'Camera_Fixation',				# 0x20
