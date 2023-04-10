@@ -1199,18 +1199,18 @@ class TexturesEditorTab( ttk.Frame ):
 
 			diffusionEntry.insert( 0, diffusionHexString )
 			diffusionEntry.offsets = diffusionHexOffsets
-			diffusionEntry.colorSwatch = ColorSwatch( colorsPane, diffusionHexString, diffusionEntry )
-			diffusionEntry.colorSwatch.grid( column=2, row=0, padx=(0,2) )
+			diffusionEntry.colorSwatchWidget = ColorSwatch( colorsPane, diffusionHexString, diffusionEntry )
+			diffusionEntry.colorSwatchWidget.grid( column=2, row=0, padx=(0,2) )
 			
 			ambienceEntry.insert( 0, ambienceHexString )
 			ambienceEntry.offsets = ambienceHexOffsets
-			ambienceEntry.colorSwatch = ColorSwatch( colorsPane, ambienceHexString, ambienceEntry )
-			ambienceEntry.colorSwatch.grid( column=5, row=0, padx=(0,2) )
+			ambienceEntry.colorSwatchWidget = ColorSwatch( colorsPane, ambienceHexString, ambienceEntry )
+			ambienceEntry.colorSwatchWidget.grid( column=5, row=0, padx=(0,2) )
 			
 			highlightsEntry.insert( 0, highlightsHexString )
 			highlightsEntry.offsets = highlightsHexOffsets
-			highlightsEntry.colorSwatch = ColorSwatch( colorsPane, highlightsHexString, highlightsEntry )
-			highlightsEntry.colorSwatch.grid( column=2, row=1, padx=(0,2) )
+			highlightsEntry.colorSwatchWidget = ColorSwatch( colorsPane, highlightsHexString, highlightsEntry )
+			highlightsEntry.colorSwatchWidget.grid( column=2, row=1, padx=(0,2) )
 			
 			shininessEntry.insert( 0, shininess )
 			shininessEntry.offsets = shininessHexOffsets

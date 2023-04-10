@@ -998,7 +998,7 @@ class DatFile( FileBase ):
 		# Check if the object is an instantiated object, or just a string hint (indicating what the struct should be)
 		if structure and isinstance( structure, str ):
 			#newStructClass = getattr( sys.modules[hsdStructures.__name__], structure, None ) # Changes a string into a class by that name
-			newStructClass = globalData.fileStructureClasses[structure]
+			newStructClass = globalData.fileStructureClasses.get( structure )
 
 			if not newStructClass: # Unable to find a structure by that name
 				print( 'Unable to find a structure class of "' + structure + '"' )

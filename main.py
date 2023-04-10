@@ -1893,14 +1893,14 @@ class MainGui( Tk.Frame, object ):
 
 		# Update the height for entries in Treeview widgets, which can't be specified per-widget-instance
 		if currentTab == self.texturesTab:
-			ttk.Style().configure( 'Treeview', rowheight=76 )
+			self.style.configure( 'Treeview', rowheight=76 )
 
 			# if globalDatFile and not self.datTextureTree.get_children():
 			# 	# May not have been scanned for textures yet (or none were found).
 			# 	scanDat()
 
 		else:
-			ttk.Style().configure( 'Treeview', rowheight=20 )
+			self.style.configure( 'Treeview', rowheight=20 )
 
 			# if globalDatFile and currentTab == self.savTab and not self.fileStructureTree.get_children():
 			# 	# SAV tab hasn't been populated yet. Perform analysis.

@@ -1915,28 +1915,33 @@ class MapHeadObjDesc( StructBase ):
 		self._siblingsChecked = True
 
 
-class MapGeneralPointsArray( StructBase ):
+class MapGeneralPointsArray( TableStruct ):
 
 	def __init__( self, *args, **kwargs ):
 		StructBase.__init__( self, *args, **kwargs )
 
 		self.name = 'General Points Array ' + uHex( 0x20 + args[1] )
-		self._siblingsChecked = True
+		#self._siblingsChecked = True
 
 		# Check the parent's General_Points_Array_Count to see how many elements should be in this array structure
 		parentOffset = self.getAnyDataSectionParent()
 		parentStruct = self.dat.initSpecificStruct( MapHeadObjDesc, parentOffset )
 		self.entryCount = parentStruct.getValues()[1]
 
-		fields = (  'Map_Joint_Group_Parent_Pointer',	# Has a child with 'n' siblings
-					'Map_Point_Types_Array_Pointer',
-					'Map_Point_Types_Array_Count'		# 1-indexed
+		self.fields = ( 'Map_Joint_Group_Parent_Pointer',	# Has a child with 'n' siblings
+						'Map_Point_Types_Array_Pointer',
+						'Map_Point_Types_Array_Count'		# 1-indexed
 				)
 
 		# Use the above info to dynamically rebuild this struct's properties
-		self.formatting = '>' + ( 'III' * self.entryCount )
-		self.fields = fields * self.entryCount
-		self.length = 0xC * self.entryCount
+		#self.formatting = '>' + ( 'III' * self.entryCount )
+		#self.fields = fields * self.entryCount
+		#self.length = 0xC * self.entryCount
+		self.formatting = '>III'
+		self.length = 0xC
+
+		TableStruct.__init__( self )
+
 		self.childClassIdentities = {}
 		for i in range( 0, len(self.fields), 3 ):
 			self.childClassIdentities[i] = 'JointObjDesc'
@@ -1983,7 +1988,7 @@ class MapPointTypesArray( StructBase ):
 		self.childClassIdentities = {}
 
 
-class MapGameObjectsArray( StructBase ):	# Makes up an array of GOBJs (a.k.a. GroupObj/GenericObj)
+class MapGameObjectsArray( TableStruct ):	# Makes up an array of GOBJs (a.k.a. GroupObj/GenericObj)
 
 	# Some details on this structure can be found here: https://smashboards.com/threads/melee-dat-format.292603/post-23774149
 
@@ -1991,7 +1996,7 @@ class MapGameObjectsArray( StructBase ):	# Makes up an array of GOBJs (a.k.a. Gr
 		StructBase.__init__( self, *args, **kwargs )
 
 		self.name = 'Game Objects Array ' + uHex( 0x20 + args[1] )
-		self._siblingsChecked = True
+		#self._siblingsChecked = True
 
 		# Check the parent's Game_Objects_Array_Count to see how many elements should be in this array structure
 		parentOffset = self.getAnyDataSectionParent()
@@ -1999,25 +2004,30 @@ class MapGameObjectsArray( StructBase ):	# Makes up an array of GOBJs (a.k.a. Gr
 		self.entryCount = parentStruct.getValues()[3]
 
 		# Need to set some properties at instance level, rather than usual class level, since they can change
-		fields = (	'Root_Joint_Pointer',				# 0x0
-					'Joint_Anim._Struct_Array_Pointer',	# 0x4
-					'Material_Anim._Joint_Pointer',		# 0x8
-					'Shape_Anim._Joint_Pointer',		# 0xC
-					'Camera_Pointer',					# 0x10
-					'Unknown_0x14_Pointer',				# 0x14
-					'Light_Pointer',					# 0x18
-					'Unknown_0x1C_Pointer',				# 0x1C
-					'Coll_Anim._Enable_Array_Pointer',	# 0x20		Points to a null-terminated array of 6-byte elements. Relates to moving collision links
-					'Coll_Anim._Enable_Array_Count',	# 0x24
-					'Anim._Loop_Enable_Array_Pointer',	# 0x28		Points to an array of 1-byte booleans, for enabling animation loops
-					'Shadow_Enable_Array_Pointer',		# 0x2C		Points to a null-terminated halfword array
-					'Shadow_Enable_Array_Count',		# 0x30
+		self.fields = (	'Root_Joint_Pointer',				# 0x0
+						'Joint_Anim._Struct_Array_Pointer',	# 0x4
+						'Material_Anim._Joint_Pointer',		# 0x8
+						'Shape_Anim._Joint_Pointer',		# 0xC
+						'Camera_Pointer',					# 0x10
+						'Unknown_0x14_Pointer',				# 0x14
+						'Light_Pointer',					# 0x18
+						'Unknown_0x1C_Pointer',				# 0x1C
+						'Coll_Anim._Enable_Array_Pointer',	# 0x20		Points to a null-terminated array of 6-byte elements. Relates to moving collision links
+						'Coll_Anim._Enable_Array_Count',	# 0x24
+						'Anim._Loop_Enable_Array_Pointer',	# 0x28		Points to an array of 1-byte booleans, for enabling animation loops
+						'Shadow_Enable_Array_Pointer',		# 0x2C		Points to a null-terminated halfword array
+						'Shadow_Enable_Array_Count',		# 0x30
 				)	# ^ Repeating block of 0x34 bytes
 
 		# Use the above info to dynamically rebuild this struct's properties
-		self.formatting = '>' + ( 'IIIIIIIIIIIII' * self.entryCount )
-		self.fields = fields * self.entryCount
-		self.length = 0x34 * self.entryCount
+		# self.formatting = '>' + ( 'IIIIIIIIIIIII' * self.entryCount )
+		# self.fields = fields * self.entryCount
+		# self.length = 0x34 * self.entryCount
+		self.formatting = '>IIIIIIIIIIIII'
+		self.length = 0x34
+		
+		TableStruct.__init__( self )
+
 		self.childClassIdentities = {}
 		for i in range( 0, len(self.fields), 13 ):
 			self.childClassIdentities[i] = 'JointObjDesc'

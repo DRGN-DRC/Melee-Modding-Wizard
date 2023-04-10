@@ -15,7 +15,6 @@ import os
 import ttk
 import time
 import struct
-import tkFileDialog
 import Tkinter as Tk
 from binascii import hexlify
 from PIL import Image, ImageTk, ImageDraw, ImageFont
@@ -24,12 +23,12 @@ from PIL import Image, ImageTk, ImageDraw, ImageFont
 import globalData
 
 from FileSystem import StageFile
-from FileSystem.hsdStructures import MapMusicTable, MapGeneralPointsArray, MapGameObjectsArray
-from basicFunctions import uHex, validHex, humansize, msg, createFolders
+from FileSystem.hsdStructures import MapMusicTable
+from basicFunctions import uHex, validHex, humansize, msg
 from guiSubComponents import (
-	LabelButton, exportSingleTexture, getColoredShape, importGameFiles, 
-	exportSingleFileWithGui, importSingleFileWithGui, importSingleTexture, getNewNameFromUser, 
-	BasicWindow, ToolTip, ToolTipEditor, ToolTipButton, HexEditEntry, VerticalScrolledFrame )
+	LabelButton, exportSingleTexture, getColoredShape, importGameFiles, exportSingleFileWithGui, 
+	importSingleFileWithGui, importSingleTexture, getNewNameFromUser, BasicWindow, ToolTip, 
+	ToolTipEditor, ToolTipButton, HexEditEntry, ColorSwatch, VerticalScrolledFrame, NeoTreeview )
 from audioManager import AudioControlModule
 
 
@@ -658,6 +657,38 @@ class StageManager( ttk.Frame ):
 		# Add this tab to the main GUI
 		mainGui.mainTabFrame.add( self, text=' Stage Manager ' )
 
+		# Create the primary set of tabs for the Stage Manager interface
+		# mainGui.style.configure( 'TNotebook', configure={"tabmargins": [2, 5, 2, 0]}, borderwidth=0 )
+		# mainGui.style.configure( 'TNotebook.Tab', configure={
+		# 														"borderwidth": 0,
+		# 														"bordercolor" : 'blue',
+		# 														"darkcolor" : 'blue',
+		# 														"lightcolor" : 'blue',
+		# 														"padding": [5, 1], 
+		# 														"background": 'blue'
+		# 													} )
+		# "TNotebook": {
+        #       "configure": {"tabmargins": [2, 5, 2, 0]},
+        #       "borderwidth": 0
+        #      }
+		# "TNotebook.Tab": {
+        #           "configure": {
+        #                         "borderwidth": 0,
+        #                         "bordercolor" : BG_COLOUR,
+        #                         "darkcolor" : BG_COLOUR,
+        #                         "lightcolor" : BG_COLOUR,
+        #                         "padding": [5, 1], "background": BG_COLOUR
+        #                         }
+        #           }
+		mainGui.style.configure( 'TNotebook', borderwidth=4 )
+		mainGui.style.configure( 'TNotebook.Tab', borderwidth=4 )
+		self.tabManager = ttk.Notebook( self,  )
+		self.tabManager.pack( fill='both', expand=1 )
+
+		# Create the SSS tab as the main tab of the above notebook
+		sssTabFrame = ttk.Frame( self, borderwidth=0 )
+		self.tabManager.add( sssTabFrame, text='Stage Selection' )
+
 		self.selectedStage = None
 		self.selectedStageSlotId = -1	# Internal Stage ID for the vanilla slot, not necessarily the stage the slot is set to load
 		self.musicTableStruct = None
@@ -666,11 +697,11 @@ class StageManager( ttk.Frame ):
 		self.toolTips = {}
 		padding = 6
 
-		# Add page tabs
-		self.pagesNotebook = ttk.Notebook( self )
+		# Add SSS page tabs
+		self.pagesNotebook = ttk.Notebook( sssTabFrame )
 		self.pagesNotebook.grid( column=0, row=0, pady=12 )
 
-		variationsLabelFrame = ttk.Frame( self ) # Padding order: Left, Top, Right, Bottom.
+		variationsLabelFrame = ttk.Frame( sssTabFrame ) # Padding order: Left, Top, Right, Bottom.
 		ttk.Label( variationsLabelFrame, text='- -  Variations  - -', foreground='blue' ).grid( column=0, row=0, pady=4 )
 		treeScroller = Tk.Scrollbar( variationsLabelFrame )
 		self.variationsTreeview = ttk.Treeview( variationsLabelFrame, selectmode='browse', show='tree', columns=('filename'), yscrollcommand=treeScroller.set, height=7 )
@@ -689,8 +720,7 @@ class StageManager( ttk.Frame ):
 		#self.variationsTreeview.bind( "<3>", self.createContextMenu ) # Right-click
 
 		# Construct the right-hand side of the interface, the info panels
-		#infoPane = ttk.Frame( self )
-		row1 = ttk.Frame( self )
+		row1 = ttk.Frame( sssTabFrame )
 		
 		# Basic Info
 		basicLabelFrame = ttk.LabelFrame( row1, text='  Basic Info  ', labelanchor='n', padding=8 )
@@ -700,7 +730,7 @@ class StageManager( ttk.Frame ):
 										'OnGo Function:') ).grid( column=0, row=0, padx=(0, 5) )
 		self.basicInfoLabel = ttk.Label( basicLabelFrame, width=25 )
 		self.basicInfoLabel.grid( column=1, row=0 )
-		#ttk.Button( basicLabelFrame, text='Edit Basic Properties', width=24, command=self.editBasicProperties ).grid( column=0, columnspan=2, row=1, pady=(3, 0) )
+		ttk.Button( basicLabelFrame, text='Edit Basic Properties', width=24, command=self.editBasicProperties ).grid( column=0, columnspan=2, row=1, pady=(3, 0) )
 		basicLabelFrame.grid( column=0, row=0, padx=(padding, 0), pady=padding )
 
 		# Stage Swap Details
@@ -736,7 +766,7 @@ class StageManager( ttk.Frame ):
 		row1.grid( column=0, columnspan=2, row=1, sticky='nsew' )
 		row1.columnconfigure( 'all', weight=1 )
 		row1.rowconfigure( 'all', weight=1 )
-		row2 = ttk.Frame( self )
+		row2 = ttk.Frame( sssTabFrame )
 
 		# Music (entry selector and edit button)
 		musicLabelFrame = ttk.LabelFrame( row2, text='  Music Table  ', labelanchor='n', padding=8 )
@@ -816,11 +846,11 @@ class StageManager( ttk.Frame ):
 		row2.rowconfigure( 'all', weight=1 )
 		
 		# Configure window resize behavior
-		self.columnconfigure( 0, weight=3 )
-		self.columnconfigure( 1, weight=1 )
-		self.rowconfigure( 0, weight=0 )
-		self.rowconfigure( 1, weight=1 )
-		self.rowconfigure( 2, weight=1 )
+		sssTabFrame.columnconfigure( 0, weight=3 )
+		sssTabFrame.columnconfigure( 1, weight=1 )
+		sssTabFrame.rowconfigure( 0, weight=0 )
+		sssTabFrame.rowconfigure( 1, weight=1 )
+		sssTabFrame.rowconfigure( 2, weight=1 )
 
 	def test( self ):
 		importGameFiles( multiple=False )
@@ -903,12 +933,13 @@ class StageManager( ttk.Frame ):
 		""" Creates a new tab in the Textures Editor interface for the given file. """
 		
 		# Create the new tab for the given file
-		# stageFile = self.getSelectedStage()
-		# newTab = StagePropertyEditor( self, stageFile )
-		# self.add( newTab, text=stageFile.filename )
+		stageFile = self.getSelectedStage()
+		if not stageFile: return
+		newTab = StagePropertyEditor( self, stageFile )
+		self.tabManager.add( newTab, text=stageFile.filename )
 
-		# # Switch to and populate the new tab
-		# self.select( newTab )
+		# Switch to and populate the new tab
+		self.tabManager.select( newTab )
 		#newTab.populate()
 
 	def updateSwapDetails( self, newIntStageId, newExtStageId, iFilenameOffset, byteReplacePointer, byteReplacement, randByteReplacements, stageFlags ):
@@ -1265,8 +1296,10 @@ class StageManager( ttk.Frame ):
 		# Get the canvas item id of the currently selected stage
 		if not iconIid:
 			iconIid = self.getCanvasIconId( canvas, self.selectedStageSlotId )
-			
-		self.selectedStageSlotId = canvas.iconCanvasIds[iconIid]
+
+		self.selectedStageSlotId = canvas.iconCanvasIds.get( iconIid, None )
+		if not self.selectedStageSlotId:
+			return
 
 		# Highlight the newly selected icon
 		selectionCoords = canvas.coords( iconIid )
@@ -1274,9 +1307,9 @@ class StageManager( ttk.Frame ):
 		newX = selectionCoords[0] - borderWidth
 		newY = selectionCoords[1] - borderWidth
 		if self.selectedStageSlotId in ( 0x24, 0x25, 0x1C, 0x1D, 0x1E ): # These icons are 48x48 in size
-			canvas.create_rectangle( newX, newY, newX+52, newY+52, outline='gold', width=borderWidth, tags='selectionBorder' )
+			canvas.create_rectangle( newX, newY, newX+53, newY+53, outline='gold', width=borderWidth, tags='selectionBorder' )
 		else:
-			canvas.create_rectangle( newX, newY, newX+68, newY+60, outline='gold', width=borderWidth, tags='selectionBorder' )
+			canvas.create_rectangle( newX, newY, newX+69, newY+61, outline='gold', width=borderWidth, tags='selectionBorder' )
 		
 		# Delete the current items in the stage variations treeview
 		for item in self.variationsTreeview.get_children():
@@ -2781,155 +2814,184 @@ class MusicBehaviorEditor( BasicWindow ):
 		globalData.gui.root.wait_window( self.window )
 
 
-# class StagePropertyEditor( ttk.Frame ):
+class StagePropertyEditor( ttk.Frame ):
 
-# 	propertyGroups = {
-# 		0x8: 'Default Camera',
-# 		0x4C: 'Pause Camera',
-# 		0x68: 'Fixed Camera',
-# 		0xB8: 'Off-Screen Bubble Colors'
-# 	}
+	propertyGroups = {
+		0x8: 'Default Camera',
+		0x4C: 'Pause Camera',
+		0x68: 'Fixed Camera',
+		0xB8: 'Off-Screen Bubble Colors'
+	}
 
-# 	def __init__( self, stageFile ):
+	def __init__( self, parent, stageFile ):
+		ttk.Frame.__init__( self, parent )
+		mainFrame = ttk.Frame( self )
 
-# 		self.file = stageFile
-# 		self.grGroundParam = stageFile.getStructByLabel( 'grGroundParam' )
+		self.file = stageFile
+		self.grGroundParam = stageFile.getStructByLabel( 'grGroundParam' )
 
-# 		# Add the headlines
-# 		ttk.Label( self, text='Basic Stage Properties (grGroundParam)' ).grid( column=0, row=0, pady=12 )
-# 		ttk.Label( self, text='Game Objects (GOBJs Array' ).grid( column=1, row=0 )
+		# Add the headlines
+		ttk.Label( mainFrame, text='Basic Stage Properties (grGroundParam)' ).grid( column=0, row=0, pady=12 )
+		ttk.Label( mainFrame, text='Model Parts (GOBJs Array' ).grid( column=1, row=0 )
 		
-# 		# Collect general properties
-# 		propertyValues = self.grGroundParam.getValues()
-# 		if not propertyValues:
-# 			msg( message='Unable to get stage properties for {}. Most likely there was a problem initializing the file.', 
-# 				 title='Unable to get Struct Values', 
-# 				 parent=globalData.gui,
-# 				 error=True )
-# 			return
+		# Collect general properties
+		propertyValues = self.grGroundParam.getValues()
+		if not propertyValues:
+			msg( message='Unable to get stage properties for {}. Most likely there was a problem initializing the file.', 
+				 title='Unable to get Struct Values', 
+				 parent=globalData.gui,
+				 error=True )
+			return
 
-# 		# Create the properties table for Stage Properties
-# 		structTable = VerticalScrolledFrame( self )
-# 		offset = 0
-# 		row = 0
-# 		for name, formatting, value in zip( self.grGroundParam.fields, self.grGroundParam.formatting[1:], propertyValues ):
-# 			propertyName = name.replace( '_', ' ' ).lstrip( 'Pause ' ).lstrip( 'Fixed Camera ' )
-# 			absoluteFieldOffset = self.grGroundParam.offset + offset
+		# Create the properties table for Stage Properties
+		structTable = VerticalScrolledFrame( mainFrame )
+		offset = 0
+		row = 0
+		for name, formatting, value in zip( self.grGroundParam.fields, self.grGroundParam.formatting[1:], propertyValues ):
+			propertyName = name.replace( '_', ' ' ).replace( 'Pause ', '' ).replace( 'Fixed Camera ', '' )
+			absoluteFieldOffset = self.grGroundParam.offset + offset
 
-# 			# Skip item stuff for now
-# 			if offset >= 0x68 and offset < 0xB8:
-# 				offset += 4
-# 				row += 1
-# 				continue
+			# Skip item stuff for now
+			if offset >= 0x68 and offset < 0xB8:
+				if formatting == 'H':
+					offset += 2
+				else:
+					offset += 4
+				row += 1
+				continue
 
-# 			if offset == 0x180:
-# 				fieldByteLength = 1
-# 			else:
-# 				fieldByteLength = 4
+			if not name:
+				propertyName = 'Unknown 0x{:X}'.format( offset )
+
+			# if formatting == 'H':
+			# 	fieldByteLength = 2
+			# else:
+			fieldByteLength = 4
 			
-# 			# Add a section header if appropriate
-# 			if offset in self.propertyGroups:
-# 				sectionName = self.propertyGroups[offset]
-# 				ttk.Label( structTable.interior, text=sectionName ).grid( columnspan=3, column=0, row=row, padx=(100, 10), pady=(14, 6) )
-# 				row += 1
+			# Add a section header if appropriate
+			if offset in self.propertyGroups:
+				sectionName = self.propertyGroups[offset]
+				ttk.Label( structTable.interior, text=sectionName ).grid( columnspan=3, column=0, row=row, padx=(100, 10), pady=(14, 6) )
+				row += 1
+
+			verticalPadding = ( 0, 0 )
+
+			fieldLabel = ttk.Label( structTable.interior, text=propertyName + ':', wraplength=200, justify='center' )
+			fieldLabel.grid( column=0, row=row, padx=(25, 10), sticky='e', pady=verticalPadding )
+			if formatting == 'I':
+				typeName = 'Integer'
+			else:
+				typeName = 'Float'
+			ToolTip( fieldLabel, text='Offset in struct: 0x{:X}\nOffset in file: 0x{:X}\nType: {}'.format(offset, 0x20 + absoluteFieldOffset, typeName), delay=300 )
+
+			# Add an editable field for the raw hex data
+			hexEntry = HexEditEntry( structTable.interior, self.file, absoluteFieldOffset, fieldByteLength, formatting, propertyName, width=11 )
+			rawData = self.grGroundParam.data[offset:offset+fieldByteLength]
+			hexData = hexlify(rawData).upper()
+			hexEntry.insert( 0, hexData )
+			hexEntry.grid( column=1, row=row, pady=verticalPadding )
 			
-# 			# Add a little bit of spacing before some items to group similar or related properties
-# 			# if offset in (0x18, 0x1C, 0x38, 0x58, 0x7C, 0xBC, 0xD0, 0xE4, 0xFC, 0x114, 0x130, 0x150, 0x164 ):
-# 			# 	verticalPadding = ( 10, 0 )
-# 			# else:
-# 			verticalPadding = ( 0, 0 )
+			if offset >= 0xB8:
+				hexEntry.colorSwatchWidget = ColorSwatch( structTable.interior, hexData, hexEntry )
+				hexEntry.colorSwatchWidget.grid( column=2, row=row, pady=verticalPadding, padx=(5, 20) )
+			else:
+				# Add an editable field for this field's actual decoded value (and attach the hex edit widget for later auto-updating)
+				valueEntry = HexEditEntry( structTable.interior, self.file, absoluteFieldOffset, fieldByteLength, formatting, propertyName, valueEntry=True, width=15 )
+				valueEntry.set( value )
+				valueEntry.hexEntryWidget = hexEntry
+				hexEntry.valueEntryWidget = valueEntry
+				valueEntry.grid( column=2, row=row, pady=verticalPadding, padx=(5, 20) )
 
-# 			fieldLabel = ttk.Label( structTable.interior, text=propertyName + ':', wraplength=200, justify='center' )
-# 			fieldLabel.grid( column=0, row=row, padx=(25, 10), sticky='e', pady=verticalPadding )
-# 			if formatting == 'I':
-# 				typeName = 'Integer'
-# 			else:
-# 				typeName = 'Float'
-# 			ToolTip( fieldLabel, text='Offset in struct: 0x{:X}\nOffset in file: 0x{:X}\nType: {}'.format(offset, 0x20 + absoluteFieldOffset, typeName), delay=300 )
+			offset += 4
+			row += 1
 
-# 			# Add an editable field for the raw hex data
-# 			hexEntry = HexEditEntry( structTable.interior, self.file, absoluteFieldOffset, fieldByteLength, formatting, propertyName, width=11 )
-# 			rawData = self.grGroundParam.data[offset:offset+fieldByteLength]
-# 			hexEntry.insert( 0, hexlify(rawData).upper() )
-# 			hexEntry.grid( column=1, row=row, pady=verticalPadding )
-			
-# 			# Add an editable field for this field's actual decoded value (and attach the hex edit widget for later auto-updating)
-# 			valueEntry = HexEditEntry( structTable.interior, self.file, absoluteFieldOffset, fieldByteLength, formatting, propertyName, valueEntry=True, width=15 )
-# 			valueEntry.set( value )
-# 			valueEntry.hexEntryWidget = hexEntry
-# 			hexEntry.valueEntryWidget = valueEntry
-# 			valueEntry.grid( column=2, row=row, pady=verticalPadding, padx=(5, 20) )
+		structTable.grid( column=0, row=1, sticky='nsew' )
 
-# 			# if offset == 0x180:
-# 			# 	break # Only padding follows this
+		# Initialize the map head struct
+		mapHead = self.file.getStructByLabel( 'map_head' )
+		generalPointsPointer, generalPointsCount, gobjsArrayPointer, arrayCount = mapHead.getValues()[:4]
 
-# 			offset += 4
-# 			row += 1
+		# Initialize the structs for general points and the GObjs array
+		genPoints = self.file.getStruct( generalPointsPointer, mapHead.offset )
+		gobjsArray = self.file.getStruct( gobjsArrayPointer, mapHead.offset )
 
-# 		structTable.grid( column=0, row=1, sticky='nsew' )
-
-# 		# Initialize the map head struct
-# 		mapHead = self.file.getStructByLabel( 'map_head' )
-# 		generalPointsPointer, generalPointsCount, gobjsArrayPointer, arrayCount = mapHead.getValues()[:4]
-
-# 		# Initialize the structs for general points and the GObjs array
-# 		genPoints = self.file.getStruct( generalPointsPointer, mapHead.offset )
-# 		gobjsArray = self.file.getStruct( gobjsArrayPointer, mapHead.offset )
-
-# 		# if generalPointsCount != len( genPoints.length ) / 0xC:
-# 		# 	msg(  )
+		# if generalPointsCount != len( genPoints.length ) / 0xC:
+		# 	msg(  )
 		
-# 		# Create the properties table for Special Character Attributes
-# 		structTable = VerticalScrolledFrame( self )
-# 		currentSection = ''
-# 		offset = 0
-# 		row = 0
-# 		for name, formatting, value, note in zip( gobjsArray.fields, gobjsArray.formatting[1:], propertyValues, attrStruct.notes ):
-# 			propertyName = name.replace( '_', ' ' )
+		# File Tree start
+		treeWrapper = Tk.Frame( mainFrame ) # Contains just the ISO treeview and its scroller (since they need a different packing than the above links).
+		scrollbar = Tk.Scrollbar( treeWrapper )
+		self.modelPartsTree = NeoTreeview( treeWrapper, columns=('offset'), yscrollcommand=scrollbar.set )
+		self.modelPartsTree.heading( '#0', anchor='center', text='Group' ) # , command=lambda: treeview_sort_column(self.modelPartsTree, 'file', False)
+		self.modelPartsTree.column( '#0', anchor='center', minwidth=90, stretch=1, width=100 ) # "#0" is implicit in the columns definition above.
+		self.modelPartsTree.heading( 'offset', anchor='center', text='Offset' )
+		self.modelPartsTree.column( 'offset', anchor='w', minwidth=60, stretch=1, width=60 )
+		self.modelPartsTree.tag_configure( 'changed', foreground='red' )
+		self.modelPartsTree.tag_configure( 'changesSaved', foreground='#292' ) # The 'save' green color
+		self.modelPartsTree.grid( column=0, row=0, sticky='nsew' )
+		scrollbar.config( command=self.modelPartsTree.yview )
+		scrollbar.grid( column=1, row=0, sticky='ns' )
+		treeWrapper.grid( column=1, row=1, sticky='nsew', padx=5 )
 
-# 			absoluteFieldOffset = gobjsArray.offset + offset
-# 			verticalPadding = ( 0, 0 )
+		# Populate the treeview
+		offset = gobjsArray.offset
+		for i, entryValues in gobjsArray.iterateEntries():
+			gobjName = 'Model Part ' + str( i+1 )
+			gobjValues = [uHex(offset), i] + list( entryValues )
 
-# 			# Split section and value names, if present
-# 			if '|' in propertyName:
-# 				nextSection, propertyName = propertyName.split( '|', 1 )
-# 				if not propertyName:
-# 					propertyName = 'Unknown 0x{:X}'.format( offset )
-# 			else:
-# 				nextSection = ''
+			self.modelPartsTree.insert( '', 'end', str(offset), text=gobjName, values=gobjValues )
+			offset += 0x34
+
+		# 	absoluteFieldOffset = gobjsArray.offset + offset
+		# 	verticalPadding = ( 0, 0 )
+
+		# 	# Split section and value names, if present
+		# 	# if '|' in propertyName:
+		# 	# 	nextSection, propertyName = propertyName.split( '|', 1 )
+		# 	# 	if not propertyName:
+		# 	# 		propertyName = 'Unknown 0x{:X}'.format( offset )
+		# 	# else:
+		# 	# 	nextSection = ''
 			
-# 			# Add a section header if appropriate
-# 			if nextSection and nextSection != currentSection:
-# 				ttk.Label( structTable.interior, text=nextSection ).grid( columnspan=3, column=0, row=row, padx=(100, 10), pady=(14, 6) )
-# 				currentSection = nextSection
-# 				row += 1
+		# 	# Add a section header if appropriate
+		# 	if nextSection and nextSection != currentSection:
+		# 		ttk.Label( structTable.interior, text=nextSection ).grid( columnspan=3, column=0, row=row, padx=(100, 10), pady=(14, 6) )
+		# 		currentSection = nextSection
+		# 		row += 1
 
-# 			# Add the property label and a tooltip for it
-# 			fieldLabel = ttk.Label( structTable.interior, text=propertyName + ':', wraplength=200, justify='center' )
-# 			fieldLabel.grid( column=0, row=row, padx=(25, 10), sticky='e', pady=verticalPadding )
-# 			if formatting == 'I':
-# 				typeName = 'Integer'
-# 			else:
-# 				typeName = 'Float'
-# 			toolTipText = 'Offset in struct: 0x{:X}\nOffset in file: 0x{:X}\nType: {}'.format(offset, 0x20 + absoluteFieldOffset, typeName)
-# 			if note:
-# 				toolTipText += '\n\n' + note
-# 			ToolTip( fieldLabel, text=toolTipText, delay=300, wraplength=400 )
+		# 	# Add the property label and a tooltip for it
+		# 	fieldLabel = ttk.Label( structTable.interior, text=propertyName + ':', wraplength=200, justify='center' )
+		# 	fieldLabel.grid( column=0, row=row, padx=(25, 10), sticky='e', pady=verticalPadding )
+		# 	if formatting == 'I':
+		# 		typeName = 'Integer'
+		# 	else:
+		# 		typeName = 'Float'
+		# 	toolTipText = 'Offset in struct: 0x{:X}\nOffset in file: 0x{:X}\nType: {}'.format(offset, 0x20 + absoluteFieldOffset, typeName)
+		# 	if note:
+		# 		toolTipText += '\n\n' + note
+		# 	ToolTip( fieldLabel, text=toolTipText, delay=300, wraplength=400 )
 
-# 			# Add an editable field for the raw hex data
-# 			hexEntry = HexEditEntry( structTable.interior, parent.charFile, absoluteFieldOffset, 4, formatting, propertyName, width=11 )
-# 			rawData = gobjsArray.data[offset:offset+4]
-# 			hexEntry.insert( 0, hexlify(rawData).upper() )
-# 			hexEntry.grid( column=1, row=row, pady=verticalPadding )
+		# 	# Add an editable field for the raw hex data
+		# 	hexEntry = HexEditEntry( structTable.interior, parent.charFile, absoluteFieldOffset, 4, formatting, propertyName, width=11 )
+		# 	rawData = gobjsArray.data[offset:offset+4]
+		# 	hexEntry.insert( 0, hexlify(rawData).upper() )
+		# 	hexEntry.grid( column=1, row=row, pady=verticalPadding )
 			
-# 			# Add an editable field for this field's actual decoded value (and attach the hex edit widget for later auto-updating)
-# 			valueEntry = HexEditEntry( structTable.interior, parent.charFile, absoluteFieldOffset, 4, formatting, propertyName, valueEntry=True, width=15 )
-# 			valueEntry.set( value )
-# 			valueEntry.hexEntryWidget = hexEntry
-# 			hexEntry.valueEntryWidget = valueEntry
-# 			valueEntry.grid( column=2, row=row, pady=verticalPadding, padx=(5, 20) )
+		# 	# Add an editable field for this field's actual decoded value (and attach the hex edit widget for later auto-updating)
+		# 	valueEntry = HexEditEntry( structTable.interior, parent.charFile, absoluteFieldOffset, 4, formatting, propertyName, valueEntry=True, width=15 )
+		# 	valueEntry.set( value )
+		# 	valueEntry.hexEntryWidget = hexEntry
+		# 	hexEntry.valueEntryWidget = valueEntry
+		# 	valueEntry.grid( column=2, row=row, pady=verticalPadding, padx=(5, 20) )
 
-# 			offset += 4
-# 			row += 1
+		# 	offset += 4
+		# 	row += 1
 
-# 		structTable.grid( column=1, row=1, sticky='nsew' )
+		# structTable.grid( column=1, row=1, sticky='nsew' )
+
+		mainFrame.columnconfigure( 'all', weight=1 )
+		mainFrame.rowconfigure( 0, weight=0 )
+		mainFrame.rowconfigure( 1, weight=1 )
+		#mainFrame.rowconfigure( 2, weight=1 )
+
+		mainFrame.pack( expand=True, fill='both' )

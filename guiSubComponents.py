@@ -1697,22 +1697,20 @@ class ColorSwatch( ttk.Label, DataEntryWidgetBase ):
 	""" Creates a circular image (on a label widget), to show a color example and allow for editing it.
 		hexColor should be an 8 character hex string of RRGGBBAA """
 
-	def __init__( self, parent, hexColor, entryWidget=None ):
+	def __init__( self, parent, hexColor, hexEntryWidget ):
 		# Create the label itself and bind the click even handler to it
 		ttk.Label.__init__( self, parent, cursor='hand2' )
-		
-		if entryWidget:
-			self.entryWidget = entryWidget
-			self.bind( '<1>', self.editColor )
 
 		# Create the image swatch that will be displayed, and attach it to self to prevent garbage collection
 		self.colorMask = globalData.gui.imageBank( 'colorSwatch', getAsPilImage=True )
 		self.renderCircle( hexColor )
 		
 		# Optional widgets that this may be paired with
-		self.hexEntryWidget = None			# Used by HexEditEntry widgets for hex data
+		self.hexEntryWidget = hexEntryWidget
 		self.valueEntryWidget = None		# Used by HexEditEntry widgets for values
 		self.colorSwatchWidget = None		# Not used by this widget (keep to prevent errors)
+
+		self.bind( '<1>', self.editColor )
 
 	def renderCircle( self, hexColor ):
 		# Convert the hex string provided to an RGBA values list
@@ -1736,23 +1734,24 @@ class ColorSwatch( ttk.Label, DataEntryWidgetBase ):
 		self.configure( image=self.swatchImage )
 
 	def editColor( self, event ):
+		nibbleLength = self.hexEntryWidget.byteLength * 2
+
 		# Create a window where the user can choose a new color
-		colorPicker = MeleeColorPicker( 'Modifying ' + self.entryWidget.updateName, initialColor=self.entryWidget.get() )
+		colorPicker = MeleeColorPicker( 'Modifying ' + self.hexEntryWidget.updateName, initialColor=self.hexEntryWidget.get() )
 		globalData.gui.root.wait_window( colorPicker.window ) # Wait for the above window to close before proceeding
 
 		# Get the new color hex and make sure it's new (if it's not, the operation was canceled, or there's nothing to be done anyway)
 		if colorPicker.initialColor != colorPicker.currentHexColor:
-			if len( colorPicker.currentHexColor ) != self.entryWidget.byteLength * 2:
+			if len( colorPicker.currentHexColor ) != nibbleLength:
 				msg( 'The value generated from the color picker (' + colorPicker.currentHexColor + ') does not match the byte length requirement of the destination.' )
 			else:
 				# Replace the text in the entry widget
-				self.entryWidget.delete( 0, 'end' )
-				self.entryWidget.insert( 0, colorPicker.currentHexColor )
+				# self.hexEntryWidget.delete( 0, 'end' )
+				# self.hexEntryWidget.insert( 0, colorPicker.currentHexColor )
 				
 				# Update the data in the file with the entry's data, and redraw the color swatch
-				#self.updateHex( '', widget=self.entryWidget )
-				newHex = self.get().zfill( self.byteLength * 2 ).upper() # Pads the string with zeroes to the left if not enough characters
-				self.updateHex( newHex )
+				newHex = colorPicker.currentHexColor.zfill( nibbleLength ).upper() # Pads the string with zeroes to the left if not enough characters
+				self.hexEntryWidget.updateHex( newHex )
 
 
 class SliderAndEntry( ttk.Frame ):
@@ -3072,6 +3071,9 @@ class MeleeColorPicker( object ):
 	def getTextureEditorTab( self ):
 
 		""" Scans the Texture Editor interface for a tab using the same file as this window. """
+
+		if not globalData.gui.texturesTab:
+			return None
 
 		for tabName in globalData.gui.texturesTab.tabs():
 			tabWidget = globalData.gui.root.nametowidget( tabName )
