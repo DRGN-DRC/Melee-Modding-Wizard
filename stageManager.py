@@ -16,15 +16,20 @@ import ttk
 import time
 import struct
 import Tkinter as Tk
+
 from binascii import hexlify
+# from direct.task import Task
+# from panda3d.core import WindowProperties
+# from direct.showbase.ShowBase import ShowBase
 from PIL import Image, ImageTk, ImageDraw, ImageFont
 
 # Internal dependencies
 import globalData
 
+from RenderEngine2 import RenderEngine
 from FileSystem import StageFile
 from FileSystem.hsdStructures import MapMusicTable
-from basicFunctions import uHex, validHex, humansize, msg
+from basicFunctions import uHex, humansize, msg
 from guiSubComponents import (
 	LabelButton, exportSingleTexture, getColoredShape, importGameFiles, exportSingleFileWithGui, 
 	importSingleFileWithGui, importSingleTexture, getNewNameFromUser, BasicWindow, ToolTip, 
@@ -2825,14 +2830,14 @@ class StagePropertyEditor( ttk.Frame ):
 
 	def __init__( self, parent, stageFile ):
 		ttk.Frame.__init__( self, parent )
-		mainFrame = ttk.Frame( self )
+		#mainFrame = ttk.Frame( self )
 
 		self.file = stageFile
 		self.grGroundParam = stageFile.getStructByLabel( 'grGroundParam' )
 
 		# Add the headlines
-		ttk.Label( mainFrame, text='Basic Stage Properties (grGroundParam)' ).grid( column=0, row=0, pady=12 )
-		ttk.Label( mainFrame, text='Model Parts (GOBJs Array' ).grid( column=1, row=0 )
+		ttk.Label( self, text='Basic Stage Properties  (grGroundParam)' ).grid( column=0, row=0, pady=12 )
+		ttk.Label( self, text='Model Parts  (GOBJs Array)' ).grid( column=1, row=0 )
 		
 		# Collect general properties
 		propertyValues = self.grGroundParam.getValues()
@@ -2844,7 +2849,7 @@ class StagePropertyEditor( ttk.Frame ):
 			return
 
 		# Create the properties table for Stage Properties
-		structTable = VerticalScrolledFrame( mainFrame )
+		structTable = VerticalScrolledFrame( self )
 		offset = 0
 		row = 0
 		for name, formatting, value in zip( self.grGroundParam.fields, self.grGroundParam.formatting[1:], propertyValues ):
@@ -2905,21 +2910,22 @@ class StagePropertyEditor( ttk.Frame ):
 			offset += 4
 			row += 1
 
-		structTable.grid( column=0, row=1, sticky='nsew' )
+		structTable.grid( column=0, row=1, rowspan=2, sticky='nsew' )
 
 		# Initialize the map head struct
 		mapHead = self.file.getStructByLabel( 'map_head' )
-		generalPointsPointer, generalPointsCount, gobjsArrayPointer, arrayCount = mapHead.getValues()[:4]
+		generalPointsPointer, generalPointsCount, gobjsArrayPointer, gobjsArrayCount = mapHead.getValues()[:4]
 
 		# Initialize the structs for general points and the GObjs array
-		genPoints = self.file.getStruct( generalPointsPointer, mapHead.offset )
+		#genPoints = self.file.getStruct( generalPointsPointer, mapHead.offset )
 		gobjsArray = self.file.getStruct( gobjsArrayPointer, mapHead.offset )
+		#gobjsArray = self.file.initSpecificStruct( , entryCount=gobjsArrayCount )
 
 		# if generalPointsCount != len( genPoints.length ) / 0xC:
 		# 	msg(  )
 		
 		# File Tree start
-		treeWrapper = Tk.Frame( mainFrame ) # Contains just the ISO treeview and its scroller (since they need a different packing than the above links).
+		treeWrapper = Tk.Frame( self ) # Contains just the ISO treeview and its scroller (since they need a different packing than the above links).
 		scrollbar = Tk.Scrollbar( treeWrapper )
 		self.modelPartsTree = NeoTreeview( treeWrapper, columns=('offset'), yscrollcommand=scrollbar.set )
 		self.modelPartsTree.heading( '#0', anchor='center', text='Group' ) # , command=lambda: treeview_sort_column(self.modelPartsTree, 'file', False)
@@ -2931,7 +2937,7 @@ class StagePropertyEditor( ttk.Frame ):
 		self.modelPartsTree.grid( column=0, row=0, sticky='nsew' )
 		scrollbar.config( command=self.modelPartsTree.yview )
 		scrollbar.grid( column=1, row=0, sticky='ns' )
-		treeWrapper.grid( column=1, row=1, sticky='nsew', padx=5 )
+		treeWrapper.grid( column=1, row=1, sticky='nsew', padx=15 )
 
 		# Populate the treeview
 		offset = gobjsArray.offset
@@ -2942,56 +2948,142 @@ class StagePropertyEditor( ttk.Frame ):
 			self.modelPartsTree.insert( '', 'end', str(offset), text=gobjName, values=gobjValues )
 			offset += 0x34
 
-		# 	absoluteFieldOffset = gobjsArray.offset + offset
-		# 	verticalPadding = ( 0, 0 )
+		modelPartsControls = ttk.Frame( self )
+		ttk.Button( modelPartsControls, text='View', command=self.viewModel ).grid( column=0, row=0 )
+		ttk.Button( modelPartsControls, text='Details', command=self.viewModelDetails ).grid( column=1, row=0 )
+		ttk.Button( modelPartsControls, text='Add', command=self.addModelGroup ).grid( column=0, row=1 )
+		ttk.Button( modelPartsControls, text='Delete', command=self.deleteModelGroup ).grid( column=1, row=1 )
+		modelPartsControls.grid( column=2, row=1, sticky='nsew' )
 
-		# 	# Split section and value names, if present
-		# 	# if '|' in propertyName:
-		# 	# 	nextSection, propertyName = propertyName.split( '|', 1 )
-		# 	# 	if not propertyName:
-		# 	# 		propertyName = 'Unknown 0x{:X}'.format( offset )
-		# 	# else:
-		# 	# 	nextSection = ''
-			
-		# 	# Add a section header if appropriate
-		# 	if nextSection and nextSection != currentSection:
-		# 		ttk.Label( structTable.interior, text=nextSection ).grid( columnspan=3, column=0, row=row, padx=(100, 10), pady=(14, 6) )
-		# 		currentSection = nextSection
-		# 		row += 1
+		generalPointsFrame = ttk.Frame( self )
+		ttk.Button( generalPointsFrame, text='Blastzones', command=self.adjustBlastzones ).grid( column=0, row=0 )
+		ttk.Button( generalPointsFrame, text='Camera Limits', command=self.adjustCameraLimits ).grid( column=0, row=1 )
+		ttk.Button( generalPointsFrame, text='Player Spawn Points', command=self.adjustPlayerSpawns ).grid( column=0, row=2 )
+		ttk.Button( generalPointsFrame, text='Item Spawns', command=self.adjustItemSpawns ).grid( column=0, row=3 )
+		targetsButton = ttk.Button( generalPointsFrame, text='Target Positions', command=self.ajustTargetPositions )
+		targetsButton.grid( column=0, row=4 )
+		ttk.Button( generalPointsFrame, text='Add New General Point', command=self.addNewGeneralPoint ).grid( column=0, row=5 )
 
-		# 	# Add the property label and a tooltip for it
-		# 	fieldLabel = ttk.Label( structTable.interior, text=propertyName + ':', wraplength=200, justify='center' )
-		# 	fieldLabel.grid( column=0, row=row, padx=(25, 10), sticky='e', pady=verticalPadding )
-		# 	if formatting == 'I':
-		# 		typeName = 'Integer'
-		# 	else:
-		# 		typeName = 'Float'
-		# 	toolTipText = 'Offset in struct: 0x{:X}\nOffset in file: 0x{:X}\nType: {}'.format(offset, 0x20 + absoluteFieldOffset, typeName)
-		# 	if note:
-		# 		toolTipText += '\n\n' + note
-		# 	ToolTip( fieldLabel, text=toolTipText, delay=300, wraplength=400 )
+		generalPointsFrame.columnconfigure( 'all', weight=1 )
+		generalPointsFrame.rowconfigure( 'all', weight=1 )
 
-		# 	# Add an editable field for the raw hex data
-		# 	hexEntry = HexEditEntry( structTable.interior, parent.charFile, absoluteFieldOffset, 4, formatting, propertyName, width=11 )
-		# 	rawData = gobjsArray.data[offset:offset+4]
-		# 	hexEntry.insert( 0, hexlify(rawData).upper() )
-		# 	hexEntry.grid( column=1, row=row, pady=verticalPadding )
-			
-		# 	# Add an editable field for this field's actual decoded value (and attach the hex edit widget for later auto-updating)
-		# 	valueEntry = HexEditEntry( structTable.interior, parent.charFile, absoluteFieldOffset, 4, formatting, propertyName, valueEntry=True, width=15 )
-		# 	valueEntry.set( value )
-		# 	valueEntry.hexEntryWidget = hexEntry
-		# 	hexEntry.valueEntryWidget = valueEntry
-		# 	valueEntry.grid( column=2, row=row, pady=verticalPadding, padx=(5, 20) )
+		generalPointsFrame.grid( column=1, columnspan=2, row=2, sticky='nsew' )
 
-		# 	offset += 4
-		# 	row += 1
+		if not self.file.filename.startswith( 'GrT' ):
+			targetsButton.config( state='disabled' )
 
-		# structTable.grid( column=1, row=1, sticky='nsew' )
+		# print( mapHead.getGeneralPoint( 7 ) )
+		# print( mapHead.getGeneralPoints() )
 
-		mainFrame.columnconfigure( 'all', weight=1 )
-		mainFrame.rowconfigure( 0, weight=0 )
-		mainFrame.rowconfigure( 1, weight=1 )
-		#mainFrame.rowconfigure( 2, weight=1 )
+		self.columnconfigure( 0, weight=1 )
+		self.columnconfigure( 1, weight=2 )
+		self.columnconfigure( 2, weight=1 )
+		self.rowconfigure( 0, weight=0 )
+		self.rowconfigure( 1, weight=1 )
 
-		mainFrame.pack( expand=True, fill='both' )
+	def viewModel( self ): pass
+	def viewModelDetails( self ): pass
+	def addModelGroup( self ): pass
+	def deleteModelGroup( self ): pass
+	
+	def adjustBlastzones( self ):
+		RenderWindow()
+
+	def adjustCameraLimits( self ): pass
+	def adjustPlayerSpawns( self ): pass
+	def adjustItemSpawns( self ): pass
+	def ajustTargetPositions( self ): pass
+	def addNewGeneralPoint( self ): pass
+
+
+# class RenderWindow( ShowBase, BasicWindow ):
+	
+# 	def __init__( self, *args, **kwargs ):
+# 		# Set up the main window
+# 		if not BasicWindow.__init__( self, globalData.gui.root, 'Basic Stage Properties', *args, offsets=(120, 60), dimensions=(400, 400), unique=False, **kwargs ):
+# 			return # If the above returned false, it displayed an existing window, so we should exit here
+		
+# 		super( RenderWindow, self ).__init__( windowType='none' )
+# 		#ShowBase.__init__( self, windowType='none' )
+
+# 		self.frame = ttk.Frame( self.window )
+# 		self.frame.pack( fill='both', expand=1 )
+
+# 		self.startTk()
+# 		self.appRunner = None
+
+# 		#self.engine = ShowBase(windowType='none')
+
+# 		self.window.update()
+
+# 		# Embed the Panda3D window in the Tkinter frame
+# 		props = WindowProperties().getDefault()
+# 		props.setParentWindow( self.frame.winfo_id() )
+# 		props.setOrigin( 0, 0 )
+# 		props.set_size(self.frame.winfo_width(), self.frame.winfo_height())
+# 		self.win = self.makeDefaultPipe()
+# 		self.open_default_window( props=props )
+
+# 		self.panda = self.loader.loadModel( "environment" )
+# 		self.panda.reparentTo( self.render )
+		
+# 		self.taskMgr.add( self.update, "update" )
+
+# 	def update(self, task):
+# 		# Rotate the model
+# 		self.panda.setH(self.panda.getH() + 1)
+# 		return Task.cont
+		
+# 	def test(self):
+# 		print("Hello")
+		
+# 	def resize(self, event):
+# 		self.frame.update()
+# 		props = WindowProperties()
+# 		props.set_origin(0, 0)
+# 		props.set_size(self.frame.winfo_width(), self.frame.winfo_height())
+# 		self.win.request_properties(props)
+
+# 	# def finalizeExit( self ):
+
+# 	# 	""" Prevents closing this window to cause the entire program to close. 
+# 	# 		Tbe 'base' variable is a Panda3D global."""
+
+# 	# 	self.destroy()
+		
+# 	def close( self ):
+# 		# Stop the rendering and destroy the ShowBase instance
+# 		self.destroy()
+
+# 		# Destroy this window (plus other window cleanup)
+# 		super( RenderWindow, self ).close()
+
+
+class RenderWindow( BasicWindow ):
+	
+	def __init__( self, *args, **kwargs ):
+		dimensions = ( 640, 480 )
+		resizable = True
+
+		# Set up the main window
+		if not BasicWindow.__init__( self, 
+			globalData.gui.root, 
+			'Basic Stage Properties', 
+			*args, 
+			offsets=(120, 60), 
+			resizable=resizable,
+			dimensions=dimensions, 
+			unique=False, 
+			**kwargs 
+		):
+			return # If the above returned false, it displayed an existing window, so we should exit here
+		
+		self.engine = RenderEngine( self.window, dimensions, resizable )
+		self.engine.pack()
+
+	def close( self ):
+		# Stop the rendering and destroy the Pyglet window/canvas instance
+		self.engine.stop()
+
+		# Destroy this window (plus other window cleanup)
+		super( RenderWindow, self ).close()

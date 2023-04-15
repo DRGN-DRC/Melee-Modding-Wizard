@@ -39,7 +39,7 @@ class StructBase( object ):
 	# 			  'parents', 'siblings', 'children', 'values', 'branchSize', 'childClassIdentities',
 	# 			  '_parentsChecked', '_siblingsChecked', '_childrenChecked', '_branchInitialized' )
 
-	def __init__( self, datSource, dataSectionOffset, parentOffset=-1, structDepth=None ):
+	def __init__( self, datSource, dataSectionOffset, parentOffset=-1, structDepth=None, entryCount=-1 ):
 
 		self.dat 			= datSource				# Host DAT File object
 		self.offset 		= dataSectionOffset
@@ -49,7 +49,7 @@ class StructBase( object ):
 		self.label 			= datSource.getStructLabel( dataSectionOffset ) # From the DAT's string table
 		self.fields			= ()
 		self.length			= -1
-		self.entryCount 	= -1					# Used with array & table structures; -1 means it's not an array/table
+		self.entryCount 	= entryCount			# Used with array & table structures; -1 means it's not an array/table
 		self.formatting		= ''
 		self.parents 		= set()					# Set of integers (offsets of other structs)
 		self.siblings 		= [] 					# List of integers (offsets of other structs)
@@ -537,7 +537,18 @@ class StructBase( object ):
 		self.children = []
 
 		# Look for pointers to other structures within this structure
-		if self.fields and not includeSiblings: # If wanting to include siblings, the other method is more efficient
+		if self.fields and includeSiblings:
+			# Iterate over all pointers in the data section, looking for those that are within the offset range of this structure
+			for pointerOffset, pointerValue in self.dat.pointers:
+				# Ensure we're only looking in range of this struct
+				if pointerOffset < self.offset: continue
+				elif pointerOffset >= self.offset + self.length: break
+
+				self.children.append( pointerValue )
+			
+			self._childrenChecked = False
+
+		else:
 			# Check for sibling offsets that should be ignored
 			siblingPointerOffsets = []
 			for i, fieldName in enumerate( self.fields ):
@@ -555,20 +566,12 @@ class StructBase( object ):
 				if pointerOffset in siblingPointerOffsets: continue
 
 				self.children.append( pointerValue )
-		else:
-			# Iterate over all pointers in the data section, looking for those that are within the offset range of this structure
-			for pointerOffset, pointerValue in self.dat.pointers:
-				# Ensure we're only looking in range of this struct
-				if pointerOffset < self.offset: continue
-				elif pointerOffset >= self.offset + self.length: break
 
-				self.children.append( pointerValue )
-
-		# If siblings were not included, remember this list for future queries
-		if includeSiblings:
-			self._childrenChecked = False
-		else:
-			self._childrenChecked = True
+			# If siblings were not included, remember this list for future queries
+			if includeSiblings:
+				self._childrenChecked = False
+			else:
+				self._childrenChecked = True
 
 		return self.children
 
@@ -802,16 +805,20 @@ class StructBase( object ):
 
 class TableStruct( StructBase ):
 
-	""" Used for table as well as array structures, to manage "entries" within them 
-		(basically structs within structs). Classes inheriting this should first 
+	""" Used for table and array structures to manage "entries" within them 
+		(essentially structs within structs). Classes inheriting this should first 
 		call StructBase's init, then set its own name/formmatting/entryCount 
-		properties, and then call this classes' init method. """
+		properties for a single entry, and then call this classes' init method. """
 
 	def __init__( self ):
 		assert self.entryCount != -1, 'Error initializing a TableStruct; entryCount was not set.'
+
+		# Remember elements of a single entry
 		self.entryFormatting = self.formatting
 		self.entryValueCount = len( self.fields )
-		
+		self.entryLength = self.length
+
+		# Update properties to cover the entire struct
 		self.formatting = '>' + ( self.formatting[1:] * self.entryCount )
 		self.fields = self.fields * self.entryCount
 		self.length = self.length * self.entryCount
@@ -1173,43 +1180,43 @@ class JointObjDesc( StructBase ): # A.k.a Bone Structure
 		self.length = 0x40
 		self.childClassIdentities = { 2: 'JointObjDesc', 3: 'JointObjDesc', 4: 'DisplayObjDesc', 14: 'InverseMatrixObjDesc' }
 
-	def getGeneralPointType( self ):
+	# def getGeneralPointType( self ):
 
-		pointType = ''
+	# 	pointType = ''
 
-		# Get the parent joint of the sibling array
-		parentOffset = self.getAnyDataSectionParent()
-		jointParent = self.dat.initSpecificStruct( JointObjDesc, parentOffset, printWarnings=False )
+	# 	# Get the parent joint of the sibling array
+	# 	parentOffset = self.getAnyDataSectionParent()
+	# 	jointParent = self.dat.initSpecificStruct( JointObjDesc, parentOffset, printWarnings=False )
 
-		if jointParent:
-			for parentOffset in jointParent.getParents():
-				generalPointsArray = self.dat.initSpecificStruct( MapGeneralPointsArray, parentOffset, printWarnings=False )
-				if generalPointsArray: break
+	# 	if jointParent:
+	# 		for parentOffset in jointParent.getParents():
+	# 			generalPointsArray = self.dat.initSpecificStruct( MapGeneralPointsArray, parentOffset, printWarnings=False )
+	# 			if generalPointsArray: break
 
-			if generalPointsArray:
-				# Get the Point Types Array offset for this joint
-				parentValues = generalPointsArray.getValues()
-				for i, value in enumerate( parentValues ):
-					if value == jointParent.offset:
-						pointTypesArrayOffset = parentValues[i+1]
-						break
+	# 		if generalPointsArray:
+	# 			# Get the Point Types Array offset for this joint
+	# 			parentValues = generalPointsArray.getValues()
+	# 			for i, value in enumerate( parentValues ):
+	# 				if value == jointParent.offset:
+	# 					pointTypesArrayOffset = parentValues[i+1]
+	# 					break
 
-				pointTypesArray = self.dat.initSpecificStruct( MapPointTypesArray, pointTypesArrayOffset )
-				pointTypeValues = pointTypesArray.getValues()
-				siblingIndex = self.getStructDepth()[1] + 1 # +1 because the point types array indices are 1-indexed
+	# 			pointTypesArray = self.dat.initSpecificStruct( MapPointTypesArray, pointTypesArrayOffset )
+	# 			pointTypeValues = pointTypesArray.getValues()
+	# 			siblingIndex = self.getStructDepth()[1] + 1 # +1 because the point types array indices are 1-indexed
 
-				for i, value in enumerate( pointTypeValues ):
-					if value == siblingIndex:
-						pointTypeValue = pointTypeValues[i+1]
-						pointType = pointTypesArray.enums['Point_Type'].get( pointTypeValue, '' )
-						if not pointType:
-							pointType = 'Unknown Point Type ({})'.format( pointTypeValue )
-						break
-				else: # The loop above didn't break, meaning the current joint index wasn't found in the point types array
-					pointType = 'Undefined Point Type'
-					print 'General Point', uHex( 0x20 + self.offset ), 'type not defined in', pointTypesArray.name
+	# 			for i, value in enumerate( pointTypeValues ):
+	# 				if value == siblingIndex:
+	# 					pointTypeValue = pointTypeValues[i+1]
+	# 					pointType = pointTypesArray.enums['Point_Type'].get( pointTypeValue, '' )
+	# 					if not pointType:
+	# 						pointType = 'Unknown Point Type ({})'.format( pointTypeValue )
+	# 					break
+	# 			else: # The loop above didn't break, meaning the current joint index wasn't found in the point types array
+	# 				pointType = 'Undefined Point Type'
+	# 				print 'General Point', uHex( 0x20 + self.offset ), 'type not defined in', pointTypesArray.name
 
-		return pointType
+	# 	return pointType
 
 
 class DisplayObjDesc( StructBase ):
@@ -1892,6 +1899,8 @@ class CameraObjDesc( StructBase ): # CObjDesc
 
 class MapHeadObjDesc( StructBase ):
 
+	""" Class for a stage file's "map_head" structure. """
+
 	def __init__( self, *args, **kwargs ):
 		StructBase.__init__( self, *args, **kwargs )
 
@@ -1914,6 +1923,86 @@ class MapHeadObjDesc( StructBase ):
 		self.childClassIdentities = { 0: 'MapGeneralPointsArray', 2: 'MapGameObjectsArray' }
 		self._siblingsChecked = True
 
+	def getGeneralPoint( self, targetPointType ):
+
+		""" Returns the 'general point' (e.g. spawn points, stage borders, etc.), if it 
+			exists within the General Points Arrays. Returns None if it doesn't. """
+
+		pointsArrayOffset, pointsArrayCount = self.getValues()[:2]
+		pointsArray = self.dat.initSpecificStruct( MapGeneralPointsArray, pointsArrayOffset, self.offset, entryCount=pointsArrayCount )
+		joints = []
+
+		for _, (jointGroupPtr, typesArrayPtr, arrayCount) in pointsArray.iterateEntries():
+			typesArray = self.dat.initSpecificStruct( MapPointTypesArray, typesArrayPtr, pointsArrayOffset, entryCount=arrayCount )
+
+		# jointGroupPtr, typesArrayPtr, arrayCount = pointsArray.getValues()[:3]
+		# typesArray = self.dat.initSpecificStruct( MapPointTypesArray, typesArrayPtr, pointsArrayOffset, entryCount=arrayCount )
+
+			for _, (jointIndex, pointType) in typesArray.iterateEntries():
+				if pointType == targetPointType:
+					# Target point found; initialize the joint group and get the offsets of the joints within it
+					jointGroup = self.dat.initSpecificStruct( JointObjDesc, jointGroupPtr, pointsArrayOffset, entryCount=arrayCount )
+					childOffset = jointGroup.getChildren()[0]
+					childStruct = self.dat.initSpecificStruct( JointObjDesc, childOffset, jointGroupPtr )
+					points = childStruct.getSiblings()
+					points.insert( 0, childStruct.offset )
+
+					# Ensure the index is valid and collect the appropriate joint struct
+					if jointIndex < 1 or jointIndex > len( points ): # The joint index is 1-indexed
+						print( 'Joint index for general point type {} out of range in type array 0x{:X} in {}'.format(pointType, 0x20+typesArrayPtr, self.dat.filename) )
+						continue
+					joints.append( self.dat.initSpecificStruct(JointObjDesc, points[jointIndex-1]) )
+
+		return joints
+
+	def getGeneralPoints( self ):
+
+		""" Returns 'general points' (e.g. spawn points, stage borders, etc.), as a 
+			multidimentional array. """
+
+		pointsArrayOffset, pointsArrayCount = self.getValues()[:2]
+		pointsArray = self.dat.initSpecificStruct( MapGeneralPointsArray, pointsArrayOffset, self.offset, entryCount=pointsArrayCount )
+		pointTypeNames = MapPointTypesArray.enums['Point_Type']
+
+		arrays = []
+
+		for _, (jointGroupPtr, typesArrayPtr, arrayCount) in pointsArray.iterateEntries():
+			jointGroup = self.dat.initSpecificStruct( JointObjDesc, jointGroupPtr, pointsArrayOffset, entryCount=arrayCount )
+			typesArray = self.dat.initSpecificStruct( MapPointTypesArray, typesArrayPtr, pointsArrayOffset, entryCount=arrayCount )
+
+			# Initialize the joint group and get the offsets of the points/joints
+			childOffset = jointGroup.getChildren()[0]
+			childStruct = self.dat.initSpecificStruct( JointObjDesc, childOffset, jointGroupPtr )
+			points = childStruct.getSiblings()
+			points.insert( 0, childStruct.offset )
+
+			pointsInfo = []
+
+			for arrayTypeIndex, (jointIndex, pointType) in typesArray.iterateEntries():
+				if jointIndex < 1 or jointIndex > len( points ): # The joint index is 1-indexed
+					print( 'Joint index for general point type {} out of range in type array 0x{:X} in {}'.format(pointType, 0x20+typesArrayPtr, self.dat.filename) )
+					continue
+				
+				if jointIndex != arrayTypeIndex+1:
+					# Interesting! (though it doesn't affect the outcome of this method)
+					print( 'Found a general point index out of order; within type array 0x{:X} in {}'.format(0x20+typesArrayPtr, self.dat.filename) )
+
+				jointStruct = self.dat.initSpecificStruct( JointObjDesc, points[jointIndex-1] )
+				values = jointStruct.getValues()
+				scale = values[8:11]
+				scale = [ round(v) for v in scale ]
+
+				# if scale != ( 1.0, 1.0, 1.0 ):
+				# 	print( 'Found non-1.0 scale for a general point at 0x{:X} in {}: {}'.format(points[jointIndex-1], self.dat.filename, scale) )
+
+				# Collect the X and Y coords of this joint
+				pointName = pointTypeNames.get( pointType, 'Unknown Type ({})'.format(pointType) )
+				pointsInfo.append( (jointIndex, pointName, values[11], values[12], scale) )
+
+			arrays.append( pointsInfo )
+
+		return arrays
+
 
 class MapGeneralPointsArray( TableStruct ):
 
@@ -1921,22 +2010,19 @@ class MapGeneralPointsArray( TableStruct ):
 		StructBase.__init__( self, *args, **kwargs )
 
 		self.name = 'General Points Array ' + uHex( 0x20 + args[1] )
-		#self._siblingsChecked = True
 
-		# Check the parent's General_Points_Array_Count to see how many elements should be in this array structure
-		parentOffset = self.getAnyDataSectionParent()
-		parentStruct = self.dat.initSpecificStruct( MapHeadObjDesc, parentOffset )
-		self.entryCount = parentStruct.getValues()[1]
+		if self.entryCount == -1:
+			# Check the parent's General_Points_Array_Count to see how many elements should be in this array structure
+			parentOffset = self.getAnyDataSectionParent()
+			parentStruct = self.dat.initSpecificStruct( MapHeadObjDesc, parentOffset )
+			self.entryCount = parentStruct.getValues()[1]
 
 		self.fields = ( 'Map_Joint_Group_Parent_Pointer',	# Has a child with 'n' siblings
 						'Map_Point_Types_Array_Pointer',
 						'Map_Point_Types_Array_Count'		# 1-indexed
-				)
+					  )
 
 		# Use the above info to dynamically rebuild this struct's properties
-		#self.formatting = '>' + ( 'III' * self.entryCount )
-		#self.fields = fields * self.entryCount
-		#self.length = 0xC * self.entryCount
 		self.formatting = '>III'
 		self.length = 0xC
 
@@ -1948,7 +2034,7 @@ class MapGeneralPointsArray( TableStruct ):
 			self.childClassIdentities[i+1] = 'MapPointTypesArray'
 
 
-class MapPointTypesArray( StructBase ):
+class MapPointTypesArray( TableStruct ):
 
 	enums = { 'Point_Type': OrderedDict([
 				( 0, 'Player 1 Spawn' ), ( 1, 'Player 2 Spawn' ), ( 2, 'Player 3 Spawn' ), ( 3, 'Player 4 Spawn' ), 
@@ -1969,23 +2055,28 @@ class MapPointTypesArray( StructBase ):
 		StructBase.__init__( self, *args, **kwargs )
 
 		self.name = 'Point Types Array ' + uHex( 0x20 + args[1] )
-		self._siblingsChecked = True
-		self._childrenChecked = True
 
 		# Check how many elements should be in this array structure
 		parentOffset = self.getAnyDataSectionParent()
 		parentStruct = self.dat.initSpecificStruct( MapGeneralPointsArray, parentOffset )
-		parentValues = parentStruct.getValues()
-		for i, value in enumerate( parentValues ):
-			if value == self.offset:
-				self.entryCount = parentValues[i+1]
+		# parentValues = parentStruct.getValues()
+		# for i, value in enumerate( parentValues ):
+		# 	if value == self.offset:
+		# 		self.entryCount = parentValues[i+1]
+		# 		break
+		for _, (_, typesArrayPtr, arrayCount) in parentStruct.iterateEntries():
+			if typesArrayPtr == self.offset:
+				self.entryCount = arrayCount
 				break
 
 		# Use the above info to dynamically rebuild this struct's properties
-		self.formatting = '>' + ( 'HH' * self.entryCount )
-		self.fields = ( 'Joint_Object_Index', 'Point_Type' ) * self.entryCount
-		self.length = 4 * self.entryCount
+		self.formatting = '>HH'
+		self.fields = ( 'Joint_Object_Index', 'Point_Type' )
+		self.length = 4
 		self.childClassIdentities = {}
+
+		TableStruct.__init__( self )
+		self._childrenChecked = True
 
 
 class MapGameObjectsArray( TableStruct ):	# Makes up an array of GOBJs (a.k.a. GroupObj/GenericObj)

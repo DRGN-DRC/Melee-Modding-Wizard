@@ -1,11 +1,34 @@
+# Pyglet is used for 3D model rendering. attrs/future are dependencies for it
+attrs==20.2.0
+future==0.18.0
+pyglet==1.4.10
+
+# Simplifies bit-wise creation, manipulation and interpretation of data.
+# Used for assembling/disassembling character subAction events.
 bitstring==3.1.9
+
+# Used for compiling into an executable. This is a very 
+# specific version of this tool for Python 2.7.
 cx-Freeze==5.1.1
-numpy==1.16.6
+
+# Image loading and editing. Actually appears in the program as PIL
 Pillow==6.2.2
+
+# Retrieves information on running processes and system utilization
 psutil==5.8.0
+
+# Audio playback
 PyAudio==0.2.11
+
+# Provides much access to Windows APIs. Actually appears in the 
+# program as win32api, win32gui, and win32process
 pywin32==228
+
+# Used for custom JSON loaders to preserve comments when dumping back to file
 ruamel.base==1.0.0
 ruamel.ordereddict==0.4.15
 ruamel.yaml==0.16.13
 ruamel.yaml.clib==0.2.2
+
+# Used to compute Dolphin texture hashes
+xxhash==2.0.2

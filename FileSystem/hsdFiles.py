@@ -1064,3 +1064,11 @@ class StageFile( DatFile ):
 
 		return texturesInfo
 
+	def getGeneralPoint( self, pointType ):
+
+		""" Returns the 'general point' (e.g. spawn points, stage borders, etc.), if it 
+			exists within the General Points Arrays. Returns None if it doesn't. """
+
+		# Initialize the map head struct
+		mapHead = self.file.getStructByLabel( 'map_head' )
+		mapHead.getGeneralPoint( 7 )

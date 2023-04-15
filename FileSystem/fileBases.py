@@ -1108,7 +1108,7 @@ class DatFile( FileBase ):
 
 		return newStruct
 
-	def initSpecificStruct( self, newStructClass, offset, parentOffset=-1, structDepth=None, printWarnings=True ):
+	def initSpecificStruct( self, newStructClass, offset, parentOffset=-1, structDepth=None, entryCount=-1, printWarnings=True ):
 
 		""" Attempts to validate and initialize a structure as a specific class (if it doesn't already exist).
 			If unable to do so, this method returns None. 
@@ -1141,7 +1141,7 @@ class DatFile( FileBase ):
 
 		# Create the new structure
 		try:
-			newStructure = newStructClass( self, offset, parentOffset, structDepth )
+			newStructure = newStructClass( self, offset, parentOffset, structDepth, entryCount )
 		except Exception as err:
 			print( 'Unable to initSpecificStruct; {}'.format(err) )
 			return None

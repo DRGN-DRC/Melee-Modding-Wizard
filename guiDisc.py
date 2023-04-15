@@ -24,6 +24,7 @@ import Tkinter as Tk
 from PIL import Image, ImageTk
 from tkMessageBox import askyesno
 from FileSystem.charFiles import CharCostumeFile
+from FileSystem.hsdFiles import StageFile
 
 # Internal dependencies
 import globalData
@@ -389,6 +390,10 @@ class DiscTab( ttk.Frame ):
 		# count = 0
 		# totalSize = 0
 		# for discFile in disc.files.itervalues():
+		# 	if discFile.__class__.__name__ == 'StageFile':
+		# 		discFile.initialize()
+		# 		mapHead = discFile.getStructByLabel( 'map_head' )
+		# 		print( discFile.filename, mapHead.getGeneralPoints() )
 		# 	if issubclass( discFile.__class__, CharCostumeFile ):
 		# 		if not discFile.charAbbr in ( 'Bo', 'Gl', 'Mh', 'Ch', 'Gk', 'Sb' ) \
 		# 			and not ( discFile.filename.startswith( 'PlKb' ) and 'Cp' in discFile.filename ):
