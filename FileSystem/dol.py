@@ -598,11 +598,8 @@ class Dol( FileBase ):
 
 		# Unpack all of the pointers to the stage table structs
 		if not self._stageInfoStructPointers:
-			tic = time.clock()
 			pointerTableData = self.getData( 0x3DCEDC, 0x6F*4 )
 			self._stageInfoStructPointers = struct.unpack( '>111I', pointerTableData )
-			toc = time.clock()
-			print( 'time to unpack stage info struct: ' + str(toc-tic) )
 
 		structOffset = self.offsetInDOL( self._stageInfoStructPointers[internalStageId] )
 

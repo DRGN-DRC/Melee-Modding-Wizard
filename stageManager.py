@@ -2920,9 +2920,6 @@ class StagePropertyEditor( ttk.Frame ):
 		#genPoints = self.file.getStruct( generalPointsPointer, mapHead.offset )
 		gobjsArray = self.file.getStruct( gobjsArrayPointer, mapHead.offset )
 		#gobjsArray = self.file.initSpecificStruct( , entryCount=gobjsArrayCount )
-
-		# if generalPointsCount != len( genPoints.length ) / 0xC:
-		# 	msg(  )
 		
 		# File Tree start
 		treeWrapper = Tk.Frame( self ) # Contains just the ISO treeview and its scroller (since they need a different packing than the above links).
@@ -2980,6 +2977,78 @@ class StagePropertyEditor( ttk.Frame ):
 		self.columnconfigure( 2, weight=1 )
 		self.rowconfigure( 0, weight=0 )
 		self.rowconfigure( 1, weight=1 )
+
+		self.parseGeneralPoints( mapHead )
+		self.parseCollisions()
+
+	def parseGeneralPoints( self, mapHead ):
+
+		generalPoints = mapHead.getGeneralPoints()
+		#print( generalPoints )
+
+	def parseCollisions( self ):
+		
+		# Get the structures defining the stage's spot, links, and areas
+		self.collStruct = self.file.getStructByLabel( 'coll_data' )
+		spotTableOffset, linkTableOffset, areaTableOffset = self.collStruct.getChildren()
+		self.spotTable = self.file.getStruct( spotTableOffset )
+		self.linkTable = self.file.getStruct( linkTableOffset )
+		self.areaTable = self.file.getStruct( areaTableOffset )
+
+		self.vertices = self.spotTable.getVertices()
+		self.collisionLinks = self.linkTable.getFaces()
+		self.areas = self.areaTable.getAreas()
+
+		self.extrudeCollisionLinks()
+
+	def extrudeCollisionLinks( self ):
+
+		""" Extrudes each collision link (which are initially 2D lines/edges), turning them into 3D faces. """
+
+		self.collVertices = []
+		collFaceThickness = 7
+		origVerticesLength = len( self.vertices )
+
+		for link in self.collisionLinks:
+			# Perform some validation
+			link.validIndices = True
+			if link.points[0] < 0 or link.points[0] >= origVerticesLength: link.validIndices = False
+			if link.points[1] < 0 or link.points[1] >= origVerticesLength: link.validIndices = False
+			for pointIndex in link.allSpotIndices[2:]:
+				if pointIndex < -1 or pointIndex >= origVerticesLength:
+					print( 'link {} refereneces a non-existant point (index {})'.format(link.index, pointIndex) )
+					break
+			link.origPoints = link.points
+			if not link.validIndices: continue
+
+			# Create two new vertices for spot 1
+			originalVertex = self.vertices[ link.points[0] ]
+			newCoords = ( originalVertex.x, originalVertex.y, collFaceThickness )
+			if newCoords not in self.collVertices:
+				self.collVertices.append( newCoords )
+			pointIndex1 = origVerticesLength + self.collVertices.index( newCoords )
+			newCoords = ( originalVertex.x, originalVertex.y, -collFaceThickness )
+			if newCoords not in self.collVertices:
+				self.collVertices.append( newCoords )
+			pointIndex2 = origVerticesLength + self.collVertices.index( newCoords )
+
+			# Create two new vertices for spot 2
+			originalVertex = self.vertices[ link.points[1] ]
+			newCoords = ( originalVertex.x, originalVertex.y, collFaceThickness )
+			if newCoords not in self.collVertices:
+				self.collVertices.append( newCoords )
+			pointIndex3 = origVerticesLength + self.collVertices.index( newCoords )
+			newCoords = ( originalVertex.x, originalVertex.y, -collFaceThickness )
+			if newCoords not in self.collVertices:
+				self.collVertices.append( newCoords )
+			pointIndex4 = origVerticesLength + self.collVertices.index( newCoords )
+
+			# Save the new link indices
+			link.points = ( pointIndex1, pointIndex3, pointIndex4, pointIndex2 )
+
+		# Create new vertices for the new points, and store them with the rest of the vertices list
+		# for i, coords in enumerate( self.collVertices ):
+		# 	self.collVertices[i] = RenderEngine.Vertex( coords )
 
 	def viewModel( self ): pass
 	def viewModelDetails( self ): pass
@@ -3080,6 +3149,7 @@ class RenderWindow( BasicWindow ):
 		
 		self.engine = RenderEngine( self.window, dimensions, resizable )
 		self.engine.pack()
+		self.window.focus_set()
 
 	def close( self ):
 		# Stop the rendering and destroy the Pyglet window/canvas instance

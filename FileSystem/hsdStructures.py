@@ -2249,7 +2249,7 @@ class MapSpotTable( StructBase ):
 
 	def getVertices( self ):
 
-		""" Returns a list of vertex objects. """
+		""" Returns a list of vertex objects. Y coordinate values are flipped. """
 
 		valueIterator = iter( self.getValues() )
 		return [ Vertex((xCoord, -yCoord, 0)) for xCoord, yCoord in izip(valueIterator, valueIterator) ]
@@ -2313,7 +2313,8 @@ class MapLinkTable( StructBase ):
 
 	def getFaces( self ):
 
-		""" Groups the structure's values into groups of 10, then iterates over them to build collision link objects. """
+		""" Groups the structure's values into groups of 10, then iterates over them to 
+			build collision link objects. Returns a list of CollissionSurface objects. """
 
 		self.getValues()
 		surfaces = []
