@@ -489,10 +489,7 @@ def hex2rgb( inputString ):
 	except Exception as err:
 		print( 'hex2rgb() was unable to convert {}; {}'.format(inputString, err) )
 
-	if len( channelsList ) != 4:
-		return ()
-	else:
-		return tuple( channelsList )
+	return tuple( channelsList )
 
 
 def constructTextureFilename( texture, mipLevel=0, forceDolphinHash=False ):

@@ -29,7 +29,7 @@ import globalData
 from RenderEngine2 import RenderEngine
 from FileSystem import StageFile
 from FileSystem.hsdStructures import MapMusicTable
-from basicFunctions import uHex, humansize, msg
+from basicFunctions import uHex, hex2rgb, humansize, msg, printStatus
 from guiSubComponents import (
 	LabelButton, exportSingleTexture, getColoredShape, importGameFiles, exportSingleFileWithGui, 
 	importSingleFileWithGui, importSingleTexture, getNewNameFromUser, BasicWindow, ToolTip, 
@@ -2913,12 +2913,12 @@ class StagePropertyEditor( ttk.Frame ):
 		structTable.grid( column=0, row=1, rowspan=2, sticky='nsew' )
 
 		# Initialize the map head struct
-		mapHead = self.file.getStructByLabel( 'map_head' )
-		generalPointsPointer, generalPointsCount, gobjsArrayPointer, gobjsArrayCount = mapHead.getValues()[:4]
+		self.mapHead = self.file.getStructByLabel( 'map_head' )
+		generalPointsPointer, generalPointsCount, gobjsArrayPointer, gobjsArrayCount = self.mapHead.getValues()[:4]
 
 		# Initialize the structs for general points and the GObjs array
-		#genPoints = self.file.getStruct( generalPointsPointer, mapHead.offset )
-		gobjsArray = self.file.getStruct( gobjsArrayPointer, mapHead.offset )
+		#genPoints = self.file.getStruct( generalPointsPointer, self.mapHead.offset )
+		gobjsArray = self.file.getStruct( gobjsArrayPointer, self.mapHead.offset )
 		#gobjsArray = self.file.initSpecificStruct( , entryCount=gobjsArrayCount )
 		
 		# File Tree start
@@ -2969,8 +2969,8 @@ class StagePropertyEditor( ttk.Frame ):
 		if not self.file.filename.startswith( 'GrT' ):
 			targetsButton.config( state='disabled' )
 
-		# print( mapHead.getGeneralPoint( 7 ) )
-		# print( mapHead.getGeneralPoints() )
+		# print( self.mapHead.getGeneralPoint( 7 ) )
+		# print( self.mapHead.getGeneralPoints() )
 
 		self.columnconfigure( 0, weight=1 )
 		self.columnconfigure( 1, weight=2 )
@@ -2978,15 +2978,95 @@ class StagePropertyEditor( ttk.Frame ):
 		self.rowconfigure( 0, weight=0 )
 		self.rowconfigure( 1, weight=1 )
 
-		self.parseGeneralPoints( mapHead )
-		self.parseCollisions()
+	def viewModel( self ): pass
+	def viewModelDetails( self ): pass
+	def addModelGroup( self ): pass
+	def deleteModelGroup( self ): pass
+	
+	def adjustBlastzones( self ):
+		# Create the rendering window
+		rw = StageModelViewer( self.file, dimensions=(800, 600) )
+		rw.renderBlastzones()
+		rw.renderCameraLimits()
+		rw.renderCollisions()
 
-	def parseGeneralPoints( self, mapHead ):
+	def adjustCameraLimits( self ): pass
+	def adjustPlayerSpawns( self ): pass
+	def adjustItemSpawns( self ): pass
+	def ajustTargetPositions( self ): pass
+	def addNewGeneralPoint( self ): pass
 
-		generalPoints = mapHead.getGeneralPoints()
-		#print( generalPoints )
 
-	def parseCollisions( self ):
+class StageModelViewer( BasicWindow ):
+	
+	def __init__( self, stageFile, dimensions, **kwargs ):
+		windowTitle = 'Basic Stage Properties - ' + stageFile.filename
+		self.file = stageFile
+		self.mapHead = self.file.getStructByLabel( 'map_head' )
+		resizable = True
+
+		# Set up the main window
+		if not BasicWindow.__init__( self, 
+			globalData.gui.root, 
+			windowTitle, 
+			offsets=(120, 60), 
+			resizable=resizable,
+			dimensions=dimensions, 
+			unique=True, 
+			**kwargs 
+		):
+			return # If the above returned false, it displayed an existing window, so we should exit here
+		
+		self.engine = RenderEngine( self.window, dimensions, resizable )
+		self.engine.pack()
+
+	def close( self ):
+		# Stop the rendering and destroy the Pyglet window/canvas instance
+		self.engine.stop()
+
+		# Destroy this window (plus other window cleanup)
+		super( StageModelViewer, self ).close()
+
+	def renderBlastzones( self ):
+		self._renderRectangle( 151, 152, 'Blast-Zone', (255, 0, 0), ('blastzone',) )
+
+	def renderCameraLimits( self ):
+		self._renderRectangle( 149, 150, 'Camera Limit', (200, 200, 200), ('camera',) )
+
+	def _renderRectangle( self, pointType1, pointType2, name, color, tags=() ):
+
+		""" Renders a pair of general points as a rectangular area (4 edges). 
+			This is similar to a quad, but with no fill area. """
+
+		# Parse the map head and get blast zone coordinates
+		topLeftJoints = self.mapHead.getGeneralPoint( pointType1 )
+		bottomRightJoints = self.mapHead.getGeneralPoint( pointType2 )
+
+		# Check that we only found one of each point, just in case there's something crazy out there
+		if not topLeftJoints:
+			printStatus( 'Unable to find any Top-Left {} general points!'.format(name), error=True )
+			return
+		elif not bottomRightJoints:
+			printStatus( 'Unable to find any Bottom-Right {} general points!'.format(name), error=True )
+			return
+		if len( topLeftJoints ) > 1:
+			printStatus( 'Found multiple Top-Left {} general points!'.format(name), warning=True )
+		if len( bottomRightJoints ) > 1:
+			printStatus( 'Found multiple Bottom-Right {} general points!'.format(name), warning=True )
+		
+		# Build four edges in 3D space from the two general points
+		x1 = topLeftJoints[0].getValues( 'Translation_X' )
+		y1 = topLeftJoints[0].getValues( 'Translation_Y' )
+		x2 = bottomRightJoints[0].getValues( 'Translation_X' )
+		y2 = bottomRightJoints[0].getValues( 'Translation_Y' )
+		# edges = [ (x1,y1,0,x2,y1,0), (x2,y1,0,x2,y2,0), (x2,y2,0,x1,y2,0), (x1,y2,0,x1,y1,0) ]
+		# self.engine.addEdges( edges, color=color, tags=tags )
+		self.engine.addEdge( (x1,y1,0,x2,y1,0), color=color, tags=tags )
+		self.engine.addEdge( (x2,y1,0,x2,y2,0), color=color, tags=tags )
+		self.engine.addEdge( (x2,y2,0,x1,y2,0), color=color, tags=tags )
+		self.engine.addEdge( (x1,y2,0,x1,y1,0), color=color, tags=tags )
+
+	def renderCollisions( self ):
 		
 		# Get the structures defining the stage's spot, links, and areas
 		self.collStruct = self.file.getStructByLabel( 'coll_data' )
@@ -2996,7 +3076,7 @@ class StagePropertyEditor( ttk.Frame ):
 		self.areaTable = self.file.getStruct( areaTableOffset )
 
 		self.vertices = self.spotTable.getVertices()
-		self.collisionLinks = self.linkTable.getFaces()
+		self.collisionLinks = self.linkTable.getFaces() # A list of CollissionSurface objects
 		self.areas = self.areaTable.getAreas()
 
 		self.extrudeCollisionLinks()
@@ -3006,7 +3086,7 @@ class StagePropertyEditor( ttk.Frame ):
 		""" Extrudes each collision link (which are initially 2D lines/edges), turning them into 3D faces. """
 
 		self.collVertices = []
-		collFaceThickness = 7
+		z = 7 # The actual thickness will be double this value
 		origVerticesLength = len( self.vertices )
 
 		for link in self.collisionLinks:
@@ -3016,53 +3096,21 @@ class StagePropertyEditor( ttk.Frame ):
 			if link.points[1] < 0 or link.points[1] >= origVerticesLength: link.validIndices = False
 			for pointIndex in link.allSpotIndices[2:]:
 				if pointIndex < -1 or pointIndex >= origVerticesLength:
-					print( 'link {} refereneces a non-existant point (index {})'.format(link.index, pointIndex) )
+					print( 'Link {} refereneces a non-existant point (index {})'.format(link.index, pointIndex) )
 					break
 			link.origPoints = link.points
 			if not link.validIndices: continue
 
-			# Create two new vertices for spot 1
-			originalVertex = self.vertices[ link.points[0] ]
-			newCoords = ( originalVertex.x, originalVertex.y, collFaceThickness )
-			if newCoords not in self.collVertices:
-				self.collVertices.append( newCoords )
-			pointIndex1 = origVerticesLength + self.collVertices.index( newCoords )
-			newCoords = ( originalVertex.x, originalVertex.y, -collFaceThickness )
-			if newCoords not in self.collVertices:
-				self.collVertices.append( newCoords )
-			pointIndex2 = origVerticesLength + self.collVertices.index( newCoords )
-
-			# Create two new vertices for spot 2
-			originalVertex = self.vertices[ link.points[1] ]
-			newCoords = ( originalVertex.x, originalVertex.y, collFaceThickness )
-			if newCoords not in self.collVertices:
-				self.collVertices.append( newCoords )
-			pointIndex3 = origVerticesLength + self.collVertices.index( newCoords )
-			newCoords = ( originalVertex.x, originalVertex.y, -collFaceThickness )
-			if newCoords not in self.collVertices:
-				self.collVertices.append( newCoords )
-			pointIndex4 = origVerticesLength + self.collVertices.index( newCoords )
-
-			# Save the new link indices
-			link.points = ( pointIndex1, pointIndex3, pointIndex4, pointIndex2 )
-
-		# Create new vertices for the new points, and store them with the rest of the vertices list
-		# for i, coords in enumerate( self.collVertices ):
-		# 	self.collVertices[i] = RenderEngine.Vertex( coords )
-
-	def viewModel( self ): pass
-	def viewModelDetails( self ): pass
-	def addModelGroup( self ): pass
-	def deleteModelGroup( self ): pass
-	
-	def adjustBlastzones( self ):
-		RenderWindow()
-
-	def adjustCameraLimits( self ): pass
-	def adjustPlayerSpawns( self ): pass
-	def adjustItemSpawns( self ): pass
-	def ajustTargetPositions( self ): pass
-	def addNewGeneralPoint( self ): pass
+			# Convert the two points (spots) to 4 quad vertices
+			v1 = self.vertices[ link.points[0] ]
+			v2 = self.vertices[ link.points[1] ]
+			vertices = [ v1.x,v1.y,-z, v2.x,v2.y,-z, v2.x,v2.y,z, v1.x,v1.y,z ]
+			
+			# Determine a color based on its collision physics type and create the quad
+			link.colorByPhysics()
+			color = hex2rgb( link.fill )
+			link.renderObj = self.engine.addQuad( vertices, color=color, colors=(), tags=('collision',) )
+			link.renderObj.collLink = link
 
 
 # class RenderWindow( ShowBase, BasicWindow ):
@@ -3126,34 +3174,3 @@ class StagePropertyEditor( ttk.Frame ):
 
 # 		# Destroy this window (plus other window cleanup)
 # 		super( RenderWindow, self ).close()
-
-
-class RenderWindow( BasicWindow ):
-	
-	def __init__( self, *args, **kwargs ):
-		dimensions = ( 640, 480 )
-		resizable = True
-
-		# Set up the main window
-		if not BasicWindow.__init__( self, 
-			globalData.gui.root, 
-			'Basic Stage Properties', 
-			*args, 
-			offsets=(120, 60), 
-			resizable=resizable,
-			dimensions=dimensions, 
-			unique=False, 
-			**kwargs 
-		):
-			return # If the above returned false, it displayed an existing window, so we should exit here
-		
-		self.engine = RenderEngine( self.window, dimensions, resizable )
-		self.engine.pack()
-		self.window.focus_set()
-
-	def close( self ):
-		# Stop the rendering and destroy the Pyglet window/canvas instance
-		self.engine.stop()
-
-		# Destroy this window (plus other window cleanup)
-		super( RenderWindow, self ).close()

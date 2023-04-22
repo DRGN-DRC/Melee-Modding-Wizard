@@ -21,6 +21,7 @@ from itertools import izip
 from collections import OrderedDict
 
 from basicFunctions import uHex
+from RenderEngine2 import Vertex
 
 showLogs = True
 
@@ -1944,7 +1945,7 @@ class MapHeadObjDesc( StructBase ):
 					jointGroup = self.dat.initSpecificStruct( JointObjDesc, jointGroupPtr, pointsArrayOffset, entryCount=arrayCount )
 					childOffset = jointGroup.getChildren()[0]
 					childStruct = self.dat.initSpecificStruct( JointObjDesc, childOffset, jointGroupPtr )
-					points = childStruct.getSiblings()
+					points = childStruct.getSiblings()[:]
 					points.insert( 0, childStruct.offset )
 
 					# Ensure the index is valid and collect the appropriate joint struct
@@ -1973,7 +1974,7 @@ class MapHeadObjDesc( StructBase ):
 			# Initialize the joint group and get the offsets of the points/joints
 			childOffset = jointGroup.getChildren()[0]
 			childStruct = self.dat.initSpecificStruct( JointObjDesc, childOffset, jointGroupPtr )
-			points = childStruct.getSiblings()
+			points = childStruct.getSiblings()[:]
 			points.insert( 0, childStruct.offset )
 
 			pointsInfo = []
@@ -1997,7 +1998,7 @@ class MapHeadObjDesc( StructBase ):
 
 				# Collect the X and Y coords of this joint
 				pointName = pointTypeNames.get( pointType, 'Unknown Type ({})'.format(pointType) )
-				pointsInfo.append( (jointIndex, pointName, values[11], values[12], scale) )
+				pointsInfo.append( (jointIndex, pointName, (values[11], values[12]), scale) )
 
 			arrays.append( pointsInfo )
 
@@ -2039,14 +2040,17 @@ class MapPointTypesArray( TableStruct ):
 	enums = { 'Point_Type': OrderedDict([
 				( 0, 'Player 1 Spawn' ), ( 1, 'Player 2 Spawn' ), ( 2, 'Player 3 Spawn' ), ( 3, 'Player 4 Spawn' ), 
 				( 4, 'Player 1 Respawn' ), ( 5, 'Player 2 Respawn' ), ( 6, 'Player 3 Respawn' ), ( 7, 'Player 4 Respawn' ), 
+
 				( 127, 'Item Spawn 1' ), ( 128, 'Item Spawn 2' ), ( 129, 'Item Spawn 3' ), ( 130, 'Item Spawn 4' ), 
 				( 131, 'Item Spawn 5' ), ( 132, 'Item Spawn 6' ), ( 133, 'Item Spawn 7' ), ( 134, 'Item Spawn 8' ), 
 				( 135, 'Item Spawn 9' ), ( 136, 'Item Spawn 10' ), ( 137, 'Item Spawn 11' ), ( 138, 'Item Spawn 12' ), 
 				( 139, 'Item Spawn 13' ), ( 140, 'Item Spawn 14' ), ( 141, 'Item Spawn 15' ), ( 142, 'Item Spawn 16' ), 
 				( 143, 'Item Spawn 17' ), ( 144, 'Item Spawn 18' ), ( 145, 'Item Spawn 19' ), ( 146, 'Item Spawn 20' ), 
+
 				( 148, 'Delta Camera Angle' ), 
 				( 149, 'Top-Left Camera Limit' ), ( 150, 'Bottom-Right Camera Limit' ), ( 151, 'Top-Left Blast-Zone' ), ( 152, 'Bottom-Right Blast-Zone' ), 
-				( 153, 'Stage Clear Point' ), # Seen as exit points for stages such as All-Star Heal and F-Zero Grand Prix
+				( 153, 'Stage Exit' ), # Seen as exit points for stages such as All-Star Heal and F-Zero Grand Prix
+
 				( 199, 'Target 1' ), ( 200, 'Target 2' ), ( 201, 'Target 3' ), ( 202, 'Target 4' ), ( 203, 'Target 5' ), 
 				( 204, 'Target 6' ), ( 205, 'Target 7' ), ( 206, 'Target 8' ), ( 207, 'Target 9' ), ( 208, 'Target 10' )
 			]) }
@@ -2249,10 +2253,10 @@ class MapSpotTable( StructBase ):
 
 	def getVertices( self ):
 
-		""" Returns a list of vertex objects. Y coordinate values are flipped. """
+		""" Returns a list of vertex objects. """
 
 		valueIterator = iter( self.getValues() )
-		return [ Vertex((xCoord, -yCoord, 0)) for xCoord, yCoord in izip(valueIterator, valueIterator) ]
+		return [ Vertex((xCoord, yCoord, 0)) for xCoord, yCoord in izip(valueIterator, valueIterator) ]
 
 
 class MapLinkTable( StructBase ):
@@ -2320,7 +2324,8 @@ class MapLinkTable( StructBase ):
 		surfaces = []
 		index = 0
 
-		iterRefs = [ iter(self.values) ] * 10 # Making multiple references to the same iterator
+		iterReference = iter( self.values )
+		iterRefs = [ iterReference ] * 10 # Making multiple references to the same iterator
 
 		for i1, i2, i3, i4, i5, i6, _, physicsFlags, propertyFlags, materialFlags in zip( *iterRefs ):
 			link = ( i1, i2 )
@@ -2331,22 +2336,16 @@ class MapLinkTable( StructBase ):
 		return surfaces
 
 
-class Vertex:
-	def __init__(self, points):
-		#store x, y, z coordinates
-		self.x = points[0]
-		self.y = points[1]
-		self.z = points[2]
-
 class CollissionSurface:
 
 	def __init__( self, vertexIndices, allSpotIndices, physicsFlags, propertyFlags, materialFlags, index, color='' ):
-		self.points = vertexIndices
+		self.points = vertexIndices # The main start and stop spot indices
 		self.allSpotIndices = allSpotIndices
 		self.physics = physicsFlags
 		self.property = propertyFlags
 		self.material = MapLinkTable.enums['Material_Enum'].get( materialFlags, 'Unknown' )
 		self.index = index
+		self.renderObj = None 
 
 		if not color:
 			self.colorByPhysics()
