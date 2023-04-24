@@ -141,19 +141,19 @@ def init( programArgs ):
 	FileSystem.registerStructureClasses()
 
 
-def getUniqueWindow( className, topLevelWindow=None ):
+def getUniqueWindow( windowTitle, topLevelWindow=None ):
 
 	""" Used to get an instance of a "unique" window, meant to be persistent or reused. 
 		These are created by the BasicWindow class when 'unique' is True. 
 		This will also make sure the window is not minimized and bring it to the foreground
-		if it's found. If that fails, this returns None and erases that className entry. """
+		if it's found. If that fails, this returns None and erases that windowTitle entry. """
 
 	if not topLevelWindow:
 		topLevelWindow = gui.root
 	
 	# Bring into view an existing instance of this window, if already present
 	if hasattr( topLevelWindow, 'uniqueWindows' ):
-		existingWindow = topLevelWindow.uniqueWindows.get( className )
+		existingWindow = topLevelWindow.uniqueWindows.get( windowTitle )
 
 		if existingWindow:
 			try:
@@ -162,7 +162,7 @@ def getUniqueWindow( className, topLevelWindow=None ):
 				existingWindow.window.lift()
 				return existingWindow
 			except: # Failsafe against bad window name (existing window somehow destroyed without proper clean-up); move on to create new instance
-				topLevelWindow.uniqueWindows[className] = None
+				topLevelWindow.uniqueWindows[windowTitle] = None
 				return None
 
 

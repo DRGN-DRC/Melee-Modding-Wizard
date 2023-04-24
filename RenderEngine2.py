@@ -55,30 +55,26 @@ class RenderEngine( Tk.Frame ):
 		win32api.SetWindowLong( pyglet_handle, GWLP_HWNDPARENT, self.canvas.winfo_id() )
 		
 		# Set up the OpenGL context
-		gl.glClearColor( 0, 0, 0, 1 )
-		gl.glEnable( gl.GL_DEPTH_TEST ) # Do depth comparisons and update the depth buffer
-		gl.glEnable( gl.GL_LINE_SMOOTH ) # Anti-aliasing
-		gl.glEnable( gl.GL_ALPHA_TEST )
-		gl.glDepthFunc( gl.GL_LEQUAL )
-		gl.glMatrixMode( gl.GL_PROJECTION )
-		gl.glLoadIdentity()
-		gl.gluPerspective( 60, float(self.width) / float(self.height), 0.1, 100.0 )
-		gl.glMatrixMode(gl.GL_MODELVIEW)
-		gl.glTranslatef(0, 0, -5)
+		#gl.glClearColor( 0, 0, 0, 1 )
+		# gl.glEnable( gl.GL_DEPTH_TEST ) # Do depth comparisons and update the depth buffer
+		# gl.glEnable( gl.GL_LINE_SMOOTH ) # Anti-aliasing
+		# gl.glEnable( gl.GL_BLEND )
+		# gl.glLineWidth( 3 ) # Set edge width to 3 pixels
+		# gl.glEnable( gl.GL_ALPHA_TEST )
+		# gl.glDepthFunc( gl.GL_LEQUAL )
+		# gl.glMatrixMode( gl.GL_PROJECTION )
+		# gl.glLoadIdentity()
+		# gl.gluPerspective( 60, float(self.width) / float(self.height), 0.1, 100.0 )
+		#gl.glMatrixMode( gl.GL_MODELVIEW )
+		#gl.glTranslatef( 0, 0, -5 )
 
-		self.vertices = ( 'v3f', [] )
-		self.vertexColors = ( 'c3B', [] )
+		# self.vertices = ( 'v3f', [] )
+		# self.vertexColors = ( 'c3B', [] )
 		self.edges = []
 		self.triangles = []
 		self.quads = []
 
-		self.scale = 1.0
-		self.rotation_X = 0
-		self.rotation_Y = 0
-
-		self.translation_X = 0.0
-		self.translation_Y = 0.0
-		self.translation_Z = 0.0
+		self.resetView()
 
 		# self.vertices = pyglet.graphics.vertex_list( 8,
 		# 	('v3f', [-0.5,-0.5,-0.5, 0.5,-0.5,-0.5, 0.5,0.5,-0.5, -0.5,0.5,-0.5, -0.5,-0.5,0.5, 0.5,-0.5,0.5, 0.5,0.5,0.5, -0.5,0.5,0.5]),
@@ -149,20 +145,33 @@ class RenderEngine( Tk.Frame ):
 
 		return quad
 
+	def resetView( self ):
+		
+		self.maxZoom = 200
+
+		self.scale = 1.0
+		self.rotation_X = 0
+		self.rotation_Y = 0
+
+		self.translation_X = 0.0
+		self.translation_Y = 0.0
+		self.translation_Z = 0.0
+
 	def zoom( self, event ):
 
 		scroll_y = event.delta / 30
 
 		if scroll_y > 0: # zoom in
-			self.scale *= 1.07
+			self.scale *= 1.09
 		elif scroll_y < 0: # zoom out
-			self.scale /= 1.07
+			self.scale /= 1.09
 
 	def on_key_press( self, symbol ):
 
 		print(symbol)
-		if symbol == key.A:
-			print('The "A" key was pressed.')
+
+		if symbol == key.R:
+			self.resetView()
 		elif symbol == key.LEFT:
 			print('The left arrow key was pressed.')
 		elif symbol == key.ENTER:
@@ -170,7 +179,7 @@ class RenderEngine( Tk.Frame ):
 
 	def on_mouse_drag( self, *args ):
 
-		""" Handles rotation and panning of the scene. 
+		""" Handles mouse input for rotation and panning of the scene. 
 			buttons = Bitwise combination of the mouse buttons currently pressed. 
 			modifiers = Bitwise combination of any keyboard modifiers currently active. """
 
@@ -183,26 +192,35 @@ class RenderEngine( Tk.Frame ):
 			self.rotation_X += dx
 			self.rotation_Y -= dy
 		elif buttons == 4: # Right-click button held
-			self.translation_X += ( dx / (2.0/self.scale) )
-			self.translation_Y += ( dy / (2.0/self.scale) )
+			self.translation_X += dx / 5.0
+			self.translation_Y += dy / 5.0
 		# else: Multiple buttons held; do nothing and 
 		# wait 'til the user gets their act together. :P
 
-	def on_draw(self):
+	def on_draw( self ):
 		# Clear the screen
+		gl.glClearColor( 0, 0, 0, 1 )
 		gl.glClear( gl.GL_COLOR_BUFFER_BIT | gl.GL_DEPTH_BUFFER_BIT )
+
+		gl.glEnable( gl.GL_DEPTH_TEST ) # Do depth comparisons and update the depth buffer
+		gl.glDepthFunc( gl.GL_LEQUAL )
+		gl.glEnable( gl.GL_ALPHA_TEST )
+		gl.glEnable( gl.GL_BLEND )
+		gl.glBlendFunc( gl.GL_SRC_ALPHA, gl.GL_ONE_MINUS_SRC_ALPHA )
+		gl.glHint(gl.GL_MULTISAMPLE_FILTER_HINT_NV, gl.GL_NICEST)
+		gl.glEnable( gl.GL_LINE_SMOOTH ) # Anti-aliasing
+		gl.glEnable( gl.GL_MULTISAMPLE )
+		gl.glLineWidth( 3 ) # Set edge widths to 3 pixels
 		
-		# Set the projection matrix to a perspective projection and apply translation (pan)
+		# Set the projection matrix to a perspective projection and apply translation (camera pan)
 		gl.glMatrixMode( gl.GL_PROJECTION )
 		gl.glLoadIdentity()
-		gl.gluPerspective( 45, float(self.width) / self.height, 0.1, 1000 )
-		gl.glTranslatef( self.translation_X, self.translation_Y, -180 ) # Pan the camera
+		gl.gluPerspective( 60, float(self.width) / self.height, 0.1, 1000 )
+		gl.glTranslatef( self.translation_X, self.translation_Y, -self.maxZoom )
 
-		# Set the modelview matrix to a scaled view
+		# Set up the modelview matrix and apply transformations
 		gl.glMatrixMode( gl.GL_MODELVIEW )
 		gl.glLoadIdentity()
-
-		# Rotate and scale (zoom)
 		gl.glRotatef( self.rotation_X, 0, 1, 0 )
 		gl.glRotatef( self.rotation_Y, 1, 0, 0 )
 		gl.glScalef( self.scale, self.scale, self.scale )
@@ -213,18 +231,35 @@ class RenderEngine( Tk.Frame ):
 			for edge in self.edges:
 				edge.render( batch )
 			batch.draw()
-			#self.edgesBatch.draw( gl.GL_LINES )
-		# if self.trianglesBatch:
-		# 	self.trianglesBatch.draw( gl.GL_TRIANGLES )
-		# if self.quadsBatch:
-		# 	self.quadsBatch.draw( gl.GL_QUADS )
+		if self.triangles:
+			batch = pyglet.graphics.Batch()
+			for triangle in self.triangles:
+				triangle.render( batch )
+			batch.draw()
 		if self.quads:
 			batch = pyglet.graphics.Batch()
 			for quad in self.quads:
 				quad.render( batch )
 			batch.draw()
 
-	def resizeViewport(self, event):
+	def showPart( self, tag, visible, primitive=None ):
+
+		if primitive == 'edge':
+			objects = self.edges
+		elif primitive == 'triangle':
+			objects = self.triangles
+		elif primitive == 'quad':
+			objects = self.quads
+		else:
+			if primitive:
+				print( 'Warning; unrecognized primitive: ' + str(primitive) )
+			objects = self.edges + self.triangles + self.quads
+
+		for obj in objects:
+			if tag in obj.tags:
+				obj.hidden = not visible
+
+	def resizeViewport( self, event ):
 
 		""" Updates the tkinter canvas and pyglet rendering canvas 
 			when the Tkinter frame is resized. """
@@ -245,13 +280,13 @@ class RenderEngine( Tk.Frame ):
 			so it doesn't try to update anything that doesn't exist and crash. """
 
 		# Allow the next iteration of the loop to continue, 
-		# but trigger it to call this one again once it's done.
-		ev = pyglet.app.event_loop
-		if ev.is_running and ev.step != ev.stop:
-			ev.step = ev.stop
+		# but modify it to call this method again once it's done.
+		el = pyglet.app.event_loop
+		if el.is_running and el.step != el.stop:
+			el.is_running = False
+			el.has_exit = True
+			el.step = self.stop
 			return
-
-		time.sleep( 1 )
 
 		self.window.close()
 

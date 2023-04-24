@@ -1620,7 +1620,8 @@ class CharacterColorConverter( BasicWindow ):
 	""" Tool window to convert character costumes meant for one color slot to a different color slot. """
 
 	def __init__( self ):
-		BasicWindow.__init__( self, globalData.gui.root, 'Character Color Converter', dimensions=(720, 450), topMost=False, unique=True )
+		if not BasicWindow.__init__( self, globalData.gui.root, 'Character Color Converter', dimensions=(720, 450), topMost=False, unique=True ):
+			return # If the above returned false, it displayed an existing window, so we should exit here
 
 		self.fontColor = 'black'
 		self.source = None

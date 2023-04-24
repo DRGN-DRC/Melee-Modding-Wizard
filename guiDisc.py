@@ -2395,7 +2395,7 @@ class DiscMenu( Tk.Menu, object ):
 		""" Add character files from the disc to the CCC tool window. """
 
 		# Check if an instance exists, and create one if it doesn't
-		cccWindow = globalData.getUniqueWindow( 'CharacterColorConverter' )
+		cccWindow = globalData.getUniqueWindow( 'Character Color Converter' )
 		if not cccWindow:
 			cccWindow = CharacterColorConverter()
 

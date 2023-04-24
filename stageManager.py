@@ -2948,8 +2948,10 @@ class StagePropertyEditor( ttk.Frame ):
 		modelPartsControls = ttk.Frame( self )
 		ttk.Button( modelPartsControls, text='View', command=self.viewModel ).grid( column=0, row=0 )
 		ttk.Button( modelPartsControls, text='Details', command=self.viewModelDetails ).grid( column=1, row=0 )
-		ttk.Button( modelPartsControls, text='Add', command=self.addModelGroup ).grid( column=0, row=1 )
-		ttk.Button( modelPartsControls, text='Delete', command=self.deleteModelGroup ).grid( column=1, row=1 )
+		ttk.Button( modelPartsControls, text='Import', command=self.importModelGroup ).grid( column=0, row=1 )
+		ttk.Button( modelPartsControls, text='Export', command=self.exportModelGroup ).grid( column=1, row=1 )
+		ttk.Button( modelPartsControls, text='Add', command=self.addModelGroup ).grid( column=0, row=2 )
+		ttk.Button( modelPartsControls, text='Delete', command=self.deleteModelGroup ).grid( column=1, row=2 )
 		modelPartsControls.grid( column=2, row=1, sticky='nsew' )
 
 		generalPointsFrame = ttk.Frame( self )
@@ -2980,17 +2982,27 @@ class StagePropertyEditor( ttk.Frame ):
 
 	def viewModel( self ): pass
 	def viewModelDetails( self ): pass
+	def importModelGroup( self ): pass
+	def exportModelGroup( self ): pass
 	def addModelGroup( self ): pass
 	def deleteModelGroup( self ): pass
 	
 	def adjustBlastzones( self ):
 		# Create the rendering window
-		rw = StageModelViewer( self.file, dimensions=(800, 600) )
+		rw = StageModelViewer( self.file, dimensions=(900, 600) )
 		rw.renderBlastzones()
+		rw.renderCameraLimits()
+		rw.toggleCamLimits( False ) # Hide by default
+		rw.renderCollisions()
+
+	def adjustCameraLimits( self ):
+		# Create the rendering window
+		rw = StageModelViewer( self.file, dimensions=(900, 600) )
+		rw.renderBlastzones()
+		rw.toggleBlastzones( False ) # Hide by default
 		rw.renderCameraLimits()
 		rw.renderCollisions()
 
-	def adjustCameraLimits( self ): pass
 	def adjustPlayerSpawns( self ): pass
 	def adjustItemSpawns( self ): pass
 	def ajustTargetPositions( self ): pass
@@ -3011,7 +3023,8 @@ class StageModelViewer( BasicWindow ):
 			windowTitle, 
 			offsets=(120, 60), 
 			resizable=resizable,
-			dimensions=dimensions, 
+			dimensions=dimensions,
+			minsize=(320, 200),
 			unique=True, 
 			**kwargs 
 		):
@@ -3019,6 +3032,47 @@ class StageModelViewer( BasicWindow ):
 		
 		self.engine = RenderEngine( self.window, dimensions, resizable )
 		self.engine.pack()
+
+		self.showBlastZones = Tk.BooleanVar( value=True )
+		self.showCamLimits = Tk.BooleanVar( value=True )
+		self.showCollisions = Tk.BooleanVar( value=True )
+		self.showPlayerSpawns = Tk.BooleanVar( value=True )
+		self.showItemSpawns = Tk.BooleanVar( value=True )
+
+		# self.overlayedControls = ttk.Frame( self.window )
+		# ttk.Checkbutton( self.overlayedControls, variable=self.blastzoneVisibility ).grid( column=0, row=0, padx=5, pady=5 )
+		# ttk.Checkbutton( self.overlayedControls, variable=self.blastzoneVisibility ).grid( column=0, row=1, padx=5, pady=5 )
+		# self.overlayedControls.place( relx=1.0, rely=.5, anchor='e', x=-90 )
+		ttk.Checkbutton( self.window, text='Blastzones', variable=self.showBlastZones, command=self.toggleBlastzones ).place( relx=1.0, rely=.43, anchor='e', x=-90 )
+		ttk.Checkbutton( self.window, text='Cam Limits', variable=self.showCamLimits, command=self.toggleCamLimits ).place( relx=1.0, rely=.50, anchor='e', x=-90 )
+		ttk.Checkbutton( self.window, text='Collisions', variable=self.showCollisions, command=self.toggleCollisions ).place( relx=1.0, rely=.57, anchor='e', x=-90 )
+
+		#self.sidePanelControls = ttk.Frame( self.window )
+
+	def toggleBlastzones( self, visible=None ):
+		if visible != None:
+			self.showBlastZones.set( visible )
+		self.engine.showPart( 'blastzone', self.showBlastZones.get(), 'edge' )
+
+	def toggleCamLimits( self, visible=None ):
+		if visible != None:
+			self.showCamLimits.set( visible )
+		self.engine.showPart( 'camera', self.showCamLimits.get(), 'edge' )
+
+	def toggleCollisions( self, visible=None ):
+		if visible != None:
+			self.showCollisions.set( visible )
+		self.engine.showPart( 'collision', self.showCollisions.get(), 'quad' )
+
+	def togglePlayerSpawns( self, visible=None ):
+		if visible != None:
+			self.showPlayerSpawns.set( visible )
+		self.engine.showPart( 'playerSpawn', self.showPlayerSpawns.get(), 'vertex' )
+
+	def togglePlayerSpawns( self, visible=None ):
+		if visible != None:
+			self.showItemSpawns.set( visible )
+		self.engine.showPart( 'itemSpawn', self.showItemSpawns.get(), 'vertex' )
 
 	def close( self ):
 		# Stop the rendering and destroy the Pyglet window/canvas instance
@@ -3111,66 +3165,3 @@ class StageModelViewer( BasicWindow ):
 			color = hex2rgb( link.fill )
 			link.renderObj = self.engine.addQuad( vertices, color=color, colors=(), tags=('collision',) )
 			link.renderObj.collLink = link
-
-
-# class RenderWindow( ShowBase, BasicWindow ):
-	
-# 	def __init__( self, *args, **kwargs ):
-# 		# Set up the main window
-# 		if not BasicWindow.__init__( self, globalData.gui.root, 'Basic Stage Properties', *args, offsets=(120, 60), dimensions=(400, 400), unique=False, **kwargs ):
-# 			return # If the above returned false, it displayed an existing window, so we should exit here
-		
-# 		super( RenderWindow, self ).__init__( windowType='none' )
-# 		#ShowBase.__init__( self, windowType='none' )
-
-# 		self.frame = ttk.Frame( self.window )
-# 		self.frame.pack( fill='both', expand=1 )
-
-# 		self.startTk()
-# 		self.appRunner = None
-
-# 		#self.engine = ShowBase(windowType='none')
-
-# 		self.window.update()
-
-# 		# Embed the Panda3D window in the Tkinter frame
-# 		props = WindowProperties().getDefault()
-# 		props.setParentWindow( self.frame.winfo_id() )
-# 		props.setOrigin( 0, 0 )
-# 		props.set_size(self.frame.winfo_width(), self.frame.winfo_height())
-# 		self.win = self.makeDefaultPipe()
-# 		self.open_default_window( props=props )
-
-# 		self.panda = self.loader.loadModel( "environment" )
-# 		self.panda.reparentTo( self.render )
-		
-# 		self.taskMgr.add( self.update, "update" )
-
-# 	def update(self, task):
-# 		# Rotate the model
-# 		self.panda.setH(self.panda.getH() + 1)
-# 		return Task.cont
-		
-# 	def test(self):
-# 		print("Hello")
-		
-# 	def resize(self, event):
-# 		self.frame.update()
-# 		props = WindowProperties()
-# 		props.set_origin(0, 0)
-# 		props.set_size(self.frame.winfo_width(), self.frame.winfo_height())
-# 		self.win.request_properties(props)
-
-# 	# def finalizeExit( self ):
-
-# 	# 	""" Prevents closing this window to cause the entire program to close. 
-# 	# 		Tbe 'base' variable is a Panda3D global."""
-
-# 	# 	self.destroy()
-		
-# 	def close( self ):
-# 		# Stop the rendering and destroy the ShowBase instance
-# 		self.destroy()
-
-# 		# Destroy this window (plus other window cleanup)
-# 		super( RenderWindow, self ).close()
