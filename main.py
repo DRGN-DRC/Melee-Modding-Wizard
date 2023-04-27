@@ -475,8 +475,12 @@ class ToolsMenu( Tk.Menu, object ):
 		""" Creates a Tri-CSP (Character Select Portrait) for the CSS. """
 
 		cspCreator = TriCspCreator()
-		if not cspCreator.gimpExe or not cspCreator.config:
-			return # Unable to find GIMP, or unable to load the CSP configuration file
+
+		# Check for any problems
+		initErrors = cspCreator.initError()
+		if initErrors:
+			msg( initErrors, 'Unable to Initialize Tri-CSP Creator', error=True )
+			return
 		
 		# Get the micro melee disc object
 		microMelee = globalData.getMicroMelee()
@@ -510,6 +514,9 @@ class ToolsMenu( Tk.Menu, object ):
 			globalData.gui.updateProgramStatus( 'Missing CSP configuration info', error=True )
 			return
 
+		# Temporarily disable main menu animations
+		globalData.gui.mainMenu.pauseAnimations = True
+
 		# Backup Dolphin's current settings files and replace with new settings files
 		globalData.dolphinController.backupAndReplaceSettings( cspCreator.settingsFiles )
 
@@ -520,10 +527,17 @@ class ToolsMenu( Tk.Menu, object ):
 		# Generate the Left/Right screenshots
 		leftScreenshot = cspCreator.createSideImage( microMelee, charId, costumeId, 'lat' )
 		#leftScreenshot = os.path.join( globalData.paths['tempFolder'], 'left.png' ) # for testing
-		if not leftScreenshot: return # Error should have already been reported
-		rightScreenshot = cspCreator.createSideImage( microMelee, charId, costumeId, 'rat' )
-		#rightScreenshot = os.path.join( globalData.paths['tempFolder'], 'right.png' ) # for testing
-		if not rightScreenshot: return # Error should have already been reported
+		
+		if leftScreenshot:
+			rightScreenshot = cspCreator.createSideImage( microMelee, charId, costumeId, 'rat' )
+			#rightScreenshot = os.path.join( globalData.paths['tempFolder'], 'right.png' ) # for testing
+		else:
+			rightScreenshot = None
+
+		# Restore animations state and exit if there were any problems getting the screenshots
+		if not leftScreenshot or not rightScreenshot:
+			globalData.gui.mainMenu.pauseAnimations = False
+			return # Message to the user should have already been raised
 
 		# Restore previous Dolphin settings
 		globalData.dolphinController.restoreSettings( cspCreator.settingsFiles )
@@ -538,11 +552,17 @@ class ToolsMenu( Tk.Menu, object ):
 
 		# Assemble arguments for the external GIMP Tri-CSP Creator script, and send the command to GIMP
 		returnCode = cspCreator.createTriCsp( leftScreenshot, centerScreenshot, rightScreenshot, charConfigDict, outputPath, saveHighRes )
-		if returnCode != 0: return # Message to the user should have already been raised
+		if returnCode != 0:
+			# Restore animations state and exit
+			globalData.gui.mainMenu.pauseAnimations = False
+			return # Message to the user should have already been raised
 		
 		if saveHighRes:
 			globalData.gui.updateProgramStatus( 'High-Res CSP Created (cannot be installed to disc)' )
-			return
+
+			# Restore animations state and exit
+			globalData.gui.mainMenu.pauseAnimations = False
+			return # Message to the user should have already been raised
 		
 		# Get the character and costume color names
 		charAbbreviation = globalData.charAbbrList[charId]
@@ -574,6 +594,9 @@ class ToolsMenu( Tk.Menu, object ):
 			globalData.gui.updateProgramStatus( '{} could not be installed; the new palette data is too large'.format(textureName), error=True )
 			msg( 'The CSP was successfully created, however it could not be installed to the disc because the new palette data is too large. '
 				 "The max number of colors for this texture's palette is {} colors, however the new palette has {} colors.".format(err1, err2), 'CSP Installation Error', error=True )
+
+		# Restore animations state
+		globalData.gui.mainMenu.pauseAnimations = False
 
 	def findUnusedStages( self ):
 
@@ -812,6 +835,7 @@ class MainMenuCanvas( Tk.Canvas ):
 		self.animId = -1
 		self.minIdleTime = 16 # Before next animation (character swap or wireframe effect)
 		self.maxIdleTime = 34 # Must be at least double the minimum (due to halving in first use)
+		self.pauseAnimations = False
 
 		self.currentBorderColor = ''
 		self.borderImgs = {}	# key=color, value=imagesDict (key=imageName, value=image)
@@ -1239,7 +1263,7 @@ class MainMenuCanvas( Tk.Canvas ):
 			Certain conditions may delay (re-queue) the animation for a later time. """
 
 		# If the main menu isn't currently visible, skip this animation and queue a new one
-		if not self.mainMenuSelected() or not self.isVisible():
+		if not self.showAnimations():
 			self.queueNewAnimation()
 			return
 
@@ -1555,6 +1579,9 @@ class MainMenuCanvas( Tk.Canvas ):
 			them is enabled. This avoids extra processing if the animation wouldn't be visible. """
 
 		if self.debugMode or not self.mainMenuSelected():
+			return False
+		elif not self.isVisible() or self.pauseAnimations:
+			print('anims paused')
 			return False
 		else:
 			return not globalData.checkSetting( 'disableMainMenuAnimations' )

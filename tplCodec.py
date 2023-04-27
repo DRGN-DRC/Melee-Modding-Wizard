@@ -826,10 +826,12 @@ class TplEncoder( CodecBase ):
 		# Set data arrays to what's given, or initialize with an empty list
 		self.imageDataArray = imageDataArray or [] # Not set in the __init__ declaration because [] is mutable, and would not be created anew each time
 		self.rgbaPaletteArray = rgbaPaletteArray or []
-		self.pilImage = pilImage.convert( 'RGBA' )
+		self.pilImage = pilImage
 
 		# Initialize data from a PIL image, if provided
 		if self.pilImage:
+			self.pilImage = pilImage.convert( 'RGBA' )
+
 			# Convert to RGBA, and collect width/height and image data
 			self.width, self.height = self.pilImage.size
 			self.imageDataArray = self.pilImage.getdata()

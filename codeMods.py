@@ -623,7 +623,7 @@ class CodeMod( object ):
 			to an int or float. The source value type may not be consistent due to
 			varying sources (i.e. from an MCM format file or AMFS config/json file). """
 
-		if not isinstance( value, (int, float) ): # Need to typecast to int or float
+		if not isinstance( value, (int, float, long) ): # Need to typecast to int or float
 			if optionType == 'float':
 				value = float( value )
 			elif '0x' in value: # Convert from hex using base 16

@@ -1,13 +1,24 @@
 #!/usr/bin/env python
 
 # Created by DRGN of Smashboards (Daniel R. Cappel)
-version = 1.5
+version = 2.1
 
 # For console interaction/testing:
 # image = gimp.image_list()[0]
 # drawable = pdb.gimp_image_get_active_drawable(image)
 # pdb.python_fu_create_tri_csp(image, drawable)
 
+# Other notes:
+# print will output to stdout (visible in CMD console)
+# pdb.gimp_message() outputs to stderr by default (visible in GIMP Python Console, and Error Log; may also show in GUI status bar?)
+# pdb.gimp_message may be UTF-8
+# pdb.gimp_message() output can be changed via pdb.gimp_message_set_handler(handler); MESSAGE-BOX (0), CONSOLE (1), ERROR-CONSOLE (2)
+
+# Return Code messages:
+#	0: The operation completed successfully.
+#	1: Unable to find the configuration file at "{}".
+#	2: Source file not found # todo; checks not yet implemented
+#	3: Invalid screenshot dimensions (not 1920x1080)
 
 import os
 
@@ -16,14 +27,18 @@ from gimpfu import pdb, register, main
 from gimpfu import PF_STRING, PF_INT, PF_FLOAT, PF_BOOL, WHITE_FILL
 
 
-def removeBackground( image, drawable, colorToRemove, threshold, mask ):
+def removeBackground( image, drawable, threshold, mask ):
+	
+	# Verify image dimensions
 	width = drawable.width
 	height = drawable.height
+	if drawable.name == 'Left Alt' or drawable.name == 'Right Alt':
+		if width != 1920 or height != 1080:
+			pdb.gimp_message( 'Return Code: 3: Invalid dimensions for {}: {}x{}'.format(drawable.name, width, height) )
+			return None
+
 	pdb.gimp_item_set_visible( drawable, True )
-
-	#originalLayerPosition = pdb.gimp_image_get_item_position( image, drawable )
-	proportionedFeathering = int( round(width / 660.0) ) # scales to image size; 1 for ~640, while 3 for ~1980
-
+	proportionedFeathering = int( round(width / 660.0) ) # Scales with image size; 1 for ~640, while 3 for ~1980
 	addBorder = False
 
 	# Set the context settings for the seed-fill selection, and then perform the background selection.
@@ -39,71 +54,82 @@ def removeBackground( image, drawable, colorToRemove, threshold, mask ):
 									# SELECT-CRITERION-H (4), 
 									# SELECT-CRITERION-S (5), 
 									# SELECT-CRITERION-V (6)
-	pdb.gimp_context_set_sample_threshold_int( int(float(threshold)) ) # Controls what is considered a similar color for the seed-fill (0<x<1).
 	pdb.gimp_context_set_sample_transparent( 1 ) # Determines whether transparent areas will be selected.
 
+	# Make sure the image has an alpha channel (screenshots from Dolphin probably will, but not necessarily from other sources)
+	pdb.gimp_layer_add_alpha( drawable )
 
-	if colorToRemove == (0, 0, 0):
-		pdb.python_fu_remove_bg( image, drawable ) # Not a native function
+	# Check if the image has already had its background removed
+	topLeftCornerPixel = pdb.gimp_drawable_get_pixel( drawable, 0, 0 )[1]
+	if topLeftCornerPixel[-1] == 0:
+		pdb.gimp_item_set_visible( drawable, False )
+		return drawable # If the upper-left pixel is already transparent, no processing is required
+	
+	# A mask was supplied; use that to determine transparency
+	if mask:
+		pdb.gimp_item_set_visible( drawable, False )
+		pdb.gimp_item_set_visible( mask, True )
 
-	else:
-		# Remove black bars from the sides of the image if they're present.
-		topLeftCornerPixel = pdb.gimp_drawable_get_pixel( drawable, 0, 0 )[1]
-		if topLeftCornerPixel[-1] == 0:
-			pdb.gimp_item_set_visible( drawable, False )
-			return drawable # If the upper-left pixel is already transparent, no processing is required
+		pdb.gimp_image_select_item( image, 2, mask ) # Selection by alpha channel; mode of 2 = CHANNEL-OP-REPLACE
+		pdb.gimp_selection_invert( image )
 
-		if topLeftCornerPixel == ( 0, 0, 0, 255 ): # Opaque, pure black
-			pdb.gimp_image_select_contiguous_color( image, 0, drawable, 0, 0 )
-			pdb.gimp_image_select_rectangle( image, 0, 0, 0, 86, 32 ) # removes frame counters
-			pdb.gimp_selection_grow( image, 1 )
-			pdb.gimp_edit_clear( drawable )
+		pdb.gimp_item_set_visible( mask, False )
+		pdb.gimp_item_set_visible( drawable, True )
 
-		topRightCornerPixel = pdb.gimp_drawable_get_pixel( drawable, width - 1, 0 )[1]
-		if topRightCornerPixel == ( 0, 0, 0, 255 ):
-			pdb.gimp_image_select_contiguous_color( image, 0, drawable, width - 1, 0 )
-			pdb.gimp_image_select_rectangle( image, 0, width - 86, 0, 86, 32 ) # removes frame counters
-			pdb.gimp_selection_grow( image, 1 )
-			pdb.gimp_edit_clear( drawable )
-
-		# Erase the last line in the image (which likely has an impure magenta coloring)
-		pdb.gimp_image_select_rectangle(image, 2, 0, height - 1, width, 1)
 		pdb.gimp_edit_clear( drawable )
 
-		# Select and remove the magenta (or other color) background areas
-		if mask == '':
-			pdb.gimp_image_select_color( image, 2, drawable, colorToRemove )
+	else:
+		# Determine what color background needs to be removed (taking multiple samples in case a character obscures some of the top edge)
+		for x, y in ( (5, 5), (386, 5), (960, 5), (1534, 5), (1915, 5) ):
+			pixelSample = pdb.gimp_drawable_get_pixel( drawable, x, y )[1]
+			if pixelSample == ( 255, 0, 255, 255 ):
+				foundMagenta = True
+				break
+		else: # The loop above didn't break; magenta not found
+			foundMagenta = False
+
+		if foundMagenta:
+			pdb.gimp_context_set_sample_threshold_int( int(float(threshold)) ) # Controls what is considered a similar color for the seed-fill (0<x<1).
+			magenta = ( 255, 0, 255 )
+
+			# Remove black bars from the sides of the image if they're present.
+			if topLeftCornerPixel == ( 0, 0, 0, 255 ): # Opaque, pure black
+				pdb.gimp_image_select_contiguous_color( image, 0, drawable, 0, 0 )
+				pdb.gimp_image_select_rectangle( image, 0, 0, 0, 86, 32 ) # removes frame counters
+				pdb.gimp_selection_grow( image, 1 )
+				pdb.gimp_edit_clear( drawable )
+
+			# Remove black bar on right
+			topRightCornerPixel = pdb.gimp_drawable_get_pixel( drawable, width - 1, 0 )[1]
+			if topRightCornerPixel == ( 0, 0, 0, 255 ):
+				pdb.gimp_image_select_contiguous_color( image, 0, drawable, width - 1, 0 )
+				pdb.gimp_image_select_rectangle( image, 0, width - 86, 0, 86, 32 ) # removes frame counters
+				pdb.gimp_selection_grow( image, 1 )
+				pdb.gimp_edit_clear( drawable )
+
+			# Erase the last line in the image (which likely has an impure magenta coloring)
+			pdb.gimp_image_select_rectangle(image, 2, 0, height - 1, width, 1)
+			pdb.gimp_edit_clear( drawable )
+
+			# Select and remove the magenta (or other color) background areas
+			pdb.gimp_image_select_color( image, 2, drawable, magenta )
 			pdb.gimp_selection_grow( image, 1 )
 
-			pdb.plug_in_colortoalpha( image, drawable, colorToRemove )
+			pdb.plug_in_colortoalpha( image, drawable, magenta )
 
-		else: # A mask was supplied
-			pdb.gimp_item_set_visible( drawable, False )
-			pdb.gimp_item_set_visible( mask, True )
-			#pdb.gimp_image_select_color( image, 2, mask, colorToRemove )
-			pdb.gimp_image_select_item( image, 2, mask ) # Selection by alpha channel; mode of 2 = CHANNEL-OP-REPLACE
-			pdb.gimp_selection_invert( image )
-			pdb.gimp_item_set_visible( mask, False )
-			pdb.gimp_item_set_visible( drawable, True )
-
-			#pdb.plug_in_colortoalpha( image, drawable, colorToRemove )
-
-			#pdb.gimp_selection_shrink( image, 5 )
-			pdb.gimp_edit_clear( drawable )
-
-		if not addBorder:
-			pdb.gimp_selection_feather( image, proportionedFeathering )
-			pdb.gimp_edit_clear( drawable )
-			pdb.gimp_edit_clear( drawable )
-
-		pdb.gimp_selection_none( image )
+		else: # Remove a fully-black background
+			# Readjust the threshold; should be much smaller if using contiguous fill and without magenta
+			threshold = int( float(threshold) ) / 10
+			pdb.gimp_context_set_sample_threshold_int( threshold ) # Controls what is considered a similar color for the seed-fill (0<x<1).
+			
+			pdb.gimp_image_select_contiguous_color( image, 2, drawable, 0, 0 )
+			pdb.gimp_selection_grow( image, 1 )
+			pdb.plug_in_colortoalpha( image, drawable, (0, 0, 0) )
 
 	if addBorder:
 		# Create a 1px black border
 		borderLayer = pdb.gimp_layer_new( image, width, height, 1, 'Border', 100, 0 ) # last two args: opacity, mode
 		pdb.gimp_image_insert_layer( image, borderLayer, None, 0 )
-		#gimp.set_background( (0, 0, 0) )
-		#pdb.gimp_edit_fill( borderLayer, BACKGROUND_FILL ) # Fill with background
 		pdb.gimp_image_select_item( image, 0, drawable ) # Selection by alpha channel
 		pdb.gimp_edit_fill( borderLayer, WHITE_FILL )
 		pdb.gimp_invert( borderLayer )
@@ -113,6 +139,12 @@ def removeBackground( image, drawable, colorToRemove, threshold, mask ):
 
 		# Combine the layers
 		drawable = pdb.gimp_image_merge_down( image, borderLayer, 2 )
+	else:
+		pdb.gimp_selection_feather( image, proportionedFeathering )
+		pdb.gimp_edit_clear( drawable )
+		pdb.gimp_edit_clear( drawable )
+
+	pdb.gimp_selection_none( image )
 
 	pdb.gimp_item_set_visible( drawable, False )
 
@@ -149,9 +181,6 @@ def create_tri_csp( leftImagePath, centerImagePath, rightImagePath,
 	centerImageXOffset, centerImageYOffset, centerImageScaling, 
 	sideImagesXOffset, sideImagesYOffset, sideImagesScaling, 
 	reverseSides, createHighRes, showFinished ):
-
-	potentialBgColors = { 0: (255, 0, 255), 1: (0, 0, 0) } # Magenta and Black RGB
-	colorToRemove = potentialBgColors[0]
 	
 	# Normalize the filepath inputs
 	leftImagePath = leftImagePath.replace('"','')
@@ -173,7 +202,8 @@ def create_tri_csp( leftImagePath, centerImagePath, rightImagePath,
 			sideImagesScaling = configuration['sideImagesScaling']
 			reverseSides = configuration['reverseSides']
 		else:
-			print 'Invalid config filepath!'
+			print 'Unable to find the configuration file at "{}".'.format(configFilePath)
+			pdb.gimp_message( 'Return Code: 1: Unable to find the configuration file at "{}".'.format(configFilePath) )
 			return
 
 	# Manage variables for handling the given files
@@ -183,9 +213,6 @@ def create_tri_csp( leftImagePath, centerImagePath, rightImagePath,
 	centerFilenameNoExt = os.path.splitext( centerFilename )[0]
 	outputFolder, rightFilename = os.path.split( rightImagePath )
 	rightFilenameNoExt = os.path.splitext( rightFilename )[0]
-
-	if os.path.isdir( outputPath.replace('\\', '/') ): outputFolder = outputPath
-	#else: outputFolder = ''
 
 	# Initialize the image workspace object with the first screenshot; subsequent screenshots are loaded and added as layers
 	image = pdb.gimp_file_load( leftImagePath, leftImagePath )
@@ -220,18 +247,21 @@ def create_tri_csp( leftImagePath, centerImagePath, rightImagePath,
 	pdb.gimp_item_set_visible( centerImageLayer, False )
 	pdb.gimp_item_set_visible( rightImageLayer, False )
 
-	# Remove the magenta background from the images
-	if mask: mask = removeBackground( image, mask, colorToRemove, threshold, '' )
-	leftImageLayer = removeBackground( image, leftImageLayer, colorToRemove, threshold, mask )
-	centerImageLayer = removeBackground( image, centerImageLayer, colorToRemove, threshold, mask )
-	rightImageLayer = removeBackground( image, rightImageLayer, colorToRemove, threshold, mask )
+	# Remove the background from the images
+	if mask:
+		mask = removeBackground( image, mask, threshold, '' )
+		if not mask: return
+	leftImageLayer = removeBackground( image, leftImageLayer, threshold, mask )
+	if not leftImageLayer: return
+	centerImageLayer = removeBackground( image, centerImageLayer, threshold, mask )
+	if not centerImageLayer: return
+	rightImageLayer = removeBackground( image, rightImageLayer, threshold, mask )
+	if not rightImageLayer: return
 
 	# Re-enable layer visibility
 	pdb.gimp_item_set_visible( leftImageLayer, True )
 	pdb.gimp_item_set_visible( centerImageLayer, True )
 	pdb.gimp_item_set_visible( rightImageLayer, True )
-
-	#pdb.gimp_message( 'Background removal complete. Beginning positioning and scaling.' )
 
 	# Scale and align the layers [ WARNING! Changing the width/height values below will change the result of your config files. ]
 	# highResCSPWidth = 680 # This is 5x vanilla width of 136
@@ -265,7 +295,14 @@ def create_tri_csp( leftImagePath, centerImagePath, rightImagePath,
 	# Combine the layers (now unnecessary, but must be kept so that new CSPs will exactly match CSPs previously created)
 	finalComposite = pdb.gimp_image_merge_visible_layers( image, 1 ) # 1 = merge_type, CLIP-TO-IMAGE
 
+	# Set a specific output path if one was given, otherwise, use the folder of the right side image
 	filename = leftFilenameNoExt + '_' + centerFilenameNoExt + '_' + rightFilenameNoExt
+	if outputPath:
+		if os.path.isdir( outputPath ):
+			outputFolder = outputPath
+		else:
+			outputFolder, filename = os.path.split( outputPath )
+			filename = os.path.splitext( filename )[0]
 
 	if createHighRes:
 		filename = filename + '_highRes'
@@ -293,6 +330,8 @@ def create_tri_csp( leftImagePath, centerImagePath, rightImagePath,
 
 	pdb.gimp_progress_set_text( 'Process complete!' )
 
+	pdb.gimp_message( 'Return Code: 0: The operation completed successfully.' )
+
 
 register(
 		"python_fu_create_tri_csp",										# Name to register for calling this plug-in
@@ -301,8 +340,8 @@ register(
 		"DRGN (Daniel R. Cappel)",										# Author
 		"Creative Commons",												# Copyright
 		"March 2017",													# Creation time
-		"<Toolbox>/CS_Ps/Create _Tri-CSP",
-		"",                 # Color space. Setting to "*" means any are accepted, and will force requirement of an open image before script can be called.
+		"<Toolbox>/CS_Ps/Create _Tri-CSP",								# Menu path
+		"",					# Image Types. Setting to "*" means any are accepted, and will force requirement of an open image before script can be called.
 		[
 				( PF_STRING, 'leftImagePath', 'Left-Alt Filepath:', "" ),
 				( PF_STRING, 'centerImagePath', 'Center Image Filepath:', '' ),
@@ -310,7 +349,7 @@ register(
 
 				( PF_STRING, 'maskImagePath', 'Background Mask:', '' ),
 				( PF_STRING, 'configFilePath', 'Configuration File:', '' ),
-				( PF_STRING, 'outputPath', 'Output Folder:', '' ),
+				( PF_STRING, 'outputPath', 'Output (folder or full path):', '' ),
 
 				( PF_INT, 'threshold', "Background Selection Threshold:", 40 ),
 

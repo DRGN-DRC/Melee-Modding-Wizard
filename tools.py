@@ -730,42 +730,38 @@ class CodeLookup( BasicWindow ):
 
 class TriCspCreator( object ):
 
+	installationFolders = (
+		"C:\\Program Files\\GIMP 2\\bin", 
+		"{}\\Programs\\GIMP 2\\bin".format(os.environ['LOCALAPPDATA'])
+	)
+
 	def __init__( self ):
 
 		self.config = {}
 		self.gimpDir = ''
 		self.gimpExe = ''
 
-		# Analyze the version of GIMP installed, and check for needed plugins
-		self.determineGimpPath()
-		gimpVersion = self.getGimpProgramVersion()
-		pluginDir = self.getGimpPluginDirectory( gimpVersion )
-		createCspScriptVersion = self.getScriptVersion( pluginDir, 'python-fu-create-tri-csp.py' )
-		finishCspScriptVersion = self.getScriptVersion( pluginDir, 'python-fu-finish-csp.py' )
-		
-		# Print out version info
-		print( '' )
-		print( '   Tri-CSP Creator version info:' )
-		print( '' )
-		print( '  GIMP:                    ' + gimpVersion )
-		print( '  create-tri-csp script:   ' + createCspScriptVersion )
-		print( '  finish-csp script:       ' + finishCspScriptVersion )
-		print( '' )
-		print( 'GIMP executable directory: ' + self.gimpDir )
-		print( 'GIMP Plug-ins directory:   ' + pluginDir )
-		print( '' )
+		# Analyze the version of GIMP installed
+		self.checkGimpPath()
+		self.checkGimpProgramVersion()
+		self.checkGimpPluginDirectory()
 
 		# Update installed scripts (then no need to check version)
 		# todo
 
 		# Delete old GIMP .pyc plugins (I don't think GIMP will automatically re-build them if the scripts are updated)
 		# todo
+
+		# Double-check plugin versions
+		self.createCspScriptVersion = self.getScriptVersion( self.pluginDir, 'python-fu-create-tri-csp.py' )
+		self.finishCspScriptVersion = self.getScriptVersion( self.pluginDir, 'python-fu-finish-csp.py' )
 		
 		# Load the CSP Configuration file, and assemble other needed paths
 		try:
 			self.triCspFolder = globalData.paths['triCsps']
 			self.pluginsFolder = os.path.join( self.triCspFolder, 'GIMP plug-ins' )
 			configFilePath = os.path.join( self.triCspFolder, 'CSP Configuration.yml' )
+			configFileName = os.path.basename( configFilePath )
 
 			# Read the config file (this method should allow for utf-8 encoding, and preserve comments when saving/dumping back to file)
 			with codecs.open( configFilePath, 'r', encoding='utf-8' ) as stream:
@@ -776,24 +772,60 @@ class TriCspCreator( object ):
 				os.path.join( self.triCspFolder, 'Dolphin.ini' ),
 				os.path.join( self.triCspFolder, 'GFX.ini' )
 			]
+			self.configLoadErr = ''
 		except IOError: # Couldn't find the configuration file
-			msg( "Couldn't find the CSP config file at " + configFilePath, warning=True )
+			self.configLoadErr = """Couldn't find the CSP config file at "{}".""".format( configFilePath )
 		except Exception as err: # Problem parsing the file
-			msg( 'There was an error while parsing the yaml config file:\n\n{}'.format(err) )
+			self.configLoadErr = 'There was an error while parsing the {} file:\n\n{}'.format(configFileName, err)
+		
+		# Print out version info
+		print( '' )
+		print( '  Tri-CSP Creator version info:' )
+		print( '  GIMP:                    ' + self.gimpVersion )
+		print( '  create-tri-csp script:   ' + self.createCspScriptVersion )
+		print( '  finish-csp script:       ' + self.finishCspScriptVersion )
+		print( '' )
+		print( 'GIMP executable directory: ' + self.gimpDir )
+		print( 'GIMP Plug-ins directory:   ' + self.pluginDir )
+		print( '' )
+		if self.configLoadErr:
+			print( self.configLoadErr )
+		else:
+			print( 'Tri-CSP Configuration file loaded successfully.' )
 
-	def determineGimpPath( self ):
+	def initError( self ):
+
+		""" Assesses how the initialization methods went to determine if there are any problems. 
+			If there are any problems, an error message will be returned. Returns an empty string on success. """
+
+		errorMsg = ''
+
+		if not self.gimpDir:
+			errorMsg = ( 'GIMP does not appear to be installed; '
+					'unable to find program folder among these paths:\n\n' + '\n'.join(self.installationFolders) )
+
+		elif not self.gimpExe:
+			errorMsg = 'Unable to find the GIMP console executable in "{}".'.format( self.gimpDir )
+
+		elif self.configLoadErr: # Unable to load the CSP configuration file
+			errorMsg = self.configLoadErr
+		
+		elif self.createCspScriptVersion != '2.1' or self.finishCspScriptVersion != '2.3': #todo: remove hardcoding!
+			errorMsg = 'Differing versions of the GIMP plug-in scripts detected!'
+
+		return errorMsg
+
+	def checkGimpPath( self ):
 
 		""" Determines the absolute file path to the GIMP console executable 
 			(the exe filename varies based on program version). """
-
-		dirs = ( "C:\\Program Files\\GIMP 2\\bin", "{}\\Programs\\GIMP 2\\bin".format(os.environ['LOCALAPPDATA']) )
 		
 		# Check for the GIMP program folder
-		for directory in dirs:
+		for directory in self.installationFolders:
 			if os.path.exists( directory ):
+				self.gimpDir = directory
 				break
-		else:
-			msg( 'GIMP does not appear to be installed; unable to find program folder among these paths:\n\n' + '\n'.join(dirs) )
+		else: # The loop above din't break; folders not found
 			self.gimpDir = ''
 			self.gimpExe = ''
 			return
@@ -801,25 +833,23 @@ class TriCspCreator( object ):
 		# Check the files in the program folder for a 'console' executable
 		for fileOrFolderName in os.listdir( directory ):
 			if fileOrFolderName.startswith( 'gimp-console' ) and fileOrFolderName.endswith( '.exe' ):
-				self.gimpDir = directory
 				self.gimpExe = fileOrFolderName
 				return
 
 		else: # The loop above didn't break; unable to find the exe
-			msg( 'Unable to find the GIMP console executable in "{}".'.format(directory) )
 			self.gimpDir = ''
 			self.gimpExe = ''
 			return
 
-	def getGimpProgramVersion( self ):
+	def checkGimpProgramVersion( self ):
 		returnCode, versionText = cmdChannel( '"{}\{}" --version'.format(self.gimpDir, self.gimpExe) )
 		if returnCode == 0:
-			return versionText.split()[-1]
+			self.gimpVersion = versionText.split()[-1]
 		else:
 			print( versionText ) # Should be an error message in this case
-			return '-1'
+			self.gimpVersion = '-1'
 		
-	def getGimpPluginDirectory( self, gimpVersion ):
+	def checkGimpPluginDirectory( self ):
 
 		""" Checks known directory paths for GIMP versions 2.8 and 2.10. If both appear 
 			to be installed, we'll check the version of the executable that was found. """
@@ -830,17 +860,17 @@ class TriCspCreator( object ):
 
 		if os.path.exists( v8_Path ) and os.path.exists( v10_Path ):
 			# Both versions seem to be installed. Use Gimp's version to decide which to use
-			major, minor, _ = gimpVersion.split( '.' )
+			major, minor, _ = self.gimpVersion.split( '.' )
 			if major != '2':
-				return ''
+				self.pluginDir = ''
 			if minor == '8':
-				return v8_Path
+				self.pluginDir = v8_Path
 			else: # Hoping this path is good for other versions as well
-				return v10_Path
+				self.pluginDir = v10_Path
 
-		elif os.path.exists( v8_Path ): return v8_Path
-		elif os.path.exists( v10_Path ): return v10_Path
-		else: return ''
+		elif os.path.exists( v8_Path ): self.pluginDir = v8_Path
+		elif os.path.exists( v10_Path ): self.pluginDir = v10_Path
+		else: self.pluginDir = ''
 
 	def getScriptVersion( self, pluginDir, scriptFile ):
 
@@ -1078,7 +1108,7 @@ class TriCspCreator( object ):
 		stderr = cmdChannel( command, returnStderrOnSuccess=True )[1]
 		returnCode, errMsg = self.parseScriptOutput( stderr )
 		if returnCode != 0:
-			msg( 'There was an error in creating the Tri-CSP:\n\n' + errMsg, 'Tri-CSP Creator Error' )
+			msg( 'There was an error in creating the Tri-CSP (exit code {}):\n\n{}'.format(returnCode, errMsg), 'Tri-CSP Compositing Error', error=True )
 			globalData.gui.updateProgramStatus( 'Error during Tri-CSP creation', error=True )
 
 		return returnCode
