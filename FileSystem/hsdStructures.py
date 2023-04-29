@@ -1998,7 +1998,7 @@ class MapHeadObjDesc( StructBase ):
 
 				# Collect the X and Y coords of this joint
 				pointName = pointTypeNames.get( pointType, 'Unknown Type ({})'.format(pointType) )
-				pointsInfo.append( (jointIndex, pointName, (values[11], values[12]), scale) )
+				pointsInfo.append( (jointIndex, pointType, pointName, (values[11], values[12]), scale) )
 
 			arrays.append( pointsInfo )
 

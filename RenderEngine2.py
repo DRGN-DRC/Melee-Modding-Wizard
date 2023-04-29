@@ -31,16 +31,16 @@ class RenderEngine( Tk.Frame ):
 	
 	def __init__( self, parent, dimensions=(640, 480), resizable=False, *args, **kwargs ):
 
-		Tk.Frame.__init__( self, parent, background='black' )
-
 		self.width = dimensions[0]
 		self.height = dimensions[1]
 
+		Tk.Frame.__init__( self, parent, background='black' )
+
 		# Create a Tkinter canvas to hold the Pyglet window's canvas
-		self.canvas = Tk.Canvas( self, width=self.width, height=self.height )
+		self.canvas = Tk.Canvas( self, width=self.width, height=self.height, borderwidth=0, highlightthickness=0 )
 		self.canvas.pack()
 
-		# Create an invisible Pyglet window (cannot create a canvas without a window)
+		# Create an invisible Pyglet window (cannot create a Pyglet canvas without a window)
 		display = pyglet.canvas.get_display()
 		screen = display.get_default_screen()
 		config = screen.get_matching_configs( gl.Config(double_buffer=True, depth_size=8, alpha_size=8) )[0]
@@ -68,8 +68,7 @@ class RenderEngine( Tk.Frame ):
 		#gl.glMatrixMode( gl.GL_MODELVIEW )
 		#gl.glTranslatef( 0, 0, -5 )
 
-		# self.vertices = ( 'v3f', [] )
-		# self.vertexColors = ( 'c3B', [] )
+		self.vertices = []
 		self.edges = []
 		self.triangles = []
 		self.quads = []
@@ -89,31 +88,77 @@ class RenderEngine( Tk.Frame ):
 		# self.line_batch = pyglet.graphics.vertex_list(2, line_vertices)
 		# self.triangle_batch = pyglet.graphics.vertex_list(3, triangle_vertices)
 
-		if resizable:
-			self.bind( "<Configure>", self.resizeViewport )
+		#self.pack_propagate( False )
 
 		# Set up event handling for controls
 		self.window.on_mouse_drag = self.on_mouse_drag
 		self.master.bind( '<KeyPress>', self.on_key_press )
 		self.master.bind( "<MouseWheel>", self.zoom )
-		# self.master.bind( "<Motion>", self.rotate ) # Mouse motion with Left-Click held down
-		# self.master.bind( "<B3-Motion>", self.pan ) # Mouse motion with Right-Click held down
 
-		# Start the event loop
+		if resizable:
+			self.tic = time.time()
+			self.bind( "<Configure>", self.resizeViewport )
+		#self.resizeDebounce = False
+
+		# Start the render event loop using Tkinter's main event loop
 		pyglet.app.event_loop = CustomEventLoop( globalData.gui.root )
 		pyglet.app.event_loop.run()
 
-		# Move focus to the parent window (will initially be the pyglet window by default)
+		# Move focus to the parent window (will be the pyglet window by default)
 		self.master.after( 1, lambda: self.master.focus_force() )
+
+	def resetView( self ):
+		
+		self.maxZoom = 200
+
+		self.scale = 1.0
+		self.rotation_X = 0
+		self.rotation_Y = 0
+
+		self.translation_X = 0.0
+		self.translation_Y = 0.0
+		self.translation_Z = 0.0
+
+	def resizeViewport( self, event ):
+
+		""" Updates the tkinter canvas and pyglet rendering canvas 
+			when the Tkinter frame is resized. """
+
+		# toc = time.time()
+		# print( 'called after {}s'.format(toc-self.tic))
+		# self.tic = toc
+		# if not self.resizeDebounce:
+		# 	self.resizeDebounce = True
+		# 	return
+		
+		self.width = event.width
+		self.height = event.height
+
+		self.canvas['width'] = self.width
+		self.canvas['height'] = self.height
+
+		# Update the pyglet rendering canvas
+		gl.glViewport( 0, 0, self.width, self.height )
+		self.window._update_view_location( self.width, self.height )
+
+	def addVertex( self, vertices, color=(128, 128, 128), tags=(), hidden=False ):
+
+		if len( vertices ) != 3:
+			print( 'Incorrect number of coordinates given to create a vertex: ' + str(vertices) )
+			return None
+
+		vertex = Vertex( vertices, color, tags, hidden )
+		self.vertices.append( vertex )
+
+		return vertex
 
 	def addEdge( self, vertices, color=None, colors=(), tags=(), hidden=False ):
 
-		""" Translates given points into a series of data points (edges) to be batch-rendered. 
-			The edgePoints arg should be a list of tuples, where each tuple contains 6 values 
-			(2 sets of x/y/z coords). """
+		""" Translates given points into a series of edges (lines) to be batch-rendered. 
+			The given vertices should contain 6 values (2 sets of x/y/z coords). """
 
 		if len( vertices ) != 6:
-			print( 'Incorrect number of points given to create an edge: ' + str(vertices) )
+			print( 'Incorrect number of coordinates given to create an edge: ' + str(vertices) )
 			return None
 
 		edge = Edge( vertices, color, colors, tags, hidden )
@@ -145,18 +190,6 @@ class RenderEngine( Tk.Frame ):
 
 		return quad
 
-	def resetView( self ):
-		
-		self.maxZoom = 200
-
-		self.scale = 1.0
-		self.rotation_X = 0
-		self.rotation_Y = 0
-
-		self.translation_X = 0.0
-		self.translation_Y = 0.0
-		self.translation_Z = 0.0
-
 	def zoom( self, event ):
 
 		scroll_y = event.delta / 30
@@ -171,6 +204,7 @@ class RenderEngine( Tk.Frame ):
 		print(symbol)
 
 		if symbol == key.R:
+			print( 'resetting' )
 			self.resetView()
 		elif symbol == key.LEFT:
 			print('The left arrow key was pressed.')
@@ -207,9 +241,9 @@ class RenderEngine( Tk.Frame ):
 		gl.glEnable( gl.GL_ALPHA_TEST )
 		gl.glEnable( gl.GL_BLEND )
 		gl.glBlendFunc( gl.GL_SRC_ALPHA, gl.GL_ONE_MINUS_SRC_ALPHA )
-		gl.glHint(gl.GL_MULTISAMPLE_FILTER_HINT_NV, gl.GL_NICEST)
 		gl.glEnable( gl.GL_LINE_SMOOTH ) # Anti-aliasing
 		gl.glEnable( gl.GL_MULTISAMPLE )
+		gl.glPointSize( 5 )
 		gl.glLineWidth( 3 ) # Set edge widths to 3 pixels
 		
 		# Set the projection matrix to a perspective projection and apply translation (camera pan)
@@ -226,7 +260,12 @@ class RenderEngine( Tk.Frame ):
 		gl.glScalef( self.scale, self.scale, self.scale )
 		
 		# Render a batch for each set of objects that have been added
-		if self.edges:
+		if self.vertices:
+			batch = pyglet.graphics.Batch()
+			for vertex in self.vertices:
+				vertex.render( batch )
+			batch.draw()
+		if self.vertices:
 			batch = pyglet.graphics.Batch()
 			for edge in self.edges:
 				edge.render( batch )
@@ -242,9 +281,12 @@ class RenderEngine( Tk.Frame ):
 				quad.render( batch )
 			batch.draw()
 
-	def showPart( self, tag, visible, primitive=None ):
+	def getObjects( self, primitive=None ):
 
-		if primitive == 'edge':
+		# Confine the search to improve performance
+		if primitive == 'vertex':
+			objects = self.vertices
+		elif primitive == 'edge':
 			objects = self.edges
 		elif primitive == 'triangle':
 			objects = self.triangles
@@ -253,26 +295,68 @@ class RenderEngine( Tk.Frame ):
 		else:
 			if primitive:
 				print( 'Warning; unrecognized primitive: ' + str(primitive) )
-			objects = self.edges + self.triangles + self.quads
+			objects = self.vertices + self.edges + self.triangles + self.quads
 
-		for obj in objects:
+		return objects
+
+	def showPart( self, tag, visible, primitive=None ):
+
+		for obj in self.getObjects( primitive ):
 			if tag in obj.tags:
 				obj.hidden = not visible
 
-	def resizeViewport( self, event ):
+	def removePart( self, tag, primitive=None ):
 
-		""" Updates the tkinter canvas and pyglet rendering canvas 
-			when the Tkinter frame is resized. """
-		
-		self.width = event.width
-		self.height = event.height
+		""" Removes objects with the given tag from this render instance. 
+			A primitive type may be given to improve performance. """
 
-		self.canvas['width'] = self.width
-		self.canvas['height'] = self.height
+		if primitive == 'vertex':
+			newObjList = []
+			for obj in self.vertices:
+				if tag not in obj.tags:
+					newObjList.append( obj )
+			self.vertices = newObjList
 
-		# Update the pyglet rendering canvas
-		gl.glViewport( 0, 0, self.width, self.height )
-		self.window._update_view_location( self.width, self.height )
+		elif primitive == 'edge':
+			newObjList = []
+			for obj in self.edges:
+				if tag not in obj.tags:
+					newObjList.append( obj )
+			self.edges = newObjList
+
+		elif primitive == 'triangle':
+			newObjList = []
+			for obj in self.triangles:
+				if tag not in obj.tags:
+					newObjList.append( obj )
+			self.triangles = newObjList
+
+		elif primitive == 'quad':
+			newObjList = []
+			for obj in self.quads:
+				if tag not in obj.tags:
+					newObjList.append( obj )
+			self.quads = newObjList
+
+		else:
+			if primitive:
+				print( 'Warning; unrecognized primitive: ' + str(primitive) )
+
+			self.vertices = []
+			self.edges = []
+			self.triangles = []
+			self.quads = []
+
+			for obj in self.getObjects( primitive ):
+				if tag not in obj.tags:
+					if isinstance( obj, Vertex ):
+						self.vertices.append( obj )
+					elif isinstance( obj, Edge ):
+						self.edges.append( obj )
+					elif isinstance( obj, Triangle ):
+						self.triangles.append( obj )
+					elif isinstance( obj, Quad ):
+						self.quads.append( obj )
 
 	def stop( self ):
 
@@ -349,17 +433,6 @@ class CustomEventLoop( EventLoop ):
 		# platform_event_loop.stop()
 
 
-class Vertex:
-	def __init__( self, coords, color=(128, 128, 128), tags=(), hidden=False ):
-		#store x, y, z coordinates
-		self.x = coords[0]
-		self.y = coords[1]
-		self.z = coords[2]
-		self.color = color
-		self.tags = tags
-		self.hidden = hidden
-
-
 class ShapeBase:
 
 	@staticmethod
@@ -382,6 +455,21 @@ class ShapeBase:
 		return colors
 
 
+class Vertex:
+	def __init__( self, coords, color=(128, 128, 128), tags=(), hidden=False ):
+		self.x = coords[0]
+		self.y = coords[1]
+		self.z = coords[2]
+
+		self.color = color
+		self.tags = tags
+		self.hidden = hidden
+	
+	def render( self, batch ):
+		if not self.hidden:
+			batch.add( 1, gl.GL_POINTS, None, ('v3f', (self.x, self.y, self.z)), ('c3B', self.color) )
+
+
 class Edge( ShapeBase ):
 
 	def __init__( self, vertices, color=None, colors=(), tags=(), hidden=False ):
@@ -395,11 +483,17 @@ class Edge( ShapeBase ):
 			batch.add( 2, gl.GL_LINES, None, self.vertices, self.vertexColors )
 
 
-# class Triangle( ShapeBase ):
+class Triangle( ShapeBase ):
 
-# 	def __init__( self ):
-# 		self.vertices = pyglet.graphics.vertex_list( 3, ('v3f', [-0.5,-0.5,0.0, 0.5,-0.5,0.0, 0.0,0.5,0.0]),
-# 														('c3B', [100,200,250, 200,110,110, 100,250,100]) )
+	def __init__( self, vertices, color=None, colors=(), tags=(), hidden=False ):
+		self.vertices = ( 'v3f', vertices )
+		self.vertexColors = ( 'c3B', self.interpretColors( 4, color, colors ) )
+		self.tags = tags
+		self.hidden = hidden
+	
+	def render( self, batch ):
+		if not self.hidden:
+			batch.add( 3, gl.GL_TRIANGLES, None, self.vertices, self.vertexColors )
 
 
 class Quad( ShapeBase ):

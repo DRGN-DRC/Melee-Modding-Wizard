@@ -1464,7 +1464,6 @@ class DataEntryWidgetBase( object ):
 			and updates the data in the file if it differs. Also triggers updating of any paired widgets. """
 
 		# Validate the input
-		#newHex = self.get().zfill( self.byteLength * 2 ).upper() # Pads the string with zeroes to the left if not enough characters
 		if not validHex( newHex ):
 			msg( 'The entered text is not valid hexadecimal!' )
 			return
@@ -1631,6 +1630,7 @@ class HexEditEntry( Tk.Entry, DataEntryWidgetBase ):
 		self.hexEntryWidget = None			# Used by HexEditEntry widgets for hex data
 		self.valueEntryWidget = None		# Used by HexEditEntry widgets for values
 		self.colorSwatchWidget = None
+		self.callback = None
 
 		if valueEntry:
 			self.bind( '<Return>', self.updateValue )
@@ -1645,9 +1645,18 @@ class HexEditEntry( Tk.Entry, DataEntryWidgetBase ):
 		self.delete( 0, 'end' )
 		self.insert( 0, value )
 
+	def updateValue( self, event ):
+		super( HexEditEntry, self ).updateValue( event )
+
+		if self.callback:
+			self.callback( event )
+
 	def updateHexData( self, event ):
 		newHex = self.get().zfill( self.byteLength * 2 ).upper() # Pads the string with zeroes to the left if not enough characters
 		self.updateHex( newHex )
+
+		if self.callback:
+			self.callback( event )
 
 
 class EnumOptionMenu( ttk.OptionMenu ):
@@ -1745,10 +1754,6 @@ class ColorSwatch( ttk.Label, DataEntryWidgetBase ):
 			if len( colorPicker.currentHexColor ) != nibbleLength:
 				msg( 'The value generated from the color picker (' + colorPicker.currentHexColor + ') does not match the byte length requirement of the destination.' )
 			else:
-				# Replace the text in the entry widget
-				# self.hexEntryWidget.delete( 0, 'end' )
-				# self.hexEntryWidget.insert( 0, colorPicker.currentHexColor )
-				
 				# Update the data in the file with the entry's data, and redraw the color swatch
 				newHex = colorPicker.currentHexColor.zfill( nibbleLength ).upper() # Pads the string with zeroes to the left if not enough characters
 				self.hexEntryWidget.updateHex( newHex )
@@ -1807,75 +1812,6 @@ class HexEditDropdown( ttk.OptionMenu, DataEntryWidgetBase ):
 
 	def get( self ): # Overriding the original get method, which would get the string, not the associated value
 		return self.options[self.selectedString.get()]
-
-	# def updateValueData( self, currentSelection ):
-
-	# 	self.updateValue()
-
-	# def updateValue( self, currentSelection ):
-
-	# 	""" Validates widget input, checks if it's new/different from what's in the file, 
-	# 		and updates the data in the file if it differs. Also triggers updating of any paired widgets. """
-
-	# 	# Validate the entered value by making sure it can be correctly encoded
-	# 	try:
-	# 		if self.formatting == 'f':
-	# 			newHex = hexlify( struct.pack( '>f', float(self.get()) ) ).upper()
-	# 		else:
-	# 			newHex = hexlify( struct.pack( '>' + self.formatting, int(self.get()) ) ).upper()
-	# 	except Exception as err:
-	# 		# Construct and display an error message for the user
-	# 		dataTypes = { 	'?': 'a boolean', 'b': 'a signed character', 'B': 'an unsigned character', 	# 1-byte
-	# 						'h': 'a signed short (halfword)', 'H': 'an unsigned short',				# 2-bytes
-	# 						'i': 'a signed integer', 'I': 'an unsigned integer', 'f': 'a float' } # 4-bytes
-	# 		if self.formatting in dataTypes:
-	# 			msg( 'The entered value is invalid for {} value.'.format( dataTypes[self.formatting] ) )
-	# 		else: # I tried
-	# 			msg( 'The entered value is invalid.' )
-	# 		print( 'Error encountered packing value entry data; {}'.format(err) )
-	# 		return
-
-	# 	# Confirm whether updating is necessary by checking if this is actually new data for any of the offset locations
-	# 	if type( self.offsets ) == list:
-	# 		for offset in self.offsets:
-	# 			currentFileHex = hexlify( self.fileObj.getData(offset, self.byteLength) ).upper()
-	# 			if currentFileHex != newHex: # Found a difference
-	# 				break
-	# 		else: # The loop above didn't break; no change found
-	# 			return # No change to be updated
-	# 	else: # The offsets attribute is just a single value (the usual case)
-	# 		currentFileHex = hexlify( self.fileObj.getData(self.offsets, self.byteLength) ).upper()
-	# 		if currentFileHex == newHex:
-	# 			return # No change to be updated
-
-	# 	# Change the background color of the widget, to show that changes have been made to it and are pending saving.
-	# 	self.configure( background='#faa' )
-
-	# 	# Update the data shown in the neiboring widget
-	# 	if self.hexEntryWidget:
-	# 		self.hexEntryWidget.delete( 0, 'end' )
-	# 		self.hexEntryWidget.insert( 0, newHex )
-	# 		self.hexEntryWidget.configure( background='#faa' )
-
-	# 	# Replace the data in the file for each location
-	# 	newData = bytearray.fromhex( newHex )
-	# 	self.updateDataInFile( newData )
-
-	# 	globalData.gui.updateProgramStatus( self.updateName + ' updated' )
-		
-	# def updateDataInFile( self, newData ):
-		
-	# 	""" Replaces the data in the file for each offset location. """
-
-	# 	if type( self.offsets ) == list:
-	# 		for offset in self.offsets:
-	# 			updateName = 'Offset ' + uHex( 0x20 + offset )
-	# 			descriptionOfChange = updateName + ' modified in ' + self.fileObj.filename
-	# 			self.fileObj.updateData( offset, newData, descriptionOfChange )
-	# 	else:
-	# 		# The offsets attribute is just a single value (the usual case)
-	# 		descriptionOfChange = self.updateName + ' modified in ' + self.fileObj.filename
-	# 		self.fileObj.updateData( self.offsets, newData, descriptionOfChange )
 
 
 class CodeLibrarySelector( BasicWindow ):
@@ -2375,22 +2311,6 @@ class FlagDecoder( BasicWindow ):
 		# 	globalDatFile.updateData( self.fieldOffsets, newData, descriptionOfChange )
 
 		printStatus( descriptionOfChange )
-
-	# def updateWidget( self, widget, newHex ):
-		
-	# 	""" Handles some cosmetic changes for the widget. Actual saving 
-	# 		of the data is handled by the updateFlagsInFile method. """
-
-	# 	# Update the values shown
-	# 	widget.delete( 0, 'end' )
-	# 	widget.insert( 0, newHex )
-
-	# 	# Change the background color of the widget, to show that changes have been made to it and are pending saving
-	# 	widget.configure( background='#faa' )
-
-	# 	# Add the widget to a list to keep track of what widgets need to have their background restored to white when saving
-	# 	global editedDatEntries
-	# 	editedDatEntries.append( widget )
 
 
 class DisguisedEntry( Tk.Entry ):

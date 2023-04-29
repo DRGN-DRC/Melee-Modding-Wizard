@@ -1089,7 +1089,7 @@ class TexturesEditorTab( ttk.Frame ):
 		modelPane.opacityScale = ttk.Scale( transparencyPane, from_=0, to=10, command=self.opacityScaleUpdated )
 		modelPane.opacityScale.grid( column=2, row=3, sticky='we' )
 
-		transparencyPane.pack( pady=(vertPadding, 0), expand=True, fill='x', padx=20 )
+		transparencyPane.pack( pady=(vertPadding, 0), expand=True, fill='x', padx=70 )
 
 		transparencyPane.columnconfigure( 0, weight=0 )
 		transparencyPane.columnconfigure( 1, weight=0 )
@@ -1120,19 +1120,18 @@ class TexturesEditorTab( ttk.Frame ):
 		colorsPane = ttk.Frame( modelPane )
 
 		# Row 1; Diffusion and Ambience
-		ttk.Label( colorsPane, text='Diffusion:' ).grid( column=0, row=0, sticky='e' )
-		#diffusionEntry = HexEditEntry( colorsPane, -1, 4, 'I', 'Diffusion' ) # Data offset (the -1) will be updated below
+		ttk.Label( colorsPane, text='Diffusion:' ).grid( column=0, row=0, sticky='e', padx=(20, 0) )
 		diffusionEntry = HexEditEntry( colorsPane, self.file, -1, 4, 'I', 'Diffusion' ) # Data offset (the -1) will be updated below
 		diffusionEntry.grid( column=1, row=0, padx=6 )
-		ttk.Label( colorsPane, text='Ambience:' ).grid( column=3, row=0, sticky='e' )
+		ttk.Label( colorsPane, text='Ambience:' ).grid( column=3, row=0, sticky='e', padx=(20, 0) )
 		ambienceEntry = HexEditEntry( colorsPane, self.file, -1, 4, 'I', 'Ambience' ) # Data offset (the -1) will be updated below
 		ambienceEntry.grid( column=4, row=0, padx=6 )
 
 		# Row 2; Specular Highlights and Shininess
-		ttk.Label( colorsPane, text='Highlights:' ).grid( column=0, row=1, sticky='e', padx=(12, 0) )
+		ttk.Label( colorsPane, text='Highlights:' ).grid( column=0, row=1, sticky='e', padx=(20, 0) )
 		highlightsEntry = HexEditEntry( colorsPane, self.file, -1, 4, 'I', 'Specular Highlights' ) # Data offset (the -1) will be updated below
 		highlightsEntry.grid( column=1, row=1, padx=6 )
-		ttk.Label( colorsPane, text='Shininess:' ).grid( column=3, row=1, sticky='e', padx=(12, 0) )
+		ttk.Label( colorsPane, text='Shininess:' ).grid( column=3, row=1, sticky='e', padx=(20, 0) )
 		shininessEntry = HexEditEntry( colorsPane, self.file, -1, 4, 'f', 'Shininess', valueEntry=True ) # Data offset (the -1) will be updated below
 		shininessEntry.grid( column=4, row=1, padx=6 )
 
@@ -1595,11 +1594,11 @@ class TexturesEditorTab( ttk.Frame ):
 		for i, imageType in enumerate( ( 0, 1, 2, 3, 4, 5, 6, 8, 9, 10, 14 ) ):
 			if imageType == texture.imageType:
 				continue
-
-			if not texture.imageDataLength in sizesDict:
-				sizesDict[texture.imageDataLength] = [userFriendlyFormatList[i]]
+			thisSize = hsdStructures.ImageDataBlock.getDataLength( texture.width, texture.height, imageType )
+			if thisSize not in sizesDict:
+				sizesDict[thisSize] = [ userFriendlyFormatList[i] ]
 			else:
-				sizesDict[texture.imageDataLength].append( userFriendlyFormatList[i] )
+				sizesDict[thisSize].append( userFriendlyFormatList[i] )
 		row = 0
 		for size, formatList in sizesDict.items():
 			ttk.Label( altImageSizesFrame, text='  /  '.join( formatList ) ).grid( column=0, row=row, sticky='w' )
@@ -1613,7 +1612,6 @@ class TexturesEditorTab( ttk.Frame ):
 		contextMenu.post( event.x_root, event.y_root )
 
 	def adjustTextureFilters( self, event ):
-
 		TextureFiltersWindow( self )
 
 	def updateCanvasGrid( self, saveChange=True ):
@@ -1867,31 +1865,6 @@ class TexturesEditorTab( ttk.Frame ):
 				"importing to match each selected texture?" )
 				
 			if allowResize:
-				# Resize the new image to match each texture it's replacing
-				# for texture in selectedTextureObjects:
-				# 	encodingSignature = ( texture.width, texture.height, texture.imageType )
-
-				# 	try:
-				# 		# Check if we've already encoded this data
-				# 		preEncodedTexture = completedEncodings.get( encodingSignature )
-
-				# 		if preEncodedTexture:
-				# 			returnCode = self.file.setPreEncodedTexture( texture.offset, preEncodedTexture )[0]
-				# 		else:
-				# 			resizedImage = newImage.resize( (texture.width, texture.height) )
-				# 			returnCode, imageData, paletteData = self.file.setTexture( texture.offset, resizedImage )
-				# 	except Exception as err:
-				# 		print( 'An unexpected error occurred importing the texture; {}'.format(err) )
-
-				# 	if returnCode == 0:
-				# 		if not preEncodedTexture:
-				# 			completedEncodings[encodingSignature] = texture
-				# 		successCount += 1
-
-				# 	# Update the new texture's icon in the GUI
-				# 	self.renderTextureData( texture.offset, problem=returnCode )
-				# 	if texture.offset == imageDataOffsets[0]:
-				# 		self.drawTextureToMainDisplay( texture.offset )
 				successCount += self._replaceTextures( selectedTextureObjects, newImage, completedEncodings, imageDataOffsets[0], allowResizing=True )
 			
 			elif self._expansionRequired( newImage, uniqueDims, texture ): # User declined the resize offering above and more space is needed
@@ -1926,50 +1899,9 @@ class TexturesEditorTab( ttk.Frame ):
 						"the selected textures.", 'Not enough space' )
 
 				# Replace all textures where there is enough space
-				# requiredSpace = texture.getDataLength( newImage.size[0], newImage.size[1], texture.imageType )
-				# for texture in selectedTextureObjects:
-				# 	encodingSignature = ( texture.width, texture.height, texture.imageType )
-
-				# 	try:
-				# 		# Check how much space is available to this texture
-				# 		existingSpace = texture.getDataLength( texture.width, texture.height, texture.imageType )
-
-				# 		if requiredSpace <= existingSpace:
-				# 			returnCode, imageData, paletteData = self.file.setTexture( texture.offset, newImage )
-				# 		else:
-				# 			returnCode = 2
-				# 	except Exception as err:
-				# 		print( 'An unexpected error occurred importing the texture at 0x{:X}; {}'.format(texture.offset, err) )
-
-				# 	if returnCode == 0:
-				# 		completedEncodings[(texture.width, texture.height, texture.imageType)] = ( imageData, paletteData )
-				# 		successCount += 1
-
-				# 	# Update the new texture's icon in the GUI
-				# 	self.renderTextureData( texture.offset, problem=returnCode )
-				# 	if texture.offset == imageDataOffsets[0]:
-				# 		self.drawTextureToMainDisplay( texture.offset )
-						
 				successCount += self._replaceTextures( textureObjects, newImage, completedEncodings, imageDataOffsets[0] )
 
 			else: # No extra space needed; no special procedures needed
-				# for texture in selectedTextureObjects:
-				# 	encodingSignature = ( texture.width, texture.height, texture.imageType )
-
-				# 	try:
-				# 		returnCode, imageData, paletteData = self.file.setTexture( texture.offset, newImage )
-				# 	except Exception as err:
-				# 		print( 'An unexpected error occurred importing the texture; {}'.format(err) )
-						
-				# 	if returnCode == 0:
-				# 		completedEncodings[(texture.width, texture.height, texture.imageType)] = ( imageData, paletteData )
-				# 		successCount += 1
-
-				# 	# Update the new texture's icon in the GUI
-				# 	self.renderTextureData( texture.offset, problem=returnCode )
-				# 	if texture.offset == imageDataOffsets[0]:
-				# 		self.drawTextureToMainDisplay( texture.offset )
-
 				successCount += self._replaceTextures( selectedTextureObjects, newImage, completedEncodings, imageDataOffsets[0] )
 
 			# Give a warning or success message
@@ -2012,21 +1944,6 @@ class TexturesEditorTab( ttk.Frame ):
 						return
 		
 			# Save the image data to the disc file
-			# for texture in selectedTextureObjects:
-			# 	try:
-			# 		returnCode, imageData, paletteData = self.file.setTexture( texture.offset, newImage )
-			# 	except Exception as err:
-			# 		print( 'An unexpected error occurred importing the texture; {}'.format(err) )
-				
-			# 	if returnCode == 0:
-			# 		completedEncodings[(texture.width, texture.height, texture.imageType)] = ( imageData, paletteData )
-			# 		successCount += 1
-
-			# 	# Update the new texture's icon in the GUI
-			# 	self.renderTextureData( texture.offset, problem=returnCode )
-			# 	if texture.offset == imageDataOffsets[0]:
-			# 		self.drawTextureToMainDisplay( texture.offset )
-
 			successCount += self._replaceTextures( selectedTextureObjects, newImage, completedEncodings, imageDataOffsets[0] )
 			
 		# Update the program's status bar

@@ -28,8 +28,8 @@ import globalData
 
 from RenderEngine2 import RenderEngine
 from FileSystem import StageFile
-from FileSystem.hsdStructures import MapMusicTable
-from basicFunctions import uHex, hex2rgb, humansize, msg, printStatus
+from FileSystem.hsdStructures import MapMusicTable, MapPointTypesArray
+from basicFunctions import uHex, hex2rgb, humansize, msg, printStatus, reverseDictLookup
 from guiSubComponents import (
 	LabelButton, exportSingleTexture, getColoredShape, importGameFiles, exportSingleFileWithGui, 
 	importSingleFileWithGui, importSingleTexture, getNewNameFromUser, BasicWindow, ToolTip, 
@@ -939,13 +939,16 @@ class StageManager( ttk.Frame ):
 		
 		# Create the new tab for the given file
 		stageFile = self.getSelectedStage()
-		if not stageFile: return
+		if not stageFile:
+			msg( 'Please first select a stage to edit!', 'No Stage Selected', warning=True )
+			return
+
+		# Open the editor
 		newTab = StagePropertyEditor( self, stageFile )
 		self.tabManager.add( newTab, text=stageFile.filename )
 
 		# Switch to and populate the new tab
 		self.tabManager.select( newTab )
-		#newTab.populate()
 
 	def updateSwapDetails( self, newIntStageId, newExtStageId, iFilenameOffset, byteReplacePointer, byteReplacement, randByteReplacements, stageFlags ):
 
@@ -1436,7 +1439,7 @@ class StageManager( ttk.Frame ):
 		""" Gets the stage variation currently selected in the "Variations" file list, as a stage file object. """
 
 		iidSelectionsTuple = self.variationsTreeview.selection()
-		if len( iidSelectionsTuple ) != 1: # Failsafe; shouldn't be possible?
+		if len( iidSelectionsTuple ) != 1: # May happen if no stage is selected
 			return None
 
 		isoPath = self.variationsTreeview.item( iidSelectionsTuple[0], 'values' )[1] # Values tuple is (filename, isoPath)
@@ -2830,7 +2833,6 @@ class StagePropertyEditor( ttk.Frame ):
 
 	def __init__( self, parent, stageFile ):
 		ttk.Frame.__init__( self, parent )
-		#mainFrame = ttk.Frame( self )
 
 		self.file = stageFile
 		self.grGroundParam = stageFile.getStructByLabel( 'grGroundParam' )
@@ -2921,7 +2923,7 @@ class StagePropertyEditor( ttk.Frame ):
 		gobjsArray = self.file.getStruct( gobjsArrayPointer, self.mapHead.offset )
 		#gobjsArray = self.file.initSpecificStruct( , entryCount=gobjsArrayCount )
 		
-		# File Tree start
+		# Model Parts Tree start
 		treeWrapper = Tk.Frame( self ) # Contains just the ISO treeview and its scroller (since they need a different packing than the above links).
 		scrollbar = Tk.Scrollbar( treeWrapper )
 		self.modelPartsTree = NeoTreeview( treeWrapper, columns=('offset'), yscrollcommand=scrollbar.set )
@@ -2955,13 +2957,13 @@ class StagePropertyEditor( ttk.Frame ):
 		modelPartsControls.grid( column=2, row=1, sticky='nsew' )
 
 		generalPointsFrame = ttk.Frame( self )
-		ttk.Button( generalPointsFrame, text='Blastzones', command=self.adjustBlastzones ).grid( column=0, row=0 )
-		ttk.Button( generalPointsFrame, text='Camera Limits', command=self.adjustCameraLimits ).grid( column=0, row=1 )
-		ttk.Button( generalPointsFrame, text='Player Spawn Points', command=self.adjustPlayerSpawns ).grid( column=0, row=2 )
-		ttk.Button( generalPointsFrame, text='Item Spawns', command=self.adjustItemSpawns ).grid( column=0, row=3 )
+		ttk.Button( generalPointsFrame, text='Blastzones', command=self.adjustBlastzones ).grid( column=0, row=0, ipadx=4 )
+		ttk.Button( generalPointsFrame, text='Camera Limits', command=self.adjustCameraLimits ).grid( column=0, row=1, ipadx=4 )
+		ttk.Button( generalPointsFrame, text='Player Spawn Points', command=self.adjustPlayerSpawns ).grid( column=0, row=2, ipadx=4 )
+		ttk.Button( generalPointsFrame, text='Item Spawns', command=self.adjustItemSpawns ).grid( column=0, row=3, ipadx=4 )
 		targetsButton = ttk.Button( generalPointsFrame, text='Target Positions', command=self.ajustTargetPositions )
-		targetsButton.grid( column=0, row=4 )
-		ttk.Button( generalPointsFrame, text='Add New General Point', command=self.addNewGeneralPoint ).grid( column=0, row=5 )
+		targetsButton.grid( column=0, row=4, ipadx=4 )
+		#ttk.Button( generalPointsFrame, text='Add New General Point', command=self.addNewGeneralPoint ).grid( column=0, row=5, ipadx=4 )
 
 		generalPointsFrame.columnconfigure( 'all', weight=1 )
 		generalPointsFrame.rowconfigure( 'all', weight=1 )
@@ -2979,6 +2981,7 @@ class StagePropertyEditor( ttk.Frame ):
 		self.columnconfigure( 2, weight=1 )
 		self.rowconfigure( 0, weight=0 )
 		self.rowconfigure( 1, weight=1 )
+		self.rowconfigure( 2, weight=1 )
 
 	def viewModel( self ): pass
 	def viewModelDetails( self ): pass
@@ -2988,34 +2991,47 @@ class StagePropertyEditor( ttk.Frame ):
 	def deleteModelGroup( self ): pass
 	
 	def adjustBlastzones( self ):
-		# Create the rendering window
-		rw = StageModelViewer( self.file, dimensions=(900, 600) )
-		rw.renderBlastzones()
-		rw.renderCameraLimits()
-		rw.toggleCamLimits( False ) # Hide by default
-		rw.renderCollisions()
+		# Create the rendering window and hide everything but the target
+		rw = StageModelViewer( self.file, dimensions=(940, 600) )
+		rw.toggleCamLimits( False )
+		rw.togglePlayerSpawns( False )
+		rw.toggleItemSpawns( False )
 
 	def adjustCameraLimits( self ):
-		# Create the rendering window
-		rw = StageModelViewer( self.file, dimensions=(900, 600) )
-		rw.renderBlastzones()
-		rw.toggleBlastzones( False ) # Hide by default
-		rw.renderCameraLimits()
-		rw.renderCollisions()
+		# Create the rendering window and hide everything but the target
+		rw = StageModelViewer( self.file, dimensions=(940, 600) )
+		rw.toggleBlastzones( False )
+		rw.togglePlayerSpawns( False )
+		rw.toggleItemSpawns( False )
 
-	def adjustPlayerSpawns( self ): pass
-	def adjustItemSpawns( self ): pass
+	def adjustPlayerSpawns( self ):
+		# Create the rendering window and hide everything but the target
+		rw = StageModelViewer( self.file, dimensions=(940, 600) )
+		rw.toggleBlastzones( False )
+		rw.toggleCamLimits( False )
+		rw.toggleItemSpawns( False )
+
+	def adjustItemSpawns( self ):
+		# Create the rendering window and hide everything but the target
+		rw = StageModelViewer( self.file, dimensions=(940, 600) )
+		rw.toggleBlastzones( False )
+		rw.toggleCamLimits( False )
+		rw.togglePlayerSpawns( False )
+
 	def ajustTargetPositions( self ): pass
-	def addNewGeneralPoint( self ): pass
+	#def addNewGeneralPoint( self ): pass
 
 
 class StageModelViewer( BasicWindow ):
 	
 	def __init__( self, stageFile, dimensions, **kwargs ):
-		windowTitle = 'Basic Stage Properties - ' + stageFile.filename
 		self.file = stageFile
 		self.mapHead = self.file.getStructByLabel( 'map_head' )
+		
+		windowTitle = 'Basic Stage Properties - ' + stageFile.filename
 		resizable = True
+		controlPanelWidth = 270
+		engineDimensions = ( dimensions[0] - controlPanelWidth, dimensions[1] ) # Make some space for the side control panel
 
 		# Set up the main window
 		if not BasicWindow.__init__( self, 
@@ -3024,14 +3040,17 @@ class StageModelViewer( BasicWindow ):
 			offsets=(120, 60), 
 			resizable=resizable,
 			dimensions=dimensions,
-			minsize=(320, 200),
+			minsize=(400, 300),
 			unique=True, 
 			**kwargs 
 		):
 			return # If the above returned false, it displayed an existing window, so we should exit here
 		
-		self.engine = RenderEngine( self.window, dimensions, resizable )
-		self.engine.pack()
+		self.engine = RenderEngine( self.window, engineDimensions, resizable )
+		self.engine.pack( side='left', expand=True, fill='both' )
+
+		# Determine default zoom
+
 
 		self.showBlastZones = Tk.BooleanVar( value=True )
 		self.showCamLimits = Tk.BooleanVar( value=True )
@@ -3039,15 +3058,25 @@ class StageModelViewer( BasicWindow ):
 		self.showPlayerSpawns = Tk.BooleanVar( value=True )
 		self.showItemSpawns = Tk.BooleanVar( value=True )
 
-		# self.overlayedControls = ttk.Frame( self.window )
-		# ttk.Checkbutton( self.overlayedControls, variable=self.blastzoneVisibility ).grid( column=0, row=0, padx=5, pady=5 )
-		# ttk.Checkbutton( self.overlayedControls, variable=self.blastzoneVisibility ).grid( column=0, row=1, padx=5, pady=5 )
-		# self.overlayedControls.place( relx=1.0, rely=.5, anchor='e', x=-90 )
-		ttk.Checkbutton( self.window, text='Blastzones', variable=self.showBlastZones, command=self.toggleBlastzones ).place( relx=1.0, rely=.43, anchor='e', x=-90 )
-		ttk.Checkbutton( self.window, text='Cam Limits', variable=self.showCamLimits, command=self.toggleCamLimits ).place( relx=1.0, rely=.50, anchor='e', x=-90 )
-		ttk.Checkbutton( self.window, text='Collisions', variable=self.showCollisions, command=self.toggleCollisions ).place( relx=1.0, rely=.57, anchor='e', x=-90 )
+		ttk.Checkbutton( self.engine, text='Blastzones', variable=self.showBlastZones, command=self.toggleBlastzones ).place( relx=1.0, rely=.07, anchor='e', x=-10 )
+		ttk.Checkbutton( self.engine, text='Camera Limits', variable=self.showCamLimits, command=self.toggleCamLimits ).place( relx=1.0, rely=.14, anchor='e', x=-10 )
+		ttk.Checkbutton( self.engine, text='Collisions', variable=self.showCollisions, command=self.toggleCollisions ).place( relx=1.0, rely=.21, anchor='e', x=-10 )
+		ttk.Checkbutton( self.engine, text='Player Spawns', variable=self.showPlayerSpawns, command=self.togglePlayerSpawns ).place( relx=1.0, rely=.28, anchor='e', x=-10 )
+		ttk.Checkbutton( self.engine, text='Item Spawns', variable=self.showItemSpawns, command=self.toggleItemSpawns ).place( relx=1.0, rely=.35, anchor='e', x=-10 )
 
-		#self.sidePanelControls = ttk.Frame( self.window )
+		self.sidePanelControls = ttk.Frame( self.window )
+		self.sidePanelControls.pack( side='left', expand=True, fill='both' )
+		
+		self.renderBlastzones()
+		self.renderCameraLimits()
+		self.renderCollisions()
+		
+		# Add a frame to contain the Player/Item spawn dropdowns and their edit fields
+		row = len( self.sidePanelControls.winfo_children() )
+		self.singlePointEditFrame = ttk.Frame( self.sidePanelControls )
+		self.singlePointEditFrame.grid( column=0, columnspan=2, row=row, pady=(20, 3), padx=10 )
+
+		self.renderSpawnPoints()
 
 	def toggleBlastzones( self, visible=None ):
 		if visible != None:
@@ -3067,12 +3096,12 @@ class StageModelViewer( BasicWindow ):
 	def togglePlayerSpawns( self, visible=None ):
 		if visible != None:
 			self.showPlayerSpawns.set( visible )
-		self.engine.showPart( 'playerSpawn', self.showPlayerSpawns.get(), 'vertex' )
+		self.engine.showPart( 'playerSpawns', self.showPlayerSpawns.get(), 'vertex' )
 
-	def togglePlayerSpawns( self, visible=None ):
+	def toggleItemSpawns( self, visible=None ):
 		if visible != None:
 			self.showItemSpawns.set( visible )
-		self.engine.showPart( 'itemSpawn', self.showItemSpawns.get(), 'vertex' )
+		self.engine.showPart( 'itemSpawns', self.showItemSpawns.get(), 'vertex' )
 
 	def close( self ):
 		# Stop the rendering and destroy the Pyglet window/canvas instance
@@ -3082,10 +3111,68 @@ class StageModelViewer( BasicWindow ):
 		super( StageModelViewer, self ).close()
 
 	def renderBlastzones( self ):
-		self._renderRectangle( 151, 152, 'Blast-Zone', (255, 0, 0), ('blastzone',) )
+		topLeftJoint, bottomRightJoint = self._renderRectangle( 151, 152, 'Blast-Zone', (255, 0, 0), ('blastzone',) )
+		if not topLeftJoint or not bottomRightJoint:
+			return
+
+		self._addCoordsEditor( 'Blastzone Positions:', topLeftJoint, bottomRightJoint, self.redrawBlastzones )
 
 	def renderCameraLimits( self ):
+		topLeftJoint, bottomRightJoint = self._renderRectangle( 149, 150, 'Camera Limit', (200, 200, 200), ('camera',) )
+		if not topLeftJoint or not bottomRightJoint:
+			return
+
+		self._addCoordsEditor( 'Camera Limit Positions:', topLeftJoint, bottomRightJoint, self.redrawCameraLimits )
+
+	def _addCoordsEditor( self, name, topLeftJoint, bottomRightJoint, callback ):
+
+		row = len( self.sidePanelControls.winfo_children() )
+		ttk.Label( self.sidePanelControls, text=name ).grid( column=0, columnspan=2, row=row, pady=(20, 3), padx=10 )
+
+		# Left blastzone
+		ttk.Label( self.sidePanelControls, text='Left:' ).grid( column=0, row=row+1, pady=2, padx=(5, 5) )
+		valueOffset = topLeftJoint.offset + 0x2C
+		valueEntry = HexEditEntry( self.sidePanelControls, self.file, valueOffset, 4, 'f', 'Left blastzone coordinate', valueEntry=True, width=9 )
+		valueEntry.set( topLeftJoint.getValues('Translation_X') )
+		valueEntry.grid( column=1, row=row+1, pady=2, padx=(5, 20) )
+		valueEntry.callback = callback # Called to update the display when the above is modified
+
+		# Top blastzone
+		ttk.Label( self.sidePanelControls, text='Top:' ).grid( column=0, row=row+2, pady=2, padx=(5, 5) )
+		valueOffset = topLeftJoint.offset + 0x30
+		valueEntry = HexEditEntry( self.sidePanelControls, self.file, valueOffset, 4, 'f', 'Top blastzone coordinate', valueEntry=True, width=9 )
+		valueEntry.set( topLeftJoint.getValues('Translation_Y') )
+		valueEntry.grid( column=1, row=row+2, pady=2, padx=(5, 20) )
+		valueEntry.callback = callback # Called to update the display when the above is modified
+
+		# Right blastzone
+		ttk.Label( self.sidePanelControls, text='Right:' ).grid( column=0, row=row+3, pady=2, padx=(5, 5) )
+		valueOffset = bottomRightJoint.offset + 0x2C
+		valueEntry = HexEditEntry( self.sidePanelControls, self.file, valueOffset, 4, 'f', 'Right blastzone coordinate', valueEntry=True, width=9 )
+		valueEntry.set( bottomRightJoint.getValues('Translation_X') )
+		valueEntry.grid( column=1, row=row+3, pady=2, padx=(5, 20) )
+		valueEntry.callback = callback # Called to update the display when the above is modified
+
+		# Bottom blastzone
+		ttk.Label( self.sidePanelControls, text='Bottom:' ).grid( column=0, row=row+4, pady=2, padx=(5, 5) )
+		valueOffset = bottomRightJoint.offset + 0x30
+		valueEntry = HexEditEntry( self.sidePanelControls, self.file, valueOffset, 4, 'f', 'Bottom blastzone coordinate', valueEntry=True, width=9 )
+		valueEntry.set( bottomRightJoint.getValues('Translation_Y') )
+		valueEntry.grid( column=1, row=row+4, pady=2, padx=(5, 20) )
+		valueEntry.callback = callback # Called to update the display when the above is modified
+
+	def redrawBlastzones( self, event ):
+		self.engine.removePart( 'blastzone', 'edge' )
+		self._renderRectangle( 151, 152, 'Blast-Zone', (255, 0, 0), ('blastzone',) )
+
+	def redrawCameraLimits( self, event ):
+		self.engine.removePart( 'camera', 'edge' )
 		self._renderRectangle( 149, 150, 'Camera Limit', (200, 200, 200), ('camera',) )
+
+	def redrawPoints( self, event ):
+		self.engine.removePart( 'playerSpawns', 'vertex' )
+		self.engine.removePart( 'itemSpawns', 'vertex' )
+		self._renderPoints()
 
 	def _renderRectangle( self, pointType1, pointType2, name, color, tags=() ):
 
@@ -3099,26 +3186,29 @@ class StageModelViewer( BasicWindow ):
 		# Check that we only found one of each point, just in case there's something crazy out there
 		if not topLeftJoints:
 			printStatus( 'Unable to find any Top-Left {} general points!'.format(name), error=True )
-			return
+			return None, None
 		elif not bottomRightJoints:
 			printStatus( 'Unable to find any Bottom-Right {} general points!'.format(name), error=True )
-			return
+			return None, None
 		if len( topLeftJoints ) > 1:
 			printStatus( 'Found multiple Top-Left {} general points!'.format(name), warning=True )
 		if len( bottomRightJoints ) > 1:
 			printStatus( 'Found multiple Bottom-Right {} general points!'.format(name), warning=True )
 		
 		# Build four edges in 3D space from the two general points
-		x1 = topLeftJoints[0].getValues( 'Translation_X' )
-		y1 = topLeftJoints[0].getValues( 'Translation_Y' )
-		x2 = bottomRightJoints[0].getValues( 'Translation_X' )
-		y2 = bottomRightJoints[0].getValues( 'Translation_Y' )
+		tlJoint, brJoint = topLeftJoints[0], bottomRightJoints[0]
+		x1 = tlJoint.getValues( 'Translation_X' )
+		y1 = tlJoint.getValues( 'Translation_Y' )
+		x2 = brJoint.getValues( 'Translation_X' )
+		y2 = brJoint.getValues( 'Translation_Y' )
 		# edges = [ (x1,y1,0,x2,y1,0), (x2,y1,0,x2,y2,0), (x2,y2,0,x1,y2,0), (x1,y2,0,x1,y1,0) ]
 		# self.engine.addEdges( edges, color=color, tags=tags )
 		self.engine.addEdge( (x1,y1,0,x2,y1,0), color=color, tags=tags )
 		self.engine.addEdge( (x2,y1,0,x2,y2,0), color=color, tags=tags )
 		self.engine.addEdge( (x2,y2,0,x1,y2,0), color=color, tags=tags )
 		self.engine.addEdge( (x1,y2,0,x1,y1,0), color=color, tags=tags )
+
+		return tlJoint, brJoint
 
 	def renderCollisions( self ):
 		
@@ -3133,9 +3223,9 @@ class StageModelViewer( BasicWindow ):
 		self.collisionLinks = self.linkTable.getFaces() # A list of CollissionSurface objects
 		self.areas = self.areaTable.getAreas()
 
-		self.extrudeCollisionLinks()
+		self._extrudeCollisionLinks()
 
-	def extrudeCollisionLinks( self ):
+	def _extrudeCollisionLinks( self ):
 
 		""" Extrudes each collision link (which are initially 2D lines/edges), turning them into 3D faces. """
 
@@ -3165,3 +3255,134 @@ class StageModelViewer( BasicWindow ):
 			color = hex2rgb( link.fill )
 			link.renderObj = self.engine.addQuad( vertices, color=color, colors=(), tags=('collision',) )
 			link.renderObj.collLink = link
+
+	def _renderPoints( self ):
+
+		""" Renders general points for player and item spawns in the window, 
+			and returns two list of names for all of these points found. """
+
+		pointGroups = self.mapHead.getGeneralPoints()
+
+		playerSpawns = []
+		itemSpawns = []
+
+		# Collect points of certain types
+		for groupIndex, group in enumerate( pointGroups ):
+			for jointIndex, pointType, pointName, coords, scale in group:
+				if pointName.startswith( 'Player' ):
+					playerSpawns.append( pointName )
+
+					color = self.colorByVertType( pointType )
+					self.engine.addVertex( (coords[0], coords[1], 0), color, ('playerSpawns', pointType), not self.showPlayerSpawns.get() )
+
+				elif pointName.startswith( 'Item' ):
+					itemSpawns.append( pointName )
+
+					color = self.colorByVertType( pointType )
+					self.engine.addVertex( (coords[0], coords[1], 0), color, ('itemSpawns', pointType), not self.showItemSpawns.get() )
+
+		return playerSpawns, itemSpawns
+
+	def renderSpawnPoints( self ):
+
+		""" Searches the stage's general points and adds the point-selection 
+			drop-down menus to the render window's control panel. """
+
+		playerSpawns, itemSpawns = self._renderPoints()
+
+		# Add an interface to edit Player Spawn/Respawn points
+		if playerSpawns:
+			textVar = Tk.StringVar() # Required to init the optionmenu
+			dropdown = ttk.OptionMenu( self.singlePointEditFrame, textVar, playerSpawns[0], *playerSpawns, command=self.playerSpawnOptionSelected, direction='above' )
+			dropdown.grid( column=0, columnspan=2, row=0, pady=3, padx=10 )
+		
+			self._addPointCoordEditors( playerSpawns[0], 1 )
+		else:
+			label = ttk.Label( self.singlePointEditFrame, text='No player spawns set!' )
+			label.grid( column=0, columnspan=2, row=0, pady=3, padx=10 )
+
+		# Add an interface to edit Item Spawn points
+		if itemSpawns:
+			textVar = Tk.StringVar() # Required to init the optionmenu
+			dropdown = ttk.OptionMenu( self.singlePointEditFrame, textVar, itemSpawns[0], *itemSpawns, command=self.itemSpawnOptionSelected, direction='below' )
+			dropdown.grid( column=0, columnspan=2, row=3, pady=(12, 3), padx=10 )
+		
+			self._addPointCoordEditors( itemSpawns[0], 4 )
+		else:
+			label = ttk.Label( self.singlePointEditFrame, text='No item spawns set!' )
+			label.grid( column=0, columnspan=2, row=3, pady=(12, 3), padx=10 )
+
+	def colorByVertType( self, pointType ):
+
+		if pointType == 0 or pointType == 4: # Player 1 Spawn or Respawn
+			color = ( 248, 0, 0 ) # Red
+
+		elif pointType == 1 or pointType == 5: # Player 2 Spawn or Respawn
+			color = ( 0, 104, 232 ) # Blue
+
+		elif pointType == 2 or pointType == 6: # Player 3 Spawn or Respawn
+			color = ( 232, 144, 0 ) # Orange
+
+		elif pointType == 3 or pointType == 7: # Player 4 Spawn or Respawn
+			color = ( 16, 216, 56 ) # Green
+
+		elif pointType >= 127 and pointType <= 146: # Item Spawns
+			spawnIndex = pointType - 127
+			brightness = 255 - ( spawnIndex * 13 ) # Higher index = lower brightness
+			color = ( brightness, brightness, brightness )
+		else:
+			color = ( 128, 128, 128 )
+
+		return color
+
+	def playerSpawnOptionSelected( self, newOption ):
+		# Destroy the label & entry widgets on the 1st and 2nd rows
+		row1Widgets = self.singlePointEditFrame.grid_slaves( row=1 )
+		row2Widgets = self.singlePointEditFrame.grid_slaves( row=2 )
+		for widget in row1Widgets + row2Widgets:
+			widget.destroy()
+
+		# Add new widgets for the target point
+		self._addPointCoordEditors( newOption, 1 )
+
+	def itemSpawnOptionSelected( self, newOption ):
+		# Destroy the label & entry widgets on the 4th and 5th rows
+		row1Widgets = self.singlePointEditFrame.grid_slaves( row=4 )
+		row2Widgets = self.singlePointEditFrame.grid_slaves( row=5 )
+		for widget in row1Widgets + row2Widgets:
+			widget.destroy()
+
+		# Add new widgets for the target point
+		self._addPointCoordEditors( newOption, 4 )
+
+	def _addPointCoordEditors( self, targetPointName, row ):
+
+		""" Adds two entry fields to display (and allow editing for) the 
+			given point's X and Y coordinates. """
+
+		# Convert the given point name (string) to the point type enum
+		typeDict = MapPointTypesArray.enums['Point_Type']
+		pointType = reverseDictLookup( typeDict, targetPointName )
+
+		# Get the point's JObj and x/y coords
+		joint = self.mapHead.getGeneralPoint( pointType )[0] #todo allow editing multiple at once
+		x = joint.getValues( 'Translation_X' )
+		y = joint.getValues( 'Translation_Y' )
+
+		# X coord
+		ttk.Label( self.singlePointEditFrame, text='X:' ).grid( column=0, row=row, pady=2, padx=(5, 5) )
+		valueOffset = joint.offset + 0x2C
+		valueEntry = HexEditEntry( self.singlePointEditFrame, self.file, valueOffset, 4, 'f', targetPointName+' x-coord', valueEntry=True, width=15 )
+		valueEntry.set( x )
+		valueEntry.grid( column=1, row=row, pady=2, padx=(5, 20) )
+		valueEntry.pointType = pointType
+		valueEntry.callback = self.redrawPoints # Called to update the display when the above is modified
+		
+		# Y coord
+		ttk.Label( self.singlePointEditFrame, text='Y:' ).grid( column=0, row=row+1, pady=2, padx=(5, 5) )
+		valueOffset = joint.offset + 0x30
+		valueEntry = HexEditEntry( self.singlePointEditFrame, self.file, valueOffset, 4, 'f', targetPointName+' y-coord', valueEntry=True, width=15 )
+		valueEntry.set( y )
+		valueEntry.grid( column=1, row=row+1, pady=2, padx=(5, 20) )
+		valueEntry.pointType = pointType
+		valueEntry.callback = self.redrawPoints # Called to update the display when the above is modified

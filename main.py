@@ -1581,7 +1581,6 @@ class MainMenuCanvas( Tk.Canvas ):
 		if self.debugMode or not self.mainMenuSelected():
 			return False
 		elif not self.isVisible() or self.pauseAnimations:
-			print('anims paused')
 			return False
 		else:
 			return not globalData.checkSetting( 'disableMainMenuAnimations' )
