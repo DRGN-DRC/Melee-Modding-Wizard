@@ -20,6 +20,8 @@ import time, math
 from itertools import izip
 from collections import OrderedDict
 
+import globalData
+
 from basicFunctions import uHex
 from RenderEngine2 import Vertex
 
@@ -526,6 +528,26 @@ class StructBase( object ):
 		self.children = []
 
 		return False
+
+	def initChild( self, structClass, valueIndex=-1, valueName='' ):
+
+		""" Initializes a child structure of the given class and returns it. """
+
+		if isinstance( structClass, str ):
+			structClass = globalData.fileStructureClasses.get( structClass )
+		
+		if valueIndex != -1:
+			pointer = self.getValues()[valueIndex]
+		elif valueName:
+			pointer = self.getValues( valueName )
+		else:
+			print( 'Invalid call to Struct.initChild(); no valueIndex or valueName provided.' )
+			return None
+
+		if pointer == 0:
+			return None
+
+		return self.file.initSpecificStruct( structClass, pointer, self.offset )
 
 	def getChildren( self, includeSiblings=False ):
 
@@ -1054,22 +1076,22 @@ class FrameDataBlock( DataBlock ):
 		interpolationID = opCodeValue & 0b1111 # First 4 bits
 		arrayCount = ( opCodeValue >> 4 ) + 1 # Everything else. Seems to be 0-indexed
 		if debugging:
-			print 'interpolation:', interpolationID, '(' + self.interpolationTypes[interpolationID] + ')', '   arrayCount:', arrayCount
-			print '\n'
+			print( 'interpolation: {} ({})    arrayCount: {}'.format(interpolationID, self.interpolationTypes[interpolationID], arrayCount) )
+			print( '\n' )
 
 		parsedValues = []
 
 		while readPosition < stringLength:
 			try:
 				if debugging:
-					print 'starting loop at read position', readPosition
+					print( 'starting loop at read position ' + str(readPosition) )
 
 				# Read Value
 				if interpolationID == 0 or interpolationID == 5: # For 'None' and 'Hermite Curve'
 					value = 0
 				else:
 					if debugging:
-						print '\treading', dataTypeByteLength, 'bytes for value'
+						print( '\treading', dataTypeByteLength, 'bytes for value' )
 					dataBytes = self.data[readPosition:readPosition+dataTypeByteLength]
 					value = struct.unpack( dataTypeFormatting, dataBytes )[0] / float( dataScale )
 					readPosition += dataTypeByteLength
@@ -1077,7 +1099,7 @@ class FrameDataBlock( DataBlock ):
 				# Read Tangent
 				if interpolationID == 4 or interpolationID == 5: # For 'Hermite Value and Curve' and 'Hurmite Curve'
 					if debugging:
-						print '\treading', dataTypeByteLength, 'bytes for tangent value'
+						print( '\treading', dataTypeByteLength, 'bytes for tangent value' )
 					dataBytes = self.data[readPosition:readPosition+slopeDataTypeByteLength]
 					tangentValue = struct.unpack( slopeDataTypeFormatting, dataBytes )[0] / float( slopeDataScale )
 					readPosition += slopeDataTypeByteLength
@@ -1086,20 +1108,20 @@ class FrameDataBlock( DataBlock ):
 
 				# Read the next uleb
 				if debugging:
-					print 'reading uleb at read position', readPosition
+					print( 'reading uleb at read position', readPosition )
 				readPosition, ulebValue = self.decodeUleb128( readPosition )
 
 				parsedValues.append( (value, tangentValue, ulebValue) )
 
 			except:
 				parsedValues.append( (-1, -1, -1) )
-				print 'Error encountered during FObjDesc parsing,', self.name
+				print( 'Error encountered during FObjDesc parsing,', self.name )
 				break
 
 		return interpolationID, arrayCount, parsedValues
 
 
-class DisplayDataBlock( DataBlock ):
+class DisplayListBlock( DataBlock ):
 
 	def __init__( self, *args, **kwargs ):
 		DataBlock.__init__( self, *args, **kwargs )
@@ -1180,44 +1202,15 @@ class JointObjDesc( StructBase ): # A.k.a Bone Structure
 					)
 		self.length = 0x40
 		self.childClassIdentities = { 2: 'JointObjDesc', 3: 'JointObjDesc', 4: 'DisplayObjDesc', 14: 'InverseMatrixObjDesc' }
+		self._dobj = None
 
-	# def getGeneralPointType( self ):
-
-	# 	pointType = ''
-
-	# 	# Get the parent joint of the sibling array
-	# 	parentOffset = self.getAnyDataSectionParent()
-	# 	jointParent = self.dat.initSpecificStruct( JointObjDesc, parentOffset, printWarnings=False )
-
-	# 	if jointParent:
-	# 		for parentOffset in jointParent.getParents():
-	# 			generalPointsArray = self.dat.initSpecificStruct( MapGeneralPointsArray, parentOffset, printWarnings=False )
-	# 			if generalPointsArray: break
-
-	# 		if generalPointsArray:
-	# 			# Get the Point Types Array offset for this joint
-	# 			parentValues = generalPointsArray.getValues()
-	# 			for i, value in enumerate( parentValues ):
-	# 				if value == jointParent.offset:
-	# 					pointTypesArrayOffset = parentValues[i+1]
-	# 					break
-
-	# 			pointTypesArray = self.dat.initSpecificStruct( MapPointTypesArray, pointTypesArrayOffset )
-	# 			pointTypeValues = pointTypesArray.getValues()
-	# 			siblingIndex = self.getStructDepth()[1] + 1 # +1 because the point types array indices are 1-indexed
-
-	# 			for i, value in enumerate( pointTypeValues ):
-	# 				if value == siblingIndex:
-	# 					pointTypeValue = pointTypeValues[i+1]
-	# 					pointType = pointTypesArray.enums['Point_Type'].get( pointTypeValue, '' )
-	# 					if not pointType:
-	# 						pointType = 'Unknown Point Type ({})'.format( pointTypeValue )
-	# 					break
-	# 			else: # The loop above didn't break, meaning the current joint index wasn't found in the point types array
-	# 				pointType = 'Undefined Point Type'
-	# 				print 'General Point', uHex( 0x20 + self.offset ), 'type not defined in', pointTypesArray.name
-
-	# 	return pointType
+	@property
+	def DObj( self ):
+		if not self._dobj:
+			pointer = self.getValues( 'Display_Object_Pointer' )
+			if pointer == 0: return None
+			self._dobj = self.file.initSpecificStruct( DisplayObjDesc, pointer, self.offset )
+		return self._dobj
 
 
 class DisplayObjDesc( StructBase ):
@@ -1234,6 +1227,7 @@ class DisplayObjDesc( StructBase ):
 					)
 		self.length = 0x10
 		self.childClassIdentities = { 1: 'DisplayObjDesc', 2: 'MaterialObjDesc', 3: 'PolygonObjDesc' }
+		self._pobj = None
 
 	def validated( self, deducedStructLength=-1 ):
 		if not super( DisplayObjDesc, self ).validated( False, deducedStructLength ): 
@@ -1250,6 +1244,14 @@ class DisplayObjDesc( StructBase ):
 
 		self.provideChildHints()
 		return True
+
+	@property
+	def PObj( self ):
+		if not self._pobj:
+			pointer = self.getValues( 'Polygon_Object_Pointer' )
+			if pointer == 0: return None
+			self._pobj = self.file.initSpecificStruct( PolygonObjDesc, pointer, self.offset )
+		return self._pobj
 
 
 class InverseMatrixObjDesc( StructBase ):
@@ -1357,10 +1359,12 @@ class MaterialObjDesc( StructBase ):
 class PolygonObjDesc( StructBase ): # A.k.a. Meshes
 
 	flags = { 'Polygon_Flags': OrderedDict([
-				( '1<<0', 'NOTINVERTED' ),
+				( '1<<0', 'SHAPESET_AVERAGE' ), # NOTINVERTED 
+				( '1<<1', 'SHAPESET_ADDITIVE' ),
+				( '1<<2', 'UNKNOWN' ),
 				( '1<<3', 'ANIMATED' ),
 				( '1<<12', 'SHAPEANIM' ),
-				( '2<<12', 'ENVELOPE' ),
+				( '1<<13', 'ENVELOPE' ),
 				( '1<<14', 'CULLFRONT' ),
 				( '1<<15', 'CULLBACK' )
 			]) }
@@ -1375,38 +1379,124 @@ class PolygonObjDesc( StructBase ): # A.k.a. Meshes
 						'Vertex_Attributes_Array_Pointer',		# 0x8
 						'Polygon_Flags',						# 0xC
 						'Display_List_Length',					# 0xE
-						'Display_List_Data_Pointer'				# 0x10
+						'Display_List_Pointer'					# 0x10
 						# Last field is dynamic (set below)		# 0x14
 					)
 		self.length = 0x18
-		self.childClassIdentities = { 1: 'PolygonObjDesc', 2: 'VertexAttributesArray', 5: 'DisplayDataBlock' }
+		self.childClassIdentities = { 1: 'PolygonObjDesc', 2: 'VertexAttributesArray', 5: 'DisplayListBlock' }
 
 		# Check flags to determine last field name and child structure
 		try: # Exercising caution here because this structure hasn't been validated yet (which also means no self.data or unpacked values)
 			flagsOffset = args[1] + 0xC
 			flagsValue = struct.unpack( '>H', self.dat.data[flagsOffset:flagsOffset+2] )[0]
 
-			if flagsValue & 0x1000: # Uses ShapeAnims
-				self.fields = mostFields + ( 'Shape_Set_Pointer',)
+			if flagsValue & 0x1000: # Uses ShapeAnims (SHAPEANIM flag set)
+				self.fields = mostFields + ( 'Shape_Set_Pointer', )
 				self.childClassIdentities[6] = 'ShapeSetDesc'
 
-			elif flagsValue & 0x2000: # Uses Envelopes
-				self.fields = mostFields + ( 'Envelope_Array_Pointer',)
+			elif flagsValue & 0x2000: # Uses Envelopes (ENVELOPE flag set)
+				self.fields = mostFields + ( 'Envelope_Array_Pointer', )
 				self.childClassIdentities[6] = 'EnvelopeArray'
 
 			elif args[1] + 0x14 in self.dat.structureOffsets: # Not expected, but just in case....
-				self.fields = mostFields + ( 'JObjDesc_Pointer',)
+				self.fields = mostFields + ( 'JObjDesc_Pointer', )
 				print( self.name + ' found a JObjDesc pointer!' )
 
 			else:
 				self.fields = mostFields + ( 'Null Pointer',) # No underscore, so validation method ignores this as an actual pointer
 
 		except Exception as err:
-			print( 'PolygonObjDesc initialization failure;' )
-			print( err )
+			self.fields = mostFields + ( 'Unknown Pointer', ) # No underscore, so validation method ignores this as an actual pointer
+			print( 'PolygonObjDesc initialization failure; {}'.format(err) )
+
+	def decodeGeometry( self ):
+		vertexAttributes = self.initChild( VertexAttributesArray, 2 )
+		displayList = self.initChild( DisplayListBlock, 5 )
 
 
-class VertexAttributesArray( StructBase ):
+class VertexAttributesArray( TableStruct ):
+
+	enums = { 'Attribute_Name': OrderedDict([
+				( 0, 'GX_VA_PNMTXIDX' ),	# Position/Normal matrix index
+				( 1, 'GX_VA_TEX0MTXIDX' ),	# Texture matrix indices
+				( 2, 'GX_VA_TEX1MTXIDX' ),
+				( 3, 'GX_VA_TEX2MTXIDX' ),
+				( 4, 'GX_VA_TEX3MTXIDX' ),
+				( 5, 'GX_VA_TEX4MTXIDX' ),
+				( 6, 'GX_VA_TEX5MTXIDX' ),
+				( 7, 'GX_VA_TEX6MTXIDX' ),
+				( 8, 'GX_VA_TEX7MTXIDX' ),
+				( 9, 'GX_VA_POS' ),			# Position
+				( 10, 'GX_VA_NRM' ), 		# Or GX_VA_NBT (Normal or Normal/Binormal/Tangent)
+				( 11, 'GX_VA_CLR0' ),
+				( 12, 'GX_VA_CLR1' ),
+				( 13, 'GX_VA_TEX0' ),
+				( 14, 'GX_VA_TEX1' ),		# Texture coordinates
+				( 15, 'GX_VA_TEX2' ),
+				( 16, 'GX_VA_TEX3' ),
+				( 17, 'GX_VA_TEX4' ),
+				( 18, 'GX_VA_TEX5' ),
+				( 19, 'GX_VA_TEX6' ),
+				( 20, 'GX_VA_TEX7' ),
+
+				( 21, 'GX_VA_POS_MTX_ARRAY' ),	# Position matrix array pointer
+				( 22, 'GX_VA_NRM_MTX_ARRAY' ),	# Normal matrix array pointer
+				( 23, 'GX_VA_TEX_MTX_ARRAY' ),	# Texture matrix array pointer
+				( 24, 'GX_VA_LIGHT_ARRAY' ),	# Light parameter array pointer
+				( 25, 'GX_VA_NBT' ),			# Normal/Bi-normal/tangent ID/Value
+				( 26, 'GX_VA_MAX_ATTR' ),		# Maximum number of vertex attributes
+
+				( 0xFF, 'GX_VA_NULL' )
+			]),
+			'Attribute_Type': OrderedDict([
+				( 0, 'GX_NONE' ),
+				( 1, 'GX_DIRECT' ),
+				( 2, 'GX_INDEX8' ),
+				( 3, 'GX_INDEX16' ),
+			]),
+			# Component_Count may be one of several 
+			# different enumerations, based on Attribute_Name:
+			# GXCompCnt:
+			# 	GX_DEFAULT   = 0
+			# 
+			# Position Counts (GXPosCompCnt):
+			# 	GX_POS_XY    = 0
+			# 	GX_POS_XYZ   = 1
+			# 
+			# Normal Counts (GXNrmCompCnt):
+			# 	GX_NRM_XYZ   = 0
+			# 	GX_NRM_NBT   = 1  (one index per NBT)
+			# 	GX_NRM_NBT3  = 2  (one index per each of N/B/T)
+			# 
+			# Color Counts (GXClrCompCnt):
+			# 	GX_CLR_RGB   = 0
+			# 	GX_CLR_RGBA  = 1
+			# 
+			# Texture Coordinate Counts (GXTexCompCnt):
+			# 	GX_TEX_S     = 0
+			# 	GX_TEX_ST    = 1
+			# 
+			'Component_Type': OrderedDict([
+				( 0, 'GX_U8' ),		# 0 - 255
+				( 1, 'GX_S8' ),		# -127 - +127
+				( 2, 'GX_U16' ),	# 0 - 65535
+				( 3, 'GX_S16' ),	# -32767 - +32767
+				( 4, 'GX_F32' ),	# Float
+			]),
+			# 'Component_Count': OrderedDict([
+			# 	( , 'GX_POS_XY' ),
+			# 	( , 'GX_POS_XYZ' ),
+			# 	( , 'GX_NRM_XYZ' ),
+			# 	( , 'GX_NRM_NBT' ),
+			# 	( , 'GX_NRM_NBT3 (HW2 only)' ),
+			# 	( , 'GX_CLR_RGB' ),
+			# 	( , 'GX_CLR_RGBA' ),
+			# 	( , 'GX_TEX_S' ),
+			# 	( , 'GX_TEX_ST' )
+			# ]),
+			'GXCompCnt': OrderedDict([ (0, 'GX_DEFAULT') ]),
+
+	}
 
 	def __init__( self, *args, **kwargs ):
 		StructBase.__init__( self, *args, **kwargs )
@@ -1418,9 +1508,10 @@ class VertexAttributesArray( StructBase ):
 		if deducedStructLength / 0x18 == 1: # Using division rather than just '==0x18' in case there's trailing padding
 			self.entryCount = 1
 		else:
-			# Check for a null attribute name (GX_VA_NULL; value of 0xFF)
+			# Scan ahead for a null attribute name (GX_VA_NULL; value of 0xFF)
 			try:
 				self.entryCount = -1
+
 				for fieldOffset in range( self.offset, self.offset + deducedStructLength, 0x18 ):
 					attributeName = self.dat.data[fieldOffset+3]
 
@@ -1431,45 +1522,134 @@ class VertexAttributesArray( StructBase ):
 				self.entryCount = -1
 
 		# Need to set some properties at instance level, rather than usual class level, since they can change
-		fields = (	'Attribute_Name',			# 0x0
-					'Attribute_Type',			# 0x4
-					'Component_Count',			# 0x8
-					'Component_Type',			# 0xC
-					'Scale',					# 0x10
-					'Padding',					# 0x11
-					'Stride',					# 0x12
-					'Vertex_Data_Pointer' )		# 0x14
+		self.fields = (	'Attribute_Name',			# 0x0  -{ GXAttr
+						'Attribute_Type',			# 0x4  -{ GXAttrType (i.e. index type)
+						'Component_Count',			# 0x8  -{ GXCompCnt ('Comp' may also be PosComp/NrmComp/ClrComp/TexComp)
+						'Component_Type',			# 0xC  -{ GXCompType/GXClrCompType (i.e. value formatting; int8, uint16, etc.)
+						'Scale',					# 0x10 -{ 
+						'Padding',					# 0x11 -{ 
+						'Stride',					# 0x12 -{ 
+						'Vertex_Data_Pointer' )		# 0x14 -{ 
 			
 		# Use the above info to dynamically build this struct's properties
-		self.formatting = '>' + ( 'IIIIBBHI' * self.entryCount )
-		self.fields = fields * self.entryCount
-		self.length = 0x18 * self.entryCount
+		self.formatting = '>IIIIBBHI'
+		self.length = 0x18
+
+		TableStruct.__init__( self )
+
 		self.childClassIdentities = {}
 		for i in range( 7, len(self.fields), 8 ):
 			self.childClassIdentities[i] = 'VertexDataBlock'
 		self._siblingsChecked = True
 
-	# def validated( self, deducedStructLength=-1 ):
-	# 	prelimCheck = super( VertexAttributesArray, self ).validated( False, deducedStructLength )
-	# 	#print 'prelim val for', self.name, 'returned', prelimCheck
-	# 	if not prelimCheck: return False
+	def determineAttributeDimensions( self, name, count ):
 
-	# # 	# Confirm array count by checking for a null attribute name (GX_VA_NULL; value of 0xFF)
-	# # 	arrayCount = -1
-	# # 	for index in range( 0, len(self.formatting)-1, 8 ):
-	# # 		attributeName = self.values[index]
+		""" Determines the number of dimensions or channels for an attribute, based on 
+			enumerations for the kind of attribute (Attribute_Name) and component count.
+			For example, 2 for a 2D point, or 4 for an RGBA color. """
 
-	# # 		if attributeName == 0xFF: # End of this array
-	# # 			arrayCount = index / 8 + 1
-	# # 			break
-	# # 	if arrayCount != self.entryCount:
-	# # 		print 'Unexpected array count for', self.name + '; expected', self.entryCount, 'but found', arrayCount
-	# # 		return False
+		# GX_VA_PNMTXIDX - GX_VA_TEX7MTXIDX
+		if name < 9 :
+			# GX_VA_PNMTXIDX or another matrix index (component count = GXCompCnt; only 1 enumeration)
+			dimensions = 1 # GX_DEFAULT
 
-	# 	# Validation passed
-	# 	self.provideChildHints()
-	# 	return True
+		# GX_VA_POS
+		elif name == 9:
+			# Position coordinates (enumeration is among GXPosCompCnt)
+			if count == 0: # GX_POS_XY
+				dimensions = 2
+			elif count == 1: # GX_POS_XYZ
+				dimensions = 3
+			else:
+				dimensions = -1
+				realName = self.enums['Attribute_Name'][name]
+				print( 'Warning! Vertex attribute name {} has an unexpected dimensions enumeration: {}'.format(realName, count) )
 
+		# GX_VA_NRM/GX_VA_NBT
+		elif name == 10:
+			dimensions = 3
+
+		# GX_VA_CLR0, GX_VA_CLR1
+		elif name < 13:
+			# Color attribute component (GXClrCompCnt)
+			if count == 0: # GX_CLR_RGB
+				dimensions = 3
+			elif count == 1: # GX_CLR_RGBA
+				dimensions = 4
+			else:
+				dimensions = -1
+				realName = self.enums['Attribute_Name'][name]
+				print( 'Warning! Vertex attribute name {} has an unexpected dimensions enumeration: {}'.format(realName, count) )
+
+		# GX_VA_TEX0 - GX_VA_TEX7
+		elif name < 21:
+			# Texture mapping coordinates (GXTexCompCnt)
+			if count == 0: # GX_TEX_S
+				dimensions = 1
+			elif count == 1: # GX_TEX_ST
+				dimensions = 2
+			else:
+				dimensions = -1
+				realName = self.enums['Attribute_Name'][name]
+				print( 'Warning! Vertex attribute name {} has an unexpected dimensions enumeration: {}'.format(realName, count) )
+
+		else:
+			dimensions = 1
+			realName = self.enums['Attribute_Name'][name]
+			print( 'Encountered the vertex attribute {} in {}'.format(realName, self.name) )
+
+		return dimensions
+
+	def decodeEntries( self ):
+
+		vertexAttributes = []
+
+		for i, (name, attrType, count, compType, scale, _, stride, dataPointer) in self.iterateEntries():
+		
+			dims = self.determineAttributeDimensions( name, count )
+
+			if compType == 0: # uint8
+				valueFormat = 'B'
+			elif compType == 1: # sint8
+				valueFormat = 'b'
+			elif compType == 2: # uint16
+				valueFormat = 'H'
+			elif compType == 3: # sint16
+				valueFormat = 'h'
+			elif compType == 4: # float
+				valueFormat = 'f'
+			else: # Failsafe
+				print( 'Invalid vertex attribute component type: ' + str(compType) )
+				continue
+
+			# Assemble the formatting for this attribute
+			vertexDescriptor = '>{}{}'.format( dims, valueFormat )
+			vertexSize = struct.calcsize( vertexDescriptor )
+
+			# Check if this is direct (GX_DIRECT) display list data; no data indexing
+			if attrType == 1 or stride == 0:
+				vertexAttributes.append( (attrType, vertexDescriptor, []) )
+				continue
+
+			# Check that the vertex data pointer is pointing to a struct
+			pointerOffset = self.offset + ( self.length * i ) + 0x14
+			if pointerOffset not in self.dat.pointerOffsets:
+				print( 'Warning! A vertex attribute, index {} in {}, references a data struct but does not have one!'.format(i, self.name) )
+				continue
+
+			# More validation
+			elif vertexSize != stride:
+				print( 'Warning! Vertix attribute descriptor does not match expected stride! {} != {}'.format(struct.calcsize(vertexDescriptor), stride) )
+				continue
+
+			# Get the vertex attribute data struct and unpack its values
+			vertexDataStruct = self.initSpecificStruct( VertexDataBlock, dataPointer, self.offset )
+			vertexCount = vertexDataStruct.length / stride
+			dataFormat = '>' + ( vertexDescriptor[1:] * vertexCount )
+			trimmedData = vertexDataStruct.data[:vertexSize * stride] # Strips off any padding to get exact data size
+			vertexData = struct.unpack( dataFormat, trimmedData )
+
+			# Separate the values into groups of vertex components
 
 class EnvelopeArray( StructBase ):
 
@@ -1915,7 +2095,7 @@ class MapHeadObjDesc( StructBase ):
 						'Splines_Array_Count',
 						'Map_Lights_Array_Pointer',			# 0x18 - Points to an array of 0x8 long objects
 						'Map_Lights_Array_Count',
-						'Array_5_Pointer',					# 0x20
+						'Array_5_Pointer',					# 0x20 - SplineDesc?
 						'Array_5_Count',
 						'Material_Shadows_Array_Pointer',	# 0x28
 						'Material_Shadows_Array_Count',
@@ -2091,7 +2271,6 @@ class MapGameObjectsArray( TableStruct ):	# Makes up an array of GOBJs (a.k.a. G
 		StructBase.__init__( self, *args, **kwargs )
 
 		self.name = 'Game Objects Array ' + uHex( 0x20 + args[1] )
-		#self._siblingsChecked = True
 
 		# Check the parent's Game_Objects_Array_Count to see how many elements should be in this array structure
 		parentOffset = self.getAnyDataSectionParent()
@@ -2100,24 +2279,20 @@ class MapGameObjectsArray( TableStruct ):	# Makes up an array of GOBJs (a.k.a. G
 
 		# Need to set some properties at instance level, rather than usual class level, since they can change
 		self.fields = (	'Root_Joint_Pointer',				# 0x0
-						'Joint_Anim._Struct_Array_Pointer',	# 0x4
-						'Material_Anim._Joint_Pointer',		# 0x8
-						'Shape_Anim._Joint_Pointer',		# 0xC
+						'Joint_Anim_Array_Pointer',			# 0x4
+						'Material_Anim_Array_Pointer',		# 0x8
+						'Shape_Anim_Array_Pointer',			# 0xC
 						'Camera_Pointer',					# 0x10
 						'Unknown_0x14_Pointer',				# 0x14
-						'Light_Pointer',					# 0x18
-						'Unknown_0x1C_Pointer',				# 0x1C
-						'Coll_Anim._Enable_Array_Pointer',	# 0x20		Points to a null-terminated array of 6-byte elements. Relates to moving collision links
-						'Coll_Anim._Enable_Array_Count',	# 0x24
-						'Anim._Loop_Enable_Array_Pointer',	# 0x28		Points to an array of 1-byte booleans, for enabling animation loops
+						'Lights_Array_Pointer',				# 0x18
+						'Fog_Struct_Pointer',				# 0x1C
+						'Coll_Anim_Enable_Array_Pointer',	# 0x20		Points to a null-terminated array of 6-byte elements. Relates to moving collision links
+						'Coll_Anim_Enable_Array_Count',		# 0x24
+						'Anim_Loop_Enable_Array_Pointer',	# 0x28		Points to an array of 1-byte booleans, for enabling animation loops
 						'Shadow_Enable_Array_Pointer',		# 0x2C		Points to a null-terminated halfword array
 						'Shadow_Enable_Array_Count',		# 0x30
-				)	# ^ Repeating block of 0x34 bytes
+					)
 
-		# Use the above info to dynamically rebuild this struct's properties
-		# self.formatting = '>' + ( 'IIIIIIIIIIIII' * self.entryCount )
-		# self.fields = fields * self.entryCount
-		# self.length = 0x34 * self.entryCount
 		self.formatting = '>IIIIIIIIIIIII'
 		self.length = 0x34
 		

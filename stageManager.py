@@ -2839,7 +2839,7 @@ class StagePropertyEditor( ttk.Frame ):
 
 		# Add the headlines
 		ttk.Label( self, text='Basic Stage Properties  (grGroundParam)' ).grid( column=0, row=0, pady=12 )
-		ttk.Label( self, text='Model Parts  (GOBJs Array)' ).grid( column=1, row=0 )
+		ttk.Label( self, text='Model Groups  (GObjs Array)' ).grid( column=1, columnspan=2, row=0 )
 		
 		# Collect general properties
 		propertyValues = self.grGroundParam.getValues()
@@ -2878,7 +2878,7 @@ class StagePropertyEditor( ttk.Frame ):
 			# Add a section header if appropriate
 			if offset in self.propertyGroups:
 				sectionName = self.propertyGroups[offset]
-				ttk.Label( structTable.interior, text=sectionName ).grid( columnspan=3, column=0, row=row, padx=(100, 10), pady=(14, 6) )
+				ttk.Label( structTable.interior, text=sectionName ).grid( columnspan=3, column=0, row=row, padx=(50, 10), pady=(14, 6) )
 				row += 1
 
 			verticalPadding = ( 0, 0 )
@@ -2897,22 +2897,40 @@ class StagePropertyEditor( ttk.Frame ):
 			hexData = hexlify(rawData).upper()
 			hexEntry.insert( 0, hexData )
 			hexEntry.grid( column=1, row=row, pady=verticalPadding )
-			
+
 			if offset >= 0xB8:
 				hexEntry.colorSwatchWidget = ColorSwatch( structTable.interior, hexData, hexEntry )
-				hexEntry.colorSwatchWidget.grid( column=2, row=row, pady=verticalPadding, padx=(5, 20) )
+				hexEntry.colorSwatchWidget.grid( column=2, row=row, pady=verticalPadding, padx=(5, 15) )
 			else:
 				# Add an editable field for this field's actual decoded value (and attach the hex edit widget for later auto-updating)
 				valueEntry = HexEditEntry( structTable.interior, self.file, absoluteFieldOffset, fieldByteLength, formatting, propertyName, valueEntry=True, width=15 )
 				valueEntry.set( value )
 				valueEntry.hexEntryWidget = hexEntry
 				hexEntry.valueEntryWidget = valueEntry
-				valueEntry.grid( column=2, row=row, pady=verticalPadding, padx=(5, 20) )
+				valueEntry.grid( column=2, row=row, pady=verticalPadding, padx=(5, 15) )
 
 			offset += 4
 			row += 1
 
-		structTable.grid( column=0, row=1, rowspan=2, sticky='nsew' )
+		structTable.grid( column=0, row=1, rowspan=3, sticky='nsew' )
+		
+		# Model Parts Tree start
+		treeWrapper = ttk.Frame( self ) # Contains just the treeview and its scroller
+		scrollbar = Tk.Scrollbar( treeWrapper )
+		self.modelPartsTree = NeoTreeview( treeWrapper, columns=('offset'), yscrollcommand=scrollbar.set )
+		#self.modelPartsTree.heading( '#0', anchor='center', text='Group' ) # , command=lambda: treeview_sort_column(self.modelPartsTree, 'file', False)
+		self.modelPartsTree.column( '#0', anchor='center', minwidth=80, stretch=1, width=90 ) # "#0" is implicit in the columns definition above.
+		self.modelPartsTree.heading( 'offset', anchor='center', text='Offset' )
+		self.modelPartsTree.column( 'offset', anchor='w', minwidth=60, stretch=1, width=60 )
+		self.modelPartsTree.tag_configure( 'changed', foreground='red' )
+		self.modelPartsTree.tag_configure( 'changesSaved', foreground='#292' ) # The 'save' green color
+		self.modelPartsTree.grid( column=0, row=0, sticky='nsew' )
+		self.modelPartsTree.bind( '<<TreeviewSelect>>', self.onModelPartSelect )
+		self.modelPartsTree.bind( '<Double-1>', self.onModelPartDoubleClick ) # The above should also happen first by default
+		scrollbar.config( command=self.modelPartsTree.yview )
+		scrollbar.grid( column=1, row=0, sticky='ns' )
+		treeWrapper.rowconfigure( 'all', weight=1 )
+		treeWrapper.grid( column=1, row=1, rowspan=2, sticky='nsew', padx=15, ipadx=3 )
 
 		# Initialize the map head struct
 		self.mapHead = self.file.getStructByLabel( 'map_head' )
@@ -2922,66 +2940,57 @@ class StagePropertyEditor( ttk.Frame ):
 		#genPoints = self.file.getStruct( generalPointsPointer, self.mapHead.offset )
 		gobjsArray = self.file.getStruct( gobjsArrayPointer, self.mapHead.offset )
 		#gobjsArray = self.file.initSpecificStruct( , entryCount=gobjsArrayCount )
-		
-		# Model Parts Tree start
-		treeWrapper = Tk.Frame( self ) # Contains just the ISO treeview and its scroller (since they need a different packing than the above links).
-		scrollbar = Tk.Scrollbar( treeWrapper )
-		self.modelPartsTree = NeoTreeview( treeWrapper, columns=('offset'), yscrollcommand=scrollbar.set )
-		self.modelPartsTree.heading( '#0', anchor='center', text='Group' ) # , command=lambda: treeview_sort_column(self.modelPartsTree, 'file', False)
-		self.modelPartsTree.column( '#0', anchor='center', minwidth=90, stretch=1, width=100 ) # "#0" is implicit in the columns definition above.
-		self.modelPartsTree.heading( 'offset', anchor='center', text='Offset' )
-		self.modelPartsTree.column( 'offset', anchor='w', minwidth=60, stretch=1, width=60 )
-		self.modelPartsTree.tag_configure( 'changed', foreground='red' )
-		self.modelPartsTree.tag_configure( 'changesSaved', foreground='#292' ) # The 'save' green color
-		self.modelPartsTree.grid( column=0, row=0, sticky='nsew' )
-		scrollbar.config( command=self.modelPartsTree.yview )
-		scrollbar.grid( column=1, row=0, sticky='ns' )
-		treeWrapper.grid( column=1, row=1, sticky='nsew', padx=15 )
 
 		# Populate the treeview
 		offset = gobjsArray.offset
 		for i, entryValues in gobjsArray.iterateEntries():
-			gobjName = 'Model Part ' + str( i+1 )
-			gobjValues = [uHex(offset), i] + list( entryValues )
+			# Skip the General Points entry
+			if i == 0: continue
 
-			self.modelPartsTree.insert( '', 'end', str(offset), text=gobjName, values=gobjValues )
+			gobjName = 'Group ' + str( i+1 )
+			gobjValues = [ uHex(0x20+entryValues[0]), i ] + list( entryValues )
+
+			self.modelPartsTree.insert( '', 'end', str(entryValues[0]), text=gobjName, values=gobjValues )
 			offset += 0x34
 
+		# Model display panel
+		self.engine = RenderEngine( self, (100, 100), True, background=globalData.gui.defaultSystemBgColor, borderwidth=2, relief='groove' )
+		self.engine.grid( column=2, row=1, sticky='nsew', padx=(0, 15) )
+
+		# Model parts controls
 		modelPartsControls = ttk.Frame( self )
-		ttk.Button( modelPartsControls, text='View', command=self.viewModel ).grid( column=0, row=0 )
-		ttk.Button( modelPartsControls, text='Details', command=self.viewModelDetails ).grid( column=1, row=0 )
-		ttk.Button( modelPartsControls, text='Import', command=self.importModelGroup ).grid( column=0, row=1 )
-		ttk.Button( modelPartsControls, text='Export', command=self.exportModelGroup ).grid( column=1, row=1 )
-		ttk.Button( modelPartsControls, text='Add', command=self.addModelGroup ).grid( column=0, row=2 )
-		ttk.Button( modelPartsControls, text='Delete', command=self.deleteModelGroup ).grid( column=1, row=2 )
-		modelPartsControls.grid( column=2, row=1, sticky='nsew' )
+		ttk.Button( modelPartsControls, text='View', command=self.viewModel ).grid( column=0, row=0, padx=2 )
+		ttk.Button( modelPartsControls, text='Details', command=self.viewModelDetails ).grid( column=0, row=1, padx=2 )
+		ttk.Button( modelPartsControls, text='Import', command=self.importModelGroup ).grid( column=1, row=0, padx=2 )
+		ttk.Button( modelPartsControls, text='Export', command=self.exportModelGroup ).grid( column=2, row=0, padx=2 )
+		ttk.Button( modelPartsControls, text='Add', command=self.addModelGroup ).grid( column=1, row=1, padx=2 )
+		ttk.Button( modelPartsControls, text='Delete', command=self.deleteModelGroup ).grid( column=2, row=1, padx=2 )
+		modelPartsControls.grid( column=2, row=2, padx=5, pady=9, ipady=3 )
 
-		generalPointsFrame = ttk.Frame( self )
-		ttk.Button( generalPointsFrame, text='Blastzones', command=self.adjustBlastzones ).grid( column=0, row=0, ipadx=4 )
-		ttk.Button( generalPointsFrame, text='Camera Limits', command=self.adjustCameraLimits ).grid( column=0, row=1, ipadx=4 )
-		ttk.Button( generalPointsFrame, text='Player Spawn Points', command=self.adjustPlayerSpawns ).grid( column=0, row=2, ipadx=4 )
-		ttk.Button( generalPointsFrame, text='Item Spawns', command=self.adjustItemSpawns ).grid( column=0, row=3, ipadx=4 )
-		targetsButton = ttk.Button( generalPointsFrame, text='Target Positions', command=self.ajustTargetPositions )
-		targetsButton.grid( column=0, row=4, ipadx=4 )
-		#ttk.Button( generalPointsFrame, text='Add New General Point', command=self.addNewGeneralPoint ).grid( column=0, row=5, ipadx=4 )
-
+		# General points controls
+		generalPointsFrame = ttk.Labelframe( self, text='  General Points  ' )
+		ttk.Button( generalPointsFrame, text='Blastzones', command=self.adjustBlastzones, width=26 ).grid( column=0, row=0, padx=6, pady=3 )
+		ttk.Button( generalPointsFrame, text='Camera Limits', command=self.adjustCameraLimits, width=26 ).grid( column=1, row=0, padx=6, pady=3 )
+		ttk.Button( generalPointsFrame, text='Player Spawn Points', command=self.adjustPlayerSpawns, width=26 ).grid( column=0, row=1, padx=6, pady=3 )
+		ttk.Button( generalPointsFrame, text='Item Spawns', command=self.adjustItemSpawns, width=26 ).grid( column=1, row=1, padx=6, pady=3 )
+		targetsButton = ttk.Button( generalPointsFrame, text='Target Positions', command=self.ajustTargetPositions, width=30 )
+		targetsButton.grid( column=0, columnspan=2, row=2, ipadx=4, pady=(0, 7) )
+		#ttk.Button( generalPointsFrame, text='Add New General Point', command=self.addNewGeneralPoint ).grid( column=0, row=5, ipadx=4 ) #todo
 		generalPointsFrame.columnconfigure( 'all', weight=1 )
 		generalPointsFrame.rowconfigure( 'all', weight=1 )
+		generalPointsFrame.grid( column=1, columnspan=2, row=3, ipadx=25, ipady=8, pady=20 )
 
-		generalPointsFrame.grid( column=1, columnspan=2, row=2, sticky='nsew' )
-
+		# Disable the Targets button if this isn't a Target Test stage
 		if not self.file.filename.startswith( 'GrT' ):
 			targetsButton.config( state='disabled' )
 
-		# print( self.mapHead.getGeneralPoint( 7 ) )
-		# print( self.mapHead.getGeneralPoints() )
-
 		self.columnconfigure( 0, weight=1 )
-		self.columnconfigure( 1, weight=2 )
-		self.columnconfigure( 2, weight=1 )
+		self.columnconfigure( 1, weight=1 )
+		self.columnconfigure( 2, weight=2 )
 		self.rowconfigure( 0, weight=0 )
 		self.rowconfigure( 1, weight=1 )
 		self.rowconfigure( 2, weight=1 )
+		self.rowconfigure( 3, weight=1 )
 
 	def viewModel( self ): pass
 	def viewModelDetails( self ): pass
@@ -2989,6 +2998,27 @@ class StagePropertyEditor( ttk.Frame ):
 	def exportModelGroup( self ): pass
 	def addModelGroup( self ): pass
 	def deleteModelGroup( self ): pass
+
+	def onModelPartSelect( self, event ):
+		
+		# Get the current selection
+		iidSelectionsTuple = self.modelPartsTree.selection()
+		if not iidSelectionsTuple: # Failsafe; not possible?
+			return
+
+		# Get the selected joint object(s)
+		#joints = []
+		# for iid in iidSelectionsTuple:
+		# 	joint = self.file.getStruct( int(iid) )
+		# 	#joints.append( joint )
+		
+		# 	dobj = joint.DObJ
+		# 	pobj = dobj.PObj
+
+		# 	vtxArray = pobj.initChild( 'VertexAttributesArray', 2 )
+
+
+	def onModelPartDoubleClick( self, event ): pass
 	
 	def adjustBlastzones( self ):
 		# Create the rendering window and hide everything but the target

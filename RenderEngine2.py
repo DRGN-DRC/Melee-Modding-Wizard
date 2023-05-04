@@ -29,16 +29,21 @@ class RenderEngine( Tk.Frame ):
 	""" This module creates a pyglet rendering environment (a window), and embeds
 		it into a Tkinter frame for incorporation into the larger GUI. """
 	
-	def __init__( self, parent, dimensions=(640, 480), resizable=False, *args, **kwargs ):
+	def __init__( self, parent, dimensions=(640, 480), resizable=False, **kwargs ):
 
 		self.width = dimensions[0]
 		self.height = dimensions[1]
 
-		Tk.Frame.__init__( self, parent, background='black' )
+		Tk.Frame.__init__( self, parent, **kwargs )
 
 		# Create a Tkinter canvas to hold the Pyglet window's canvas
 		self.canvas = Tk.Canvas( self, width=self.width, height=self.height, borderwidth=0, highlightthickness=0 )
 		self.canvas.pack()
+
+		# Interpret a background color for the Pyglet canvas; check for a given background color, or default to black
+		backgroundColor = kwargs.get( 'background', 'black' )
+		self.bgColor = list( globalData.gui.root.winfo_rgb(backgroundColor) ) # Returns (r, g, b) with 16 bit color depth
+		self.bgColor = tuple( [v/65536.0 for v in self.bgColor] + [1] ) # Convert to 0-1 range and add an alpha channel
 
 		# Create an invisible Pyglet window (cannot create a Pyglet canvas without a window)
 		display = pyglet.canvas.get_display()
@@ -55,18 +60,15 @@ class RenderEngine( Tk.Frame ):
 		win32api.SetWindowLong( pyglet_handle, GWLP_HWNDPARENT, self.canvas.winfo_id() )
 		
 		# Set up the OpenGL context
-		#gl.glClearColor( 0, 0, 0, 1 )
 		# gl.glEnable( gl.GL_DEPTH_TEST ) # Do depth comparisons and update the depth buffer
-		# gl.glEnable( gl.GL_LINE_SMOOTH ) # Anti-aliasing
-		# gl.glEnable( gl.GL_BLEND )
-		# gl.glLineWidth( 3 ) # Set edge width to 3 pixels
-		# gl.glEnable( gl.GL_ALPHA_TEST )
 		# gl.glDepthFunc( gl.GL_LEQUAL )
-		# gl.glMatrixMode( gl.GL_PROJECTION )
-		# gl.glLoadIdentity()
-		# gl.gluPerspective( 60, float(self.width) / float(self.height), 0.1, 100.0 )
-		#gl.glMatrixMode( gl.GL_MODELVIEW )
-		#gl.glTranslatef( 0, 0, -5 )
+		# gl.glEnable( gl.GL_ALPHA_TEST )
+		# gl.glEnable( gl.GL_BLEND )
+		# gl.glBlendFunc( gl.GL_SRC_ALPHA, gl.GL_ONE_MINUS_SRC_ALPHA )
+		# gl.glEnable( gl.GL_LINE_SMOOTH ) # Anti-aliasing
+		# gl.glEnable( gl.GL_MULTISAMPLE )
+		# gl.glPointSize( 5 )
+		# gl.glLineWidth( 3 ) # Set edge widths to 3 pixels
 
 		self.vertices = []
 		self.edges = []
@@ -98,11 +100,11 @@ class RenderEngine( Tk.Frame ):
 		if resizable:
 			self.tic = time.time()
 			self.bind( "<Configure>", self.resizeViewport )
-		#self.resizeDebounce = False
 
 		# Start the render event loop using Tkinter's main event loop
-		pyglet.app.event_loop = CustomEventLoop( globalData.gui.root )
-		pyglet.app.event_loop.run()
+		if not pyglet.app.event_loop.is_running:
+			pyglet.app.event_loop = CustomEventLoop( globalData.gui.root )
+			pyglet.app.event_loop.run()
 
 		# Move focus to the parent window (will be the pyglet window by default)
 		self.master.after( 1, lambda: self.master.focus_force() )
@@ -123,13 +125,6 @@ class RenderEngine( Tk.Frame ):
 
 		""" Updates the tkinter canvas and pyglet rendering canvas 
 			when the Tkinter frame is resized. """
-
-		# toc = time.time()
-		# print( 'called after {}s'.format(toc-self.tic))
-		# self.tic = toc
-		# if not self.resizeDebounce:
-		# 	self.resizeDebounce = True
-		# 	return
 		
 		self.width = event.width
 		self.height = event.height
@@ -233,7 +228,7 @@ class RenderEngine( Tk.Frame ):
 
 	def on_draw( self ):
 		# Clear the screen
-		gl.glClearColor( 0, 0, 0, 1 )
+		gl.glClearColor( *self.bgColor )
 		gl.glClear( gl.GL_COLOR_BUFFER_BIT | gl.GL_DEPTH_BUFFER_BIT )
 
 		gl.glEnable( gl.GL_DEPTH_TEST ) # Do depth comparisons and update the depth buffer
@@ -407,13 +402,16 @@ class CustomEventLoop( EventLoop ):
 	def step( self ):
 
 		for window in pyglet.app.windows:
+			# Skip this window if the user isn't interacting with it
+			# if not window._mouse_in_window:
+			# 	continue
+
 			# Set context/render focus to this window
 			window.switch_to()
 
 			# Queue handling mouse input and drawing (updating) the canvas
-			#window.dispatch_events()
-			window.dispatch_event('on_mouse_drag')
-			window.dispatch_event('on_draw')
+			window.dispatch_event( 'on_mouse_drag' )
+			window.dispatch_event( 'on_draw' )
 			
 			# Swap the display buffers to show the rendered image
 			window.flip()
@@ -457,9 +455,14 @@ class ShapeBase:
 
 class Vertex:
 	def __init__( self, coords, color=(128, 128, 128), tags=(), hidden=False ):
+		# Position
 		self.x = coords[0]
 		self.y = coords[1]
 		self.z = coords[2]
+
+		# Texture coordinates
+		self.u = 0
+		self.v = 0
 
 		self.color = color
 		self.tags = tags
