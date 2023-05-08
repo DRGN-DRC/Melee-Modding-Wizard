@@ -3009,7 +3009,7 @@ class CodeConfigWindow( BasicWindow ):
 			# Add a hover tooltip to the name
 			details = 'Type:  {}\nDefault value:  {}'.format( optType, optionDict['default'] )
 			if optComment:
-				optComment += '\n' + details
+				optComment += '\n\n' + details
 			else:
 				optComment = details
 			ToolTip( nameLabel, text=optComment.lstrip( '# ' ), wraplength=400, delay=800 )

@@ -12,9 +12,9 @@
 # DTW's Structural Analysis tab or the following thread/post are useful for more details on structures:
 # 		https://smashboards.com/threads/melee-dat-format.292603/post-21913374
 
-import sys
+#import sys
 import struct
-import inspect
+#import inspect
 import time, math
 
 from itertools import izip
@@ -1123,10 +1123,27 @@ class FrameDataBlock( DataBlock ):
 
 class DisplayListBlock( DataBlock ):
 
+	enums = { 'Primitive_Type': 
+		OrderedDict([
+			( 0xB8, 'GL_POINTS' )
+		])
+
+	}
+
 	def __init__( self, *args, **kwargs ):
 		DataBlock.__init__( self, *args, **kwargs )
 
 		self.name = 'Display List ' + self.name
+
+	def parse( self, length, vertices ):
+		offset = 0
+		for i in range( length ):
+			# Parse the header for this primitive
+			primitiveFlags = self.data[offset]
+			primitiveType = primitiveFlags & 0xF8
+			vertexStreamIndex = primitiveFlags & 7
+			indexCount = struct.unpack( '>H', self.data[offset+1:offset+3] )
+
 
 
 class VertexDataBlock( DataBlock ):
@@ -1412,6 +1429,10 @@ class PolygonObjDesc( StructBase ): # A.k.a. Meshes
 	def decodeGeometry( self ):
 		vertexAttributes = self.initChild( VertexAttributesArray, 2 )
 		displayList = self.initChild( DisplayListBlock, 5 )
+		displayListLength = self.getValues( 'Display_List_Length' )
+
+		vertices = vertexAttributes.decodeEntries()
+		primitives = displayList.parse( displayListLength, vertices )
 
 
 class VertexAttributesArray( TableStruct ):
@@ -1606,7 +1627,7 @@ class VertexAttributesArray( TableStruct ):
 
 		for i, (name, attrType, count, compType, scale, _, stride, dataPointer) in self.iterateEntries():
 		
-			dims = self.determineAttributeDimensions( name, count )
+			dimensions = self.determineAttributeDimensions( name, count )
 
 			if compType == 0: # uint8
 				valueFormat = 'B'
@@ -1623,8 +1644,8 @@ class VertexAttributesArray( TableStruct ):
 				continue
 
 			# Assemble the formatting for this attribute
-			vertexDescriptor = '>{}{}'.format( dims, valueFormat )
-			vertexSize = struct.calcsize( vertexDescriptor )
+			vertexDescriptor = '>{}{}'.format( dimensions, valueFormat )
+			vertexDescriptorSize = struct.calcsize( vertexDescriptor )
 
 			# Check if this is direct (GX_DIRECT) display list data; no data indexing
 			if attrType == 1 or stride == 0:
@@ -1638,18 +1659,24 @@ class VertexAttributesArray( TableStruct ):
 				continue
 
 			# More validation
-			elif vertexSize != stride:
+			elif vertexDescriptorSize != stride:
 				print( 'Warning! Vertix attribute descriptor does not match expected stride! {} != {}'.format(struct.calcsize(vertexDescriptor), stride) )
 				continue
 
-			# Get the vertex attribute data struct and unpack its values
+			# Get the vertex attribute data struct, and get its data without padding
 			vertexDataStruct = self.initSpecificStruct( VertexDataBlock, dataPointer, self.offset )
 			vertexCount = vertexDataStruct.length / stride
 			dataFormat = '>' + ( vertexDescriptor[1:] * vertexCount )
-			trimmedData = vertexDataStruct.data[:vertexSize * stride] # Strips off any padding to get exact data size
+			trimmedData = vertexDataStruct.data[:vertexDescriptorSize * stride] # Strips off any padding to get exact data size
+
+			# Unpack the vertex data struct's values and apply scaling
 			vertexData = struct.unpack( dataFormat, trimmedData )
+			vertexData = ( value / (1 << scale) for value in vertexData )
 
 			# Separate the values into groups of vertex components
+			iterReference = iter( vertexData )
+			references = [ iterReference ] * dimensions
+			groups = [ group for group in zip( references ) ]
 
 class EnvelopeArray( StructBase ):
 

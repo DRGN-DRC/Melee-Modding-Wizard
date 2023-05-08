@@ -77,7 +77,7 @@ class DiscTab( ttk.Frame ):
 		ttk.Label( isoQuickLinks, text='Strings', foreground='#00F', cursor='hand2' ).pack( side='left', padx=4 )
 		for label in isoQuickLinks.winfo_children():
 			if label['text'] != '|': label.bind( '<1>', self.quickLinkClicked )
-		isoQuickLinks.pack( pady=1 )
+		isoQuickLinks.pack( pady=3 )
 
 		# File Tree start
 		isoFileTreeWrapper = Tk.Frame( fileTreeColumn ) # Contains just the ISO treeview and its scroller (since they need a different packing than the above links).
@@ -136,7 +136,7 @@ class DiscTab( ttk.Frame ):
 		self.isoPathShorthandLabel.pack()
 
 		# Add the button to open Disc Details
-		ttk.Button( isoOpsPanel, text='Edit Disc Details', command=self.addDiscDetailsTab, width=20 ).pack( pady=(12, 8) )
+		ttk.Button( isoOpsPanel, text='Edit Disc Details', command=self.addDiscDetailsTab, width=20 ).pack( pady=(18, 8) )
 
 		# Selected file details
 		internalFileDetails = ttk.Labelframe( isoOpsPanel, text='  File Details  ', labelanchor='n' )
@@ -903,7 +903,7 @@ class DiscTab( ttk.Frame ):
 			fileObj = globalData.disc.files.get( iid )
 
 			if fileObj:
-				globalData.gui.updateProgramStatus( 'Exporting File ' + str(exported + failedExports + 1) + '....', forceUpdate=True )
+				globalData.gui.updateProgramStatus( 'Exporting File ' + str(exported + failedExports + 1) + '...', forceUpdate=True )
 
 				try:
 					# Retrieve the file data.
@@ -1966,20 +1966,18 @@ class DiscMenu( Tk.Menu, object ):
 		# self.add_command( label='Create Directory', underline=0, command=createDirectoryInIso )										# C
 		if self.iidSelectionsTuple:
 			if self.selectionCount == 1:
+				self.add_command( label='Rename (in disc filesystem)', underline=2, command=self.renameFilesystemEntry )				# N
 
 				if self.entity == 'file':
-					self.add_command( label='Rename (in disc filesystem)', underline=2, command=self.renameFilesystemEntry )			# N
+					is20XX = globalData.disc.is20XX
+					fileType = self.fileObj.__class__.__name__
 
-					if self.fileObj.__class__.__name__ == 'StageFile' and self.fileObj.isRandomNeutral():
+					if is20XX and fileType == 'StageFile' and self.fileObj.isRandomNeutral():
 						self.add_command( label='Rename Stage Name (in CSS)', underline=2, command=self.renameDescription )				# N
-					elif self.fileObj.__class__.__name__ == 'MusicFile' and self.fileObj.isHexTrack:
+					elif is20XX and fileType == 'MusicFile' and self.fileObj.isHexTrack:
 						self.add_command( label='Rename Music Title (in CSS)', underline=2, command=self.renameDescription )			# N
 					else:
 						self.add_command( label='Edit Description (in yaml)', underline=5, command=self.renameDescription )				# D
-
-					#if self.fileObj.filename.endswith( 'AJ.dat' ):
-				else:
-					self.add_command( label='Rename (in disc filesystem)', underline=2, command=self.renameFilesystemEntry )				# N
 
 			self.add_command( label='Delete Selected Item(s)', command=self.removeItemsFromIso )							# R
 		# 	self.add_command( label='Move Selected to Directory', underline=1, command=moveSelectedToDirectory )						# O

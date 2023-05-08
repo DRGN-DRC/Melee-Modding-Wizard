@@ -7,6 +7,7 @@
                             ██║ ╚═╝ ██║ ██║ ╚═╝ ██║ ╚███╔███╔╝
                             ╚═╝     ╚═╝ ╚═╝     ╚═╝  ╚══╝╚══╝ 
                               -  - Melee Modding Wizard -  -  
+                                     - User Manual -
 
           # -=======---------------------------------------------------=======- #
          # ~ ~ Written by DRGN of SmashBoards (Daniel R. Cappel);  May, 2020 ~ ~ #
@@ -16,16 +17,15 @@
 
 	Here you'll find an overview of the things that you can modify using this 
 	program. This includes details on features and tools that may not be self-
-	evident or as easy to find in the GUI.
+	evident or easy to find in the GUI. There are also some program settings 
+	in the "settings.ini" file that aren't present in the GUI (covered in 
+	detail in the last section, below). For more advanced usage or incorpor-
+	ation in some other automation/workflow, you can also use various features 
+	through command line. For details on that, see the "Command-Line Usage.txt" 
+	file.
 
-Many features may be self-evident or easy to find, 
-	but there are some that may not be 
-	obvious. 
-
-	There are also some program settings in the "settings.ini" file 
-	that aren't present in the GUI (covered in detail below). For more advanced 
-	usage, you can also use various features through command line. For details 
-	on that, see the "Command-Line Usage.txt" file.
+	The program is currently written in Python 2, but I plan to move to 
+	Python 3 in the future. Feel free to contact me if you'd like to help.
 
 
 		Main Features so far:
@@ -47,79 +47,363 @@ Many features may be self-evident or easy to find,
 	 Disc Management:
 	------------------
 
-	    This can be used to operate on disc files or Root Folders (discs that have 
-	    been extracted into its individual files). 
+	    This can open disc files, such as ISO or GCM (GameCube Media) files, as well as 
+	    Root Folders (discs that have already been extracted into its individual files). 
+	    To make browsing and finding things easier, many files are organized into 
+	    "convenience folders". These are folders in the Disc File Tree that don't actually 
+	    exist in the disc or the root folder (these can be turned off via Settings -> 
+	    "Use Disc Convenience Folders").
 
-		- Export / Export Files(s): Exports one or more currently selected files.
-		  See the "Use Disc Convenience Folders with File Exports" for details.
-		- Import / Import File: Import a single file, replacing the currently 
-		  selected file.
-		- Auto Import: Import multiple files (selected by the user). Unlike with 
-		  the single-file import method above, this doesn't use a current selection 
+		* Export / Export Files(s): Exports one or more currently selected files 
+		  to create them as their own standalone file. If the "Use Disc Convenience 
+		  Folders with File Exports" option is turned on, then any folders selected 
+		  in the treeview will also be created during the export to contain other 
+		  exported files. If it's off, all files will simply be created in the same 
+		  output folder.
+		* Import / Import File: Import a single, external file, replacing the file 
+		  currently selected in the treeview.
+		* Auto Import: Import multiple files, replacing originals. Unlike with the 
+		  single-file import method above, this doesn't use a current selection 
 		  to determine a file to import over. Instead, each file will be identified 
-		  by dat file symbols or file name to determine a file to replace.
-		- Restore to Vanilla: This is a handy feature which replaces the currently 
+		  by dat file symbols or file name to determine which file to replace in 
+		  the disc. Files that reside in a folder are specified by including the 
+		  folder path in the filename as well, using a dash separator. For example, 
+		  a file named "audio-menu01.hps" would replace the 'menu01.hps' file in the 
+		  'audio' folder.
+		* Restore to Vanilla: This is a handy feature which replaces the currently 
 		  selected file (or files) with a copy of the file from a vanilla NTSC 
 		  copy of the game. You'll need to provide the program a filepath to this 
 		  vanilla disc just the first time that you use any feature that needs it. 
-		- Browse Textures: Like in DTW, this opens the file in a new tab, allowing 
+		* Browse Textures: Like in DTW, this opens the file in a new tab, allowing 
 		  you to see the file's textures and edit them (see Textures Editor section).
-		- Add File(s) to Disc: Adds one or more files to the disc, not replacing 
-		  any current files. If only one file is provided, you will also be prompted 
-		  to choose a new filename. Otherwise, the files will all use their original 
+		* Add File(s) to Disc: Adds one or more files to the disc, not replacing 
+		  any current files. If only one file is provided, you will also be able to 
+		  choose a new filename. Otherwise, the files will all use their original 
 		  filename. If a file is currently selected in the Disc File Tree, the new 
 		  file(s) will be added just before it. If a folder is selected, the new 
 		  file(s) will be added to the end of that folder. However, since it's 
 		  likely a convenience folder (one not actually in the disc), the behavior  
 		  is to add to the disc before the first file following the folder.
-		- Rename (in disc filesystem): This renames the internal game name of the 
-		  file. It's recommended to not use this unless you know what you're doing.
-		- Edit Description (in yaml): As you might guess, this updates what's shown 
+		* Rename (in disc filesystem): This renames the internal game name of the 
+		  file, in the disc's FST (file system table) a.k.a TOC (table of contents).
+		  It's recommended to not use this unless you know what you're doing.
+		* Edit Description (in yaml): As you might guess, this updates what's shown 
 		  in the Description column of the Disc File Tree. These descriptions can 
 		  be anything and will not hurt anything if they're updated. This is a 
 		  shortcut to editing the '\File Descriptions\GALE01.yaml' file, which 
 		  contains the disc's file descriptions, besides some dynamically generated 
 		  ones.
-		- Delete Selected Item(s): Completely removes the file from the disc. Not 
+		* Delete Selected Item(s): Completely removes the file from the disc. Not 
 		  recommended unless you're sure the game won't reference it at all.
-		- View Hex: Opens a file in your hex editor of choice.
-		- Copy Offset(s) to Clipboard: Copies the offsets of all currently selected 
+		* View Hex: Opens a file in your hex editor of choice.
+		* Copy Offset(s) to Clipboard: Copies the offsets of all currently selected 
 		  files to your clipboard.
+
+	    There are also several features that are only available when selecting specific 
+	    kinds of files:
+
+		* Listen: For audio files (HPS), this will open the Music Manager tab with 
+		  the target file selected.
+		* List Animations: For character animation (AJ) files, this parses the DAT
+		  file and lists all animations in the file, displaying the character name, 
+		  animation name, and the offset (location) in the file for that animation. 
+		* Set as CCC Source / Destination: For character files (Pl____.dat), this is 
+		  used to set the "source" or "destination" for a costume color swap with 
+		  the Character Color Converter tool (described more in-depth in the Tools 
+		  section). The source is the original costume you wish to convert, and the 
+		  destination should be a file of the target slot, which will be replaced.
+		* Browse Strings: For SIS files (Sd____.dat), which contain various bits of 
+		  game text, mostly for use in menus. This feature allows you to browse and 
+		  edit these strings.
+		* Extract Root for Dolphin: Available when selecting the root. This basically 
+		  does a standard export of all of the files in the disc, but excludes the 
+		  convenience folders from the output, and also organizes files into two main 
+		  folders: "sys" for system files, and "files" for everything else.
+		* Extract Root with Convenience Folders: Available when selecting the root. 
+		  This extracts all files in the disc, but preserves the convenience folders 
+		  and does not create the sys and files sub-folders.
+		* Rename Stage Name (in CSS) / Rename Music Title (in CSS): In 20XX, the 
+		  names of some stages and some music tracks (used by the game in various 
+		  menus, as well as by MMW to display a recognizable name) are stored in 
+		  the CSS (Character Select Screen) file; this feature allows you to change 
+		  them. For stages, this only applies to the Random Neutrals (the random 
+		  tournament legal stages like GrNBa.1at, .2at, etc.). For music, this only 
+		  applies to the Hex Tracks (extra custom tracks with file names like 00.hps).
+
+	    When operating on a Root Folder, you can build a new disc image by using the
+	    Menu -> Save (CTRL-S) or Save As options from the menu bar. Save As can also be 
+	    useful for creating a new copy of a loaded disc, in order to preserve the original 
+	    disc or root folder you opened without modifying it, or to rebuild the disc. 
+
+	    Rebuilding a disc is a process of assigning new file offsets, moving (copying) 
+	    the game's file data, and recreating the disc's filesystem (namely, the FST). 
+	    This is typically done in order to insert or remove information, such as adding 
+	    new files to the disc, removing files, or importing a file that is sufficiently 
+	    larger than the original file it replaces. When importing a file, it may or may 
+	    not be required to rebuild the disc. If the new file is smaller than the original, 
+	    rebuilding is not required. If the new file is larger than the original, then 
+	    rebuilding might still not be needed, depending on the amount of padding present 
+	    between the files in the disc; if the amount of padding after the original file, 
+	    before the next file in the disc, is less than the difference between the original 
+	    file and the new file, then rebuilding is required (otherwise, importing the new 
+	    file would partially overwrite the next file in the disc). However, if the size 
+	    difference between the original file and the new file can fit in (is less than or 
+	    equal to) the amount of padding that follows the original file in the disc, then 
+	    rebuilding the disc is not needed.
+
+	    Not having to rebuild the disc makes saving practically instantaneous. However, 
+	    even when it is not required, rebuilding can be useful to make the disc smaller 
+	    by removing files, importing files that are smaller than their originals, or by 
+	    specifying less padding to be present between files (explained at the end of this 
+	    section). Or you can specify more padding between files, so that rebuilding is 
+	    required less often.
+
+	    There are two options that affect rebuilding the disc:
+
+		* paddingBetweenFiles: 
+		* backupOnRebuild:
 
 
 	 Disc Details Editor
 	---------------------
 
-	    This edi
-
 	    This provides a simple way to modify the metadata of a disc, such as Game ID, 
-	    banner, Image Name, titles, and game descriptions. This is accessed by the 
-	    "Edit Disc Details" button, on the top-right side of the Disc File Tree tab.
-	    Most data here is read by various GC/Wii game launchers. Hover over 
-	    any particular field in the interface to learn what uses it and what disc file 
-	    the info is actually stored in.
+	    banner, Image Name, titles, and game descriptions. It can also show you the 
+	    total file count, disc size (includes padding), and 20XX/m-ex version info.
+	    This is accessed by the "Edit Disc Details" button, on the top-right side of 
+	    the Disc File Tree tab. Most data here is read by various GC/Wii game 
+	    launchers. You can hover over any particular field in the interface to learn 
+	    what uses it and what disc file the info is actually stored in.
 
 	    The "Encoding" option does not change the region of the disc or any data in it, 
 	    it is only used for parsing/decoding information on this tab.
 
+	    If you want to know how much padding (unused space between files) is in the 
+	    disc, you can go to the Disc File Tree tab, click on on the root, and look at 
+	    the file size displayed on the right. This value does not include padding, so 
+	    you can subtract it from Total File Size value shown on the Disc Details tab 
+	    to calulate total padding. The disc can be reduced by approximately that amount 
+	    if you rebuild it without using "auto" for the "paddingBetweenFiles" option. 
+	    See the Program Settings section in this manual for more details.
 
-	 Tools:
-	--------
+
+	 Textures Editor
+	-----------------
+
+	    Accessed from the Disc File Tree tab, by the "Browse Textures" button on the right. 
+	    This can import (replace) and export textures from a DAT file, as well as from 
+	    a few other specific files, including the DOL, banner file, and memory card files. 
+	    
+	    Note that you can sort textures by clicking on the header of each column. By 
+	    default, they are sorted by offset (the order that they appear in the file). Or, 
+	    you can filter out textures by clicking on "Texture Filters". The Aspect Ratio may 
+	    be given as a ratio, fraction, whole number, or decimal, e.g. “4:3”, ¼, 1 (for a 
+	    square), .5, etc. The Offset may be given in hex or decimal (remember to include 
+	    the “0x” to differentiate between these). Filtering can greatly cut down on loading 
+	    times since the excluded textures won't need to be decoded or rendered.
+
+		* Export Selected Textures: Export just the textures currently selected.
+		* Export All: Exports all textures currently displayed. This includes mipmap 
+		  textures (even if collapsed), but does not include textures that are 
+		  filtered out.
+		* Import Texture: Replaces all currently selected textures (one or more) 
+		  with an external file selected by the user. If the texture being imported 
+		  isn't the same dimensions as the texture(s) selected to be replaced,
+		  you will be offered to have the imported image resized to match each 
+		  texture to be replaced. You can also drag-and-drop image files anywhere 
+		  onto the program interface to import them over what's currently selected.
+		* Copy Offset(s) to Clipboard: Copies the file offsets of all currently 
+		  selected textures to the user's clipboard.
+		* Copy Dolphin Hash(es) to Clipboard: Copies the Dolphin hashes of all currently 
+		  selected textures to the user's clipboard. These are the texture hashes used 
+		  by Dolphin's "Load Custom Textures" feature.
+
+	    The palette tab shows colors used in paletted textures (types 8, 9, and 10. i.e.
+	    types CI4, CI8, and CI14x2), and can also be used to view or directly edit colors  
+	    used in the palette without needing to export, edit, and re-import the image.
+	    The model tab can be used to look up information on how the texture is used, i.e. 
+	    what structures reference it.
+
+	    As mentioned, when a texture is imported with different dimensions than the 
+	    target texture(s), it can be automatically resized. The default method for 
+	    resizing is to use the "lanczos" filter, but this can be changed. The available 
+	    options can be found here, which can be set via the "resampleFilter" option in 
+	    the "settings.ini" file:
+
+		https://pillow.readthedocs.io/en/stable/handbook/concepts.html#filters
+
+
+	 Code Manager
+	--------------
+
+			Overview
+
+	    This is a feature-rich system for all code-based mods. It offers a friendly and 
+	    simple interface for finding and installing (or uninstalling) mods incredibly 
+	    easily, while also being a more direct and efficient method of running them in-
+	    game than other code injection methodologies. Gecko codes are supported, and using 
+	    them with a Gecko codehandler is an option. However, mods are instead primarily 
+	    stored in "MCM" format, and are installed using direct overwrites of in-game 
+	    code. This saves a great deal of space by avoiding the extra overhead introduced 
+	    by the Gecko codelist. 
+
+	    The mod formats and GUI also feature user-friendly methods of customizing 
+	    individual mods to modify their behavior, with simple interfaces such as drop-
+	    down menus, sliders, and more, removing the need to understand the hex/code 
+	    formats. These aspects of a mod are called "Configurations". A basic example is 
+	    present with the mod "Peach - Always Pull Specific Turnip". If you go to that 
+	    mod in the Code Manager tab (under "Characters"), you'll find next to the mod's 
+	    edit button it also has a button to configure the mod, which opens a configuration 
+	    window. Any mod may have any number of such configurations added, and details 
+	    on how to do so are outlined in "Code Library Manual.txt" file.
+
+	    You may add to or remove mods from the default code library. (Details on how to 
+	    do this can be found in the Code Library Manual.) You may also keep references 
+	    to multiple different code libraries for different projects, and swap between them 
+	    at any time within the program. To switch to a different library, look for the 
+	    books icon on the top-right of the Code Manager interface. Only one library may be 
+	    loaded at once, however there is no limit to how many mods may be in one library.
+
+
+			Mod Creation
+
+	    Several tools and features are also available to make developing codes easier.
+
+		* Code Construction tab: This is a very useful interface for editing existing 
+		  mods or making new ones. You can access this in the Tools menu, by 
+		  clicking on New Code Mod, or by clicking on the Edit button on any mod.
+		  This interface is also where you can import Gecko codes, and convert 
+		  them to another format (via the "Import Gecko Code" button in the top-
+		  right of the tab).
+
+		* ASM <-> HEX converter: Compile (assemble) assembly code (ASM) into raw hex/
+		  binary data, or decompile (disassemble) binary into its source ASM code. 
+		  This can also format/beautify hex code for you, into clean lines of 1 to 
+		  6 words (groups of 4 bytes) per line. Below that, the "Assemble Special 
+		  Syntax" checkbox determines whether special syntaxes will be assembled to 
+		  hex or left alone; you'll want this unchecked if storing the code in any 
+		  mod formats that support special syntaxes. (For more on special syntaxes, 
+		  see the "Code Library Manual.txt" file.) The "View Include Paths" button on 
+		  the bottom shows directories that will be searched for files to use for 
+		  .include imports. You can find this tool in the Tools menu bar.
+
+		* RAM Address to-from DOL Offset converter: Converts RAM Addresses to DOL 
+		  offsets, and vice verca. A number of other number conversion & pack/unpack 
+		  tools are also combined with this one. For example, getting the hexadecimal 
+		  value to represent a float, or vice verca.
+
+		* Code Lookup: A simple tool to look up functions by DOL Offset or 
+		  RAM (memory) address. Any offset/address will work; it doesn't need to 
+		  be the start of a function. This will then show the start, end, length, 
+		  and name of the function, as well as the assembly code for it. This 
+		  feature uses the .map file located in "\bin\maps\" to look up function 
+		  information.
+
+	    The gear icon on the top-right of the Code Manager tab opens the Code-Space 
+	    Options window. The regions shown in this window describe the code areas in the 
+	    DOL that will be used for code injection overwrites and standalone functions. 
+	    You can add to or edit these regions by editing the "codeRegionSettings.py" file.
 
 
 	 Program Settings:
 	-------------------
 
+	    These settings are all accessible under "Settings" in the menu bar:
+
 		- Use Disc Convenience Folders:
-			This organizes files of certain types into folders. This is 
-			useful because these folders do not actually exist in the disc,
-			which normally results in one very long list of files.
+			This organizes files of certain types into folders when browsing 
+			in the Disc File Tree tab. For example, the "Pl__.dat" folder for 
+			characters. These folders do not actually exist in the disc's 
+			filesystem; if you disable this option and load a disc, you'll 
+			see only the folders that actually exist in the disc.
 
 		- Use Disc Convenience Folders with File Exports:
 			Adds a heirachy of folders (matching the conveneince folders 
 			shown) when files are export. If this is turned off, all files
 			will simply be output into the same folder selected from the GUI.
 
+		- Back-up Disc When Rebuilding:
+			For more information on what "rebuilding" a disc means, see the end 
+			of the "Disc Management" section in this guide. When you save changes 
+			to a disc and the disc will be rebuilt, having this option enabled 
+			will create a copy of your game with your new changes, while leaving 
+			your original disc image untouched. So this is just a matter of 
+			precaution; if you already have a back-up of your game (always a good 
+			idea to keep at least one that's reasonably up to date) or you fully 
+			trust the changes that you've made, then you don't need to keep this 
+			enabled. When disabled, you'll still see a temporary file created 
+			while the rebuild process is under way, but once it's done, your 
+			original ISO will be up to date with your changes (and the temp file 
+			will be gone). Note that a majority of the time spent rebuilding a 
+			disc is copying data, which needs to happen whether this option is 
+			enabled or not.
+
+		- Always Add Files Alphabetically:
+			This changes the behavior for deciding where new files should be added 
+			into the disc file and FST. With the default behavior, if the user has 
+			a file selected in the GUI (in the Disc File Tree), the new files will 
+			be added just before it. If a folder is selected, it's presumed that 
+			they would like to add it to the end of that folder. However, since 
+			it's likely a convenience folder (one not actually in the disc), the 
+			best attempt is to add to the disc before the first file following the 
+			folder. This option overrides that behavior and instead makes the new 
+			file add to the file list in alphabetical order, regardless of any 
+			current file selections.
+
+		- Run Dolphin in Debug Mode:
+			This affects any features where Dolphin is used to launch the game, 
+			such as with an Asset Test or CSP generation.
+
+		- Create Hi-Res CSPs:
+			This option is only available when editing 20XX HP. The program offers 
+			a 'Create Tri-CSP' option in the Tools menu (see the Tools section in 
+			this manual for details), which this setting affects. Normally when 
+			using that feature, a CSP is created and saved directly into the CSS 
+			file. With this option enabled, a high-resolution image is created and 
+			instead saved as an external PNG file in the directory of the loaded 
+			disc. This is then intended to be used with Dolphin's 'Load Custom 
+			Textures' feature. Which means you'll need to rename the file to match 
+			the expected hash, which you can get by dumping the texture from Dolphin 
+			or by using the 'Copy Dolphin Hash to Clipboard' in the Textures editor.
+
+		- Use Code Cache:
+			Codes in MCM or AMFS format can be saved as their assembly source code, 
+			or as raw binary/hex data. The benefit of storing codes in your library 
+			as assembly is that they can be quickly and easily edited. The downside 
+			is that they are much slower to be saved into your game, because they 
+			need to be assembled first. This happens automatically (and is still 
+			quite fast), but you may notice a difference if you have have lots of 
+			codes that are being assembled and installed. This option makes the best 
+			of both worlds when using the AMFS format. With this option enabled, you 
+			can keep the codes in your library as assembly, while also keeping an 
+			assembled binary copy of it, i.e. the cache. This cache is automatically 
+			updated any time you make changes to individual codes (when saving the 
+			mod to your library or saving to your game) and is used during code 
+			installation. Thus, when you save, only the recently modified codes will 
+			need to be assembled, allowing for fast code installation times. This 
+			makes an especially big difference when amassing hundreds of codes for 
+			a large project. With this option off, codes will always be assembled 
+			from their source code, if available.
+
+		- Offer to Convert Gecko Codes:
+
+		- Always Enable Crash Reports:
+
+	    These other settings are only accessible within the "settings.ini" file; 
+	    in most cases you likely won't need to change these:
+
+		- "resampleFilter": 
+			When a texture is imported with different dimensions than the 
+	    		target texture(s), it can be automatically resized. The default 
+			method for resizing is to use the "lanczos" filter, but this can be 
+			changed. The available options can be found here:
+			https://pillow.readthedocs.io/en/stable/handbook/concepts.html#filters
+
+		- 
 
 
 
+	 Tools:
+	--------
+
+		- Character Color Converter: 

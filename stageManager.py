@@ -3015,7 +3015,7 @@ class StagePropertyEditor( ttk.Frame ):
 		# 	dobj = joint.DObJ
 		# 	pobj = dobj.PObj
 
-		# 	vtxArray = pobj.initChild( 'VertexAttributesArray', 2 )
+		# 	primitives = pobj.decodeGeometry()
 
 
 	def onModelPartDoubleClick( self, event ): pass

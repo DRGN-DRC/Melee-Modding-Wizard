@@ -13,6 +13,8 @@
 # 		https://smashboards.com/threads/melee-dat-format.292603/post-21913374
 
 import dol		# Not imported like the rest to prevent cyclic import
+import inspect
+
 from .audioFiles import *
 from .charFiles import *
 from .fileBases import *

@@ -176,6 +176,11 @@ class SettingsMenu( Tk.Menu, object ):
 		super( SettingsMenu, self ).__init__( parent, tearoff=tearoff, *args, **kwargs )
 		self.open = False
 		
+	def repopulate( self ):
+
+		# Clear all current population
+		self.delete( 0, 'last' )
+
 		# Disc related options
 		self.add_checkbutton( label='Use Disc Convenience Folders', underline=9, 												# C
 				variable=globalData.boolSettings['useDiscConvenienceFolders'], command=globalData.saveProgramSettings )
@@ -192,8 +197,10 @@ class SettingsMenu( Tk.Menu, object ):
 
 		self.add_checkbutton( label='Run Dolphin in Debug Mode', underline=15, 													# D
 				variable=globalData.boolSettings['runDolphinInDebugMode'], command=globalData.saveProgramSettings )
-		self.add_checkbutton( label='Create Hi-Res CSPs', underline=7, 															# H
-				variable=globalData.boolSettings['createHiResCSPs'], command=globalData.saveProgramSettings )
+		
+		if globalData.disc and globalData.disc.is20XX:
+			self.add_checkbutton( label='Create Hi-Res CSPs', underline=7, 														# H
+					variable=globalData.boolSettings['createHiResCSPs'], command=globalData.saveProgramSettings )
 		
 		self.add_separator()
 

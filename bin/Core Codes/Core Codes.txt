@@ -52,9 +52,9 @@ Based on Punkline's Internal Action State Hack, and a rework of Dan Salvato's ac
 0x21A0 - new action state ID (int)
 This variation of the code is designed to set animation states for P1 & P2 on match start.
 Configurations:
-    float Start Frame = 0.0; 0-0x10000
-    uint32 Action State ID = 0; 0-0x10000
-    uint16 Delay = 72 # Takes 72 (0x48) frames for both characters to leave entry platform
+    float Start Frame = 0.0
+    uint32 Action State ID = 0
+    uint16 Delay = 72 # Takes 72 (0x48) frames for two characters to leave entry platform
 <https://smashboards.com/threads/internal-action-state-hack.440318/>
 [Dan Salvato, Punkline, DRGN]
 Version -- DOL Offset ------ Hex to Replace ---------- ASM Code

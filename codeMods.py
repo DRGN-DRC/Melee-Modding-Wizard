@@ -624,12 +624,13 @@ class CodeMod( object ):
 			varying sources (i.e. from an MCM format file or AMFS config/json file). """
 
 		if not isinstance( value, (int, float, long) ): # Need to typecast to int or float
-			if optionType == 'float':
-				value = float( value )
-			elif '0x' in value: # Convert from hex using base 16
+			if '0x' in value: # Convert from hex using base 16
 				value = int( value, 16 )
+			elif optionType == 'float':
+				value = float( value )
 			else: # Assume decimal value
 				value = int( value )
+
 
 		return value
 	
