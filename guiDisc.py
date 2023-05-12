@@ -584,7 +584,7 @@ class DiscTab( ttk.Frame ):
 			description = discFile.longDescription
 		
 		try:
-			# The following commented-out code is occasionally used for some ad-hoc testing.
+			# The following commented-out code is occasionally used for ad-hoc testing
 
 			# altPath = 'GALE01/' + discFile.filename.replace( '.usd', '.dat' )
 			# if discFile.filename.endswith( '.usd' ) and altPath in globalData.disc.files:
@@ -615,8 +615,12 @@ class DiscTab( ttk.Frame ):
 			# 	if discFile.headerInfo and discFile.headerInfo['rtEntryCount'] > 10000:
 			# 		print( discFile.filename, ': ', discFile.headerInfo['rtEntryCount'] )
 
-			# if discFile.filename == 'PlZdWh.dat':
+			# if discFile.filename == 'PlFxNr.dat':
 			# 	discFile.initialize()
+			# 	shareJoint = discFile.getStructByLabel( 'PlyFox5K_Share_joint' )
+			# 	dobj = shareJoint.DObj
+			# 	pobj = dobj.PObj
+			# 	pobj.decodeGeometry()
 			# 	s1 = discFile.getStruct( 0xAC64 )
 			# 	#s1 = discFile.getSkeleton()
 			# 	s2 = discFile.getStruct( 0xA9FC )

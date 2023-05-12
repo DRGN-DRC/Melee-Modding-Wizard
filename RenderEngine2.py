@@ -16,7 +16,7 @@ import win32api
 import Tkinter as Tk
 
 from pyglet import gl
-from pyglet.window import key
+from pyglet.window import key, Projection3D
 from pyglet.app.base import EventLoop
 from pyglet.window.event import WindowEventLogger
 from pyglet.window import Window as pygletWindow
@@ -50,6 +50,7 @@ class RenderEngine( Tk.Frame ):
 		screen = display.get_default_screen()
 		config = screen.get_matching_configs( gl.Config(double_buffer=True, depth_size=8, alpha_size=8) )[0]
 		self.window = pygletWindow( display=display, config=config, width=self.width, height=self.height, resizable=resizable, visible=False )
+		#self.window.projection = Projection3D(  ) #todo
 		self.window.on_draw = self.on_draw
 		# openGlVersion = self.window.context._info.get_version().split()[0]
 		# print( 'Rendering with OpenGL version {}'.format(openGlVersion) )
@@ -60,15 +61,18 @@ class RenderEngine( Tk.Frame ):
 		win32api.SetWindowLong( pyglet_handle, GWLP_HWNDPARENT, self.canvas.winfo_id() )
 		
 		# Set up the OpenGL context
-		# gl.glEnable( gl.GL_DEPTH_TEST ) # Do depth comparisons and update the depth buffer
-		# gl.glDepthFunc( gl.GL_LEQUAL )
-		# gl.glEnable( gl.GL_ALPHA_TEST )
-		# gl.glEnable( gl.GL_BLEND )
-		# gl.glBlendFunc( gl.GL_SRC_ALPHA, gl.GL_ONE_MINUS_SRC_ALPHA )
-		# gl.glEnable( gl.GL_LINE_SMOOTH ) # Anti-aliasing
-		# gl.glEnable( gl.GL_MULTISAMPLE )
-		# gl.glPointSize( 5 )
-		# gl.glLineWidth( 3 ) # Set edge widths to 3 pixels
+		gl.glEnable( gl.GL_DEPTH_TEST ) # Do depth comparisons and update the depth buffer
+		gl.glDepthFunc( gl.GL_LEQUAL )
+		gl.glEnable( gl.GL_ALPHA_TEST )
+		gl.glEnable( gl.GL_BLEND )
+		#gl.glBlendFunc( gl.GL_SRC_ALPHA, gl.GL_ONE_MINUS_SRC_ALPHA )
+		gl.glEnable( gl.GL_LINE_SMOOTH ) # Anti-aliasing
+		gl.glEnable( gl.GL_POLYGON_SMOOTH )
+		gl.glEnable( gl.GL_MULTISAMPLE )
+		try:
+			gl.glEnable( gl.GL_MULTISAMPLE_ARB )
+		except pyglet.gl.GLException:
+			print( "Warning: Anti-aliasing is not supported on this computer." )
 
 		self.vertices = []
 		self.edges = []
@@ -93,9 +97,14 @@ class RenderEngine( Tk.Frame ):
 		#self.pack_propagate( False )
 
 		# Set up event handling for controls
+		#self.window._enable_event_queue = True
 		self.window.on_mouse_drag = self.on_mouse_drag
-		self.master.bind( '<KeyPress>', self.on_key_press )
+		#self.window.on_key_press = self.on_key_press
+		#self.window.on_mouse_scroll = self.on_mouse_scroll 	# doesn't work!?
+		self.window.on_mouse_scroll = self.zoom
 		self.master.bind( "<MouseWheel>", self.zoom )
+		self.master.bind( '<KeyPress>', self.on_key_press )
+		#self.master.bind( "<1>", self.window.activate() ) # Move focus to the parent when clicked on
 
 		if resizable:
 			self.tic = time.time()
@@ -103,7 +112,7 @@ class RenderEngine( Tk.Frame ):
 
 		# Start the render event loop using Tkinter's main event loop
 		if not pyglet.app.event_loop.is_running:
-			pyglet.app.event_loop = CustomEventLoop( globalData.gui.root )
+			pyglet.app.event_loop = CustomEventLoop( self.winfo_toplevel() )
 			pyglet.app.event_loop.run()
 
 		# Move focus to the parent window (will be the pyglet window by default)
@@ -136,7 +145,7 @@ class RenderEngine( Tk.Frame ):
 		gl.glViewport( 0, 0, self.width, self.height )
 		self.window._update_view_location( self.width, self.height )
 
-	def addVertex( self, vertices, color=(128, 128, 128), tags=(), hidden=False ):
+	def addVertex( self, vertices, color=(128, 128, 128, 255), tags=(), hidden=False ):
 
 		if len( vertices ) != 3:
 			print( 'Incorrect number of coordinates given to create a vertex: ' + str(vertices) )
@@ -184,19 +193,73 @@ class RenderEngine( Tk.Frame ):
 		self.quads.append( quad )
 
 		return quad
+	
+	def addPrimitives( self, primitives ):
+
+		""" Add one or more pre-initialized primitives without coords validation. """
+
+		if not primitives:
+			return
+
+		unknownObjects = []
+
+		for prim in primitives:
+			if isinstance( prim, Vertex ):
+				self.vertices.append( prim )
+			elif isinstance( prim, Edge ):
+				self.edges.append( prim )
+			elif isinstance( prim, Triangle ):
+				self.triangles.append( prim )
+			elif isinstance( prim, Quad ):
+				self.quads.append( prim )
+			else:
+				unknownObjects.append( prim )
+
+		if unknownObjects:
+			print( 'Unable to add unknown, non-primitive objects!:'.format(unknownObjects) )
+
+	def renderJoint( self, joint ):
+
+		""" Recursively scans the given joint and all child/next joints for 
+			Display Objects and Polygon Objects. Breaks down Polygon Objects 
+			into primitives and renders them to the display. """
+
+		# Check for a polygon object to render
+		dobj = joint.DObj
+		if dobj:
+			pobj = dobj.PObj
+			if pobj:
+				primitives = pobj.decodeGeometry()
+				self.addPrimitives( primitives )
+
+		# Check for a child joint to render
+		childJoint = joint.initChild( 'JointObjDesc', 2 )
+		if childJoint:
+			self.renderJoint( childJoint )
+
+		# Check for a 'next' joint to render
+		nextJoint = joint.initChild( 'JointObjDesc', 3 )
+		if nextJoint:
+			self.renderJoint( nextJoint )
 
 	def zoom( self, event ):
-
-		scroll_y = event.delta / 30
-
-		if scroll_y > 0: # zoom in
+		#print( 'zoom' )
+		if event.delta > 0: # zoom in
 			self.scale *= 1.09
-		elif scroll_y < 0: # zoom out
+		elif event.delta < 0: # zoom out
 			self.scale /= 1.09
 
-	def on_key_press( self, symbol ):
+	# def on_mouse_scroll( self, *args ):
 
-		print(symbol)
+	# 	print('zoom2' )
+	# 	print(args)
+
+	def on_key_press( self, *args ):
+
+		#print( 'pressed ' + str(symbol) )
+		if not args:
+			return
+		symbol, modifiers = args
 
 		if symbol == key.R:
 			print( 'resetting' )
@@ -213,6 +276,7 @@ class RenderEngine( Tk.Frame ):
 			modifiers = Bitwise combination of any keyboard modifiers currently active. """
 
 		# Grab the event arguments (excluding x and y coords)
+		#print('dragged')
 		if not args:
 			return
 		dx, dy, buttons, modifiers = args[2:]
@@ -230,15 +294,6 @@ class RenderEngine( Tk.Frame ):
 		# Clear the screen
 		gl.glClearColor( *self.bgColor )
 		gl.glClear( gl.GL_COLOR_BUFFER_BIT | gl.GL_DEPTH_BUFFER_BIT )
-
-		gl.glEnable( gl.GL_DEPTH_TEST ) # Do depth comparisons and update the depth buffer
-		gl.glDepthFunc( gl.GL_LEQUAL )
-		gl.glEnable( gl.GL_ALPHA_TEST )
-		gl.glEnable( gl.GL_BLEND )
-		gl.glBlendFunc( gl.GL_SRC_ALPHA, gl.GL_ONE_MINUS_SRC_ALPHA )
-		gl.glEnable( gl.GL_LINE_SMOOTH ) # Anti-aliasing
-		gl.glEnable( gl.GL_MULTISAMPLE )
-		gl.glPointSize( 5 )
 		gl.glLineWidth( 3 ) # Set edge widths to 3 pixels
 		
 		# Set the projection matrix to a perspective projection and apply translation (camera pan)
@@ -260,7 +315,7 @@ class RenderEngine( Tk.Frame ):
 			for vertex in self.vertices:
 				vertex.render( batch )
 			batch.draw()
-		if self.vertices:
+		if self.edges:
 			batch = pyglet.graphics.Batch()
 			for edge in self.edges:
 				edge.render( batch )
@@ -360,14 +415,15 @@ class RenderEngine( Tk.Frame ):
 
 		# Allow the next iteration of the loop to continue, 
 		# but modify it to call this method again once it's done.
-		el = pyglet.app.event_loop
-		if el.is_running and el.step != el.stop:
-			el.is_running = False
-			el.has_exit = True
-			el.step = self.stop
-			return
+		# el = pyglet.app.event_loop
+		# if el.is_running and el.step != self.stop:
+		# 	el.is_running = False
+		# 	el.has_exit = True
+		# 	el.step = self.stop
+		# 	return
 
-		self.window.close()
+		# self.window.close()
+		self.window.has_exit = True
 
 
 class CustomEventLoop( EventLoop ):
@@ -377,7 +433,6 @@ class CustomEventLoop( EventLoop ):
 
 	def __init__( self, root ):
 		super( CustomEventLoop, self ).__init__()
-
 		self.root = root
 	
 	def run( self ):
@@ -401,23 +456,43 @@ class CustomEventLoop( EventLoop ):
 
 	def step( self ):
 
+		# Track whether there are any windows left to update
+		queueNextStep = False
+
 		for window in pyglet.app.windows:
+			# Shut down any windows wanting to exit
+			if window.has_exit:
+				window.close()
+				continue
+			
+			queueNextStep = True
+
 			# Skip this window if the user isn't interacting with it
 			# if not window._mouse_in_window:
 			# 	continue
+
+			# Set keyboard focus to this window if the mouse is over it
+			# if window._mouse_in_window:
+			# 	window.activate()
 
 			# Set context/render focus to this window
 			window.switch_to()
 
 			# Queue handling mouse input and drawing (updating) the canvas
-			window.dispatch_event( 'on_mouse_drag' )
+			# window.dispatch_event( 'on_mouse_drag' )	# still fires dragged without this
+			#window.dispatch_event( 'on_key_press' )
 			window.dispatch_event( 'on_draw' )
+			#window.dispatch_pending_events()	# still fires dragged without this
+			#window.dispatch_events()	# still fires dragged without this
 			
 			# Swap the display buffers to show the rendered image
 			window.flip()
 
 		# Re-queue for the next frame
-		self.root.after( 17, self.step )
+		if queueNextStep:
+			self.root.after( 17, self.step )
+		else:
+			self.stop()
 
 	def stop( self ):
 
@@ -431,34 +506,52 @@ class CustomEventLoop( EventLoop ):
 		# platform_event_loop.stop()
 
 
-class ShapeBase:
+class Primitive:
 
 	@staticmethod
 	def interpretColors( pointCount, color, colors ):
 
-		if color:
-			# A single color was given
-			colors = color[:3] * pointCount
-		elif not colors:
-			# No colors given; default to gray
-			colors = ( 128, 128, 128 ) * pointCount
-		elif len( colors ) == 1:
-			# A single color given; copy it for all points
-			colors = ( colors[0][:3] ) * pointCount
-		elif pointCount != len( colors ):
-			# Ehh?
-			print( 'Warning! Unexpected number of colors given to add edges: ' + str(colors) )
-			colors = ( colors[0][:3] ) * pointCount
+		""" Checks a primitive's color and colors arguments. A single given color 
+			takes priority and will be used for all vertices if provided. If no color 
+			and no colors are given, vertex colors will default to gray. """
+
+		defaultColor = ( 128, 128, 128, 255 )
+
+		try:
+			if color:
+				# A single color was given
+				assert len( color ) == 4, 'the given color should be an RGBA tuple.'
+				colors = color * pointCount
+			elif not colors:
+				# No color(s) given; default to gray
+				colors = defaultColor * pointCount
+			elif len( colors ) == 1:
+				# A single color given; copy it for all points
+				assert len( colors[0] ) == 4, 'the given color should be an RGBA tuple.'
+				colors = ( colors[0], ) * pointCount
+			elif pointCount != len( colors ):
+				# Ehh?
+				print( 'Warning! Unexpected number of colors given to primitive: ' + str(colors) )
+				assert len( colors[0] ) == 4, 'the given color should be an RGBA tuple.'
+				colors = ( colors[0], ) * pointCount
+		except Exception as err:
+			print( 'Invalid color(s) given to create a primitive; {}'.format(err) )
+			colors = defaultColor * pointCount
 
 		return colors
 
 
 class Vertex:
-	def __init__( self, coords, color=(128, 128, 128), tags=(), hidden=False ):
+	def __init__( self, coords, color=(0, 0, 0, 255), tags=(), hidden=False, size=2 ):
 		# Position
-		self.x = coords[0]
-		self.y = coords[1]
-		self.z = coords[2]
+		if coords:
+			self.x = coords[0]
+			self.y = coords[1]
+			self.z = coords[2]
+		else:
+			self.x = 0
+			self.y = 0
+			self.z = 0
 
 		# Texture coordinates
 		self.u = 0
@@ -467,17 +560,19 @@ class Vertex:
 		self.color = color
 		self.tags = tags
 		self.hidden = hidden
+		self.size = size
 	
 	def render( self, batch ):
 		if not self.hidden:
-			batch.add( 1, gl.GL_POINTS, None, ('v3f', (self.x, self.y, self.z)), ('c3B', self.color) )
+			gl.glPointSize( self.size )
+			batch.add( 1, gl.GL_POINTS, None, ('v3f', (self.x, self.y, self.z)), ('c4B', self.color) )
 
 
-class Edge( ShapeBase ):
+class Edge( Primitive ):
 
 	def __init__( self, vertices, color=None, colors=(), tags=(), hidden=False ):
 		self.vertices = ( 'v3f', vertices )
-		self.vertexColors = ( 'c3B', self.interpretColors( 2, color, colors ) )
+		self.vertexColors = ( 'c4B', self.interpretColors( 2, color, colors ) )
 		self.tags = tags
 		self.hidden = hidden
 	
@@ -486,11 +581,11 @@ class Edge( ShapeBase ):
 			batch.add( 2, gl.GL_LINES, None, self.vertices, self.vertexColors )
 
 
-class Triangle( ShapeBase ):
+class Triangle( Primitive ):
 
 	def __init__( self, vertices, color=None, colors=(), tags=(), hidden=False ):
 		self.vertices = ( 'v3f', vertices )
-		self.vertexColors = ( 'c3B', self.interpretColors( 4, color, colors ) )
+		self.vertexColors = ( 'c4B', self.interpretColors( 3, color, colors ) )
 		self.tags = tags
 		self.hidden = hidden
 	
@@ -499,11 +594,11 @@ class Triangle( ShapeBase ):
 			batch.add( 3, gl.GL_TRIANGLES, None, self.vertices, self.vertexColors )
 
 
-class Quad( ShapeBase ):
+class Quad( Primitive ):
 
 	def __init__( self, vertices, color=None, colors=(), tags=(), hidden=False ):
 		self.vertices = ( 'v3f', vertices )
-		self.vertexColors = ( 'c3B', self.interpretColors( 4, color, colors ) )
+		self.vertexColors = ( 'c4B', self.interpretColors( 4, color, colors ) )
 		self.tags = tags
 		self.hidden = hidden
 	

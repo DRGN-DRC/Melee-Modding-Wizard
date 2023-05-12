@@ -23,7 +23,7 @@ from collections import OrderedDict
 import globalData
 
 from basicFunctions import uHex
-from RenderEngine2 import Vertex
+from RenderEngine2 import Vertex, Edge, Triangle, Quad
 
 showLogs = True
 
@@ -547,7 +547,7 @@ class StructBase( object ):
 		if pointer == 0:
 			return None
 
-		return self.file.initSpecificStruct( structClass, pointer, self.offset )
+		return self.dat.initSpecificStruct( structClass, pointer, self.offset )
 
 	def getChildren( self, includeSiblings=False ):
 
@@ -1123,11 +1123,16 @@ class FrameDataBlock( DataBlock ):
 
 class DisplayListBlock( DataBlock ):
 
-	enums = { 'Primitive_Type': 
+	enums = { 'Primitive_Type':
 		OrderedDict([
-			( 0xB8, 'GL_POINTS' )
+			( 0xB8, 'GL_POINTS' ),
+			( 0xA8, 'GL_LINES' ),
+			( 0xB0, 'GL_LINE_STRIP' ),
+			( 0x90, 'GL_TRIANGLES' ),
+			( 0x98, 'GL_TRIANGLE_STRIP' ),
+			( 0xA0, 'GL_TRIANGLE_FAN' ),
+			( 0x80, 'GL_QUADS' )
 		])
-
 	}
 
 	def __init__( self, *args, **kwargs ):
@@ -1135,18 +1140,199 @@ class DisplayListBlock( DataBlock ):
 
 		self.name = 'Display List ' + self.name
 
-	def parse( self, length, vertices ):
+	def parse( self, length, attributesInfo ):
+
+		""" Parses the all entries in this display list, combines it with the vertex 
+			attributes (provided in attributesInfo), and initializes a list of primitives 
+			with the decoded vertex data. The attributesInfo argument is expected to be a list 
+			of tuples of the form ( name, attrType, vertexDescriptor, indexStride, vertexStream ). """
+
+		# Determine the data length and formatting for one entry in the display list
+		baseLength = 0
+		baseFormat = ''
+		for name, attrType, vertexDescriptor, _, _ in attributesInfo:
+			if attrType == 0: # GX_NONE
+				continue
+			elif attrType == 1: # DIRECT
+				if name == 11 or name == 12: # Color values
+					if vertexDescriptor == '1H': # 16-bit
+						baseLength += 2
+					elif vertexDescriptor == '1BBB': # 24-bit
+						baseLength += 3
+					elif vertexDescriptor == '1I': # 32-bit
+						baseLength += 4
+					else: # Failsafe
+						enumName = self.enums['Attribute_Name'][name]
+						print( 'Warning! Invalid vertexDescriptor constructed for {}: {}'.format(enumName, vertexDescriptor) )
+						return []
+					baseFormat += vertexDescriptor
+				else: # Everything else (primarily matrix indices)
+					baseLength += 1
+					baseFormat += 'B'
+			elif attrType == 2: # GX_INDEX8
+				baseLength += 1
+				baseFormat += 'B'
+			elif attrType == 3: # GX_INDEX16
+				baseLength += 2
+				baseFormat += 'H'
+			else: # Failsafe
+				print( 'Invalid attribute type "{}"!'.format(attrType) )
+				return []
+
+		primitives = []
 		offset = 0
+
+		# Iterate over all entries in this display list
 		for i in range( length ):
 			# Parse the header for this primitive
 			primitiveFlags = self.data[offset]
 			primitiveType = primitiveFlags & 0xF8
 			vertexStreamIndex = primitiveFlags & 7
-			indexCount = struct.unpack( '>H', self.data[offset+1:offset+3] )
+			indexCount = struct.unpack( '>H', self.data[offset+1:offset+3] )[0]
 
+			# End the list if encountering an unrecognized type
+			if primitiveType not in self.enums['Primitive_Type'].keys():
+				break
 
+			# Collect data for this primitive group and unpack it
+			offset += 3
+			dataLength = baseLength * indexCount
+			dataFormat = '>' + ( baseFormat * indexCount )
+			data = self.data[offset:offset+dataLength]
+			displayListValues = struct.unpack( dataFormat, data )
+
+			# Parse the display list for vertices
+			vertices = self.parseDisplayListEntry( displayListValues, indexCount, attributesInfo )
+
+			# Build new primitives if this isn't just an array of vertices
+			# if primitiveType == 0xB8: # Points (Vertices)
+			primitives.extend( vertices )
+			# else:
+			# 	prims = self.buildPrimitives( primitiveType, vertices )
+			# 	primitives.extend( prims )
+			
+			offset += dataLength
+
+		return primitives
+
+	def parseDisplayListEntry( self, displayListValues, indexCount, attributesInfo ):
+
+		""" Produces a list of vertices from a single entry in the Display List. """
+
+		vertices = []
+
+		# Iterate over each attribute value/index for each entry in this display set
+		for i in range( indexCount ):
+			# Create the vertex and apply attributes (position/colors, etc.) for the current vertex
+			displayListIndex = 0
+			for name, attrType, _, indexStride, vertexStream in attributesInfo:
+				if attrType == 0:
+					continue
+				elif attrType == 1: # DIRECT
+					if name == 11 or name == 12: # Color values
+						valueIndex = displayListIndex * indexStride
+						actualValues = displayListValues[valueIndex:valueIndex+indexStride]
+						displayListIndex += indexStride
+					else: # Everything else (primarily matrix indices)
+						actualValues = ( displayListValues[displayListIndex], )
+						displayListIndex += 1
+				else: # GX_INDEX8 / GX_INDEX16
+					valueIndex = displayListValues[displayListIndex] * indexStride
+					actualValues = vertexStream[valueIndex:valueIndex+indexStride]
+					displayListIndex += 1
+				
+				if name == 9: # Positional data
+					vertex = Vertex( actualValues, color=(0, 0, 0, 255) )
+				elif name == 11: # GX_VA_CLR0
+					#vertex.color = actualValues
+					pass
+				elif name == 12: # GX_VA_CLR1
+					pass
+
+			vertices.append( vertex )
+
+		return vertices
+	
+	def buildPrimitives( self, primType, vertices ):
+		
+		""" Takes a list of vertices and builds a list of primitives from them of the given type. """
+	
+		if primType == 0xA8: # Lines
+			primitive = Edge
+			verticesPerPrim = 2
+		elif primType == 0xB0: # Line Strips
+			primitive = Edge
+			verticesPerPrim = 2
+		elif primType == 0x90: # Triangles
+			primitive = Triangle
+			verticesPerPrim = 3
+		elif primType == 0x98: # Triangle Strips
+			primitive = Triangle
+			verticesPerPrim = 3
+		elif primType == 0xA0: # Triangle Fan
+			primitive = Triangle
+			verticesPerPrim = 3
+		else: # Quads
+			primitive = Quad
+			verticesPerPrim = 4
+
+		# if len( vertices ) % verticesPerPrim != 0:
+		# 	primName = self.enums['Primitive_Type'][primType]
+		# 	primsToMake = len( vertices ) / verticesPerPrim
+		# 	print( 'Warning! Found {} vertices to form {} {} primitives!'.format(len(vertices), primsToMake, primName) )
+
+		# Prepare to iterate over groups of vertices
+		vertexIter = iter( vertices )
+		vertexList = [ vertexIter ] * verticesPerPrim
+
+		# Iterate over each group of vertices for one primitive
+		primitives = []
+		for primVertices in zip( *vertexList ):
+			# Create the new primitive and empty the default colors list
+			prim = primitive( [] )
+			prim.vertexColors = ( 'c4B', [] )
+
+			# Collect coordinates, colors, etc. from each vertex onto the new primitive
+			for vertex in primVertices:
+				prim.vertices[1].extend( (vertex.x, vertex.y, vertex.z) )
+				prim.vertexColors[1].extend( vertex.color )
+
+			primitives.append( prim )
+
+		return primitives
+
+	def decodeColor( self, compType, pixelValue ):
+
+		""" Decodes 2 to 4 bytes of data into an ( R, G, B, A ) color. """
+
+		if compType == 0: # GX_RGB565
+			# Low bit-depth color without transparency
+			# RRRRRGGGGGGBBBBB
+			r = ( pixelValue >> 11 ) * 8
+			g = ( pixelValue >> 5 & 0b111111 ) * 4
+			b = ( pixelValue & 0b11111 ) * 8
+			a = 255
+		elif compType == 1: # GX_RGB8
+			# 24 bit-depth color without transparency
+			# RRRRRRRRGGGGGGGGBBBBBBBB
+			r = pixelValue >> 16 & 0b11111111
+			g = pixelValue >> 8 & 0b11111111
+			b = pixelValue & 0b11111111
+			a = 255
+		elif compType == 2: # GX_RGBX8
+			valueFormat = 'I'
+		elif compType == 3: # GX_RGBA4 (i.e. RGBA4444)
+			valueFormat = 'H'
+		elif compType == 4: # GX_RGBA6
+			valueFormat = 'BBB'
+		elif compType == 5: # GX_RGBA8
+			valueFormat = 'I'
+
+		return ( r, g, b, a )
 
 class VertexDataBlock( DataBlock ):
+
+	""" Contains vertex data for a specific vertex attribute. """
 
 	def __init__( self, *args, **kwargs ):
 		DataBlock.__init__( self, *args, **kwargs )
@@ -1226,7 +1412,7 @@ class JointObjDesc( StructBase ): # A.k.a Bone Structure
 		if not self._dobj:
 			pointer = self.getValues( 'Display_Object_Pointer' )
 			if pointer == 0: return None
-			self._dobj = self.file.initSpecificStruct( DisplayObjDesc, pointer, self.offset )
+			self._dobj = self.dat.initSpecificStruct( DisplayObjDesc, pointer, self.offset )
 		return self._dobj
 
 
@@ -1267,7 +1453,7 @@ class DisplayObjDesc( StructBase ):
 		if not self._pobj:
 			pointer = self.getValues( 'Polygon_Object_Pointer' )
 			if pointer == 0: return None
-			self._pobj = self.file.initSpecificStruct( PolygonObjDesc, pointer, self.offset )
+			self._pobj = self.dat.initSpecificStruct( PolygonObjDesc, pointer, self.offset )
 		return self._pobj
 
 
@@ -1427,12 +1613,18 @@ class PolygonObjDesc( StructBase ): # A.k.a. Meshes
 			print( 'PolygonObjDesc initialization failure; {}'.format(err) )
 
 	def decodeGeometry( self ):
+
+		""" Initialize child structs and parse their data to decode model geometry. 
+			Returns a list of various primitives, like vertices, triangles, etc. """
+
 		vertexAttributes = self.initChild( VertexAttributesArray, 2 )
 		displayList = self.initChild( DisplayListBlock, 5 )
 		displayListLength = self.getValues( 'Display_List_Length' )
 
 		vertices = vertexAttributes.decodeEntries()
 		primitives = displayList.parse( displayListLength, vertices )
+
+		return primitives
 
 
 class VertexAttributesArray( TableStruct ):
@@ -1563,7 +1755,7 @@ class VertexAttributesArray( TableStruct ):
 			self.childClassIdentities[i] = 'VertexDataBlock'
 		self._siblingsChecked = True
 
-	def determineAttributeDimensions( self, name, count ):
+	def determineDimensions( self, name, count ):
 
 		""" Determines the number of dimensions or channels for an attribute, based on 
 			enumerations for the kind of attribute (Attribute_Name) and component count.
@@ -1583,8 +1775,8 @@ class VertexAttributesArray( TableStruct ):
 				dimensions = 3
 			else:
 				dimensions = -1
-				realName = self.enums['Attribute_Name'][name]
-				print( 'Warning! Vertex attribute name {} has an unexpected dimensions enumeration: {}'.format(realName, count) )
+				enumName = self.enums['Attribute_Name'][name]
+				print( 'Warning! Vertex attribute name {} has an unexpected dimensions enumeration: {}'.format(enumName, count) )
 
 		# GX_VA_NRM/GX_VA_NBT
 		elif name == 10:
@@ -1599,8 +1791,8 @@ class VertexAttributesArray( TableStruct ):
 				dimensions = 4
 			else:
 				dimensions = -1
-				realName = self.enums['Attribute_Name'][name]
-				print( 'Warning! Vertex attribute name {} has an unexpected dimensions enumeration: {}'.format(realName, count) )
+				enumName = self.enums['Attribute_Name'][name]
+				print( 'Warning! Vertex attribute name {} has an unexpected dimensions enumeration: {}'.format(enumName, count) )
 
 		# GX_VA_TEX0 - GX_VA_TEX7
 		elif name < 21:
@@ -1611,24 +1803,46 @@ class VertexAttributesArray( TableStruct ):
 				dimensions = 2
 			else:
 				dimensions = -1
-				realName = self.enums['Attribute_Name'][name]
-				print( 'Warning! Vertex attribute name {} has an unexpected dimensions enumeration: {}'.format(realName, count) )
+				enumName = self.enums['Attribute_Name'][name]
+				print( 'Warning! Vertex attribute name {} has an unexpected dimensions enumeration: {}'.format(enumName, count) )
 
 		else:
 			dimensions = 1
-			realName = self.enums['Attribute_Name'][name]
-			print( 'Encountered the vertex attribute {} in {}'.format(realName, self.name) )
+			enumName = self.enums['Attribute_Name'][name]
+			print( 'Encountered the vertex attribute {} in {}'.format(enumName, self.name) )
 
 		return dimensions
+	
+	def determineFormat( self, name, compType ):
 
-	def decodeEntries( self ):
-
-		vertexAttributes = []
-
-		for i, (name, attrType, count, compType, scale, _, stride, dataPointer) in self.iterateEntries():
+		""" Determines the value formatting for an attribute, based on enumerations 
+			for the kind of attribute (Attribute_Name) and component type. """
 		
-			dimensions = self.determineAttributeDimensions( name, count )
-
+		# if name == 10 or name == 25: # GX_VA_NRM or GX_VA_NBT
+		# 	if compType == 0: # sint8
+		# 		valueFormat = 'b'
+		# 	elif compType == 1: # sint16
+		# 		valueFormat = 'h'
+		# 	elif compType == 2: # float
+		# 		valueFormat = 'f'
+		# 	else: # Failsafe
+		# 		valueFormat = ''
+		if name == 11 or name == 12: # GX_VA_CLR0 or GX_VA_CLR1
+			if compType == 0: # GX_RGB565
+				valueFormat = 'H'
+			elif compType == 1: # GX_RGB8
+				valueFormat = 'BBB'
+			elif compType == 2: # GX_RGBX8
+				valueFormat = 'I'
+			elif compType == 3: # GX_RGBA4 (i.e. RGBA4444)
+				valueFormat = 'H'
+			elif compType == 4: # GX_RGBA6
+				valueFormat = 'BBB'
+			elif compType == 5: # GX_RGBA8
+				valueFormat = 'I'
+			else: # Failsafe
+				valueFormat = ''
+		else:
 			if compType == 0: # uint8
 				valueFormat = 'B'
 			elif compType == 1: # sint8
@@ -1640,43 +1854,74 @@ class VertexAttributesArray( TableStruct ):
 			elif compType == 4: # float
 				valueFormat = 'f'
 			else: # Failsafe
-				print( 'Invalid vertex attribute component type: ' + str(compType) )
+				valueFormat = ''
+
+		return valueFormat
+
+	def decodeEntries( self ):
+
+		""" Iterate over the attributes array, collect information on each attribute, 
+			and unpack the vertex attributes data. """
+
+		attributesInfo = []
+
+		for i, (name, attrType, count, compType, scale, _, stride, dataPointer) in self.iterateEntries():
+
+			# Check for the end of the array
+			if name == 0xFF: # GX_VA_NULL
+				break
+
+			valueFormat = self.determineFormat( name, compType )
+
+			# Ensure a format was determined and determine how many dimensions are present in this attribute
+			if not valueFormat:
+				enumName = self.enums['Attribute_Name'][name]
+				print( 'Invalid vertex attribute component type for {}: {}'.format(enumName, compType) )
 				continue
+			elif name == 11 or name == 12:
+				dimensions = 1 # Simple override for the vertexDescriptor below for color formats
+			else:
+				dimensions = self.determineDimensions( name, count )
 
 			# Assemble the formatting for this attribute
-			vertexDescriptor = '>{}{}'.format( dimensions, valueFormat )
-			vertexDescriptorSize = struct.calcsize( vertexDescriptor )
+			vertexDescriptor = '{}{}'.format( dimensions, valueFormat )
 
 			# Check if this is direct (GX_DIRECT) display list data; no data indexing
 			if attrType == 1 or stride == 0:
-				vertexAttributes.append( (attrType, vertexDescriptor, []) )
+				attributesInfo.append( (name, attrType, vertexDescriptor, 1, []) )
 				continue
 
 			# Check that the vertex data pointer is pointing to a struct
-			pointerOffset = self.offset + ( self.length * i ) + 0x14
+			pointerOffset = self.offset + ( self.entryLength * i ) + 0x14
 			if pointerOffset not in self.dat.pointerOffsets:
 				print( 'Warning! A vertex attribute, index {} in {}, references a data struct but does not have one!'.format(i, self.name) )
 				continue
 
 			# More validation
-			elif vertexDescriptorSize != stride:
+			elif struct.calcsize( vertexDescriptor ) != stride:
 				print( 'Warning! Vertix attribute descriptor does not match expected stride! {} != {}'.format(struct.calcsize(vertexDescriptor), stride) )
 				continue
 
 			# Get the vertex attribute data struct, and get its data without padding
-			vertexDataStruct = self.initSpecificStruct( VertexDataBlock, dataPointer, self.offset )
+			vertexDataStruct = self.dat.initSpecificStruct( VertexDataBlock, dataPointer, self.offset )
 			vertexCount = vertexDataStruct.length / stride
-			dataFormat = '>' + ( vertexDescriptor[1:] * vertexCount )
-			trimmedData = vertexDataStruct.data[:vertexDescriptorSize * stride] # Strips off any padding to get exact data size
+			dataFormat = '>' + ( vertexDescriptor * vertexCount )
+			trimmedData = vertexDataStruct.data[:stride * vertexCount] # Strips off any padding to get exact data size
 
 			# Unpack the vertex data struct's values and apply scaling
 			vertexData = struct.unpack( dataFormat, trimmedData )
-			vertexData = ( value / (1 << scale) for value in vertexData )
+			#if compType != 4 and scale != 0 and name != 11 and name != 12: # If not a float and not a color attribute
+			if compType != 4 and scale != 0 and ( name == 9 or name == 10 ): # If not a float and name = GX_VA_POS or GX_VA_NRM/GX_VA_NBT
+				vertexData = [ value / float(1 << scale) for value in vertexData ]
 
 			# Separate the values into groups of vertex components
-			iterReference = iter( vertexData )
-			references = [ iterReference ] * dimensions
-			groups = [ group for group in zip( references ) ]
+			# iterReference = iter( vertexData )
+			# references = [ iterReference ] * dimensions
+			# vertexStream = [ group for group in zip( references ) ]
+			indexStride = dimensions * len( valueFormat ) # Number of values unpacked per vertex for this attribute
+			attributesInfo.append( (name, attrType, vertexDescriptor, indexStride, vertexData) )
+
+		return attributesInfo
 
 class EnvelopeArray( StructBase ):
 

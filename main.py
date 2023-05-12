@@ -20,6 +20,7 @@ import json
 import struct
 import random
 import tkFont
+import pyglet
 import os, sys
 import argparse
 import pyaudio, wave
@@ -1951,12 +1952,20 @@ class MainGui( Tk.Frame, object ):
 		# Get the widget currently under the mouse
 		widget = self.root.winfo_containing( event.x_root, event.y_root )
 
+		if not widget:
+			# Might be over a render window
+			for window in pyglet.app.windows:
+				if window._mouse_in_window:
+					window.on_mouse_scroll( event )
+					break
+			return
+
 		# Traverse upwards through the parent widgets, looking for a scrollable widget
 		while widget:
-			# Check for a scrollable frame (winfo_class sees this as a regular Frame)
-			# if widget.__class__.__name__ == 'VerticalScrolledFrame':
-			# 	widget = widget.canvas
-			# 	break
+			# Check for a rendering window (winfo_class sees this as a regular Frame)
+			# if widget.__class__.__name__ == 'RenderEngine':
+			# 	widget.zoom( event )
+			# 	return
 
 			if widget.winfo_class() in ( 'Text', 'Treeview', 'Canvas', 'Listbox' ):
 				break

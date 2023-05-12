@@ -483,8 +483,7 @@ def hex2rgb( inputString ):
 		for i in range( 0, len(hexString), 2 ): # Iterate by 2 over the length of the input string
 			byte = hexString[i:i+2]
 			newInt = int( byte, 16 )
-			if newInt > -1 and newInt < 256:
-				channelsList.append( newInt )
+			channelsList.append( newInt )
 			
 	except Exception as err:
 		print( 'hex2rgb() was unable to convert {}; {}'.format(inputString, err) )

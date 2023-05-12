@@ -26,7 +26,7 @@ from PIL import Image, ImageTk, ImageDraw, ImageFont
 # Internal dependencies
 import globalData
 
-from RenderEngine2 import RenderEngine
+from RenderEngine2 import RenderEngine, Triangle
 from FileSystem import StageFile
 from FileSystem.hsdStructures import MapMusicTable, MapPointTypesArray
 from basicFunctions import uHex, hex2rgb, humansize, msg, printStatus, reverseDictLookup
@@ -2954,7 +2954,7 @@ class StagePropertyEditor( ttk.Frame ):
 			offset += 0x34
 
 		# Model display panel
-		self.engine = RenderEngine( self, (100, 100), True, background=globalData.gui.defaultSystemBgColor, borderwidth=2, relief='groove' )
+		self.engine = RenderEngine( self, (100, 100), True, background=globalData.gui.defaultSystemBgColor, borderwidth=0, relief='groove' )
 		self.engine.grid( column=2, row=1, sticky='nsew', padx=(0, 15) )
 
 		# Model parts controls
@@ -2965,7 +2965,7 @@ class StagePropertyEditor( ttk.Frame ):
 		ttk.Button( modelPartsControls, text='Export', command=self.exportModelGroup ).grid( column=2, row=0, padx=2 )
 		ttk.Button( modelPartsControls, text='Add', command=self.addModelGroup ).grid( column=1, row=1, padx=2 )
 		ttk.Button( modelPartsControls, text='Delete', command=self.deleteModelGroup ).grid( column=2, row=1, padx=2 )
-		modelPartsControls.grid( column=2, row=2, padx=5, pady=9, ipady=3 )
+		modelPartsControls.grid( column=2, row=2, padx=(0, 10), pady=9, ipady=3 )
 
 		# General points controls
 		generalPointsFrame = ttk.Labelframe( self, text='  General Points  ' )
@@ -3006,17 +3006,19 @@ class StagePropertyEditor( ttk.Frame ):
 		if not iidSelectionsTuple: # Failsafe; not possible?
 			return
 
+		# Clear current rendered objects
+		self.engine.vertices = []
+		self.engine.edges = []
+		self.engine.triangles = []
+		self.engine.quads = []
+
 		# Get the selected joint object(s)
-		#joints = []
-		# for iid in iidSelectionsTuple:
-		# 	joint = self.file.getStruct( int(iid) )
-		# 	#joints.append( joint )
-		
-		# 	dobj = joint.DObJ
-		# 	pobj = dobj.PObj
+		for iid in iidSelectionsTuple:
+			joint = self.file.getStruct( int(iid) )
+			self.engine.renderJoint( joint )
 
-		# 	primitives = pobj.decodeGeometry()
-
+		# tri = Triangle( (-15,34,0, 0,0,0, 24,7,0), color=(0,0,0,255) )
+		# self.engine.triangles.append( tri )
 
 	def onModelPartDoubleClick( self, event ): pass
 	
@@ -3081,7 +3083,6 @@ class StageModelViewer( BasicWindow ):
 
 		# Determine default zoom
 
-
 		self.showBlastZones = Tk.BooleanVar( value=True )
 		self.showCamLimits = Tk.BooleanVar( value=True )
 		self.showCollisions = Tk.BooleanVar( value=True )
@@ -3105,6 +3106,9 @@ class StageModelViewer( BasicWindow ):
 		row = len( self.sidePanelControls.winfo_children() )
 		self.singlePointEditFrame = ttk.Frame( self.sidePanelControls )
 		self.singlePointEditFrame.grid( column=0, columnspan=2, row=row, pady=(20, 3), padx=10 )
+
+		# tri = Triangle( (-20,-10,0, 0,0,0, 42,50,0), color=(255,255,255,255) )
+		# self.engine.triangles.append( tri )
 
 		self.renderSpawnPoints()
 
@@ -3141,14 +3145,14 @@ class StageModelViewer( BasicWindow ):
 		super( StageModelViewer, self ).close()
 
 	def renderBlastzones( self ):
-		topLeftJoint, bottomRightJoint = self._renderRectangle( 151, 152, 'Blast-Zone', (255, 0, 0), ('blastzone',) )
+		topLeftJoint, bottomRightJoint = self._renderRectangle( 151, 152, 'Blast-Zone', (255, 0, 0, 255), ('blastzone',) )
 		if not topLeftJoint or not bottomRightJoint:
 			return
 
 		self._addCoordsEditor( 'Blastzone Positions:', topLeftJoint, bottomRightJoint, self.redrawBlastzones )
 
 	def renderCameraLimits( self ):
-		topLeftJoint, bottomRightJoint = self._renderRectangle( 149, 150, 'Camera Limit', (200, 200, 200), ('camera',) )
+		topLeftJoint, bottomRightJoint = self._renderRectangle( 149, 150, 'Camera Limit', (200, 200, 200, 255), ('camera',) )
 		if not topLeftJoint or not bottomRightJoint:
 			return
 
@@ -3193,11 +3197,11 @@ class StageModelViewer( BasicWindow ):
 
 	def redrawBlastzones( self, event ):
 		self.engine.removePart( 'blastzone', 'edge' )
-		self._renderRectangle( 151, 152, 'Blast-Zone', (255, 0, 0), ('blastzone',) )
+		self._renderRectangle( 151, 152, 'Blast-Zone', (255, 0, 0, 255), ('blastzone',) )
 
 	def redrawCameraLimits( self, event ):
 		self.engine.removePart( 'camera', 'edge' )
-		self._renderRectangle( 149, 150, 'Camera Limit', (200, 200, 200), ('camera',) )
+		self._renderRectangle( 149, 150, 'Camera Limit', (200, 200, 200, 255), ('camera',) )
 
 	def redrawPoints( self, event ):
 		self.engine.removePart( 'playerSpawns', 'vertex' )
@@ -3282,7 +3286,7 @@ class StageModelViewer( BasicWindow ):
 			
 			# Determine a color based on its collision physics type and create the quad
 			link.colorByPhysics()
-			color = hex2rgb( link.fill )
+			color = hex2rgb( link.fill + 'FF' )
 			link.renderObj = self.engine.addQuad( vertices, color=color, colors=(), tags=('collision',) )
 			link.renderObj.collLink = link
 
@@ -3303,13 +3307,15 @@ class StageModelViewer( BasicWindow ):
 					playerSpawns.append( pointName )
 
 					color = self.colorByVertType( pointType )
-					self.engine.addVertex( (coords[0], coords[1], 0), color, ('playerSpawns', pointType), not self.showPlayerSpawns.get() )
+					vertex = self.engine.addVertex( (coords[0], coords[1], 0), color, ('playerSpawns', pointType), not self.showPlayerSpawns.get() )
+					vertex.size = 5
 
 				elif pointName.startswith( 'Item' ):
 					itemSpawns.append( pointName )
 
 					color = self.colorByVertType( pointType )
-					self.engine.addVertex( (coords[0], coords[1], 0), color, ('itemSpawns', pointType), not self.showItemSpawns.get() )
+					vertex = self.engine.addVertex( (coords[0], coords[1], 0), color, ('itemSpawns', pointType), not self.showItemSpawns.get() )
+					vertex.size = 5
 
 		return playerSpawns, itemSpawns
 
@@ -3345,23 +3351,23 @@ class StageModelViewer( BasicWindow ):
 	def colorByVertType( self, pointType ):
 
 		if pointType == 0 or pointType == 4: # Player 1 Spawn or Respawn
-			color = ( 248, 0, 0 ) # Red
+			color = ( 248, 0, 0, 255 ) # Red
 
 		elif pointType == 1 or pointType == 5: # Player 2 Spawn or Respawn
-			color = ( 0, 104, 232 ) # Blue
+			color = ( 0, 104, 232, 255 ) # Blue
 
 		elif pointType == 2 or pointType == 6: # Player 3 Spawn or Respawn
-			color = ( 232, 144, 0 ) # Orange
+			color = ( 232, 144, 0, 255 ) # Orange
 
 		elif pointType == 3 or pointType == 7: # Player 4 Spawn or Respawn
-			color = ( 16, 216, 56 ) # Green
+			color = ( 16, 216, 56, 255 ) # Green
 
 		elif pointType >= 127 and pointType <= 146: # Item Spawns
 			spawnIndex = pointType - 127
 			brightness = 255 - ( spawnIndex * 13 ) # Higher index = lower brightness
-			color = ( brightness, brightness, brightness )
+			color = ( brightness, brightness, brightness, 255 )
 		else:
-			color = ( 128, 128, 128 )
+			color = ( 128, 128, 128, 255 )
 
 		return color
 
