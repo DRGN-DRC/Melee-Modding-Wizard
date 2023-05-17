@@ -1326,14 +1326,14 @@ class DisplayListBlock( DataBlock ):
 			a = 255
 		elif compType == 2 or compType == 5: # GX_RGBX8 or GX_RGBA8 (4 bytes)
 			# 32 bit color with transparency
-			# AAAAAAAARRRRRRRRGGGGGGGGBBBBBBBB
+			# RRRRRRRRGGGGGGGGBBBBBBBBAAAAAAAA
 			r = pixelValues[0]
 			g = pixelValues[1]
 			b = pixelValues[2]
 			a = pixelValues[3]
 		elif compType == 3: # GX_RGBA4 (i.e. RGBA4444; 2 bytes)
 			# 16 bit color with transparency
-			# AAAARRRRGGGGBBBB
+			# RRRRGGGGBBBBAAAA
 			pixelValue = pixelValues[0]
 			r = ( pixelValue >> 12 ) * 16
 			g = ( pixelValue >> 8 & 0b1111 ) * 16
@@ -1341,12 +1341,11 @@ class DisplayListBlock( DataBlock ):
 			a = ( pixelValue & 0b1111 ) * 16
 		elif compType == 4: # GX_RGBA6 (3 bytes)
 			# 24 bit color with transparency
-			# AAAAAARRRRRRGGGGGGBBBBBB
-			pixelValue = pixelValues[0]
-			r = ( pixelValue >> 18 ) * 4
-			g = ( pixelValue >> 12 & 0b111111 ) * 4
-			b = ( pixelValue >> 6 & 0b111111 ) * 4
-			a = ( pixelValue & 0b111111 ) * 4
+			# RRRRRRGGGGGGBBBBBBAAAAAA
+			r = ( pixelValues[0] >> 2 ) * 4
+			g = ( ((pixelValues[0] & 0b11) << 4) + pixelValues[1] >> 4 ) * 4
+			b = ( (pixelValues[1] & 0b1111) + pixelValues[2] >> 6 ) * 4
+			a = ( pixelValues[2] & 0b111111 ) * 4
 
 		return ( r, g, b, a )
 
@@ -1907,10 +1906,11 @@ class VertexAttributesArray( TableStruct ):
 
 			# Assemble the formatting for this attribute
 			vertexDescriptor = '{}{}'.format( dimensions, valueFormat )
+			indexStride = dimensions * len( valueFormat ) # Number of values unpacked per vertex for this attribute
 
 			# Check if this is direct (GX_DIRECT) display list data; no data indexing
 			if attrType == 1 or stride == 0:
-				attributesInfo.append( (name, attrType, compType, vertexDescriptor, 1, []) )
+				attributesInfo.append( (name, attrType, compType, vertexDescriptor, indexStride, []) )
 				continue
 
 			# Check that the vertex data pointer is pointing to a struct
@@ -1940,7 +1940,6 @@ class VertexAttributesArray( TableStruct ):
 			# iterReference = iter( vertexData )
 			# references = [ iterReference ] * dimensions
 			# vertexStream = [ group for group in zip( references ) ]
-			indexStride = dimensions * len( valueFormat ) # Number of values unpacked per vertex for this attribute
 			attributesInfo.append( (name, attrType, compType, vertexDescriptor, indexStride, vertexData) )
 
 		return attributesInfo

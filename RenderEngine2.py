@@ -283,13 +283,16 @@ class RenderEngine( Tk.Frame ):
 		# Apply joint transformations for this joint's meshes as well as its children
 		transformationValues = joint.getValues()[5:14] # 9 values; 3 for each of rotation/scale/translation
 		for primitive in primitives:
-			#primitive.rotate( *transformationValues[:3] )
-			#primitive.scale( *transformationValues[3:6] )
+			primitive.rotate( *transformationValues[:3] )
+			primitive.scale( *transformationValues[3:6] )
 			primitive.translate( *transformationValues[6:] )
 
 		return primitives
 
 	def zoom( self, event ):
+
+		""" Move the camera in and out (toward/away) from the rendered model. """
+
 		#print( 'zoom' )
 		if event.delta > 0: # zoom in
 			#self.scale *= 1.09
@@ -615,11 +618,23 @@ class Primitive:
 
 		return colors
 	
-	# def scale( self, scaleX, scaleY, scaleZ ):
-	# 	if self.__class__ == Vertex:
-	# 		coords = ( self.x, self.y, self.z )
-	# 	else:
-	# 		coords = self.vertices[1]
+	def scale( self, scaleX, scaleY, scaleZ ):
+
+		""" Modifies the size (scaling) of the primitive's coordinates by the given amount. """
+
+		if self.__class__ == Vertex:
+			self.x *= scaleX
+			self.y *= scaleY
+			self.z *= scaleZ
+		else:
+			newCoords = []
+			coordsIter = iter( self.vertices[1] )
+			coordsList = [ coordsIter ] * 3
+			
+			for x, y, z in zip( *coordsList ):
+				newCoords.extend( (x*scaleX, y*scaleY, z*scaleZ) )
+
+			self.vertices = ( self.vertices[0], newCoords )
 
 	def translate( self, translateX, translateY, translateZ ):
 
@@ -648,75 +663,52 @@ class Primitive:
 			# Assign the new coordinates to the primitive
 			self.vertices = ( self.vertices[0], newCoords )
 
-	# def rotate( self, axis, angle ):
+	def rotate( self, rotationX, rotationY, rotationZ ):
 
-	# 	""" Rotates an array of point coordinates around the given axis by the given angle (in degrees). """
+		""" Rotates the primitive's vertex coordinates around each axis by the given angle amounts (in radians). """
 
-	# 	if self.__class__ == Vertex:
-	# 		coords = ( self.x, self.y, self.z )
-	# 	else:
-	# 		coords = self.vertices[1]
+		# Do nothing if all rotation amounts are zero
+		if not rotationX and not rotationY and not rotationZ:
+			return
 
-	# 	rotatedCoords = []
-	# 	coordsIter = iter( coords )
-	# 	coordsList = [ coordsIter ] * 3
-		
-	# 	rotation_axes = [[1, 0, 0], [0, 1, 0], [0, 0, 1]]
-	# 	axes = self._normalize( rotation_axes )
-	# 	u, v, w = axes
+		# Compute sin and cos values to make a rotation matrix
+		cos_x, sin_x = math.cos( rotationX ), math.sin( rotationX )
+		cos_y, sin_y = math.cos( rotationY ), math.sin( rotationY )
+		cos_z, sin_z = math.cos( rotationZ ), math.sin( rotationZ )
 
-	# 	# cos_theta = math.cos( math.radians(angle) )
-	# 	# sin_theta = math.sin( math.radians(angle) )
+		# Generate a 3D rotation matrix from angles around the X, Y, and Z axes.
+		rotation_matrix = [
+			[cos_y * cos_z, -cos_x * sin_z + sin_x * sin_y * cos_z, sin_x * sin_z + cos_x * sin_y * cos_z], # X-axis rotation
+			[cos_y * sin_z, cos_x * cos_z + sin_x * sin_y * sin_z, -sin_x * cos_z + cos_x * sin_y * sin_z], # Y-axis rotation
+			[-sin_y, sin_x * cos_y, cos_x * cos_y] # Z-axis rotation
+		]
 
-	# 	# for x, y, z in zip( *coordsList ):
-	# 	# 	rotated_x = (cos_theta + (1 - cos_theta) * u * u) * x + ((1 - cos_theta) * u * v - sin_theta * w) * y + ((1 - cos_theta) * u * w + sin_theta * v) * z
-	# 	# 	rotated_y = ((1 - cos_theta) * u * v + sin_theta * w) * x + (cos_theta + (1 - cos_theta) * v * v) * y + ((1 - cos_theta) * v * w - sin_theta * u) * z
-	# 	# 	rotated_z = ((1 - cos_theta) * u * w - sin_theta * v) * x + ((1 - cos_theta) * v * w + sin_theta * u) * y + (cos_theta + (1 - cos_theta) * w * w) * z
-		
-	# 	# 	rotatedCoords.append( rotated_x )
-	# 	# 	rotatedCoords.append( rotated_y )
-	# 	# 	rotatedCoords.append( rotated_z )
+		# Multiply the rotation matrix with each vertices' coordinates
+		if self.__class__ == Vertex:
+			originalCoords = ( self.x, self.y, self.z )
+			rotatedCoords = self._matrixMultiply( rotation_matrix, originalCoords )
+			self.x, self.y, self.z = rotatedCoords
+		else:
+			newCoords = []
+			coordsIter = iter( self.vertices[1] )
+			coordsList = [ coordsIter ] * 3
 
-	# 	# Create an identity matrix
-	# 	identityMatrix = [ [int(i == j) for j in range(3)] for i in range(3) ]
+			for point in zip( *coordsList ):
+				rotatedCoords = self._matrixMultiply( rotation_matrix, point )
+				newCoords.extend( rotatedCoords )
 
-	# 	for axis, angle in zip( axes, angles ):
-	# 		identityMatrix = self._matrix_mult( identityMatrix, rotation_matrix_from_axis(axis, angle) )
+			self.vertices = ( self.vertices[0], newCoords )
 
-	# 	# Assign the new coordinates to the primitive
-	# 	if self.__class__ == Vertex:
-	# 		self.x = rotatedCoords[0]
-	# 		self.y = rotatedCoords[1]
-	# 		self.z = rotatedCoords[2]
-	# 	else:
-	# 		self.vertices = ( 'v3f', rotatedCoords )
+	def _matrixMultiply( self, matrix, vertex ):
 
-	def _normalize(self, vector ):
+		""" Multipies a 3x3 matrix with a vertex to transform it. """
 
-		""" Normalizes a rotation axis for rotation calculations, to ensure that the axis 
-			remains a unit vector throughout the rotation calculations. This is important 
-			because rotation calculations often involve dot products, cross products, and 
-			trigonometric functions that assume normalized vectors. """
+		coordCount = len( vertex )
+		result = [ 0.0 ] * coordCount
 
-		magnitude = math.sqrt( sum(component * component for component in vector) )
-
-		return tuple( component / magnitude for component in vector )
-	
-
-	def _matrix_mult( self, matrix1, matrix2 ):
-
-		""" Multiply two matrices. """
-
-		result = []
-
-		for i in range(len(matrix1)):
-			row = matrix1[i]
-			new_row = []
-			for j in range(len(matrix2[0])):
-				column = [matrix2[k][j] for k in range(len(matrix2))]
-				component = sum(row[k] * column[k] for k in range(len(row)))
-				new_row.append(component)
-			result.append(new_row)
+		for i in range( len(matrix) ):
+			for j in range( coordCount ):
+				result[i] += matrix[i][j] * vertex[j]
 
 		return result
 
