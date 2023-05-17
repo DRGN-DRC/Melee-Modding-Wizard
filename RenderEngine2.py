@@ -11,11 +11,13 @@
 
 import ttk
 import time
+import math
 import pyglet
 import win32api
 import Tkinter as Tk
 
 from pyglet import gl
+#from enum import IntEnum
 from pyglet.window import key, Projection3D
 from pyglet.app.base import EventLoop
 from pyglet.window.event import WindowEventLogger
@@ -50,7 +52,8 @@ class RenderEngine( Tk.Frame ):
 		screen = display.get_default_screen()
 		config = screen.get_matching_configs( gl.Config(double_buffer=True, depth_size=8, alpha_size=8) )[0]
 		self.window = pygletWindow( display=display, config=config, width=self.width, height=self.height, resizable=resizable, visible=False )
-		#self.window.projection = Projection3D(  ) #todo
+		self.fov = 60; self.znear = 0.1; self.zfar = 3000
+		self.window.projection = Projection3D( self.fov, self.znear, self.zfar )
 		self.window.on_draw = self.on_draw
 		# openGlVersion = self.window.context._info.get_version().split()[0]
 		# print( 'Rendering with OpenGL version {}'.format(openGlVersion) )
@@ -59,7 +62,7 @@ class RenderEngine( Tk.Frame ):
 		GWLP_HWNDPARENT = -8
 		pyglet_handle = self.window.canvas.hwnd
 		win32api.SetWindowLong( pyglet_handle, GWLP_HWNDPARENT, self.canvas.winfo_id() )
-		
+
 		# Set up the OpenGL context
 		gl.glEnable( gl.GL_DEPTH_TEST ) # Do depth comparisons and update the depth buffer
 		gl.glDepthFunc( gl.GL_LEQUAL )
@@ -74,11 +77,7 @@ class RenderEngine( Tk.Frame ):
 		except pyglet.gl.GLException:
 			print( "Warning: Anti-aliasing is not supported on this computer." )
 
-		self.vertices = []
-		self.edges = []
-		self.triangles = []
-		self.quads = []
-
+		self.clearRenderings()
 		self.resetView()
 
 		# self.vertices = pyglet.graphics.vertex_list( 8,
@@ -118,11 +117,17 @@ class RenderEngine( Tk.Frame ):
 		# Move focus to the parent window (will be the pyglet window by default)
 		self.master.after( 1, lambda: self.master.focus_force() )
 
+	def clearRenderings( self ):
+		self.vertices = []
+		self.edges = []
+		self.triangles = []
+		self.quads = []
+		self.vertexLists = []
+
 	def resetView( self ):
-		
 		self.maxZoom = 200
 
-		self.scale = 1.0
+		#self.scale = 1.0
 		self.rotation_X = 0
 		self.rotation_Y = 0
 
@@ -170,18 +175,19 @@ class RenderEngine( Tk.Frame ):
 
 		return edge
 
-	# def addEdges( self, edgePoints, color=None, colors=(), tags=(), hidden=False ):
+	def addEdges( self, edgePoints, color=None, colors=(), tags=(), hidden=False ):
 
-	# 	""" Translates given points into a series of data points (edges) to be batch-rendered. 
-	# 		The edgePoints arg should be a list of tuples, where each tuple contains 6 values 
-	# 		(2 sets of x/y/z coords). """
+		""" Translates given points into a series of data points (edges) to be batch-rendered. 
+			The edgePoints arg should be a list of tuples, where each tuple contains 6 values 
+			(2 sets of x/y/z coords). """
 
-	# 	for vertices in edgePoints:
-	# 		if len( vertices ) != 6:
-	# 			print( 'Incorrect number of points given to create an edge: ' + str(vertices) )
-	# 			continue
-	# 		edge = Edge( vertices, color, colors, tags, hidden )
-	# 		self.edges.append( edge )
+		for vertices in edgePoints:
+			if len( vertices ) != 6:
+				print( 'Incorrect number of points given to create an edge: ' + str(vertices) )
+				continue
+
+			edge = Edge( vertices, color, colors, tags, hidden )
+			self.edges.append( edge )
 
 	def addQuad( self, vertices, color=None, colors=(), tags=(), hidden=False ):
 
@@ -193,6 +199,18 @@ class RenderEngine( Tk.Frame ):
 		self.quads.append( quad )
 
 		return quad
+	
+	def addVertexLists( self, vertexLists ):
+
+		""" Adds one or more entries of a display list. Each display list entry contains 
+			one or more primitives of the same type (e.g. edge/triangle strip/etc)."""
+		
+		for vertexList in vertexLists:
+			# vertices
+			# assert len( self.vertices[1] ) / 3 == len( self.vertexColors[1] ) / 4, \
+			# 	'Invalid number of color values for vertex dimensions: {} color values; {} vertex coords'.format( len( self.vertexColors[1] ) / 4, len( self.vertices[1] ) / 3 )
+
+			self.vertexLists.append( vertexList )
 	
 	def addPrimitives( self, primitives ):
 
@@ -212,6 +230,8 @@ class RenderEngine( Tk.Frame ):
 				self.triangles.append( prim )
 			elif isinstance( prim, Quad ):
 				self.quads.append( prim )
+			elif isinstance( prim, VertexList ):
+				self.vertexLists.append( prim )
 			else:
 				unknownObjects.append( prim )
 
@@ -224,30 +244,59 @@ class RenderEngine( Tk.Frame ):
 			Display Objects and Polygon Objects. Breaks down Polygon Objects 
 			into primitives and renders them to the display. """
 
-		# Check for a polygon object to render
-		dobj = joint.DObj
-		if dobj:
-			pobj = dobj.PObj
-			if pobj:
-				primitives = pobj.decodeGeometry()
-				self.addPrimitives( primitives )
+		primitives = []
 
 		# Check for a child joint to render
 		childJoint = joint.initChild( 'JointObjDesc', 2 )
 		if childJoint:
-			self.renderJoint( childJoint )
+			#self.renderJoint( childJoint )
+			primitives.extend( self.renderJoint(childJoint) )
 
 		# Check for a 'next' joint to render
 		nextJoint = joint.initChild( 'JointObjDesc', 3 )
 		if nextJoint:
 			self.renderJoint( nextJoint )
+			#primitives.extend( self.renderJoint(nextJoint) )
+
+		# Check for a polygon object to render
+		pobj = None
+		try:
+			# Get the Display Object and then the Polygon Object
+			dobj = joint.DObj
+			pobj = dobj.PObj
+
+			# Parse out primitives for this mesh
+			pobjPrimitives = pobj.decodeGeometry()
+			#self.addPrimitives( pobjPrimitives )
+			self.addVertexLists( pobjPrimitives )
+			primitives.extend( pobjPrimitives )
+		except AttributeError:
+			pass # This is fine; likely a joint that doesn't have a DObj/PObj
+		except Exception as err:
+			if pobj:
+				print( 'Unable to render {}; {}'.format(pobj.name, err) )
+			elif dobj:
+				print( 'Unable to render {}; {}'.format(dobj.name, err) )
+			else:
+				print( 'Unable to render {}; {}'.format(joint.name, err) )
+
+		# Apply joint transformations for this joint's meshes as well as its children
+		transformationValues = joint.getValues()[5:14] # 9 values; 3 for each of rotation/scale/translation
+		for primitive in primitives:
+			#primitive.rotate( *transformationValues[:3] )
+			#primitive.scale( *transformationValues[3:6] )
+			primitive.translate( *transformationValues[6:] )
+
+		return primitives
 
 	def zoom( self, event ):
 		#print( 'zoom' )
 		if event.delta > 0: # zoom in
-			self.scale *= 1.09
+			#self.scale *= 1.09
+			self.translation_Z += 20
 		elif event.delta < 0: # zoom out
-			self.scale /= 1.09
+			#self.scale /= 1.09
+			self.translation_Z -= 20
 
 	# def on_mouse_scroll( self, *args ):
 
@@ -291,47 +340,58 @@ class RenderEngine( Tk.Frame ):
 		# wait 'til the user gets their act together. :P
 
 	def on_draw( self ):
-		# Clear the screen
-		gl.glClearColor( *self.bgColor )
-		gl.glClear( gl.GL_COLOR_BUFFER_BIT | gl.GL_DEPTH_BUFFER_BIT )
-		gl.glLineWidth( 3 ) # Set edge widths to 3 pixels
-		
-		# Set the projection matrix to a perspective projection and apply translation (camera pan)
-		gl.glMatrixMode( gl.GL_PROJECTION )
-		gl.glLoadIdentity()
-		gl.gluPerspective( 60, float(self.width) / self.height, 0.1, 1000 )
-		gl.glTranslatef( self.translation_X, self.translation_Y, -self.maxZoom )
+		try:
+			# Clear the screen
+			gl.glClearColor( *self.bgColor )
+			gl.glClear( gl.GL_COLOR_BUFFER_BIT | gl.GL_DEPTH_BUFFER_BIT )
+			gl.glLineWidth( 3 ) # Set edge widths to 3 pixels
+			
+			# Set the projection matrix to a perspective projection and apply translation (camera pan)
+			gl.glMatrixMode( gl.GL_PROJECTION )
+			gl.glLoadIdentity()
+			gl.gluPerspective( self.fov, float(self.width) / self.height, self.znear, self.zfar )
+			gl.glTranslatef( self.translation_X, self.translation_Y, self.translation_Z )
 
-		# Set up the modelview matrix and apply transformations
-		gl.glMatrixMode( gl.GL_MODELVIEW )
-		gl.glLoadIdentity()
-		gl.glRotatef( self.rotation_X, 0, 1, 0 )
-		gl.glRotatef( self.rotation_Y, 1, 0, 0 )
-		gl.glScalef( self.scale, self.scale, self.scale )
-		
-		# Render a batch for each set of objects that have been added
-		if self.vertices:
-			batch = pyglet.graphics.Batch()
-			for vertex in self.vertices:
-				vertex.render( batch )
-			batch.draw()
-		if self.edges:
-			batch = pyglet.graphics.Batch()
-			for edge in self.edges:
-				edge.render( batch )
-			batch.draw()
-		if self.triangles:
-			batch = pyglet.graphics.Batch()
-			for triangle in self.triangles:
-				triangle.render( batch )
-			batch.draw()
-		if self.quads:
-			batch = pyglet.graphics.Batch()
-			for quad in self.quads:
-				quad.render( batch )
-			batch.draw()
+			# Set up the modelview matrix and apply transformations
+			gl.glMatrixMode( gl.GL_MODELVIEW )
+			gl.glLoadIdentity()
+			gl.glRotatef( self.rotation_X, 0, 1, 0 )
+			gl.glRotatef( self.rotation_Y, 1, 0, 0 )
+			#gl.glScalef( self.scale, self.scale, self.scale )
+			
+			# Render a batch for each set of objects that have been added
+			if self.vertices:
+				batch = pyglet.graphics.Batch()
+				for vertex in self.vertices:
+					vertex.render( batch )
+				batch.draw()
+			if self.edges:
+				batch = pyglet.graphics.Batch()
+				for edge in self.edges:
+					edge.render( batch )
+				batch.draw()
+			if self.triangles:
+				batch = pyglet.graphics.Batch()
+				for triangle in self.triangles:
+					triangle.render( batch )
+				batch.draw()
+			if self.quads:
+				batch = pyglet.graphics.Batch()
+				for quad in self.quads:
+					quad.render( batch )
+				batch.draw()
+			if self.vertexLists:
+				batch = pyglet.graphics.Batch()
+				for vList in self.vertexLists:
+					vList.render( batch )
+				batch.draw()
+
+		except Exception as err:
+			print( 'An error occurred during rendering: {}'.format(err) )
 
 	def getObjects( self, primitive=None ):
+
+		""" Fetches all primitives of the given type (vertex/edge/triangle/quad). """
 
 		# Confine the search to improve performance
 		if primitive == 'vertex':
@@ -342,6 +402,8 @@ class RenderEngine( Tk.Frame ):
 			objects = self.triangles
 		elif primitive == 'quad':
 			objects = self.quads
+		elif primitive == 'vertexList':
+			objects = self.vertexLists
 		else:
 			if primitive:
 				print( 'Warning; unrecognized primitive: ' + str(primitive) )
@@ -350,6 +412,9 @@ class RenderEngine( Tk.Frame ):
 		return objects
 
 	def showPart( self, tag, visible, primitive=None ):
+
+		""" Toggles the visibility for all primitives with a specified tag. 
+			A primitive type may be given to improve performance. """
 
 		for obj in self.getObjects( primitive ):
 			if tag in obj.tags:
@@ -388,6 +453,13 @@ class RenderEngine( Tk.Frame ):
 					newObjList.append( obj )
 			self.quads = newObjList
 
+		elif primitive == 'vertexList':
+			newObjList = []
+			for obj in self.vertexLists:
+				if tag not in obj.tags:
+					newObjList.append( obj )
+			self.vertexLists = newObjList
+
 		else:
 			if primitive:
 				print( 'Warning; unrecognized primitive: ' + str(primitive) )
@@ -396,6 +468,7 @@ class RenderEngine( Tk.Frame ):
 			self.edges = []
 			self.triangles = []
 			self.quads = []
+			self.vertexLists = []
 
 			for obj in self.getObjects( primitive ):
 				if tag not in obj.tags:
@@ -407,6 +480,8 @@ class RenderEngine( Tk.Frame ):
 						self.triangles.append( obj )
 					elif isinstance( obj, Quad ):
 						self.quads.append( obj )
+					elif isinstance( obj, VertexList ):
+						self.vertexLists.append( obj )
 
 	def stop( self ):
 
@@ -539,9 +614,115 @@ class Primitive:
 			colors = defaultColor * pointCount
 
 		return colors
+	
+	# def scale( self, scaleX, scaleY, scaleZ ):
+	# 	if self.__class__ == Vertex:
+	# 		coords = ( self.x, self.y, self.z )
+	# 	else:
+	# 		coords = self.vertices[1]
+
+	def translate( self, translateX, translateY, translateZ ):
+
+		""" Modifies an array of point coordinates by their respective 
+			translation amount (linear movement, parallel to one axis). """
+
+		if self.__class__ == Vertex:
+			if translateX:
+				self.x += translateX
+			if translateY:
+				self.y += translateY
+			if translateZ:
+				self.z += translateZ
+		else:
+			coords = self.vertices[1]
+			newCoords = []
+
+			# Iterate over the coords in sets of z/y/z coordinates
+			coordsIter = iter( coords )
+			coordsList = [ coordsIter ] * 3
+			for x, y, z in zip( *coordsList ):
+				newCoords.append( x + translateX )
+				newCoords.append( y + translateY )
+				newCoords.append( z + translateZ )
+
+			# Assign the new coordinates to the primitive
+			self.vertices = ( self.vertices[0], newCoords )
+
+	# def rotate( self, axis, angle ):
+
+	# 	""" Rotates an array of point coordinates around the given axis by the given angle (in degrees). """
+
+	# 	if self.__class__ == Vertex:
+	# 		coords = ( self.x, self.y, self.z )
+	# 	else:
+	# 		coords = self.vertices[1]
+
+	# 	rotatedCoords = []
+	# 	coordsIter = iter( coords )
+	# 	coordsList = [ coordsIter ] * 3
+		
+	# 	rotation_axes = [[1, 0, 0], [0, 1, 0], [0, 0, 1]]
+	# 	axes = self._normalize( rotation_axes )
+	# 	u, v, w = axes
+
+	# 	# cos_theta = math.cos( math.radians(angle) )
+	# 	# sin_theta = math.sin( math.radians(angle) )
+
+	# 	# for x, y, z in zip( *coordsList ):
+	# 	# 	rotated_x = (cos_theta + (1 - cos_theta) * u * u) * x + ((1 - cos_theta) * u * v - sin_theta * w) * y + ((1 - cos_theta) * u * w + sin_theta * v) * z
+	# 	# 	rotated_y = ((1 - cos_theta) * u * v + sin_theta * w) * x + (cos_theta + (1 - cos_theta) * v * v) * y + ((1 - cos_theta) * v * w - sin_theta * u) * z
+	# 	# 	rotated_z = ((1 - cos_theta) * u * w - sin_theta * v) * x + ((1 - cos_theta) * v * w + sin_theta * u) * y + (cos_theta + (1 - cos_theta) * w * w) * z
+		
+	# 	# 	rotatedCoords.append( rotated_x )
+	# 	# 	rotatedCoords.append( rotated_y )
+	# 	# 	rotatedCoords.append( rotated_z )
+
+	# 	# Create an identity matrix
+	# 	identityMatrix = [ [int(i == j) for j in range(3)] for i in range(3) ]
+
+	# 	for axis, angle in zip( axes, angles ):
+	# 		identityMatrix = self._matrix_mult( identityMatrix, rotation_matrix_from_axis(axis, angle) )
+
+	# 	# Assign the new coordinates to the primitive
+	# 	if self.__class__ == Vertex:
+	# 		self.x = rotatedCoords[0]
+	# 		self.y = rotatedCoords[1]
+	# 		self.z = rotatedCoords[2]
+	# 	else:
+	# 		self.vertices = ( 'v3f', rotatedCoords )
+
+	def _normalize(self, vector ):
+
+		""" Normalizes a rotation axis for rotation calculations, to ensure that the axis 
+			remains a unit vector throughout the rotation calculations. This is important 
+			because rotation calculations often involve dot products, cross products, and 
+			trigonometric functions that assume normalized vectors. """
+
+		magnitude = math.sqrt( sum(component * component for component in vector) )
+
+		return tuple( component / magnitude for component in vector )
+	
+
+	def _matrix_mult( self, matrix1, matrix2 ):
+
+		""" Multiply two matrices. """
+
+		result = []
+
+		for i in range(len(matrix1)):
+			row = matrix1[i]
+			new_row = []
+			for j in range(len(matrix2[0])):
+				column = [matrix2[k][j] for k in range(len(matrix2))]
+				component = sum(row[k] * column[k] for k in range(len(row)))
+				new_row.append(component)
+			result.append(new_row)
+
+		return result
 
 
-class Vertex:
+class Vertex( Primitive ):
+
 	def __init__( self, coords, color=(0, 0, 0, 255), tags=(), hidden=False, size=2 ):
 		# Position
 		if coords:
@@ -560,19 +741,19 @@ class Vertex:
 		self.color = color
 		self.tags = tags
 		self.hidden = hidden
-		self.size = size
+		self.size = size		# For rendering appearance size
 	
 	def render( self, batch ):
 		if not self.hidden:
 			gl.glPointSize( self.size )
-			batch.add( 1, gl.GL_POINTS, None, ('v3f', (self.x, self.y, self.z)), ('c4B', self.color) )
+			batch.add( 1, gl.GL_POINTS, None, ('v3f/static"', (self.x, self.y, self.z)), ('c4B/static"', self.color) )
 
 
 class Edge( Primitive ):
 
 	def __init__( self, vertices, color=None, colors=(), tags=(), hidden=False ):
-		self.vertices = ( 'v3f', vertices )
-		self.vertexColors = ( 'c4B', self.interpretColors( 2, color, colors ) )
+		self.vertices = ( 'v3f/static"', vertices )
+		self.vertexColors = ( 'c4B/static"', self.interpretColors( 2, color, colors ) )
 		self.tags = tags
 		self.hidden = hidden
 	
@@ -584,8 +765,9 @@ class Edge( Primitive ):
 class Triangle( Primitive ):
 
 	def __init__( self, vertices, color=None, colors=(), tags=(), hidden=False ):
-		self.vertices = ( 'v3f', vertices )
-		self.vertexColors = ( 'c4B', self.interpretColors( 3, color, colors ) )
+		self.vertices = ( 'v3f/static"', vertices )
+		self.vertexColors = ( 'c4B/static"', self.interpretColors( 3, color, colors ) )
+		self.normals = ( 'n3f/static"', [] )
 		self.tags = tags
 		self.hidden = hidden
 	
@@ -597,11 +779,79 @@ class Triangle( Primitive ):
 class Quad( Primitive ):
 
 	def __init__( self, vertices, color=None, colors=(), tags=(), hidden=False ):
-		self.vertices = ( 'v3f', vertices )
-		self.vertexColors = ( 'c4B', self.interpretColors( 4, color, colors ) )
+		self.vertices = ( 'v3f/static"', vertices )
+		self.vertexColors = ( 'c4B/static"', self.interpretColors( 4, color, colors ) )
+		self.normals = ( 'n3f/static"', [] )
 		self.tags = tags
 		self.hidden = hidden
 	
 	def render( self, batch ):
 		if not self.hidden:
 			batch.add( 4, gl.GL_QUADS, None, self.vertices, self.vertexColors )
+
+
+class VertexList( Primitive ):
+
+	def __init__( self, primitiveType, vertices, color=None, colors=(), tags=(), hidden=False ):
+		self.type = self.interpretPrimType( primitiveType )
+		self.vertices = ( 'v3f/static"', [] )
+		self.vertexColors = ( 'c4B/static"', [] )
+		self.normals = ( 'n3f/static"', [] )
+
+		for vertex in vertices:
+			self.vertices[1].extend( (vertex.x, vertex.y, vertex.z) )
+			self.vertexColors[1].extend( vertex.color )
+
+		# Add degenerate vertices if needed
+		if self.type == gl.GL_LINE_STRIP or self.type == gl.GL_TRIANGLE_STRIP:
+			self.addDegenerates()
+
+		self.tags = tags
+		self.hidden = hidden
+
+	def interpretPrimType( self, primType ):
+
+		""" Translates a primitive type for a display list vertex group/list 
+			into an OpenGL primitive type. """
+
+		if primType == 0xB8: primitiveType = gl.GL_POINTS
+		elif primType == 0xA8: primitiveType = gl.GL_LINES
+		elif primType == 0xB0: primitiveType = gl.GL_LINE_STRIP
+		elif primType == 0x90: primitiveType = gl.GL_TRIANGLES
+		elif primType == 0x98: primitiveType = gl.GL_TRIANGLE_STRIP
+		elif primType == 0xA0: primitiveType = gl.GL_TRIANGLE_FAN
+		elif primType == 0x80: primitiveType = gl.GL_QUADS
+		else: # Failsafe
+			print( 'Warning! Invalid primitive type: 0x{:X}'.format(primType) )
+			primitiveType = gl.GL_POINTS
+
+		return primitiveType
+	
+	def addDegenerates( self ):
+
+		""" The purpose of degenerate vertices in a strip is to act as separators between segments. 
+			By repeating the first and last vertices of a segment, a degenerate triangle (or line) 
+			with zero area (or length) is created, which effectively skips over the degenerate 
+			vertex and disconnects the segments. """
+
+		# Repeat the first three coordinates at the start
+		self.vertices[1].insert( 0, self.vertices[1][2] )
+		self.vertices[1].insert( 0, self.vertices[1][2] )
+		self.vertices[1].insert( 0, self.vertices[1][2] )
+		
+		# Repeat the last three coordinates at the end
+		self.vertices[1].extend( self.vertices[1][-3:] )
+		
+		# Repeat the first three coordinates at the start
+		self.vertexColors[1].insert( 0, self.vertexColors[1][3] )
+		self.vertexColors[1].insert( 0, self.vertexColors[1][3] )
+		self.vertexColors[1].insert( 0, self.vertexColors[1][3] )
+		self.vertexColors[1].insert( 0, self.vertexColors[1][3] )
+		
+		# Repeat the last three coordinates at the end
+		self.vertexColors[1].extend( self.vertexColors[1][-4:] )
+
+	def render( self, batch ):
+		if not self.hidden:
+			count = len( self.vertices[1] ) / 3
+			batch.add( count, self.type, None, self.vertices, self.vertexColors )

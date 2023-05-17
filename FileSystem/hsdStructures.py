@@ -23,7 +23,7 @@ from collections import OrderedDict
 import globalData
 
 from basicFunctions import uHex
-from RenderEngine2 import Vertex, Edge, Triangle, Quad
+from RenderEngine2 import Vertex, Edge, Triangle, Quad, VertexList
 
 showLogs = True
 
@@ -1145,12 +1145,12 @@ class DisplayListBlock( DataBlock ):
 		""" Parses the all entries in this display list, combines it with the vertex 
 			attributes (provided in attributesInfo), and initializes a list of primitives 
 			with the decoded vertex data. The attributesInfo argument is expected to be a list 
-			of tuples of the form ( name, attrType, vertexDescriptor, indexStride, vertexStream ). """
+			of tuples of the form ( name, attrType, compType, vertexDescriptor, indexStride, vertexStream ). """
 
 		# Determine the data length and formatting for one entry in the display list
 		baseLength = 0
 		baseFormat = ''
-		for name, attrType, vertexDescriptor, _, _ in attributesInfo:
+		for name, attrType, compType, vertexDescriptor, _, _ in attributesInfo:
 			if attrType == 0: # GX_NONE
 				continue
 			elif attrType == 1: # DIRECT
@@ -1159,7 +1159,7 @@ class DisplayListBlock( DataBlock ):
 						baseLength += 2
 					elif vertexDescriptor == '1BBB': # 24-bit
 						baseLength += 3
-					elif vertexDescriptor == '1I': # 32-bit
+					elif vertexDescriptor == '1BBBB': # 32-bit
 						baseLength += 4
 					else: # Failsafe
 						enumName = self.enums['Attribute_Name'][name]
@@ -1206,10 +1206,13 @@ class DisplayListBlock( DataBlock ):
 
 			# Build new primitives if this isn't just an array of vertices
 			# if primitiveType == 0xB8: # Points (Vertices)
-			primitives.extend( vertices )
+			# 	primitives.extend( vertices )
 			# else:
 			# 	prims = self.buildPrimitives( primitiveType, vertices )
 			# 	primitives.extend( prims )
+
+			prims = VertexList( primitiveType, vertices )
+			primitives.append( prims )
 			
 			offset += dataLength
 
@@ -1219,13 +1222,13 @@ class DisplayListBlock( DataBlock ):
 
 		""" Produces a list of vertices from a single entry in the Display List. """
 
+		displayListIndex = 0
 		vertices = []
 
 		# Iterate over each attribute value/index for each entry in this display set
 		for i in range( indexCount ):
 			# Create the vertex and apply attributes (position/colors, etc.) for the current vertex
-			displayListIndex = 0
-			for name, attrType, _, indexStride, vertexStream in attributesInfo:
+			for name, attrType, compType, _, indexStride, vertexStream in attributesInfo:
 				if attrType == 0:
 					continue
 				elif attrType == 1: # DIRECT
@@ -1241,94 +1244,112 @@ class DisplayListBlock( DataBlock ):
 					actualValues = vertexStream[valueIndex:valueIndex+indexStride]
 					displayListIndex += 1
 				
+				# Create the vertex and update it with the values collected above
 				if name == 9: # Positional data
 					vertex = Vertex( actualValues, color=(0, 0, 0, 255) )
 				elif name == 11: # GX_VA_CLR0
-					#vertex.color = actualValues
-					pass
+					vertex.color = self.decodeColor( compType, actualValues )
 				elif name == 12: # GX_VA_CLR1
+					print( 'Encountered GX_VA_CLR1' )
 					pass
 
 			vertices.append( vertex )
 
 		return vertices
 	
-	def buildPrimitives( self, primType, vertices ):
+	# def buildPrimitives( self, primType, vertices ):
 		
-		""" Takes a list of vertices and builds a list of primitives from them of the given type. """
+	# 	""" Takes a list of vertices and builds a list of primitives from them of the given type. """
 	
-		if primType == 0xA8: # Lines
-			primitive = Edge
-			verticesPerPrim = 2
-		elif primType == 0xB0: # Line Strips
-			primitive = Edge
-			verticesPerPrim = 2
-		elif primType == 0x90: # Triangles
-			primitive = Triangle
-			verticesPerPrim = 3
-		elif primType == 0x98: # Triangle Strips
-			primitive = Triangle
-			verticesPerPrim = 3
-		elif primType == 0xA0: # Triangle Fan
-			primitive = Triangle
-			verticesPerPrim = 3
-		else: # Quads
-			primitive = Quad
-			verticesPerPrim = 4
+	# 	if primType == 0xA8: # Lines
+	# 		primitive = Edge
+	# 		verticesPerPrim = 2
+	# 	elif primType == 0xB0: # Line Strips
+	# 		primitive = Edge
+	# 		verticesPerPrim = 2
+	# 	elif primType == 0x90: # Triangles
+	# 		primitive = Triangle
+	# 		verticesPerPrim = 3
+	# 	elif primType == 0x98: # Triangle Strips
+	# 		primitive = Triangle
+	# 		verticesPerPrim = 3
+	# 	elif primType == 0xA0: # Triangle Fan
+	# 		primitive = Triangle
+	# 		verticesPerPrim = 3
+	# 	else: # Quads
+	# 		primitive = Quad
+	# 		verticesPerPrim = 4
 
-		# if len( vertices ) % verticesPerPrim != 0:
-		# 	primName = self.enums['Primitive_Type'][primType]
-		# 	primsToMake = len( vertices ) / verticesPerPrim
-		# 	print( 'Warning! Found {} vertices to form {} {} primitives!'.format(len(vertices), primsToMake, primName) )
+	# 	# if len( vertices ) % verticesPerPrim != 0:
+	# 	# 	primName = self.enums['Primitive_Type'][primType]
+	# 	# 	primsToMake = len( vertices ) / verticesPerPrim
+	# 	# 	print( 'Warning! Found {} vertices to form {} {} primitives!'.format(len(vertices), primsToMake, primName) )
 
-		# Prepare to iterate over groups of vertices
-		vertexIter = iter( vertices )
-		vertexList = [ vertexIter ] * verticesPerPrim
+	# 	# Prepare to iterate over groups of vertices
+	# 	vertexIter = iter( vertices )
+	# 	vertexList = [ vertexIter ] * verticesPerPrim
 
-		# Iterate over each group of vertices for one primitive
-		primitives = []
-		for primVertices in zip( *vertexList ):
-			# Create the new primitive and empty the default colors list
-			prim = primitive( [] )
-			prim.vertexColors = ( 'c4B', [] )
+	# 	# Iterate over each group of vertices for one primitive
+	# 	primitives = []
+	# 	for primVertices in zip( *vertexList ):
+	# 		# Create the new primitive and empty the default colors list
+	# 		prim = primitive( [] )
+	# 		prim.vertexColors = ( prim.vertexColors[0], [] )
 
-			# Collect coordinates, colors, etc. from each vertex onto the new primitive
-			for vertex in primVertices:
-				prim.vertices[1].extend( (vertex.x, vertex.y, vertex.z) )
-				prim.vertexColors[1].extend( vertex.color )
+	# 		# Collect coordinates, colors, etc. from each vertex onto the new primitive
+	# 		for vertex in primVertices:
+	# 			prim.vertices[1].extend( (vertex.x, vertex.y, vertex.z) )
+	# 			prim.vertexColors[1].extend( vertex.color )
 
-			primitives.append( prim )
+	# 		primitives.append( prim )
 
-		return primitives
+	# 	return primitives
 
-	def decodeColor( self, compType, pixelValue ):
+	def decodeColor( self, compType, pixelValues ):
 
-		""" Decodes 2 to 4 bytes of data into an ( R, G, B, A ) color. """
+		""" Decodes 2 to 4 bytes of data into an ( R, G, B, A ) color (0-255 range). """
 
-		if compType == 0: # GX_RGB565
-			# Low bit-depth color without transparency
+		if compType == 0: # GX_RGB565 (2 bytes)
+			# 16 bit color without transparency
 			# RRRRRGGGGGGBBBBB
+			pixelValue = pixelValues[0]
 			r = ( pixelValue >> 11 ) * 8
 			g = ( pixelValue >> 5 & 0b111111 ) * 4
 			b = ( pixelValue & 0b11111 ) * 8
 			a = 255
-		elif compType == 1: # GX_RGB8
-			# 24 bit-depth color without transparency
+		elif compType == 1: # GX_RGB8 (3 bytes)
+			# 24 bit color without transparency
 			# RRRRRRRRGGGGGGGGBBBBBBBB
-			r = pixelValue >> 16 & 0b11111111
-			g = pixelValue >> 8 & 0b11111111
-			b = pixelValue & 0b11111111
+			r = pixelValues[0]
+			g = pixelValues[1]
+			b = pixelValues[2]
 			a = 255
-		elif compType == 2: # GX_RGBX8
-			valueFormat = 'I'
-		elif compType == 3: # GX_RGBA4 (i.e. RGBA4444)
-			valueFormat = 'H'
-		elif compType == 4: # GX_RGBA6
-			valueFormat = 'BBB'
-		elif compType == 5: # GX_RGBA8
-			valueFormat = 'I'
+		elif compType == 2 or compType == 5: # GX_RGBX8 or GX_RGBA8 (4 bytes)
+			# 32 bit color with transparency
+			# AAAAAAAARRRRRRRRGGGGGGGGBBBBBBBB
+			r = pixelValues[0]
+			g = pixelValues[1]
+			b = pixelValues[2]
+			a = pixelValues[3]
+		elif compType == 3: # GX_RGBA4 (i.e. RGBA4444; 2 bytes)
+			# 16 bit color with transparency
+			# AAAARRRRGGGGBBBB
+			pixelValue = pixelValues[0]
+			r = ( pixelValue >> 12 ) * 16
+			g = ( pixelValue >> 8 & 0b1111 ) * 16
+			b = ( pixelValue >> 4 & 0b1111 ) * 16
+			a = ( pixelValue & 0b1111 ) * 16
+		elif compType == 4: # GX_RGBA6 (3 bytes)
+			# 24 bit color with transparency
+			# AAAAAARRRRRRGGGGGGBBBBBB
+			pixelValue = pixelValues[0]
+			r = ( pixelValue >> 18 ) * 4
+			g = ( pixelValue >> 12 & 0b111111 ) * 4
+			b = ( pixelValue >> 6 & 0b111111 ) * 4
+			a = ( pixelValue & 0b111111 ) * 4
 
 		return ( r, g, b, a )
+
 
 class VertexDataBlock( DataBlock ):
 
@@ -1771,6 +1792,7 @@ class VertexAttributesArray( TableStruct ):
 			# Position coordinates (enumeration is among GXPosCompCnt)
 			if count == 0: # GX_POS_XY
 				dimensions = 2
+				print( 'Found a 2D point in {}!'.format(self.name) )
 			elif count == 1: # GX_POS_XYZ
 				dimensions = 3
 			else:
@@ -1833,13 +1855,13 @@ class VertexAttributesArray( TableStruct ):
 			elif compType == 1: # GX_RGB8
 				valueFormat = 'BBB'
 			elif compType == 2: # GX_RGBX8
-				valueFormat = 'I'
+				valueFormat = 'BBBB'
 			elif compType == 3: # GX_RGBA4 (i.e. RGBA4444)
 				valueFormat = 'H'
 			elif compType == 4: # GX_RGBA6
 				valueFormat = 'BBB'
 			elif compType == 5: # GX_RGBA8
-				valueFormat = 'I'
+				valueFormat = 'BBBB'
 			else: # Failsafe
 				valueFormat = ''
 		else:
@@ -1888,7 +1910,7 @@ class VertexAttributesArray( TableStruct ):
 
 			# Check if this is direct (GX_DIRECT) display list data; no data indexing
 			if attrType == 1 or stride == 0:
-				attributesInfo.append( (name, attrType, vertexDescriptor, 1, []) )
+				attributesInfo.append( (name, attrType, compType, vertexDescriptor, 1, []) )
 				continue
 
 			# Check that the vertex data pointer is pointing to a struct
@@ -1919,9 +1941,10 @@ class VertexAttributesArray( TableStruct ):
 			# references = [ iterReference ] * dimensions
 			# vertexStream = [ group for group in zip( references ) ]
 			indexStride = dimensions * len( valueFormat ) # Number of values unpacked per vertex for this attribute
-			attributesInfo.append( (name, attrType, vertexDescriptor, indexStride, vertexData) )
+			attributesInfo.append( (name, attrType, compType, vertexDescriptor, indexStride, vertexData) )
 
 		return attributesInfo
+
 
 class EnvelopeArray( StructBase ):
 
@@ -2336,8 +2359,8 @@ class CameraObjDesc( StructBase ): # CObjDesc
 						'UpVector_Pointer',	# 0x24
 						'Near',
 						'Far',
-						'FoV_Top',			# 0x30
-						'Aspect_Bottom',
+						'FieldOfView',		# 0x30
+						'Aspect_Ratio',
 						'Projection_Left',
 						'Projection_Right'	# 0x3C
 					)

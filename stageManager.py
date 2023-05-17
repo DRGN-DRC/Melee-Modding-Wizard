@@ -2945,7 +2945,7 @@ class StagePropertyEditor( ttk.Frame ):
 		offset = gobjsArray.offset
 		for i, entryValues in gobjsArray.iterateEntries():
 			# Skip the General Points entry
-			if i == 0: continue
+			#if i == 0: continue
 
 			gobjName = 'Group ' + str( i+1 )
 			gobjValues = [ uHex(0x20+entryValues[0]), i ] + list( entryValues )
@@ -3007,10 +3007,7 @@ class StagePropertyEditor( ttk.Frame ):
 			return
 
 		# Clear current rendered objects
-		self.engine.vertices = []
-		self.engine.edges = []
-		self.engine.triangles = []
-		self.engine.quads = []
+		self.engine.clearRenderings()
 
 		# Get the selected joint object(s)
 		for iid in iidSelectionsTuple:
