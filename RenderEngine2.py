@@ -17,7 +17,6 @@ import win32api
 import Tkinter as Tk
 
 from pyglet import gl
-#from enum import IntEnum
 from pyglet.window import key, Projection3D
 from pyglet.app.base import EventLoop
 from pyglet.window.event import WindowEventLogger
@@ -259,21 +258,28 @@ class RenderEngine( Tk.Frame ):
 			#primitives.extend( self.renderJoint(nextJoint) )
 
 		# Check for a polygon object to render
-		pobj = None
 		try:
 			# Get the Display Object and then the Polygon Object
 			dobj = joint.DObj
-			pobj = dobj.PObj
 
-			# Parse out primitives for this mesh
-			pobjPrimitives = pobj.decodeGeometry()
-			#self.addPrimitives( pobjPrimitives )
-			self.addVertexLists( pobjPrimitives )
-			primitives.extend( pobjPrimitives )
+			# Iterate over this DObj and its siblings
+			for offset in [dobj.offset] + dobj.getSiblings():
+				dobj = joint.dat.getStruct( offset )
+				pobj = dobj.PObj
+
+				# Iterate over this PObj and its siblings
+				for offset in [pobj.offset] + pobj.getSiblings():
+					pobj = joint.dat.getStruct( offset )
+
+					# Parse out primitives for this mesh
+					pobjPrimitives = pobj.decodeGeometry()
+					self.addVertexLists( pobjPrimitives )
+					primitives.extend( pobjPrimitives )
+
 		except AttributeError:
 			pass # This is fine; likely a joint that doesn't have a DObj/PObj
 		except Exception as err:
-			if pobj:
+			if dobj and pobj:
 				print( 'Unable to render {}; {}'.format(pobj.name, err) )
 			elif dobj:
 				print( 'Unable to render {}; {}'.format(dobj.name, err) )

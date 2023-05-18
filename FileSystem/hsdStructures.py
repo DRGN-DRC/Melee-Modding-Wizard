@@ -1183,38 +1183,46 @@ class DisplayListBlock( DataBlock ):
 		offset = 0
 
 		# Iterate over all entries in this display list
-		for i in range( length ):
-			# Parse the header for this primitive
-			primitiveFlags = self.data[offset]
-			primitiveType = primitiveFlags & 0xF8
-			vertexStreamIndex = primitiveFlags & 7
-			indexCount = struct.unpack( '>H', self.data[offset+1:offset+3] )[0]
+		try:
+			for i in range( length ):
+				# Parse the header for this entry
+				headerData = self.data[offset:offset+3]
+				if len( headerData ) < 3:
+					raise Exception( 'display list header data ended prematurely.' )
+				primitiveFlags, indexCount = struct.unpack( '>BH', headerData )
+				primitiveType = primitiveFlags & 0xF8
+				vertexStreamIndex = primitiveFlags & 7
+				offset += 3
 
-			# End the list if encountering an unrecognized type
-			if primitiveType not in self.enums['Primitive_Type'].keys():
-				break
+				# End the list if encountering an unrecognized type
+				if primitiveType not in self.enums['Primitive_Type'].keys():
+					break
 
-			# Collect data for this primitive group and unpack it
-			offset += 3
-			dataLength = baseLength * indexCount
-			dataFormat = '>' + ( baseFormat * indexCount )
-			data = self.data[offset:offset+dataLength]
-			displayListValues = struct.unpack( dataFormat, data )
+				# Collect data for this primitive group and unpack it
+				dataLength = baseLength * indexCount
+				dataFormat = '>' + ( baseFormat * indexCount )
+				data = self.data[offset:offset+dataLength]
+				if len( data ) < dataLength:
+					raise Exception( 'display list data ended prematurely.' )
+				displayListValues = struct.unpack( dataFormat, data )
 
-			# Parse the display list for vertices
-			vertices = self.parseDisplayListEntry( displayListValues, indexCount, attributesInfo )
+				# Parse the display list for vertices
+				vertices = self.parseDisplayListEntry( displayListValues, indexCount, attributesInfo )
 
-			# Build new primitives if this isn't just an array of vertices
-			# if primitiveType == 0xB8: # Points (Vertices)
-			# 	primitives.extend( vertices )
-			# else:
-			# 	prims = self.buildPrimitives( primitiveType, vertices )
-			# 	primitives.extend( prims )
+				# Build new primitives if this isn't just an array of vertices
+				# if primitiveType == 0xB8: # Points (Vertices)
+				# 	primitives.extend( vertices )
+				# else:
+				# 	prims = self.buildPrimitives( primitiveType, vertices )
+				# 	primitives.extend( prims )
 
-			prims = VertexList( primitiveType, vertices )
-			primitives.append( prims )
-			
-			offset += dataLength
+				prims = VertexList( primitiveType, vertices )
+				primitives.append( prims )
+				
+				offset += dataLength
+
+		except Exception as err:
+			print( 'Unable to fully parse {}; {}'.format(self.name, err) )
 
 		return primitives
 
@@ -1251,7 +1259,6 @@ class DisplayListBlock( DataBlock ):
 					vertex.color = self.decodeColor( compType, actualValues )
 				elif name == 12: # GX_VA_CLR1
 					print( 'Encountered GX_VA_CLR1' )
-					pass
 
 			vertices.append( vertex )
 
@@ -1635,7 +1642,7 @@ class PolygonObjDesc( StructBase ): # A.k.a. Meshes
 	def decodeGeometry( self ):
 
 		""" Initialize child structs and parse their data to decode model geometry. 
-			Returns a list of various primitives, like vertices, triangles, etc. """
+			Returns a list of various primitive groups, in the form of VertexList objects. """
 
 		vertexAttributes = self.initChild( VertexAttributesArray, 2 )
 		displayList = self.initChild( DisplayListBlock, 5 )
