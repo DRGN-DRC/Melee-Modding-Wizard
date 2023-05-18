@@ -158,10 +158,9 @@
 	    section). Or you can specify more padding between files, so that rebuilding is 
 	    required less often.
 
-	    There are two options that affect rebuilding the disc:
-
-		* paddingBetweenFiles: 
-		* backupOnRebuild:
+	    There are two options that affect rebuilding the disc: "paddingBetweenFiles", 
+	    and "backupOnRebuild". See the "Program Settings" section of this manual for 
+	    info on these.
 
 
 	 Disc Details Editor
@@ -197,21 +196,21 @@
 	    Note that you can sort textures by clicking on the header of each column. By 
 	    default, they are sorted by offset (the order that they appear in the file). Or, 
 	    you can filter out textures by clicking on "Texture Filters". The Aspect Ratio may 
-	    be given as a ratio, fraction, whole number, or decimal, e.g. “4:3”, ¼, 1 (for a 
-	    square), .5, etc. The Offset may be given in hex or decimal (remember to include 
-	    the “0x” to differentiate between these). Filtering can greatly cut down on loading 
-	    times since the excluded textures won't need to be decoded or rendered.
+	    be given as a ratio, fraction, whole number, or decimal, e.g. 4:3, 1/4, 1 (for a 
+	    square), .5, etc. The offset may be given in hex or decimal (remember to include 
+	    the "0x" prefix to differentiate between these). Filtering can greatly cut down on 
+	    loading times since the excluded textures won't need to be decoded or rendered.
 
-		* Export Selected Textures: Export just the textures currently selected.
+		* Export Selected Textures: Export just the textures currently selected. 
 		* Export All: Exports all textures currently displayed. This includes mipmap 
 		  textures (even if collapsed), but does not include textures that are 
 		  filtered out.
-		* Import Texture: Replaces all currently selected textures (one or more) 
+		* Import Texture: Replaces ALL currently selected textures (one or more) 
 		  with an external file selected by the user. If the texture being imported 
-		  isn't the same dimensions as the texture(s) selected to be replaced,
-		  you will be offered to have the imported image resized to match each 
-		  texture to be replaced. You can also drag-and-drop image files anywhere 
-		  onto the program interface to import them over what's currently selected.
+		  isn't the same dimensions as a texture selected to be replaced, you will be 
+		  offered to have the imported image resized to match each texture to be 
+		  replaced. You can also drag-and-drop an image file anywhere onto the program 
+		  interface to perform this operation, importing it over what's currently selected.
 		* Copy Offset(s) to Clipboard: Copies the file offsets of all currently 
 		  selected textures to the user's clipboard.
 		* Copy Dolphin Hash(es) to Clipboard: Copies the Dolphin hashes of all currently 
@@ -226,11 +225,28 @@
 
 	    As mentioned, when a texture is imported with different dimensions than the 
 	    target texture(s), it can be automatically resized. The default method for 
-	    resizing is to use the "lanczos" filter, but this can be changed. The available 
-	    options can be found here, which can be set via the "resampleFilter" option in 
-	    the "settings.ini" file:
+	    resizing is to use the "lanczos" (a.k.a. anti-alias) filter, but this can be 
+	    changed. The available options can be found here, which can be set via the 
+	    "resampleFilter" option in the "settings.ini" file:
 
 		https://pillow.readthedocs.io/en/stable/handbook/concepts.html#filters
+
+	    Another note on palettes is that if you import a texture that already has a 
+	    color palette, those colors will be used if they're in the colorset for the 
+	    current palette type. If you import a texture with a palette that has too many 
+	    colors (i.e. there are more colors than what there is space for in the palette 
+	    residing in the game), then having this option enabled will prompt DTW to generate 
+	    a new palette and use that instead.
+
+	    If a texture is imported over a mipmap texture of any level, all mipmap levels 
+	    below it will also be updated to match it with an automatically scaled-down copy 
+	    of the imported texture. The algorithm used for downscaling is set by the 
+	    "resampleFilter" (described above), available in "settings.ini". More info on 
+	    mipmap textures can be found here:
+
+		http://smashboards.com/threads/how-to-hack-any-texture.388956/page-3#post-20372869
+		http://wiki.tockdom.com/wiki/Image_Formats#Mipmaps
+		https://en.wikipedia.org/wiki/Mipmap
 
 
 	 Code Manager
@@ -239,13 +255,13 @@
 			Overview
 
 	    This is a feature-rich system for all code-based mods. It offers a friendly and 
-	    simple interface for finding and installing (or uninstalling) mods incredibly 
-	    easily, while also being a more direct and efficient method of running them in-
-	    game than other code injection methodologies. Gecko codes are supported, and using 
-	    them with a Gecko codehandler is an option. However, mods are instead primarily 
-	    stored in "MCM" format, and are installed using direct overwrites of in-game 
-	    code. This saves a great deal of space by avoiding the extra overhead introduced 
-	    by the Gecko codelist. 
+	    simple interface for finding and installing/uninstalling mods incredibly easily, 
+	    while also being a more direct and efficient method of running them in-game 
+	    than other code injection methodologies. Gecko codes are supported, and using 
+	    them along with a Gecko codehandler is an option. However, mods are instead 
+	    primarily stored in "MCM" format, and are installed using direct overwrites of 
+	    in-game code. This saves a great deal of space by avoiding the extra overhead 
+	    introduced by the Gecko codelist.
 
 	    The mod formats and GUI also feature user-friendly methods of customizing 
 	    individual mods to modify their behavior, with simple interfaces such as drop-
@@ -262,7 +278,7 @@
 	    to multiple different code libraries for different projects, and swap between them 
 	    at any time within the program. To switch to a different library, look for the 
 	    books icon on the top-right of the Code Manager interface. Only one library may be 
-	    loaded at once, however there is no limit to how many mods may be in one library.
+	    loaded at once, however there is no limit to how many mods may be in a library.
 
 
 			Mod Creation
@@ -270,11 +286,10 @@
 	    Several tools and features are also available to make developing codes easier.
 
 		* Code Construction tab: This is a very useful interface for editing existing 
-		  mods or making new ones. You can access this in the Tools menu, by 
-		  clicking on New Code Mod, or by clicking on the Edit button on any mod.
-		  This interface is also where you can import Gecko codes, and convert 
-		  them to another format (via the "Import Gecko Code" button in the top-
-		  right of the tab).
+		  mods or making new ones. You can access this via Tools -> New Code Mod, or 
+		  by clicking on the Edit button on any mod. This interface is also where you 
+		  can import Gecko codes and convert them to another format (via the "Import 
+		  Gecko Code" button in the top-right of the tab).
 
 		* ASM <-> HEX converter: Compile (assemble) assembly code (ASM) into raw hex/
 		  binary data, or decompile (disassemble) binary into its source ASM code. 
@@ -392,14 +407,46 @@
 	    These other settings are only accessible within the "settings.ini" file; 
 	    in most cases you likely won't need to change these:
 
-		- "resampleFilter": 
+		- dolSource:
+
+		- maxFilesToRemember:
+			How many recent discs or root folders to remember for the 'Open / 
+			Load Recent' menu. Once this number is reached, the oldest item used 
+			will be forgotten.
+
+		- paddingBetweenFiles: 
+			This may be set to a hex value, or the string "auto" (with no quotes), 
+			and controls how much padding is created when building or rebuilding 
+			discs. Large values will result in a larger disc, but will mean that 
+			importing files (that are larger than the original file) will require a 
+			rebuild less often. The default value is 0x40. If this is set to "auto", 
+			and the total file size of all files permits, DTW will create a disc 
+			that is the standard GameCube disc size of 1,459,978,240 bytes, and 
+			evenly distribute the amount of padding that would be left over after 
+			totaling the size of all non-system files in the disc.
+
+			If set to "auto", and the total file size of all files to be included in 
+			the disc is greater than the standard GameCube size, the padding between 
+			files will be 0. However, up to 3 bytes of padding may still be added 
+			between some files, in order to preserve 4 byte alignment (on the file
+			-start offset) for all files. Similarly, if a non-4-byte multiple of a 
+			hex value is given, it will be adjusted downward to the nearest multiple 
+			of 4 bytes.
+
+		- resampleFilter: 
 			When a texture is imported with different dimensions than the 
-	    		target texture(s), it can be automatically resized. The default 
-			method for resizing is to use the "lanczos" filter, but this can be 
-			changed. The available options can be found here:
+	    		target texture(s), it can be automatically resized. (This includes 
+			mipmap texture cascading downsizes.) The default method for resizing 
+			is to use the "lanczos" filter, but this can be changed. The available 
+			options can be found here:
 			https://pillow.readthedocs.io/en/stable/handbook/concepts.html#filters
 
-		- 
+		- textureExportFormat:
+			Determines the file format when exporting textures in bulk; such as when 
+			using 'Export All' on the DAT Texture Tree tab, or 'Export Textures From 
+			Selected' on the Disc File Tree tab. Valid values are "png" or "tpl" (no 
+			quotes).
+
 
 
 
@@ -407,3 +454,25 @@
 	--------
 
 		- Character Color Converter: 
+
+		- ASM <-> HEX Converter:
+
+		- Code Lookup:
+
+		- Test External Stage/Character File (Asset Test):
+
+		-
+
+
+
+
+If you have any other questions, don't forget about all of the other resources available through the Help menu within the program! If there's anything that's missing, or anything here that's confusing, please let me know. And if you'd like to support development of this program, DTW, or MCM, you can:
+
+	Donate via Paypay: https://tinyurl.com/donateToDRGNviaPayPal
+	    Or
+	Follow me on Patreon: https://www.patreon.com/drgn
+
+Thanks!
+
+ - Durgan (DRGN)
+

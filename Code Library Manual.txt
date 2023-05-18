@@ -1,0 +1,679 @@
+
+
+                            ███╗   ███╗ ███╗   ███╗ ██╗    ██╗
+                            ████╗ ████║ ████╗ ████║ ██║    ██║
+                            ██╔████╔██║ ██╔████╔██║ ██║ █╗ ██║
+                            ██║╚██╔╝██║ ██║╚██╔╝██║ ██║███╗██║
+                            ██║ ╚═╝ ██║ ██║ ╚═╝ ██║ ╚███╔███╔╝
+                            ╚═╝     ╚═╝ ╚═╝     ╚═╝  ╚══╝╚══╝ 
+                              -  - Melee Modding Wizard -  -  
+                                     - User Manual -
+
+          # -=======---------------------------------------------------=======- #
+         # ~ ~ Written by DRGN of SmashBoards (Daniel R. Cappel);  May, 2020 ~ ~ #
+          #            [ Built with Python v2.7.16 and Tkinter 8.5 ]            #
+           # -======---------------------------------------------------======- #
+
+
+	This is a supplemental guide to cover only the Code Manager aspects of the 
+	program. For everything else, see the "MMW Manual.txt" file.
+
+
+		Table of Contents:
+
+			Overview
+			Code Libraries
+			Mod Formats (Overview)
+			Mod Formats (Construction)
+			Configurations
+
+	 Overview
+	----------
+
+	    This is a feature-rich system for all code-based mods. It offers a friendly and 
+	    simple interface for finding and installing/uninstalling mods incredibly easily, 
+	    while also being a more direct and efficient method of running them in-game 
+	    than other code injection methodologies. Gecko codes are supported, and using 
+	    them along with a Gecko codehandler is an option. However, mods are instead 
+	    primarily stored in "MCM" format, and are installed using direct overwrites of 
+	    in-game code. This saves a great deal of space by avoiding the extra overhead 
+	    introduced by the Gecko codelist.
+
+	    The mod formats and GUI also feature user-friendly methods of customizing 
+	    individual mods to modify their behavior, with simple interfaces such as drop-
+	    down menus, sliders, and more, removing the need to understand the hex/code 
+	    formats. These aspects of a mod are called "Configurations". A basic example is 
+	    present with the mod "Peach - Always Pull Specific Turnip". If you go to that 
+	    mod in the Code Manager tab (under "Characters"), you'll find next to the mod's 
+	    edit button it also has a button to configure the mod, which opens a configuration 
+	    window. Any mod may have any number of such configurations added, and details 
+	    on how to do so are outlined in the Mod Formats section below.
+
+
+	 Code Libraries
+	----------------
+
+	    All mods that load up in the program are stored in text files and folders 
+	    contained within the "Code Library" folder. There is some variation in how 
+	    they are stored, depending on the mod format (described below).
+
+	    You may of course add to or remove mods from the default code library. You may 
+	    also keep references to multiple different code libraries for different projects, 
+	    and swap between them at any time within the program. To switch to a different 
+	    library, look for the books icon on the top-right of the Code Manager interface. 
+	    Only one library may be loaded at once, however there is no limit to how many 
+	    mods may be in a library.
+
+	    A few notes on the MCM format, since it's the most common type that comes with 
+	    this program. Each text file you put in the Codes Library folder shows up as its 
+	    own tab, so you can organize them specifically for your project or however you 
+	    think is best. Each text file can have any number of mods within it. Sub-folders 
+	    can also be added, which also appear as tabs, and in turn can have any number of 
+	    tabs (files and/or folders) within them.
+	    
+	    You can name a folder or text file with a "!" at the start of the name to exclude 
+	    it from parsing (useful for debugging or releasing a library with optional mods 
+	    disabled by default). Conversely, a file or folder with a "+" at the start of the 
+	    name will be parsed exclusively (other items in that folder will be ignored). 
+	    Similarly, preceding a mod within the text files with a "!" will exclude it from 
+	    parsing. This is very handy for quickly hiding or swapping different mods to 
+	    appear within the program. The exclamation mark can appear anywhere between the 
+	    separator (i.e. "-==-") and the start of the mod name.
+
+
+	 Mod Formats (Overview)
+	------------------------
+
+	    Mods may be stored in one of four different formats:
+
+		* MCM format: This is most common format that mods come in with both this 
+			program and its predecessor, MCM (the Melee Code Manager). This is 
+			where it gets its name, though it had already existed in a simpler 
+			form. This format is convenient because of its simplicity, and the 
+			fact that it supports almost all features, besides code caches. 
+			For advanced or complex codes, the AMFS format may be a better 
+			choice.
+
+		* Gecko Code:
+			The traditional, de facto standard for Dolphin and some other code 
+			installation systems. Most code mods found online will be in this 
+			format. It does not support a lot of features in this program, but 
+			can usually be easily converted into one of the other formats. 
+			Conversion is supported for Gecko code types 00/02/04/06 and C2. 
+
+		* AMFS (ASM Mod Folder Structure):
+			This format stores everything for one mod in a folder, with each 
+			code change (i.e. a static overwrite or injection) stored in its 
+			own ASM or BIN file. The mod's information is then defined in a 
+			JSON file also in the folder (similar to the codes.json file used 
+			with Fizzi's Gecko Tools program). This organization is primarily 
+			useful for developers for two reasons: 1) the code cache feature 
+			can be used, and 2) you can more easily view/edit each function or 
+			code change in its own tab when opening it in your IDE. Thus, this 
+			format is particularly useful for more complex mods.
+
+		* Minimal:
+			This is the simplest format, consisting of just a single file. 
+			The file name is the name of the mod, and the contents consist 
+			of a header which includes the author and target offset, as well 
+			as the custom code. This format also supports the code cache.
+
+
+	    This feature chart may help you decide which to use:
+
+					 MCM  G  Min AMFS
+					┌───┬───┬───┬───┐
+		Name			│ x │ x │ x │ x │
+		Author(s)		│ x │ x │ x │ x │
+		Description		│ x │   │   │ x │
+		Multiple Changes	│ x │   │   │ x │
+		Multiple Revisions	│ x │   │   │ x │
+		Web Links		│ x │   │   │ x │
+		Standalone Functions	│ x │   │   │ x │
+		Configurations		│ x │   │   │ x │
+		Code Cache		│   │   │ x │ x │
+		Multiple Mods per-File	│ x │ x │   │   │
+					└───┴───┴───┴───┘
+
+
+		The Code Cache Feature:
+
+	    Like with MCM, custom code may be saved with a mod as ASM source code or 
+	    assembled hex data. If it's stored as assembly, it will automatically be 
+	    converted into binary upon saving. However, this can noticably slow down 
+	    the save process if you have many codes saved as assembly. The code cache 
+	    feature mentioned above allows you to store mods in your library in their 
+	    source code/ASM form, without sacrificing performance when it comes time 
+	    to saving them all to the game. This works by storing assembled .bin files 
+	    for each of the mod's code changes (the cache). This cache is automatically 
+	    updated any time you make changes to individual codes (when saving the mod 
+	    or saving to your game) and is used during code installation. This allows 
+	    you to conveniently keep all of the mods in your library in their 
+	    source-code form, while still enjoying very fast code installation times of 
+	    just a few seconds. This makes an especially big difference when amassing 
+	    hundreds of codes for a large project. This feature can only be used with 
+	    the AMFS and Minimal mod formats.
+
+
+	 Mod Formats (Construction)
+	----------------------------
+
+		Using the GUI:
+
+	    The GUI provides the Mod Construction tab for constructing new mods or 
+	    editing existing ones, in either MCM or AMFS formats. You can access this 
+	    via Tools -> New Code Mod, or by clicking on the Edit button on any mod. 
+	    This interface is also where you can import Gecko codes (with the "Import 
+	    Gecko Code" button in the top-right) and convert a mod to another format 
+	    (via Save or Save As). The Mod Construction tab simplifies creating the 
+	    mod's text formatting and/or files and can help prevent simple errors. 
+
+	    The only aspects of a mod that are required are the title and at least one 
+	    kind of code change, such as a static overwrite or code injection. The 
+	    custom code associated with a code change may be ASM (assembly) or hex code 
+	    (binary). If it's assembly, it will automatically be assembled any time you 
+	    save the mod to your game. However, it's also necessary to do so when 
+	    parsing the library (when opening the program or re-scanning for mods), which 
+	    can take a while if there are many codes saved in the library in assembly form. 
+	    So I recommend keeping it as assembly while you're working on it, and then 
+	    converting it to hex when it's finished. However, comments are allowed, by 
+	    preceding them with a '#', so you could always store the code in both forms, 
+	    with one of them commented out.
+
+	    The Offset field defines the location in the DOL's code where a code change 
+	    will take effect; either replacing code at that location (a static overwrite) 
+	    or injecting some larger piece of code. The value for this field may be the 
+	    the DOL file offset, or you may optionally use the RAM address instead. You 
+	    just need to write it with the preceding "80" part included (e.g. 80054321 or 
+	    0x80054321). 
+
+	    Once you've filled in the Offset field when adding injection mods, you'll 
+	    notice that the "Original Hex at Injection Site" field will automatically be 
+	    filled in for you. This also works with static overwrites, however for them, 
+	    there must be input in both the "Offset" and "New Hex" fields. Then press the 
+	    refresh button (small button with a green arrow) to update the byte count and 
+	    auto-fill the Original Hex field. This is because static overwrites can be any 
+	    length, and so it needs to know how many bytes to count for the original hex.
+
+		Web Links / Configurations:
+
+	    A few mod aspects have not yet been added to the Mod Construction tab 
+	    interface. For example Web Links; which are the links present next to the 
+	    Edit and Configure buttons on a mod in the Code Manager tab (for example, 
+	    see the "Fastfall Whenever" mod, which has a button linking to its 
+	    SmashBoards post). Any mod may have several of these, but they may only link 
+	    to approved sites. Which are so far only SmashBoards, YouTube, and GitHub.
+
+	    Fortunately, adding Web Links is very easy to do manually. Simply add a link 
+	    in <> brackets at the end of the description section of an MCM format mod. 
+	    (For an example, see the MCM Mod Formatting sub-section below this one.)
+	    For AMFS mods, they are defined in the JSON file. Add a "webLinks" list in 
+	    the main dictionary that also has the name, description, etc. For example:
+
+	    "webLinks": [ 
+		[ "https://www.youtube.com/watch?v=19JYOVPmwDM", "This is a comment." ], 
+		[ "https://github.com/DRGN-DRC/DAT-Texture-Wizard", "GitHub link to DTW." ]
+	    ],
+
+	    There is currently no support for Web Links for Gecko or Minimal formats. 
+	    The other option that doesn't have a GUI for adding/editing it yet are 
+	    Configurations, which are defined in the section after this one. The rest 
+	    of this section goes into the various mod formats in greater detail in case 
+	    you'd like to make them on your own, such as in another program.
+
+		MCM Mod Formatting:
+
+	    The format is fairly simple, and most apparent by just looking at existing 
+	    examples, but you'll find some not so obvious details here. The first thing 
+	    to notice is that mods are all separated from one another by a "-==-" 
+	    string; this isn't simply cosmetic, it's what the program uses to tell 
+	    individual mods apart from one another (lines, indents, or spaces before/
+	    after it do not matter). Next, you have the header, which starts with the 
+	    title, followed by any number of lines for a description, then the author 
+	    enclosed in [] brackets. For example:
+
+Extended Name Entry
+English alphabet name tags can be up to 8 characters in length.
+Press X Button to shift between upper and lowercase characters.
+[Dan Salvato]
+
+	    Title is mandatory. Including the author is encouraged of course, and a 
+	    description is nice if the title isn't completely self-explanatory, but 
+	    is optional. However, the brackets for the author must be written, even 
+	    if all they include is "??", or something else in cases where you don't 
+	    know the author.
+
+	    Another optional feature, that follows immediately after the description, 
+	    is the addition of web links. You can add URLs in angle brackets (just 
+	    like you would in Discord), like so:
+
+Invisible ceiling glitch fix
+This is description text.
+<https://smashboards.com/threads/bug-fixes.471624/post-22930938>
+[tauKhan]
+
+	    These will automatically show up in the GUI as clickable buttons on the 
+	    mod next to the Edit and Configuration buttons. You can add as many web 
+	    links/buttons to a mod as you like (each in their own set of brackets), 
+	    but to prevent any malicious use, the domains are currently restricted 
+	    to SmashBoards, GitHub, and YouTube.
+
+	    Following the header lines above I typically have this line:
+
+Revision ---- DOL Offset ---- Hex to Replace ---------- ASM Code -
+
+	    This is the only line that's fully cosmetic, provided for readability 
+	    for those looking through these codes in the text files; it's ignored 
+	    by the program's parser, so you don't need to include it if you don't 
+	    want to.
+
+	    Next, we get to the mod's custom code changes. There can be any number 
+	    of static overwrites, injection mods, or "standalone" functions (and 
+	    can appear in any order). Static overwrites are the kind of modification 
+	    that simply change one or more bytes from one set to another (i.e. no 
+	    branches or anything fancy like that). The change can be any length, and 
+	    can be written like this, for short ones:
+
+NTSC 1.02 ----- 0x8023cdd4 --- 7C7E01AE -> 7c7e032e
+
+	    Or like this for long overwrites:
+
+NTSC 1.02 ----- 0x804d4d90 ---
+
+82690000 82730000
+82580000 81440000
+82680000 82720000
+82570000 81900000
+82670000 82710000
+82560000 81950000
+82660000 82700000
+
+->
+
+4a000000 54000000
+39000000 2e000000
+49000000 53000000
+38000000 81900000
+48000000 52000000
+37000000 81950000
+47000000 51000000
+
+	    In both of these cases, the first line starts with the game revision 
+	    (region and game version) that the changes will be for. This is 
+	    followed by the offset in the file for where to make the change (or 
+	    RAM address instead, as you see here), then the game's original hex is 
+	    next, followed by an arrow, and finally and the new custom code.
+
+	    Even in the first 1-liner example, you're not limited to just 4 bytes. 
+	    The number of bytes -and thus the line- can be as long as you want. 
+	    However, the second format greatly helps with readability in the text 
+	    files.
+
+	    Also, you can add comments/notes anywhere in the text files by using a 
+	    "#" sign. Anything after it on that line will not be read as part of 
+	    the code. For example:
+
+Revision ---- DOL Offset ---- Hex to Replace ---------- ASM Code -
+1.00 ------ 0x125818 ---- 901F2230 -> 60000000 # (stw r0,8752(r31) -> nop) this is commented out
+1.01 ------ 0x125BC8 ---- 901F2230 -> 60000000 # (stw r0,8752(r31) -> nop)
+# This is a comment, which will not be read by the program.
+# Check out the line below! It's cool, isn't it?!
+1.02 ------ 0x125EA4 ---- 901F2230 -> 60000000 # (stw r0,8752(r31) -> nop)
+PAL ------- 0x126648 ---- 901F2230 -> 60000000 # (stw r0,8752(r31) -> nop)
+
+	    Comments of this kind that are near code changes like above will still 
+	    appear in the "New Hex" field when you're viewing the mod in the Mod 
+	    Construction tab. To completely hide things so that they only exist in 
+	    the text file, you can use '##' to fully comment it out from parsing.
+
+	    Next up, Injection Mods. These branch out of the game's normal execution 
+	    to go to and run your custom code. They follow this form:
+
+PAL ------ 0x80136CB4 --- 94650008 -> Branch
+
+3DC0FF00 61CEFFFF
+7C007000 40820060
+39E5E181 89EF0000
+2C0F0001 40820010
+3C60FF00 6063BE0C
+3C001900 2C0F0002
+40820010 3C60FF00
+60638DD5 3C002E00
+2C0F0003 40820010
+3C60FF00 6063F7E1
+3C008300 2C0F0004
+40820010 3C60FF00
+60637D77 3C00C800
+6000FFFF 94650008
+60000000 48000000
+
+	    You might be wondering about that branch back at the end. Well, as long 
+	    as the opcode for that last instruction is 48, 49, 4A, 4B, or 00, then 
+	    that instruction will simply be replaced with a branch that goes directly 
+	    back to after the injection site that you defined (i.e. the code offset, 
+	    or 0x80136CB8 in the case above).
+
+	    Note that "lines" are usually considered to be 8 bytes. But these long 
+	    sections of code are later just combined by the program, so there's 
+	    nothing really special about the line breaks or spaces. Meaning that to 
+	    save space (and scrolling) in the file, you could also write the above 
+	    example with more hex per line if you'd like, like so:
+
+PAL ------ 0x80136CB4 --- 94650008 -> Branch
+
+3DC0FF00 61CEFFFF 7C007000 40820060 39E5E181 89EF0000
+2C0F0001 40820010 3C60FF00 6063BE0C 3C001900 2C0F0002
+40820010 3C60FF00 60638DD5 3C002E00 2C0F0003 40820010
+3C60FF00 6063F7E1 3C008300 2C0F0004 40820010 3C60FF00
+60637D77 3C00C800 6000FFFF 94650008 60000000 48000000
+
+	    This is true for the hex in long static overwrites too. The ASM <-> HEX 
+	    Converter tool (found in the Tools menu) has a Beautify Hex feature and 
+	    can quickly help you to reformat hex from 1 to 6 words (8 bytes) per line.
+
+	    Finally, you can add standalone functions like so:
+
+<nameOfFunction>
+01234567 01234567 # Gibberish example code
+01234567 01234567
+01234567 01234567
+01234567 01234567
+
+	    	Standalone Functions and Special Branch Syntaxes:
+
+	    Unlike Injection Mods, which automatically return to the code's injection 
+	    site, Standalone Functions will not end by branching back to a specific 
+	    place, so their code can be easily accessed and shared by multiple mods. 
+	    These can be blocks of code functions or tables of raw data that you want 
+	    to store in the DOL and later reference. This avoids having to hardcode 
+	    RAM addresses for the code or having to add it to the DOL multiple times 
+	    for/alongside each mod that requires it. This can add up to saving quite 
+	    a bit of space in the DOL, especially as mods continue to become more 
+	    numerous and complex.
+
+	    Here's an example:
+
+Title of Mod
+Description Text! This mod does nothing!
+[DRGN]
+Revision ---- DOL Offset ---- Hex to Replace ---------- ASM Code -
+1.02 ------ 0x28059C ---- 7C0802A6 -> Branch
+
+01234567 01234567 # Do stuff
+01234567 01234567
+01234567 01234567
+bl <yourFunction> # branches to the "yourFunction" code block
+01234567
+01234567 01234567
+01234567 01234567
+01234567 48000000
+
+1.02 ------ 0x66f40 ---- 7C0802A6 -> Branch
+
+01234567 01234567 # More gibberish example code
+01234567 01234567
+01234567 00000000
+
+<yourFunction>
+3DC0FF00 61CEFFFF 7C007000 40820060 39E5E181 89EF0000
+2C0F0001 40820010 3C60FF00 6063BE0C 3C001900 2C0F0002
+3DC0FF00 61CEFFFF 7C007000 40820060 39E5E181 89EF0000
+2C0F0001 40820010 3C60FF00 6063BE0C 3C001900 2C0F0002
+40820010 3C60FF00 60638DD5 3C002E00 2C0F0003 40820010
+3C60FF00 6063F7E1 3C008300 2C0F0004 40820010 3C60FF00
+60637D77 3C00C800 6000FFFF 94650008 60000000 48000000
+
+	    Now, any number of other installed mods that want to use yourFunction 
+	    (you can name these as you like, just avoid special characters) could 
+	    be added to the game, and yet the yourFunction block of code will only 
+	    be added to the DOL just once. (You can check the exact location where 
+	    anything is changed or added to the DOL, including SFs, in the Summary 
+	    tab).
+
+	    Another special branch syntax exists to make it much easier to branch 
+	    directly to any place in RAM, such as to one of the game's vanilla 
+	    functions. For example:
+
+7C0802A6 90010008
+9421FFF0 7FE4FB78
+7FC3F378
+bl 0x800948A8  # Items_GiveItemToPlayer
+38210010 80010008
+7C0803A6 4E800020
+
+	    This branches right to the game's standard function for giving an item 
+	    to a player. When using this, you don't even need to first update the 
+	    link register. So you could replace all of these commands in your usual 
+	    code:
+
+lis r4,0x8009
+ori r4,r4,0x48A8
+mtlr r4
+blrl
+
+	    with just "bl 0x800948a8". The special branch isn't simply replaced with 
+	    the above 4 lines, it's calculated as a new branch. So this saves 12 
+	    bytes of space for each instance when used in your codes.
+
+	    These special branching syntaxes (whether using a <name> for your own 
+	    functions, or RAM addresses) should compile for any branch commands that 
+	    use a target. But of course, it will only work for things that would 
+	    logically work in the first place. For example, "b <nameOfFunction>" 
+	    (note that that's not bl) will successfully create a branch to the custom 
+	    function, but remember that there is no branch-back automatically included 
+	    at the end of standalone functions, so in most cases, this wouldn't make 
+	    much sense as the function wouldn't know where to return to (unless you 
+	    write it to always go to the same place, regardless of what called it, 
+	    or it ends with a "blr" command).
+
+	    You can find some real-world examples of these in a few mods by Punkline:
+
+		Example 1 | The Impossible Cancel​:
+	https://smashboards.com/threads/new-costume-dependent-sword-colors-code-for-marth.432680/#post-21556268
+
+		Example 2 | Costume Dependent Sword Trails (all sword users)​
+	https://smashboards.com/threads/the-impossible-cancel.425268/#post-21138873
+​
+	    You can also very easily define different standalone functions to be used 
+	    for specific versions of the game. For example:
+
+<Func1> NTSC 1.02​
+[some code]​
+
+	    Or​
+
+<Func1> PAL 1.00​
+[some variation of the code for PAL]​
+
+	    While in your code you would still be calling the same function name, 
+	    and you don't need to specify which variation to use; i.e "bl <Func1>" 
+	    is all that would need to be in your code. The appropriate function will 
+	    be selected for that game version during the mod(s) installation.
+
+		Special Syntax - RAM Pointer Symbols:
+
+	    This feature takes further advantage of Standalone Functions. SFs are 
+	    assigned to addresses in RAM which are dynamically determined (meaning 
+	    they can change) when the program installs mods and saves their ASM/Hex 
+	    to the DOL. (You can also always look at the Summary tab if you'd like to 
+	    know where a particular piece of data was stored.) So this pointer symbol 
+	    syntax allows you to use a symbol (basically a variable name), in this 
+	    case, a standalone function's name, in place of that dynamic RAM address.
+
+	    So, for example, you could write:
+
+.long <<functionName>>​
+lis r0, <<functionName>>@h​
+ori r31, r0, <<functionName>>@l​
+
+	    Which would become (assuming a function located at 0x80123456):
+
+.long 0x80123456​
+lis r0, 0x80123456@h​
+ori r31, r0, 0x80123456@l​
+
+	    And would then assemble as usual to:
+
+80123456 3C008012​
+601F3456​
+
+		Converting Between Gecko Codes and Standard DOL Mods:
+
+	    The explanation below explains converting a Gecko code to a DOL mod, such 
+	    as what you would find in one of the program's Code Library text files. 
+	    However, this will allow you to understand how you can convert going the 
+	    other way too, from DOL mod to Gecko code.
+
+	    Most often, you'll just need to be able to identify static overwrite (04 
+	    type codes), and injection mod (C2 type) portions within the code.
+
+	    Here's an example:
+
+CSS Hands Default to HMN Button (with bug fixes) (1.02) [achilles]
+044DC47C C0200000
+C2261A6C 00000005
+89FF0005 2C0F0002
+40820014 3DE08026
+61EF1B6C 7DE903A6
+4E800420 1C130024
+60000000 00000000
+
+Here, you first have a 04 type (a static overwrite), which targets RAM address 0x804DC47C. To elaborate, the first two characters are called the OpCode (short for operation code), and the following 6 characters are an address relative to the base RAM address that is being used to run the game, which is 0x80000000. The 4 bytes of hex that follows this, C0200000, will replace whatever code is in RAM at that address. For some cases this may not be possible, particularly if the RAM address that needs to be changed does not exist in the DOL. For that, an injection would need to be written to make the change instead.
+
+Next, you have the C2 code type, which is basically just a wrapper for a standard injection mod. What this means is that it runs a certain snippet of code when the game's code execution reaches a specific point. (This is one reason why standard injection mods are more efficient than Gecko codes: because you don't have all of this extra overhead, including the Gecko codehandler, in order to run the same bit of code.) Removing the opcode characters, "C2", and adding the base address of 0x80000000, we see that the injection point for this code is the RAM address 0x80261A6C. The number in the next 4 bytes, 5 in this case, is the number of lines this applies to, which is the rest of the code lines in this case. (Keep in mind that this is in hex! So if you see something like 10, for example, that's actually 16 lines.) With this info you can easily create a mod in the "Mod Construction" tab of MCM, which will write out the rest of the syntax for you; just plug in the values from the code above to get this:
+
+
+Spoiler: Or as seen via the "Add New Mod to Library" tool in MCM version 2.x
+The small button with the green arrow primarily does two things: for static overwrites, once an offset and new code values are given, you can use it to look up the 'original hex' value for you; and for injection mods, you can use it to look up the 'original hex' as well as update the byte count (the "(0x__ bytes)" label), which displays how long the injection code is.
+
+The Share button toward the top of the mod will open a window that allows you to preview and/or copy the text that will be generated for this mod. The Info button next to it shows extra details on the mod.
+
+There are some other code types you might run into out there. Many should be able to be transitioned into some combination of static overwrites and injection mods (keep in mind that static overwrites can be any length). Here's some documentation on them that may help you to convert other types:
+
+Gecko Codetype Documentation - Full list of the opcodes and commands/features of Gecko code​
+WiiBrew Assembler Tutorial - Information about the standard assembly instruction set​
+Assembly Guides, Resources, & Q/A - Our thread on more general resources​
+
+If you need help, feel free to post.
+
+
+	 Configurations
+	----------------
+
+	    Mods with configuration options available will display an extra button on 
+	    the mod; it appears as a wrench & screwdriver icon next to the Edit button. 
+	    Clicking on the button opens a configuration window that presents those 
+	    options with controls to edit them. This window is very dynamic, and just 
+	    like the mods themselves, can support any number of customizations, with 
+	    different forms of input. These forms of input can be given to a mod to 
+	    appear as options for a user:
+
+		* Sliders (with customizable range)
+		* Dropdown menus
+		* Standard decimal/hex/float value input
+
+	    These may be added later, if there are requests for them:
+		* ON/OFF toggles
+		* Color pickers
+		* Checkboxes for flag values
+
+	    Currently the Mod Construction tab doesn't yet have an interface to add 
+	    configurations to a mod, but it's also fairly easy to add them by editing 
+	    the mod manually. Here's an example of a mod in MCM format with a single 
+	    configuration option:
+
+
+Boot to Scene
+Does not skip loading memory card data. Defaults to VS Mode.
+Note that this is a stripped-down demo; there are many more modes you can boot to!
+Configurations:
+    uint8 Scene = 2
+        0x00: Title Screen (Press Start)
+        0x02: VS Mode Character Select Screen
+        0x04: Adventure Mode
+        0x06: Debug Menu
+        0x0F: Target Test # This is a comment!
+        0x1F: Stamina Mode
+        0x20: Home-Run Contest
+        0x26: Cruel Melee
+[Dan Salvato, Achilles, DRGN]
+Revision ---- DOL Offset ---- Hex to Replace ---------- ASM Code -
+NTSC 1.00 ---- 0x1BB794 ----- 7C601A14 -> 386000[[Scene]]
+NTSC 1.01 ---- 0x1BBFA8 ----- 38600004 -> 386000[[Scene]]
+NTSC 1.02 ---- 0x1BC600 ----- 887F0004 -> 386000[[Scene]]
+PAL 1.00 ----- 0x1BE160 ----- 38C00000 -> 386000[[Scene]]
+
+
+	    The "Configurations:" line marks the start of the configurations section.
+	    The line following it defines the type of value that will be updated in 
+	    the custom code, the name of the value, and the default value. Following 
+	    that are the options that the user will be able to choose between in the 
+	    configurations window using a drop-down menu. (Before the colon is the 
+	    value that will be set in the custom code for this option, and after the 
+	    colon is the name for that value selection.) As shown with the Target Test 
+	    selection, you can also set comments. These are displayed in the 
+	    configuration window when you hover over the option name, so these can be 
+	    very helpful descriptors to aid the user in their choice or provide extra 
+	    notes.
+
+	    And finally, in the custom code, you can see the placeholder for the 
+	    option's value. Naturally, this is replaced with the current value for 
+	    that option when you save. And when you load a game in the program, the 
+	    current value in the game will be read and displayed when viewing that mod.
+	    This placeholder works with custom code in hex form (as shown above) or as 
+	    assembly. Here's an example with one of the replacments in assembly:
+
+
+Boot with Debug Mode
+The game's normal default is Japanese. The default for this code is English.
+Configurations:
+    uint8 Language = 1
+        0: Japanese 
+        1: US English 
+        2: UK English (PAL Only) 
+        3: German (PAL Only) 
+        4: French (PAL Only) 
+        5: Italian (PAL Only) 
+        6: Spanish (PAL Only) 
+    uint8 Debug Level = 1
+        0: Level 0 - Master 
+        1: Level 1 - No-Debug-Rom 
+        2: Level 2 - Debug-Develop 
+        3: Level 3 - Debug-Rom 
+        4: Level 4 - Develop 
+[SypherPhoenix, tauKhan, DRGN]
+Revision ---- DOL Offset ---- Hex to Replace ---------- ASM Code -
+NTSC 1.02 ---- 0x3F725B ----- 00 -> [[Language]]
+-------------- 0x15C99C ----- 387F0000 -> 480000AC # Skip normal checks for debug.ini
+-------------- 0x15CA48 -----
+
+38600004 38000000
+906D9368 900DB480
+
+ -> 
+
+# This is the target of the 480000AC branch added above.
+li	r3, [[Debug Level]]
+li	r0, 0
+stw	r3, -0x6C98 (r13)
+stw	r0, -0x4B80 (r13)
+
+
+	    This one has two different configuration options: Language, and Debug Level. 
+	    Both of these example options are for drop-down selections. To create a 
+	    slider instead, omit the individual named selections and add a range 
+	    specification instead, like so:
+
+
+Example Mod
+Description (optional).
+Configurations:
+    uint16 Option Name = 5; 0 - 10
+[DRGN]
+Revision ---- DOL Offset ---- Hex to Replace ---------- ASM Code -
+NTSC 1.02 ---- 0x1BC600 ----- 887F0004 -> 3860[[Scene]]
+
+
+	    This will create a slider in the configuration window, with the range 
+	    between 0 and 10 (inclusive), and a default value of 5.
+
