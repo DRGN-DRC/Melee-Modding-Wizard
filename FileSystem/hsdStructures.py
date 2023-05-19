@@ -1146,6 +1146,8 @@ class DisplayListBlock( DataBlock ):
 			attributes (provided in attributesInfo), and initializes a list of primitives 
 			with the decoded vertex data. The attributesInfo argument is expected to be a list 
 			of tuples of the form ( name, attrType, compType, vertexDescriptor, indexStride, vertexStream ). """
+		
+		debugging = False
 
 		# Determine the data length and formatting for one entry in the display list
 		baseLength = 0
@@ -1191,7 +1193,7 @@ class DisplayListBlock( DataBlock ):
 					raise Exception( 'display list header data ended prematurely.' )
 				primitiveFlags, indexCount = struct.unpack( '>BH', headerData )
 				primitiveType = primitiveFlags & 0xF8
-				vertexStreamIndex = primitiveFlags & 7
+				#vertexStreamIndex = primitiveFlags & 7
 				offset += 3
 
 				# End the list if encountering an unrecognized type
@@ -1222,7 +1224,8 @@ class DisplayListBlock( DataBlock ):
 				offset += dataLength
 
 		except Exception as err:
-			print( 'Unable to fully parse {}; {}'.format(self.name, err) )
+			if debugging:
+				print( 'Unable to fully parse {}; {}'.format(self.name, err) )
 
 		return primitives
 

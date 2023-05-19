@@ -16,6 +16,9 @@ import pyglet
 import win32api
 import Tkinter as Tk
 
+# Disable error checking for increased performance
+pyglet.options['debug_gl'] = False
+
 from pyglet import gl
 from pyglet.window import key, Projection3D
 from pyglet.app.base import EventLoop
@@ -49,12 +52,12 @@ class RenderEngine( Tk.Frame ):
 		# Create an invisible Pyglet window (cannot create a Pyglet canvas without a window)
 		display = pyglet.canvas.get_display()
 		screen = display.get_default_screen()
-		config = screen.get_matching_configs( gl.Config(double_buffer=True, depth_size=8, alpha_size=8) )[0]
+		config = screen.get_matching_configs( gl.Config(double_buffer=True, depth_size=8, alpha_size=8, samples=8) )[0]
 		self.window = pygletWindow( display=display, config=config, width=self.width, height=self.height, resizable=resizable, visible=False )
 		self.fov = 60; self.znear = 0.1; self.zfar = 3000
 		self.window.projection = Projection3D( self.fov, self.znear, self.zfar )
 		self.window.on_draw = self.on_draw
-		# openGlVersion = self.window.context._info.get_version().split()[0]
+		openGlVersion = self.window.context._info.get_version().split()[0]
 		# print( 'Rendering with OpenGL version {}'.format(openGlVersion) )
 
 		# Set the pyglet parent window to be the tkinter canvas
@@ -63,36 +66,23 @@ class RenderEngine( Tk.Frame ):
 		win32api.SetWindowLong( pyglet_handle, GWLP_HWNDPARENT, self.canvas.winfo_id() )
 
 		# Set up the OpenGL context
+		self.window.switch_to()
 		gl.glEnable( gl.GL_DEPTH_TEST ) # Do depth comparisons and update the depth buffer
 		gl.glDepthFunc( gl.GL_LEQUAL )
 		gl.glEnable( gl.GL_ALPHA_TEST )
 		gl.glEnable( gl.GL_BLEND )
-		#gl.glBlendFunc( gl.GL_SRC_ALPHA, gl.GL_ONE_MINUS_SRC_ALPHA )
-		gl.glEnable( gl.GL_LINE_SMOOTH ) # Anti-aliasing
-		gl.glEnable( gl.GL_POLYGON_SMOOTH )
-		gl.glEnable( gl.GL_MULTISAMPLE )
+		gl.glBlendFunc( gl.GL_SRC_ALPHA, gl.GL_ONE_MINUS_SRC_ALPHA )
 		try:
+			gl.glEnable( gl.GL_LINE_SMOOTH ) # Anti-aliasing
+			gl.glEnable( gl.GL_POLYGON_SMOOTH )
+			gl.glEnable( gl.GL_MULTISAMPLE )
 			gl.glEnable( gl.GL_MULTISAMPLE_ARB )
 		except pyglet.gl.GLException:
-			print( "Warning: Anti-aliasing is not supported on this computer." )
+			print( 'Warning: Anti-aliasing is not supported on this computer.' )
+			print( 'Rendering with OpenGL version {}'.format(openGlVersion) )
 
 		self.clearRenderings()
 		self.resetView()
-
-		# self.vertices = pyglet.graphics.vertex_list( 8,
-		# 	('v3f', [-0.5,-0.5,-0.5, 0.5,-0.5,-0.5, 0.5,0.5,-0.5, -0.5,0.5,-0.5, -0.5,-0.5,0.5, 0.5,-0.5,0.5, 0.5,0.5,0.5, -0.5,0.5,0.5]),
-		# 	('c3B', [255,0,0, 255,255,0, 0,255,0, 0,0,255, 255,0,255, 255,255,255, 0,255,255, 128,128,128])
-		# )
-
-		# quad_vertices = ('v2f', [100, 100, 200, 100, 200, 200, 100, 200])
-		# line_vertices = ('v2f', [50, 50, 200, 200])
-		# triangle_vertices = ('v2f', [300, 100, 350, 200, 250, 200])
-
-		# self.quad_batch = pyglet.graphics.vertex_list(4, quad_vertices)
-		# self.line_batch = pyglet.graphics.vertex_list(2, line_vertices)
-		# self.triangle_batch = pyglet.graphics.vertex_list(3, triangle_vertices)
-
-		#self.pack_propagate( False )
 
 		# Set up event handling for controls
 		#self.window._enable_event_queue = True
@@ -146,6 +136,7 @@ class RenderEngine( Tk.Frame ):
 		self.canvas['height'] = self.height
 
 		# Update the pyglet rendering canvas
+		self.window.switch_to()
 		gl.glViewport( 0, 0, self.width, self.height )
 		self.window._update_view_location( self.width, self.height )
 
@@ -366,7 +357,6 @@ class RenderEngine( Tk.Frame ):
 			gl.glLoadIdentity()
 			gl.glRotatef( self.rotation_X, 0, 1, 0 )
 			gl.glRotatef( self.rotation_Y, 1, 0, 0 )
-			#gl.glScalef( self.scale, self.scale, self.scale )
 			
 			# Render a batch for each set of objects that have been added
 			if self.vertices:
@@ -419,6 +409,44 @@ class RenderEngine( Tk.Frame ):
 			objects = self.vertices + self.edges + self.triangles + self.quads
 
 		return objects
+	
+	def getPrimitiveTotals( self ):
+		
+		""" Collects totals for the number of each type of vertexList 
+			and primitive among vertexLists being rendered. 
+			Returns a dict of key=primType, value=[groupCount, primCount] """
+		
+		totals = { 	'Vertices': [0, 0], 'Lines': [0, 0], 'Line Strips': [0, 0], 
+					'Triangles': [0, 0], 'Triangle Strips': [0, 0], 'Triangle Fans': [0, 0], 
+					'Quads': [0, 0], 'Primitive Groups': 0
+				}
+		
+		for primitive in self.vertexLists:
+			totals['Primitive Groups'] += 1
+
+			if primitive.type == gl.GL_POINTS:
+				totals['Vertices'][0] += 1
+				totals['Vertices'][1] += 1
+			elif primitive.type == gl.GL_LINES:
+				totals['Lines'][0] += 1
+				totals['Lines'][1] += len( primitive.vertices[1] ) / 3
+			elif primitive.type == gl.GL_LINE_STRIP:
+				totals['Line Strips'][0] += 1
+				totals['Line Strips'][1] += len( primitive.vertices[1] ) / 3
+			elif primitive.type == gl.GL_TRIANGLES:
+				totals['Triangles'][0] += 1
+				totals['Triangles'][1] += len( primitive.vertices[1] ) / 3
+			elif primitive.type == gl.GL_TRIANGLE_STRIP:
+				totals['Triangle Strips'][0] += 1
+				totals['Triangle Strips'][1] += len( primitive.vertices[1] ) / 3
+			elif primitive.type == gl.GL_TRIANGLE_FAN:
+				totals['Triangle Fans'][0] += 1
+				totals['Triangle Fans'][1] += len( primitive.vertices[1] ) / 3
+			elif primitive.type == gl.GL_QUADS:
+				totals['Quads'][0] += 1
+				totals['Quads'][1] += len( primitive.vertices[1] ) / 3
+
+		return totals
 
 	def showPart( self, tag, visible, primitive=None ):
 
