@@ -102,7 +102,7 @@ def init( programArgs ):
 		'runDolphinInDebugMode': '0',
 		'createHiResCSPs': '0',
 		'disableMainMenuAnimations': '0',
-		
+
 		# Code related
 		'alwaysEnableCrashReports': '1',
 		'useCodeCache': '1',

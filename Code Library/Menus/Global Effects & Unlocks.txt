@@ -1,59 +1,58 @@
-
 Boot to Scene
-- Does not skip loading memory card data.
+Does not skip loading memory card data. Defaults to VS Mode.
 Configurations:
-    uint8 Scene = 0x2
-	0x00: Title Screen (Press Start)
-	0x01: Language change menu reload? # brings to language change selection and saves
-	0x02: VS Mode Character Select Screen
-	0x03: Classic Mode
-	0x04: Adventure Mode
-	0x05: All-Star Mode
-	0x06: Debug Menu
-	0x07: Master Sound Test
-	0x08: VS Mode CSS Cycler # Looks like regular VS mode, but actually cycles through many different CSSs
-	0x09: Black Screen...?
-	0x0A: Camera Mode
-	0x0B: Trophy Gallery
-	0x0C: Trophy Lottery
-	0x0D: Trophy Collection
-	0x0E: Match # starts with the debug menu configurations?
-	0x0F: Target Test
-	0x10: Super Sudden Death
-	0x11: Invisible Melee
-	0x12: Slo-Mo Melee
-	0x13: Lightning Melee
-	0x14: "A new foe has appeared!" # Ganon with sword, freezes if you try to progress, ID from debug?
-	0x15: Classic Mode trophy acquisition # +credits (C.Falcon, ID from debug?)
-	0x16: Adventure Mode trophy acquisition # +credits (C.Falcon, ID from debug?)
-	0x17: All-Star Mode trophy acquisition # +credits (C.Falcon, ID from debug?)
-	0x18: Intro video
-	0x19: Adventure Mode cinematics cycler
-	0x1A: Character trophy acquisition # no credits (uses All-Star trophy; C.Falcon, ID from debug?)
-	0x1B: Tournament Menu
-	0x1C: Training Mode
-	0x1D: Tiny Melee
-	0x1E: Giant Melee
-	0x1F: Stamina Mode
-	0x20: Home-Run Contest
-	0x21: 10-Man Melee
-	0x22: 100-Man Melee
-	0x23: 3-Minute Melee
-	0x24: 15-Minute Melee
-	0x25: Endless Melee
-	0x26: Cruel Melee
-	0x27: "Enable Progressive Scan Display?"
-	0x28: Plays Intro Video
-	0x29: Memory Card Overwrite Confirmation
-	0x2A: Fixed-Camera Mode
-	0x2B: Event Match 1 # Match ID from the debug menu?
-	0x2C: Single-Button Mode
+    uint8 Scene = 2
+        0x00: Title Screen (Press Start) 
+        0x01: Language change menu reload? # brings to language change selection and saves
+        0x02: VS Mode Character Select Screen 
+        0x03: Classic Mode 
+        0x04: Adventure Mode 
+        0x05: All-Star Mode 
+        0x06: Debug Menu 
+        0x07: Master Sound Test 
+        0x08: VS Mode CSS Cycler # Looks like regular VS mode, but actually cycles through many different CSSs
+        0x09: Black Screen...? 
+        0x0A: Camera Mode 
+        0x0B: Trophy Gallery 
+        0x0C: Trophy Lottery 
+        0x0D: Trophy Collection 
+        0x0E: Match # starts with the debug menu configurations?
+        0x0F: Target Test 
+        0x10: Super Sudden Death 
+        0x11: Invisible Melee 
+        0x12: Slo-Mo Melee 
+        0x13: Lightning Melee 
+        0x14: "A new foe has appeared!" # Ganon with sword, freezes if you try to progress, ID from debug?
+        0x15: Classic Mode trophy acquisition # +credits (C.Falcon, ID from debug?)
+        0x16: Adventure Mode trophy acquisition # +credits (C.Falcon, ID from debug?)
+        0x17: All-Star Mode trophy acquisition # +credits (C.Falcon, ID from debug?)
+        0x18: Intro video 
+        0x19: Adventure Mode cinematics cycler 
+        0x1A: Character trophy acquisition # no credits (uses All-Star trophy; C.Falcon, ID from debug?)
+        0x1B: Tournament Menu 
+        0x1C: Training Mode 
+        0x1D: Tiny Melee 
+        0x1E: Giant Melee 
+        0x1F: Stamina Mode 
+        0x20: Home-Run Contest 
+        0x21: 10-Man Melee 
+        0x22: 100-Man Melee 
+        0x23: 3-Minute Melee 
+        0x24: 15-Minute Melee 
+        0x25: Endless Melee 
+        0x26: Cruel Melee 
+        0x27: "Enable Progressive Scan Display?" 
+        0x28: Plays Intro Video 
+        0x29: Memory Card Overwrite Confirmation 
+        0x2A: Fixed-Camera Mode 
+        0x2B: Event Match 1 # Match ID from the debug menu?
+        0x2C: Single-Button Mode 
 [Dan Salvato, Achilles, DRGN]
-Version -- DOL Offset ------ Hex to Replace ---------- ASM Code
-1.00 ------ 0x1BB794 ---- 887F0004 -> 386000[[Scene]] ---- (lbz r3,4(r31) -> li r0,2)
-1.01 ------ 0x1BBFA8 ---- 887F0004 -> 386000[[Scene]] ---- (lbz r3,4(r31) -> li r0,2)
-1.02 ------ 0x1BC600 ---- 887F0004 -> 386000[[Scene]] ---- (lbz r3,4(r31) -> li r0,2)
-PAL ------- 0x1BE160 ---- 887F0004 -> 386000[[Scene]] ---- (lbz r3,4(r31) -> li r0,2)
+Revision ---- DOL Offset ---- Hex to Replace ---------- ASM Code -
+NTSC 1.00 ---- 0x1BB794 ----- 7C601A14 -> 386000[[Scene]]
+NTSC 1.01 ---- 0x1BBFA8 ----- 38600004 -> 386000[[Scene]]
+NTSC 1.02 ---- 0x1BC600 ----- 887F0004 -> 386000[[Scene]]
+PAL 1.00 ----- 0x1BE160 ----- 38C00000 -> 386000[[Scene]]
 
 
 	-==-

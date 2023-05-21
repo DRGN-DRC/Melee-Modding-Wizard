@@ -459,31 +459,43 @@ class Dol( FileBase ):
 		problemDetails = ''
 		ramAddress = -1
 
-		if len( offsetString ) == 8 and offsetString.startswith( '8' ): # Must be a RAM address
-			if returnType != 'int': # Already a string; no need for conversion
-				ramAddress = '0x' + offsetString.upper()
+		if not offsetString:
+			problemDetails = 'Unable to convert the offset string to a RAM address; no value given.'
 
-			else: # Convert to int
-				address = int( offsetString, 16 )
-				if address >= 0x80003100:
-					if address < self.maxRamAddress:
-						ramAddress = address
-					else: problemDetails = ', because the RAM address is too big.'
-				else: problemDetails = ', because the RAM address is too small.'
+			if returnType == 'int':
+				return -1, problemDetails
+			else:
+				return '-1', problemDetails
 
-		else: # Looks like it's a DOL offset; convert it to a RAM address int
-			offset = int( offsetString, 16 )
-			if offset >= 0x100:
-				if offset < self.maxDolOffset:
-					ramAddress = self.offsetInRAM( offset )
-				else: problemDetails = ', because the DOL offset is too big.'
-			else: problemDetails = ', because the DOL offset is too small.'
+		try:
+			if len( offsetString ) == 8 and offsetString.startswith( '8' ): # Must be a RAM address
+				if returnType != 'int': # Already a string; no need for conversion
+					ramAddress = '0x' + offsetString.upper()
 
-			if returnType != 'int' and not problemDetails:
-				ramAddress = uHex( ramAddress )
+				else: # Convert to int
+					address = int( offsetString, 16 )
+					if address >= 0x80003100:
+						if address < self.maxRamAddress:
+							ramAddress = address
+						else: problemDetails = ', because the RAM address is too big.'
+					else: problemDetails = ', because the RAM address is too small.'
+
+			else: # Looks like it's a DOL offset; convert it to a RAM address int
+				offset = int( offsetString, 16 )
+				if offset >= 0x100:
+					if offset < self.maxDolOffset:
+						ramAddress = self.offsetInRAM( offset )
+					else: problemDetails = ', because the DOL offset is too big.'
+				else: problemDetails = ', because the DOL offset is too small.'
+
+				if returnType != 'int' and not problemDetails:
+					ramAddress = uHex( ramAddress )
+
+		except Exception as err:
+			return -1, 'Problem detected while processing the offset 0x{}; {}'.format( offsetString, err )
 
 		if problemDetails:
-			return -1, 'Problem detected while processing the offset 0x' + offsetString + '; it could not be converted to a RAM address' + problemDetails
+			return -1, 'Problem detected while processing the offset 0x{}; it could not be converted to a RAM address {}'.format( offsetString, problemDetails )
 
 		return ramAddress, ''
 

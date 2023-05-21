@@ -631,7 +631,6 @@ class CodeMod( object ):
 			else: # Assume decimal value
 				value = int( value )
 
-
 		return value
 	
 	def restoreConfigDefaults( self ):
@@ -837,7 +836,10 @@ class CodeMod( object ):
 						headerLines.append( '        {}: {}'.format(value, name) )
 					else:
 						name, value, comment = components
-						headerLines.append( '        {}: {} {}'.format(value, name, comment.lstrip()) )
+						line = '        {}: {}'.format( value, name )
+						if comment: # Expected to still have "#" prepended
+							line += ' ' + comment.lstrip()
+						headerLines.append( line )
 		
 		if self.auth:
 			headerLines.append( '[' + self.auth + ']' )
@@ -1038,6 +1040,24 @@ class CodeMod( object ):
 			return ''.join( codeChanges )
 		else:
 			return '${} [{}]\n{}'.format( self.name, self.auth, '\n'.join(codeChanges) )
+
+	def sameSaveLocation( self, mod ):
+
+		""" Checks if a given mod has the same save location as this one. """
+
+		if self.isMini and mod.isMini:
+			if self.path == mod.path:
+				return True
+
+		elif self.isAmfs and mod.isAmfs:
+			if self.path == mod.path:
+				return True
+
+		else: # MCM format
+			if self.fileIndex == mod.fileIndex and self.path == mod.path:
+				return True
+
+		return False
 
 	def saveInGeckoFormat( self, savePath ):
 

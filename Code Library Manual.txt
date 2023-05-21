@@ -101,6 +101,12 @@
 			can usually be easily converted into one of the other formats. 
 			Conversion is supported for Gecko code types 00/02/04/06 and C2. 
 
+		* Minimal:
+			This is the simplest format, consisting of just a single file. 
+			The file name is the name of the mod, and the contents consist 
+			of a header which includes the author and target offset, as well 
+			as the custom code. This format also supports the code cache.
+
 		* AMFS (ASM Mod Folder Structure):
 			This format stores everything for one mod in a folder, with each 
 			code change (i.e. a static overwrite or injection) stored in its 
@@ -111,12 +117,6 @@
 			can be used, and 2) you can more easily view/edit each function or 
 			code change in its own tab when opening it in your IDE. Thus, this 
 			format is particularly useful for more complex mods.
-
-		* Minimal:
-			This is the simplest format, consisting of just a single file. 
-			The file name is the name of the mod, and the contents consist 
-			of a header which includes the author and target offset, as well 
-			as the custom code. This format also supports the code cache.
 
 
 	    This feature chart may help you decide which to use:
@@ -194,6 +194,10 @@
 	    refresh button (small button with a green arrow) to update the byte count and 
 	    auto-fill the Original Hex field. This is because static overwrites can be any 
 	    length, and so it needs to know how many bytes to count for the original hex.
+
+	    The Share button toward the top of the mod will open a window that allows you 
+	    to preview and/or copy the text that will be generated for this mod. The Info 
+	    button next to it shows extra details on the mod.
 
 		Web Links / Configurations:
 
@@ -519,10 +523,13 @@ ori r31, r0, 0x80123456@l​
 
 		Converting Between Gecko Codes and Standard DOL Mods:
 
-	    The explanation below explains converting a Gecko code to a DOL mod, such 
-	    as what you would find in one of the program's Code Library text files. 
-	    However, this will allow you to understand how you can convert going the 
-	    other way too, from DOL mod to Gecko code.
+	    The program offers an automatic conversion of Gecko codes to mods in 
+	    other formats. You can find this by creating a new mod (Tools -> New 
+	    Code Mod), or editing an existing one; in the top-right of the interface 
+	    is the "Import Gecko Code" button. This will load code changes from the 
+	    Gecko code into the code you opened. This can then be saved in any 
+	    format. Only op codes 00 through 06 and C2 are supported in this way, 
+	    though this covers most Gecko codes you're likely to encounter.
 
 	    Most often, you'll just need to be able to identify static overwrite (04 
 	    type codes), and injection mod (C2 type) portions within the code.
@@ -538,23 +545,48 @@ C2261A6C 00000005
 4E800420 1C130024
 60000000 00000000
 
-Here, you first have a 04 type (a static overwrite), which targets RAM address 0x804DC47C. To elaborate, the first two characters are called the OpCode (short for operation code), and the following 6 characters are an address relative to the base RAM address that is being used to run the game, which is 0x80000000. The 4 bytes of hex that follows this, C0200000, will replace whatever code is in RAM at that address. For some cases this may not be possible, particularly if the RAM address that needs to be changed does not exist in the DOL. For that, an injection would need to be written to make the change instead.
+	    Here, you first have a 04 type (a static overwrite), which targets RAM 
+	    address 0x804DC47C. To elaborate, the first two characters are called 
+	    the OpCode (short for operation code), and the following 6 characters 
+	    are an address relative to the base RAM address that is being used to 
+	    run the game, which is 0x80000000. The 4 bytes of hex that follows this, 
+	    C0200000, will replace whatever code is in RAM at that address. For some 
+	    cases this may not be possible, particularly if the RAM address that 
+	    needs to be changed does not exist in the DOL. For that, an injection 
+	    would need to be written to make the change instead.
 
-Next, you have the C2 code type, which is basically just a wrapper for a standard injection mod. What this means is that it runs a certain snippet of code when the game's code execution reaches a specific point. (This is one reason why standard injection mods are more efficient than Gecko codes: because you don't have all of this extra overhead, including the Gecko codehandler, in order to run the same bit of code.) Removing the opcode characters, "C2", and adding the base address of 0x80000000, we see that the injection point for this code is the RAM address 0x80261A6C. The number in the next 4 bytes, 5 in this case, is the number of lines this applies to, which is the rest of the code lines in this case. (Keep in mind that this is in hex! So if you see something like 10, for example, that's actually 16 lines.) With this info you can easily create a mod in the "Mod Construction" tab of MCM, which will write out the rest of the syntax for you; just plug in the values from the code above to get this:
+	    Next, you have the C2 code type, which is basically just a wrapper for a 
+	    standard injection mod. What this means is that it runs a certain snippet 
+	    of code when the game's code execution reaches a specific point. Removing 
+	    the opcode characters, "C2", and adding the base address of 0x80000000, 
+	    we see that the injection point for this code is the RAM address 0x80261A6C. 
+	    The number in the next 4 bytes, 5 in this case, is the number of lines this 
+	    applies to, which is the rest of the code lines in this case. (Keep in mind 
+	    that this is in hexadecimal! So if you see something like 10, for example, 
+	    that's actually 16 lines.)
 
+	    By the way, in this example you can see one of the reasons why codes 
+	    in Gecko code form are less efficient than the other formats. The 
+	    code example above (ignoring the addition of the Gecko codehandler 
+	    for now) takes up 56 bytes. In another format, it would take up only 
+	    36 bytes; a 36% reduction in size!
 
-Spoiler: Or as seen via the "Add New Mod to Library" tool in MCM version 2.x
-The small button with the green arrow primarily does two things: for static overwrites, once an offset and new code values are given, you can use it to look up the 'original hex' value for you; and for injection mods, you can use it to look up the 'original hex' as well as update the byte count (the "(0x__ bytes)" label), which displays how long the injection code is.
+	    There are some other code types you might run into out there. Many should 
+	    be able to be transitioned into some combination of static overwrites and 
+	    injection mods (keep in mind that static overwrites can be any length). 
+	    Here's some documentation on them that may help you to convert other types:
 
-The Share button toward the top of the mod will open a window that allows you to preview and/or copy the text that will be generated for this mod. The Info button next to it shows extra details on the mod.
+	Gecko Codetype Documentation (List of OpCodes and commands/features):
+		http://geckocodes.org/index.php?arsenal=1
+​
+	WiiBrew Assembler Tutorial - Information about the standard assembly instruction set​:
+		http://wiibrew.org/wiki/Assembler_Tutorial
 
-There are some other code types you might run into out there. Many should be able to be transitioned into some combination of static overwrites and injection mods (keep in mind that static overwrites can be any length). Here's some documentation on them that may help you to convert other types:
+	Assembly Guides, Resources, & Q/A - Our thread on more general resources​:
+		https://smashboards.com/threads/assembly-guides-resources-q-a.397941/
 
-Gecko Codetype Documentation - Full list of the opcodes and commands/features of Gecko code​
-WiiBrew Assembler Tutorial - Information about the standard assembly instruction set​
-Assembly Guides, Resources, & Q/A - Our thread on more general resources​
-
-If you need help, feel free to post.
+	    If you need help, feel free to post in the MCM or MMW SmashBoards thread, 
+	    or to ask in the Discord server.
 
 
 	 Configurations

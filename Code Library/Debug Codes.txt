@@ -55,7 +55,7 @@ NTSC 1.02 --- 0x8015FDBC ---- 387F0000 -> 480000AC
 Boot with Debug Mode
 The game's normal default is Japanese. The default for this code is English.
 Configurations:
-    uint8 Language = 1; 0-5
+    uint8 Language = 1
         0: Japanese
         1: US English
         2: UK English (PAL Only)

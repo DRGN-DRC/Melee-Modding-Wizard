@@ -271,26 +271,17 @@ class CodeManagerTab( ttk.Frame ):
 		
 		modules = self.getModModules( currentTab )
 
-		# print( '--' )
-		# print( 'calling on ', currentTab.master.tab( currentTab, option='text' ) )
-
 		# Count the mods enabled or selected for installation
 		thisTabSelected = 0
 		for modModule in modules:
 			if modModule.mod.state == 'enabled' or modModule.mod.state == 'pendingEnable':
 				thisTabSelected += 1
 
-			# if 'Flame Cancel' in modModule.mod.name:
-			# 	print( 'from this tab:', modModule.mod.auth )
-
 		# Check total selected mods
 		librarySelected = 0
 		for mod in globalData.codeMods:
 			if mod.state == 'enabled' or mod.state == 'pendingEnable':
 				librarySelected += 1
-
-			# if 'Flame Cancel' in mod.name:
-			# 	print( 'from globals:', mod.auth )
 
 		self.installTotalLabel.set( 'Enabled on this tab:   {} / {}\nEnabled in library:   {} / {}'.format(thisTabSelected, len(modules), librarySelected, len(globalData.codeMods)) )
 
@@ -886,7 +877,6 @@ class CodeManagerTab( ttk.Frame ):
 	def selectAllMods( self, event ):
 		currentTab = self.getCurrentTab()
 
-		#for mod in currentTab.winfo_children()[0].mods:
 		for module in self.getModModules( currentTab ):
 			if module.mod.state == 'pendingDisable': module.setState( 'enabled', updateControlPanelCounts=False )
 			elif module.mod.state == 'disabled': module.setState( 'pendingEnable', updateControlPanelCounts=False )
@@ -897,7 +887,6 @@ class CodeManagerTab( ttk.Frame ):
 	def deselectAllMods( self, event ):
 		currentTab = self.getCurrentTab()
 
-		#for mod in currentTab.winfo_children()[0].mods:
 		for module in self.getModModules( currentTab ):
 			if module.mod.state == 'pendingEnable': module.setState( 'disabled', updateControlPanelCounts=False )
 			elif module.mod.state == 'enabled': module.setState( 'pendingDisable', updateControlPanelCounts=False )
@@ -1453,7 +1442,8 @@ class ModModule( Tk.Frame, object ):
 		# Check if the selected mod already exists (and select that if it does)
 		for windowName in mainGui.codeConstructionTab.tabs():
 			tab = globalData.gui.root.nametowidget( windowName )
-			if tab.mod is self.mod: # Found it!
+
+			if tab.mod.sameSaveLocation( self.mod ): # Found it!
 				mainGui.codeConstructionTab.select( tab )
 				break
 
@@ -1520,14 +1510,11 @@ class CodeConstructor( Tk.Frame ):
 		self.openButton = None
 
 		if modModule:
-			self.libGuiModule = modModule
-			self.mod = modModule.mod
-			self.mod.guiModule = None		# Need to detatch for deepcopy; reattach during back-up restore
-			self.backup = copy.deepcopy( modModule.mod )
+			# Create a copy of the mod so we don't edit the original (in case changes should be discarded)
+			modModule.mod.guiModule = None # Must be detatched for deepcopy
+			self.mod = copy.deepcopy( modModule.mod )
 		else:
-			self.libGuiModule = None
 			self.mod = CodeMod( 'New Mod' )
-			self.backup = self.mod
 
 		# Top buttons row
 		self.buttonsFrame = Tk.Frame( self )
@@ -1666,9 +1653,7 @@ class CodeConstructor( Tk.Frame ):
 		self.revisionsNotebook.pack( fill='both', expand=1, anchor='n', padx=12, pady=6 )
 
 		# New hex field label
-		# self.revisionsNotebook.newHexLabel = Tk.StringVar()
-		# self.revisionsNotebook.newHexLabel.set( '' )
-		# ttk.Label( self.revisionsNotebook, textvariable=self.revisionsNotebook.newHexLabel ).place( anchor='e', y=9, relx=.84 )
+		ttk.Label( self.revisionsNotebook, text='Custom Code:' ).place( anchor='e', y=9, relx=.6 )
 
 		# Add the version adder tab.
 		versionChangerTab = Tk.Frame( self.revisionsNotebook )
@@ -2234,7 +2219,6 @@ class CodeConstructor( Tk.Frame ):
 	def updateErrorNotice( self, newError='', codeChangeModule=None ):
 
 		if newError:
-			#self.mod.errors.append( newError )
 			self.mod.errors.add( newError )
 
 		# If this mod has errors, show the warnings button if it's not present (or remove it if this mod is OK)
@@ -2374,6 +2358,32 @@ class CodeConstructor( Tk.Frame ):
 		
 		return True
 
+	# def restoreBackup( self ):
+
+	# 	""" Restores the saved backup to replace the mod that has already been modified. 
+	# 		This is used when closing this mod from editing, but without saving changes. """
+
+	# 	# If the backup has no save location, it's a new mod that shouldn't be restored
+	# 	if not self.backup.path:
+	# 		return
+
+	# 	for i, mod in enumerate( globalData.codeMods ):
+	# 		if mod.sameSaveLocation( self.backup ):
+	# 			globalData.codeMods[i] = self.backup
+	# 			break
+
+	# 	codeManagerTab = globalData.gui.codeManagerTab
+	# 	modFound = False
+	# 	for tab in codeManagerTab.getAllTabs():
+	# 		vsFrame = tab.winfo_children()[0] # The VerticalScrolledFrame widget
+	# 		for i, mod in enumerate( vsFrame.mods ):
+	# 			if mod.sameSaveLocation( self.backup ):
+	# 				vsFrame.mods[i] = self.backup
+	# 				modFound = True
+	# 				break
+	# 		if modFound: # Leave the outer loop
+	# 			break
+	
 	def analyzeMod( self ):
 
 		""" Collects information on this mod, and shows it to the user in a pop-up text window. """ # todo: switch to joining list of strings for efficiency
@@ -2519,10 +2529,6 @@ class CodeConstructor( Tk.Frame ):
 		if self.changesArePending():
 			sureToClose = tkMessageBox.askyesno( 'Unsaved Changes', "It looks like this mod has some changes that haven't been saved.\n\nAre you sure you want to discard changes and close it?" )
 			if not sureToClose: return
-
-		# Restore the backup copy
-		self.mod = self.backup
-		self.mod.guiModule = self.libGuiModule
 
 		self.destroy()
 
