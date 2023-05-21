@@ -2869,11 +2869,6 @@ class StagePropertyEditor( ttk.Frame ):
 
 			if not name:
 				propertyName = 'Unknown 0x{:X}'.format( offset )
-
-			# if formatting == 'H':
-			# 	fieldByteLength = 2
-			# else:
-			fieldByteLength = 4
 			
 			# Add a section header if appropriate
 			if offset in self.propertyGroups:
@@ -2892,18 +2887,19 @@ class StagePropertyEditor( ttk.Frame ):
 			ToolTip( fieldLabel, text='Offset in struct: 0x{:X}\nOffset in file: 0x{:X}\nType: {}'.format(offset, 0x20 + absoluteFieldOffset, typeName), delay=300 )
 
 			# Add an editable field for the raw hex data
-			hexEntry = HexEditEntry( structTable.interior, self.file, absoluteFieldOffset, fieldByteLength, formatting, propertyName, width=11 )
-			rawData = self.grGroundParam.data[offset:offset+fieldByteLength]
+			hexEntry = HexEditEntry( structTable.interior, self.file, absoluteFieldOffset, 4, formatting, propertyName, width=11 )
+			rawData = self.grGroundParam.data[offset:offset+4]
 			hexData = hexlify(rawData).upper()
 			hexEntry.insert( 0, hexData )
 			hexEntry.grid( column=1, row=row, pady=verticalPadding )
 
+			# Add a value entry or color swatch widget
 			if offset >= 0xB8:
 				hexEntry.colorSwatchWidget = ColorSwatch( structTable.interior, hexData, hexEntry )
 				hexEntry.colorSwatchWidget.grid( column=2, row=row, pady=verticalPadding, padx=(5, 15) )
 			else:
 				# Add an editable field for this field's actual decoded value (and attach the hex edit widget for later auto-updating)
-				valueEntry = HexEditEntry( structTable.interior, self.file, absoluteFieldOffset, fieldByteLength, formatting, propertyName, valueEntry=True, width=15 )
+				valueEntry = HexEditEntry( structTable.interior, self.file, absoluteFieldOffset, 4, formatting, propertyName, valueEntry=True, width=15 )
 				valueEntry.set( value )
 				valueEntry.hexEntryWidget = hexEntry
 				hexEntry.valueEntryWidget = valueEntry
@@ -2913,6 +2909,7 @@ class StagePropertyEditor( ttk.Frame ):
 			row += 1
 
 		structTable.grid( column=0, row=1, rowspan=3, sticky='nsew' )
+		structTable.columnconfigure( 'all', weight=1 )
 		
 		# Model Parts Tree start
 		treeWrapper = ttk.Frame( self ) # Contains just the treeview and its scroller
@@ -2960,7 +2957,7 @@ class StagePropertyEditor( ttk.Frame ):
 		# Model parts controls
 		modelPartsControls = ttk.Frame( self )
 		ttk.Button( modelPartsControls, text='View', command=self.viewModel ).grid( column=0, row=0, padx=2 )
-		ttk.Button( modelPartsControls, text='Details', command=self.viewModelDetails ).grid( column=0, row=1, padx=2 )
+		ttk.Button( modelPartsControls, text='Info', command=self.viewModelInfo ).grid( column=0, row=1, padx=2 )
 		ttk.Button( modelPartsControls, text='Import', command=self.importModelGroup ).grid( column=1, row=0, padx=2 )
 		ttk.Button( modelPartsControls, text='Export', command=self.exportModelGroup ).grid( column=2, row=0, padx=2 )
 		ttk.Button( modelPartsControls, text='Add', command=self.addModelGroup ).grid( column=1, row=1, padx=2 )
@@ -2993,13 +2990,90 @@ class StagePropertyEditor( ttk.Frame ):
 		self.rowconfigure( 3, weight=1 )
 
 	def viewModel( self ): pass
-	def viewModelDetails( self ): pass
+	def viewModelInfo( self ):
+
+		""" Gets totals for each primitive group and other info on 
+			this model part, and reports it to the user. """
+
+		# Get the current selection
+		iidSelectionsTuple = self.modelPartsTree.selection()
+		if not iidSelectionsTuple: # Failsafe; not possible?
+			msg( 'No model parts are selected!', 'Nothing to Report, Captain' )
+			return
+
+		primTotals = self.engine.getPrimitiveTotals()
+
+		# Count Joints/DObjs/PObjs
+		structTotals = { 'Joints': 0, 'Display Objects (DObj)': 0, 'Polygon Objects (PObj)': 0, 'Geometry Data Size': 0 }
+		for iid in iidSelectionsTuple:
+			joint = self.file.getStruct( int(iid) )
+			structTotals = self._countStructs( joint, structTotals )
+
+		# Calculate total texture space
+		totalTextureSpace = 0
+		imageDataStruct = globalData.fileStructureClasses['ImageDataBlock']
+		texturesInfo = self.file.identifyTextures()
+		for info in texturesInfo:
+			totalTextureSpace += imageDataStruct.getDataLength( *info[4:7] )
+
+		# Report to the user
+		#for name, groupCount, totalPrimitives in primTotals.items():
+
+	def _countStructs( self, struct, structTotals ):
+
+		""" Recursively scans the given struct for child/sibling structs to get a total 
+			count of each of joints, DOBjs, and PObjs, along with other geometry data. """
+
+		if struct.__class__.__name__ == 'JointObjDesc':
+			structTotals['Joints'] += 1
+
+			# Check for a child struct
+			child = struct.initChild( 'JointObjDesc', 2 )
+			if child:
+				structTotals = self._countStructs( child, structTotals )
+
+			# Check for a 'next' (sibling) struct
+			next = struct.initChild( 'JointObjDesc', 3 )
+			if next:
+				structTotals = self._countStructs( next, structTotals )
+
+			# Check for a DObj struct
+			dobj = struct.initChild( 'DisplayObjDesc', 4 )
+			if dobj:
+				structTotals = self._countStructs( dobj, structTotals )
+
+		elif struct.__class__.__name__ == 'DisplayObjDesc':
+			structTotals['Display Objects (DObj)'] += 1
+
+			# Check for a 'next' (sibling) struct
+			next = struct.initChild( 'DisplayObjDesc', 1 )
+			if next:
+				structTotals = self._countStructs( next, structTotals )
+
+			# Check for a PObj struct
+			pobj = struct.initChild( 'PolygonObjDesc', 4 )
+			if pobj:
+				structTotals = self._countStructs( pobj, structTotals )
+				
+		elif struct.__class__.__name__ == 'PolygonObjDesc':
+			structTotals['Polygon Objects (PObj)'] += 1
+			structTotals['Geometry Data Size'] += struct.getBranchSize()
+
+			# Check for a 'next' (sibling) struct
+			next = struct.initChild( 'PolygonObjDesc', 1 )
+			if next:
+				structTotals = self._countStructs( next, structTotals )
+
+		return structTotals
+
 	def importModelGroup( self ): pass
 	def exportModelGroup( self ): pass
 	def addModelGroup( self ): pass
 	def deleteModelGroup( self ): pass
 
 	def onModelPartSelect( self, event ):
+
+		""" Attempts to render each joint currently selected in the render window. """
 		
 		# Get the current selection
 		iidSelectionsTuple = self.modelPartsTree.selection()
@@ -3013,9 +3087,6 @@ class StagePropertyEditor( ttk.Frame ):
 		for iid in iidSelectionsTuple:
 			joint = self.file.getStruct( int(iid) )
 			self.engine.renderJoint( joint )
-
-		# tri = Triangle( (-15,34,0, 0,0,0, 24,7,0), color=(0,0,0,255) )
-		# self.engine.triangles.append( tri )
 
 	def onModelPartDoubleClick( self, event ): pass
 	
