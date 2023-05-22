@@ -71,6 +71,7 @@ class RenderEngine( Tk.Frame ):
 		gl.glEnable( gl.GL_ALPHA_TEST )
 		gl.glEnable( gl.GL_BLEND )
 		gl.glBlendFunc( gl.GL_SRC_ALPHA, gl.GL_ONE_MINUS_SRC_ALPHA )
+		gl.glLineWidth( 3 ) # Set edge widths to 3 pixels
 		try:
 			gl.glEnable( gl.GL_LINE_SMOOTH ) # Anti-aliasing
 			gl.glEnable( gl.GL_POLYGON_SMOOTH )
@@ -87,10 +88,10 @@ class RenderEngine( Tk.Frame ):
 		#self.window._enable_event_queue = True
 		self.window.on_mouse_drag = self.on_mouse_drag
 		#self.window.on_key_press = self.on_key_press
-		#self.window.on_mouse_scroll = self.on_mouse_scroll 	# doesn't work!?
-		self.window.on_mouse_scroll = self.zoom
-		self.master.bind( "<MouseWheel>", self.zoom )
-		self.master.bind( '<KeyPress>', self.on_key_press )
+		#self.window.on_mouse_scroll = self.on_mouse_scroll2 	# doesn't work!?
+		self.window.on_mouse_scroll = self.on_mouse_scroll
+		self.master.bind( "<MouseWheel>", self.on_mouse_scroll )
+		self.master.bind( '<KeyPress>', self.on_key_press2 )
 		#self.master.bind( "<1>", self.window.activate() ) # Move focus to the parent when clicked on
 
 		if resizable:
@@ -98,6 +99,7 @@ class RenderEngine( Tk.Frame ):
 			self.bind( "<Configure>", self.resizeViewport )
 
 		# Start the render event loop using Tkinter's main event loop
+		self.window.updateRequired = True
 		if not pyglet.app.event_loop.is_running:
 			pyglet.app.event_loop = CustomEventLoop( self.winfo_toplevel() )
 			pyglet.app.event_loop.run()
@@ -112,16 +114,19 @@ class RenderEngine( Tk.Frame ):
 		self.quads = []
 		self.vertexLists = []
 
+		self.window.updateRequired = True
+
 	def resetView( self ):
 		self.maxZoom = 200
 
-		#self.scale = 1.0
 		self.rotation_X = 0
 		self.rotation_Y = 0
 
 		self.translation_X = 0.0
 		self.translation_Y = 0.0
 		self.translation_Z = 0.0
+
+		self.window.updateRequired = True
 
 	def resizeViewport( self, event ):
 
@@ -139,6 +144,8 @@ class RenderEngine( Tk.Frame ):
 		gl.glViewport( 0, 0, self.width, self.height )
 		self.window._update_view_location( self.width, self.height )
 
+		self.window.updateRequired = True
+
 	def addVertex( self, vertices, color=(128, 128, 128, 255), tags=(), hidden=False ):
 
 		if len( vertices ) != 3:
@@ -147,6 +154,8 @@ class RenderEngine( Tk.Frame ):
 
 		vertex = Vertex( vertices, color, tags, hidden )
 		self.vertices.append( vertex )
+
+		self.window.updateRequired = True
 
 		return vertex
 
@@ -161,6 +170,8 @@ class RenderEngine( Tk.Frame ):
 
 		edge = Edge( vertices, color, colors, tags, hidden )
 		self.edges.append( edge )
+
+		self.window.updateRequired = True
 
 		return edge
 
@@ -178,6 +189,8 @@ class RenderEngine( Tk.Frame ):
 			edge = Edge( vertices, color, colors, tags, hidden )
 			self.edges.append( edge )
 
+		self.window.updateRequired = True
+
 	def addQuad( self, vertices, color=None, colors=(), tags=(), hidden=False ):
 
 		if len( vertices ) != 12:
@@ -186,6 +199,8 @@ class RenderEngine( Tk.Frame ):
 
 		quad = Quad( vertices, color, colors, tags, hidden )
 		self.quads.append( quad )
+
+		self.window.updateRequired = True
 
 		return quad
 	
@@ -200,6 +215,8 @@ class RenderEngine( Tk.Frame ):
 			# 	'Invalid number of color values for vertex dimensions: {} color values; {} vertex coords'.format( len( self.vertexColors[1] ) / 4, len( self.vertices[1] ) / 3 )
 
 			self.vertexLists.append( vertexList )
+
+		self.window.updateRequired = True
 	
 	def addPrimitives( self, primitives ):
 
@@ -226,6 +243,8 @@ class RenderEngine( Tk.Frame ):
 
 		if unknownObjects:
 			print( 'Unable to add unknown, non-primitive objects!:'.format(unknownObjects) )
+		
+		self.window.updateRequired = True
 
 	def renderJoint( self, joint ):
 
@@ -238,14 +257,12 @@ class RenderEngine( Tk.Frame ):
 		# Check for a child joint to render
 		childJoint = joint.initChild( 'JointObjDesc', 2 )
 		if childJoint:
-			#self.renderJoint( childJoint )
 			primitives.extend( self.renderJoint(childJoint) )
 
-		# Check for a 'next' joint to render
+		# Check for a 'next' (sibling) joint to render
 		nextJoint = joint.initChild( 'JointObjDesc', 3 )
 		if nextJoint:
 			self.renderJoint( nextJoint )
-			#primitives.extend( self.renderJoint(nextJoint) )
 
 		# Check for a polygon object to render
 		try:
@@ -285,37 +302,54 @@ class RenderEngine( Tk.Frame ):
 
 		return primitives
 
-	def zoom( self, event ):
+	# def on_key_press( self, *args ):
 
-		""" Move the camera in and out (toward/away) from the rendered model. """
+	# 	#print( 'pressed ' + str(symbol) )
+	# 	if not args:
+	# 		return
+	# 	symbol, modifiers = args
 
-		#print( 'zoom' )
-		if event.delta > 0: # zoom in
-			#self.scale *= 1.09
-			self.translation_Z += 20
-		elif event.delta < 0: # zoom out
-			#self.scale /= 1.09
-			self.translation_Z -= 20
+	# 	if symbol == key.R:
+	# 		print( 'resetting' )
+	# 		self.resetView()
+	# 	elif symbol == key.LEFT:
+	# 		print('The left arrow key was pressed.')
+	# 	elif symbol == key.ENTER:
+	# 		print('The enter key was pressed.')
 
-	# def on_mouse_scroll( self, *args ):
+	# 	self.window.updateRequired = True
 
-	# 	print('zoom2' )
-	# 	print(args)
+	def on_key_press2( self, event ):
 
-	def on_key_press( self, *args ):
+		print( 'pressed ' + event.keysym )
+		symbol = event.keysym.lower()
 
-		#print( 'pressed ' + str(symbol) )
-		if not args:
-			return
-		symbol, modifiers = args
-
-		if symbol == key.R:
+		if symbol == 'r':
 			print( 'resetting' )
 			self.resetView()
 		elif symbol == key.LEFT:
 			print('The left arrow key was pressed.')
 		elif symbol == key.ENTER:
 			print('The enter key was pressed.')
+
+		self.window.updateRequired = True
+
+	def on_mouse_scroll( self, event ):
+
+		""" Move the camera in and out (toward/away) from the rendered model. """
+
+		#print( 'zoom' )
+		if event.delta > 0: # zoom in
+			self.translation_Z += 20
+		elif event.delta < 0: # zoom out
+			self.translation_Z -= 20
+
+		self.window.updateRequired = True
+
+	# def on_mouse_scroll2( self, *args ):
+
+	# 	print('zoom2' )
+	# 	print(args)
 
 	def on_mouse_drag( self, *args ):
 
@@ -338,12 +372,16 @@ class RenderEngine( Tk.Frame ):
 		# else: Multiple buttons held; do nothing and 
 		# wait 'til the user gets their act together. :P
 
+		self.window.updateRequired = True
+
 	def on_draw( self ):
+
+		""" Renders all primitives to the display. """
+
 		try:
 			# Clear the screen
 			gl.glClearColor( *self.bgColor )
 			gl.glClear( gl.GL_COLOR_BUFFER_BIT | gl.GL_DEPTH_BUFFER_BIT )
-			gl.glLineWidth( 3 ) # Set edge widths to 3 pixels
 			
 			# Set the projection matrix to a perspective projection and apply translation (camera pan)
 			gl.glMatrixMode( gl.GL_PROJECTION )
@@ -428,10 +466,10 @@ class RenderEngine( Tk.Frame ):
 				totals['Vertices'][1] += 1
 			elif primitive.type == gl.GL_LINES:
 				totals['Lines'][0] += 1
-				totals['Lines'][1] += len( primitive.vertices[1] ) / 3
+				totals['Lines'][1] += len( primitive.vertices[1] ) / 2
 			elif primitive.type == gl.GL_LINE_STRIP:
 				totals['Line Strips'][0] += 1
-				totals['Line Strips'][1] += len( primitive.vertices[1] ) / 3
+				totals['Line Strips'][1] += len( primitive.vertices[1] ) / 2
 			elif primitive.type == gl.GL_TRIANGLES:
 				totals['Triangles'][0] += 1
 				totals['Triangles'][1] += len( primitive.vertices[1] ) / 3
@@ -443,7 +481,7 @@ class RenderEngine( Tk.Frame ):
 				totals['Triangle Fans'][1] += len( primitive.vertices[1] ) / 3
 			elif primitive.type == gl.GL_QUADS:
 				totals['Quads'][0] += 1
-				totals['Quads'][1] += len( primitive.vertices[1] ) / 3
+				totals['Quads'][1] += len( primitive.vertices[1] ) / 4
 
 		return totals
 
@@ -455,6 +493,8 @@ class RenderEngine( Tk.Frame ):
 		for obj in self.getObjects( primitive ):
 			if tag in obj.tags:
 				obj.hidden = not visible
+
+		self.window.updateRequired = True
 
 	def removePart( self, tag, primitive=None ):
 
@@ -519,6 +559,8 @@ class RenderEngine( Tk.Frame ):
 					elif isinstance( obj, VertexList ):
 						self.vertexLists.append( obj )
 
+		self.window.updateRequired = True
+
 	def stop( self ):
 
 		""" Setting this flag on the render window allows the event loop end peacefully, 
@@ -568,6 +610,10 @@ class CustomEventLoop( EventLoop ):
 			
 			queueNextStep = True
 
+			# Skip redraws if there haven't been any changes
+			if not window.updateRequired:
+				continue
+
 			# Skip this window if the user isn't interacting with it
 			# if not window._mouse_in_window:
 			# 	continue
@@ -588,6 +634,9 @@ class CustomEventLoop( EventLoop ):
 			
 			# Swap the display buffers to show the rendered image
 			window.flip()
+
+			# Set the flag indicating redraws are no longer required
+			window.updateRequired = False
 
 		# Re-queue for the next frame
 		if queueNextStep:
