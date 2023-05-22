@@ -9,7 +9,6 @@
 #		╚═╝     ╚═╝ ╚═╝     ╚═╝  ╚══╝╚══╝ 			 ------                                                   ------
 #		  -  - Melee Modding Wizard -  -  
 
-import ttk
 import time
 import math
 import pyglet
@@ -352,11 +351,11 @@ class RenderEngine( Tk.Frame ):
 			gl.gluPerspective( self.fov, float(self.width) / self.height, self.znear, self.zfar )
 			gl.glTranslatef( self.translation_X, self.translation_Y, self.translation_Z )
 
-			# Set up the modelview matrix and apply transformations
+			# Set up the modelview matrix and apply mouse rotation input transformations
 			gl.glMatrixMode( gl.GL_MODELVIEW )
 			gl.glLoadIdentity()
-			gl.glRotatef( self.rotation_X, 0, 1, 0 )
 			gl.glRotatef( self.rotation_Y, 1, 0, 0 )
+			gl.glRotatef( self.rotation_X, 0, 1, 0 )
 			
 			# Render a batch for each set of objects that have been added
 			if self.vertices:
@@ -522,19 +521,9 @@ class RenderEngine( Tk.Frame ):
 
 	def stop( self ):
 
-		""" Before exiting, we need to let the event loop end peacefully, 
+		""" Setting this flag on the render window allows the event loop end peacefully, 
 			so it doesn't try to update anything that doesn't exist and crash. """
 
-		# Allow the next iteration of the loop to continue, 
-		# but modify it to call this method again once it's done.
-		# el = pyglet.app.event_loop
-		# if el.is_running and el.step != self.stop:
-		# 	el.is_running = False
-		# 	el.has_exit = True
-		# 	el.step = self.stop
-		# 	return
-
-		# self.window.close()
 		self.window.has_exit = True
 
 
@@ -710,7 +699,7 @@ class Primitive:
 		cos_y, sin_y = math.cos( rotationY ), math.sin( rotationY )
 		cos_z, sin_z = math.cos( rotationZ ), math.sin( rotationZ )
 
-		# Generate a 3D rotation matrix from angles around the X, Y, and Z axes.
+		# Generate a 3D rotation matrix from angles around the X, Y, and Z axes
 		rotation_matrix = [
 			[cos_y * cos_z, -cos_x * sin_z + sin_x * sin_y * cos_z, sin_x * sin_z + cos_x * sin_y * cos_z], # X-axis rotation
 			[cos_y * sin_z, cos_x * cos_z + sin_x * sin_y * sin_z, -sin_x * cos_z + cos_x * sin_y * sin_z], # Y-axis rotation
