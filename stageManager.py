@@ -18,20 +18,18 @@ import struct
 import Tkinter as Tk
 
 from binascii import hexlify
-# from direct.task import Task
-# from panda3d.core import WindowProperties
-# from direct.showbase.ShowBase import ShowBase
+from collections import OrderedDict
 from PIL import Image, ImageTk, ImageDraw, ImageFont
 
 # Internal dependencies
 import globalData
 
-from RenderEngine2 import RenderEngine, Triangle
+from RenderEngine2 import RenderEngine
 from FileSystem import StageFile
 from FileSystem.hsdStructures import MapMusicTable, MapPointTypesArray
 from basicFunctions import uHex, hex2rgb, humansize, msg, printStatus, reverseDictLookup
 from guiSubComponents import (
-	LabelButton, exportSingleTexture, getColoredShape, importGameFiles, exportSingleFileWithGui, 
+	LabelButton, cmsg, exportSingleTexture, getColoredShape, importGameFiles, exportSingleFileWithGui, 
 	importSingleFileWithGui, importSingleTexture, getNewNameFromUser, BasicWindow, ToolTip, 
 	ToolTipEditor, ToolTipButton, HexEditEntry, ColorSwatch, VerticalScrolledFrame, NeoTreeview )
 from audioManager import AudioControlModule
@@ -2956,12 +2954,15 @@ class StagePropertyEditor( ttk.Frame ):
 
 		# Model parts controls
 		modelPartsControls = ttk.Frame( self )
-		ttk.Button( modelPartsControls, text='View', command=self.viewModel ).grid( column=0, row=0, padx=2 )
-		ttk.Button( modelPartsControls, text='Info', command=self.viewModelInfo ).grid( column=0, row=1, padx=2 )
-		ttk.Button( modelPartsControls, text='Import', command=self.importModelGroup ).grid( column=1, row=0, padx=2 )
-		ttk.Button( modelPartsControls, text='Export', command=self.exportModelGroup ).grid( column=2, row=0, padx=2 )
-		ttk.Button( modelPartsControls, text='Add', command=self.addModelGroup ).grid( column=1, row=1, padx=2 )
-		ttk.Button( modelPartsControls, text='Delete', command=self.deleteModelGroup ).grid( column=2, row=1, padx=2 )
+		self.showBones = Tk.BooleanVar( value=False )
+		ttk.Checkbutton( modelPartsControls, text='Bones', variable=self.showBones, command=self.toggleBones ).grid( column=0, row=0, padx=(0, 8) )
+		#ttk.Button( modelPartsControls, text='Info', command=self.viewModelInfo ).grid( column=1, row=1, padx=2 )
+		ttk.Button( modelPartsControls, text='View', command=self.viewModel ).grid( column=1, row=0, padx=2 )
+		ttk.Button( modelPartsControls, text='Info', command=self.viewModelInfo ).grid( column=1, row=1, padx=2 )
+		ttk.Button( modelPartsControls, text='Import', command=self.importModelGroup ).grid( column=2, row=0, padx=2 )
+		ttk.Button( modelPartsControls, text='Add', command=self.addModelGroup ).grid( column=2, row=1, padx=2 )
+		ttk.Button( modelPartsControls, text='Export', command=self.exportModelGroup ).grid( column=3, row=0, padx=2 )
+		ttk.Button( modelPartsControls, text='Delete', command=self.deleteModelGroup ).grid( column=3, row=1, padx=2 )
 		modelPartsControls.grid( column=2, row=2, padx=(0, 10), pady=9, ipady=3 )
 
 		# General points controls
@@ -2989,6 +2990,9 @@ class StagePropertyEditor( ttk.Frame ):
 		self.rowconfigure( 2, weight=1 )
 		self.rowconfigure( 3, weight=1 )
 
+	def toggleBones( self ):
+		self.engine.showPart( 'bones', self.showBones.get() )
+
 	def viewModel( self ): pass
 	def viewModelInfo( self ):
 
@@ -3004,22 +3008,38 @@ class StagePropertyEditor( ttk.Frame ):
 		primTotals = self.engine.getPrimitiveTotals()
 
 		# Count Joints/DObjs/PObjs
-		structTotals = { 'Joints': 0, 'Display Objects (DObj)': 0, 'Polygon Objects (PObj)': 0, 'Geometry Data Size': 0 }
+		structTotals = OrderedDict([ ('Joints', 0), ('Display Objects (DObj)', 0), ('Polygon Objects (PObj)', 0) ])
+		texturesProcessed = {}
+		geomDataProcessed = {}
 		for iid in iidSelectionsTuple:
 			joint = self.file.getStruct( int(iid) )
-			structTotals = self._countStructs( joint, structTotals )
+			self._countStructs( joint, structTotals, texturesProcessed, geomDataProcessed )
 
 		# Calculate total texture space
-		totalTextureSpace = 0
-		imageDataStruct = globalData.fileStructureClasses['ImageDataBlock']
-		texturesInfo = self.file.identifyTextures()
-		for info in texturesInfo:
-			totalTextureSpace += imageDataStruct.getDataLength( *info[4:7] )
+		# totalTextureSpace = 0
+		# imageDataStruct = globalData.fileStructureClasses['ImageDataBlock']
+		# texturesInfo = self.file.identifyTextures()
+		# for info in texturesInfo:
+		# 	totalTextureSpace += imageDataStruct.getDataLength( *info[4:7] )
+		totalTextureSpace = sum( texturesProcessed.values() )
+		geoDataSize = sum( geomDataProcessed.values() )
 
-		# Report to the user
-		#for name, groupCount, totalPrimitives in primTotals.items():
+		# Build the string to report to the user
+		lines = []
+		lines.append( 'Vertex Lists: {}\n'.format(len(self.engine.vertexLists)) )
+		for name, (groupCount, totalPrimitives) in primTotals.items():
+			lines.append( '{: <16} -  Groups: {: <6}Total: {}'.format(name, groupCount, totalPrimitives) )
+		lines.append( '\nObject Counts:' )
+		lines.append( '    Joints (JObj):          {}'.format(structTotals['Joints']) )
+		lines.append( '    Display Objects (DObj): {}'.format(structTotals['Display Objects (DObj)']) )
+		lines.append( '    Polygon Objects (PObj): {}'.format(structTotals['Polygon Objects (PObj)']) )
+		lines.append( '\nTotal Geometry Data:  {}  ({:,} bytes)'.format(humansize(geoDataSize), geoDataSize) )
+		lines.append( 'Total Texture Data:  {}  ({:,} bytes)'.format(humansize(totalTextureSpace), totalTextureSpace) )
 
-	def _countStructs( self, struct, structTotals ):
+		# Report the above string to the user
+		cmsg( '\n'.join(lines), 'Model Groups Info', 'left' )
+
+	def _countStructs( self, struct, structTotals, texturesProcessed, geomDataProcessed ):
 
 		""" Recursively scans the given struct for child/sibling structs to get a total 
 			count of each of joints, DOBjs, and PObjs, along with other geometry data. """
@@ -3030,17 +3050,17 @@ class StagePropertyEditor( ttk.Frame ):
 			# Check for a child struct
 			child = struct.initChild( 'JointObjDesc', 2 )
 			if child:
-				structTotals = self._countStructs( child, structTotals )
+				self._countStructs( child, structTotals, texturesProcessed, geomDataProcessed )
 
 			# Check for a 'next' (sibling) struct
 			next = struct.initChild( 'JointObjDesc', 3 )
 			if next:
-				structTotals = self._countStructs( next, structTotals )
+				self._countStructs( next, structTotals, texturesProcessed, geomDataProcessed )
 
 			# Check for a DObj struct
 			dobj = struct.initChild( 'DisplayObjDesc', 4 )
 			if dobj:
-				structTotals = self._countStructs( dobj, structTotals )
+				self._countStructs( dobj, structTotals, texturesProcessed, geomDataProcessed )
 
 		elif struct.__class__.__name__ == 'DisplayObjDesc':
 			structTotals['Display Objects (DObj)'] += 1
@@ -3048,23 +3068,42 @@ class StagePropertyEditor( ttk.Frame ):
 			# Check for a 'next' (sibling) struct
 			next = struct.initChild( 'DisplayObjDesc', 1 )
 			if next:
-				structTotals = self._countStructs( next, structTotals )
+				self._countStructs( next, structTotals, texturesProcessed, geomDataProcessed )
+
+			# Check for a texture
+			try:
+				mobj = struct.initChild( 'MaterialObjDesc', 2 )
+				tobj = mobj.initChild( 'TextureObjDesc', 2 )
+				imgHeader = tobj.initChild( 'ImageObjDesc', 21 )
+				imgData = imgHeader.initChild( 'ImageDataBlock', 0 )
+
+				# Remember the size of this texture if it's unique
+				if imgData.offset not in texturesProcessed:
+					width, height, imageType = imgHeader.getValues()[1:4]
+					texturesProcessed[imgData.offset] = imgData.getDataLength( width, height, imageType )
+			except Exception as err:
+				pass
 
 			# Check for a PObj struct
-			pobj = struct.initChild( 'PolygonObjDesc', 4 )
+			pobj = struct.initChild( 'PolygonObjDesc', 3 )
 			if pobj:
-				structTotals = self._countStructs( pobj, structTotals )
-				
+				self._countStructs( pobj, structTotals, texturesProcessed, geomDataProcessed )
+
 		elif struct.__class__.__name__ == 'PolygonObjDesc':
 			structTotals['Polygon Objects (PObj)'] += 1
-			structTotals['Geometry Data Size'] += struct.getBranchSize()
+
+			vAttrArray = struct.initChild( 'VertexAttributesArray', 2 )
+			if vAttrArray and vAttrArray.offset not in geomDataProcessed:
+				geomDataProcessed[vAttrArray.offset] = vAttrArray.getBranchSize()
+
+			displayList = struct.initChild( 'DisplayListBlock', 5 )
+			assert displayList.length != -1, 'display list data block invalid size'
+			geomDataProcessed[displayList.offset] = displayList.length
 
 			# Check for a 'next' (sibling) struct
 			next = struct.initChild( 'PolygonObjDesc', 1 )
 			if next:
-				structTotals = self._countStructs( next, structTotals )
-
-		return structTotals
+				self._countStructs( next, structTotals, texturesProcessed, geomDataProcessed )
 
 	def importModelGroup( self ): pass
 	def exportModelGroup( self ): pass
@@ -3086,7 +3125,7 @@ class StagePropertyEditor( ttk.Frame ):
 		# Get the selected joint object(s)
 		for iid in iidSelectionsTuple:
 			joint = self.file.getStruct( int(iid) )
-			self.engine.renderJoint( joint )
+			self.engine.renderJoint( joint, showBones=self.showBones.get() )
 
 	def onModelPartDoubleClick( self, event ): pass
 	
@@ -3174,9 +3213,6 @@ class StageModelViewer( BasicWindow ):
 		row = len( self.sidePanelControls.winfo_children() )
 		self.singlePointEditFrame = ttk.Frame( self.sidePanelControls )
 		self.singlePointEditFrame.grid( column=0, columnspan=2, row=row, pady=(20, 3), padx=10 )
-
-		# tri = Triangle( (-20,-10,0, 0,0,0, 42,50,0), color=(255,255,255,255) )
-		# self.engine.triangles.append( tri )
 
 		self.renderSpawnPoints()
 
@@ -3279,7 +3315,8 @@ class StageModelViewer( BasicWindow ):
 	def _renderRectangle( self, pointType1, pointType2, name, color, tags=() ):
 
 		""" Renders a pair of general points as a rectangular area (4 edges). 
-			This is similar to a quad, but with no fill area. """
+			This is similar to a quad, but with no fill area. 
+			Returns the top-left and bottom-right joints which define the rectangle. """
 
 		# Parse the map head and get blast zone coordinates
 		topLeftJoints = self.mapHead.getGeneralPoint( pointType1 )
@@ -3303,12 +3340,10 @@ class StageModelViewer( BasicWindow ):
 		y1 = tlJoint.getValues( 'Translation_Y' )
 		x2 = brJoint.getValues( 'Translation_X' )
 		y2 = brJoint.getValues( 'Translation_Y' )
-		# edges = [ (x1,y1,0,x2,y1,0), (x2,y1,0,x2,y2,0), (x2,y2,0,x1,y2,0), (x1,y2,0,x1,y1,0) ]
-		# self.engine.addEdges( edges, color=color, tags=tags )
-		self.engine.addEdge( (x1,y1,0,x2,y1,0), color=color, tags=tags )
-		self.engine.addEdge( (x2,y1,0,x2,y2,0), color=color, tags=tags )
-		self.engine.addEdge( (x2,y2,0,x1,y2,0), color=color, tags=tags )
-		self.engine.addEdge( (x1,y2,0,x1,y1,0), color=color, tags=tags )
+		self.engine.addEdge( (x1,y1,0,x2,y1,0), color=color, tags=tags, thickness=3 )
+		self.engine.addEdge( (x2,y1,0,x2,y2,0), color=color, tags=tags, thickness=3 )
+		self.engine.addEdge( (x2,y2,0,x1,y2,0), color=color, tags=tags, thickness=3 )
+		self.engine.addEdge( (x1,y2,0,x1,y1,0), color=color, tags=tags, thickness=3 )
 
 		return tlJoint, brJoint
 
@@ -3332,7 +3367,7 @@ class StageModelViewer( BasicWindow ):
 		""" Extrudes each collision link (which are initially 2D lines/edges), turning them into 3D faces. """
 
 		self.collVertices = []
-		z = 7 # The actual thickness will be double this value
+		z = 8 # The actual thickness will be double this value
 		origVerticesLength = len( self.vertices )
 
 		for link in self.collisionLinks:
@@ -3375,15 +3410,13 @@ class StageModelViewer( BasicWindow ):
 					playerSpawns.append( pointName )
 
 					color = self.colorByVertType( pointType )
-					vertex = self.engine.addVertex( (coords[0], coords[1], 0), color, ('playerSpawns', pointType), not self.showPlayerSpawns.get() )
-					vertex.size = 5
+					vertex = self.engine.addVertex( (coords[0], coords[1], 0), color, ('playerSpawns', pointType), self.showPlayerSpawns.get(), 5 )
 
 				elif pointName.startswith( 'Item' ):
 					itemSpawns.append( pointName )
 
 					color = self.colorByVertType( pointType )
-					vertex = self.engine.addVertex( (coords[0], coords[1], 0), color, ('itemSpawns', pointType), not self.showItemSpawns.get() )
-					vertex.size = 5
+					vertex = self.engine.addVertex( (coords[0], coords[1], 0), color, ('itemSpawns', pointType), self.showItemSpawns.get(), 5 )
 
 		return playerSpawns, itemSpawns
 

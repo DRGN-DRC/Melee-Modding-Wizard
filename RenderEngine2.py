@@ -15,6 +15,8 @@ import pyglet
 import win32api
 import Tkinter as Tk
 
+from collections import OrderedDict
+
 # Disable error checking for increased performance
 pyglet.options['debug_gl'] = False
 
@@ -71,7 +73,6 @@ class RenderEngine( Tk.Frame ):
 		gl.glEnable( gl.GL_ALPHA_TEST )
 		gl.glEnable( gl.GL_BLEND )
 		gl.glBlendFunc( gl.GL_SRC_ALPHA, gl.GL_ONE_MINUS_SRC_ALPHA )
-		gl.glLineWidth( 3 ) # Set edge widths to 3 pixels
 		try:
 			gl.glEnable( gl.GL_LINE_SMOOTH ) # Anti-aliasing
 			gl.glEnable( gl.GL_POLYGON_SMOOTH )
@@ -146,20 +147,20 @@ class RenderEngine( Tk.Frame ):
 
 		self.window.updateRequired = True
 
-	def addVertex( self, vertices, color=(128, 128, 128, 255), tags=(), hidden=False ):
+	def addVertex( self, vertices, color=(128, 128, 128, 255), tags=(), show=True, size=4 ):
 
 		if len( vertices ) != 3:
 			print( 'Incorrect number of coordinates given to create a vertex: ' + str(vertices) )
 			return None
 
-		vertex = Vertex( vertices, color, tags, hidden )
+		vertex = Vertex( vertices, color, tags, show, size )
 		self.vertices.append( vertex )
 
 		self.window.updateRequired = True
 
 		return vertex
 
-	def addEdge( self, vertices, color=None, colors=(), tags=(), hidden=False ):
+	def addEdge( self, vertices, color=None, colors=(), tags=(), show=True, thickness=2 ):
 
 		""" Translates given points into a series of edges (lines) to be batch-rendered. 
 			The given vertices should contain 6 values (2 sets of x/y/z coords). """
@@ -168,14 +169,14 @@ class RenderEngine( Tk.Frame ):
 			print( 'Incorrect number of coordinates given to create an edge: ' + str(vertices) )
 			return None
 
-		edge = Edge( vertices, color, colors, tags, hidden )
+		edge = Edge( vertices, color, colors, tags, show, thickness )
 		self.edges.append( edge )
 
 		self.window.updateRequired = True
 
 		return edge
 
-	def addEdges( self, edgePoints, color=None, colors=(), tags=(), hidden=False ):
+	def addEdges( self, edgePoints, color=None, colors=(), tags=(), show=True, thickness=2 ):
 
 		""" Translates given points into a series of data points (edges) to be batch-rendered. 
 			The edgePoints arg should be a list of tuples, where each tuple contains 6 values 
@@ -186,18 +187,18 @@ class RenderEngine( Tk.Frame ):
 				print( 'Incorrect number of points given to create an edge: ' + str(vertices) )
 				continue
 
-			edge = Edge( vertices, color, colors, tags, hidden )
+			edge = Edge( vertices, color, colors, tags, show, thickness )
 			self.edges.append( edge )
 
 		self.window.updateRequired = True
 
-	def addQuad( self, vertices, color=None, colors=(), tags=(), hidden=False ):
+	def addQuad( self, vertices, color=None, colors=(), tags=(), show=False ):
 
 		if len( vertices ) != 12:
 			print( 'Incorrect number of points given to create a quad: ' + str(vertices) )
 			return None
 
-		quad = Quad( vertices, color, colors, tags, hidden )
+		quad = Quad( vertices, color, colors, tags, show )
 		self.quads.append( quad )
 
 		self.window.updateRequired = True
@@ -243,10 +244,10 @@ class RenderEngine( Tk.Frame ):
 
 		if unknownObjects:
 			print( 'Unable to add unknown, non-primitive objects!:'.format(unknownObjects) )
-		
+
 		self.window.updateRequired = True
 
-	def renderJoint( self, joint ):
+	def renderJoint( self, joint, parent=None, showBones=False ):
 
 		""" Recursively scans the given joint and all child/next joints for 
 			Display Objects and Polygon Objects. Breaks down Polygon Objects 
@@ -257,12 +258,15 @@ class RenderEngine( Tk.Frame ):
 		# Check for a child joint to render
 		childJoint = joint.initChild( 'JointObjDesc', 2 )
 		if childJoint:
-			primitives.extend( self.renderJoint(childJoint) )
+			# Render child joints and collect their primitives in order to apply transformations
+			primitives.extend( self.renderJoint(childJoint, joint, showBones) )
 
 		# Check for a 'next' (sibling) joint to render
 		nextJoint = joint.initChild( 'JointObjDesc', 3 )
 		if nextJoint:
-			self.renderJoint( nextJoint )
+			if not parent:
+				parent = joint
+			self.renderJoint( nextJoint, parent, showBones )
 
 		# Check for a polygon object to render
 		try:
@@ -299,6 +303,18 @@ class RenderEngine( Tk.Frame ):
 			primitive.rotate( *transformationValues[:3] )
 			primitive.scale( *transformationValues[3:6] )
 			primitive.translate( *transformationValues[6:] )
+
+		# Add a vertex to represent this joint
+		vertices = transformationValues[6:]
+		primitives.append( self.addVertex( vertices, (255, 0, 0, 255), ('bones',), showBones ) )
+		
+		# Connect a line between the current joint and its parent joint
+		if parent:
+			# Parent vertices will be added by the calling method's transformation step(s)
+			edge = self.addEdge( (0,0,0) + vertices, colors=((0,255,0,255), (0,0,255,255)), tags=('bones',), show=showBones )
+			primitives.append( edge )
+
+		self.window.updateRequired = True
 
 		return primitives
 
@@ -453,35 +469,50 @@ class RenderEngine( Tk.Frame ):
 			and primitive among vertexLists being rendered. 
 			Returns a dict of key=primType, value=[groupCount, primCount] """
 		
-		totals = { 	'Vertices': [0, 0], 'Lines': [0, 0], 'Line Strips': [0, 0], 
-					'Triangles': [0, 0], 'Triangle Strips': [0, 0], 'Triangle Fans': [0, 0], 
-					'Quads': [0, 0], 'Primitive Groups': 0
-				}
+		totals = OrderedDict( [ 
+			('Vertices', [0, 0]), ('Lines', [0, 0]), ('Line Strips', [0, 0]), 
+			('Triangles', [0, 0]), ('Triangle Strips', [0, 0]), ('Triangle Fans', [0, 0]), 
+			('Quads', [0, 0])
+		] )
 		
 		for primitive in self.vertexLists:
-			totals['Primitive Groups'] += 1
-
 			if primitive.type == gl.GL_POINTS:
 				totals['Vertices'][0] += 1
-				totals['Vertices'][1] += 1
+				totals['Vertices'][1] += len( primitive.vertices[1] )
 			elif primitive.type == gl.GL_LINES:
 				totals['Lines'][0] += 1
-				totals['Lines'][1] += len( primitive.vertices[1] ) / 2
+				lineCount = len( primitive.vertices[1] ) / 2
+				totals['Lines'][1] += lineCount
+				totals['Vertices'][1] += lineCount * 2
 			elif primitive.type == gl.GL_LINE_STRIP:
 				totals['Line Strips'][0] += 1
-				totals['Line Strips'][1] += len( primitive.vertices[1] ) / 2
+				lineCount = ( len(primitive.vertices[1]) - 2 ) / 2 # -2 for degenerate vertices
+				totals['Line Strips'][1] += lineCount
+				totals['Vertices'][1] += lineCount - 1 # +1 vertex, but -2 for degenerate vertices
 			elif primitive.type == gl.GL_TRIANGLES:
 				totals['Triangles'][0] += 1
-				totals['Triangles'][1] += len( primitive.vertices[1] ) / 3
+				triangleCount = len( primitive.vertices[1] ) / 3
+				totals['Triangles'][1] += triangleCount
+				totals['Vertices'][1] += len( primitive.vertices[1] )
+				totals['Lines'][1] += len( primitive.vertices[1] )
 			elif primitive.type == gl.GL_TRIANGLE_STRIP:
 				totals['Triangle Strips'][0] += 1
-				totals['Triangle Strips'][1] += len( primitive.vertices[1] ) / 3
+				triangleCount = len( primitive.vertices[1] ) - 4 # Subtract initial 2 point and 2 degenerate vertices
+				totals['Triangle Strips'][1] += triangleCount
+				totals['Vertices'][1] += triangleCount + 2
+				totals['Lines'][1] += ( triangleCount * 2 ) + 1
 			elif primitive.type == gl.GL_TRIANGLE_FAN:
 				totals['Triangle Fans'][0] += 1
-				totals['Triangle Fans'][1] += len( primitive.vertices[1] ) / 3
+				triangleCount = len( primitive.vertices[1] ) - 4 # Subtract initial 2 point and 2 degenerate vertices
+				totals['Triangle Fans'][1] += triangleCount
+				totals['Vertices'][1] += triangleCount + 2
+				totals['Lines'][1] += ( triangleCount * 2 ) + 1
 			elif primitive.type == gl.GL_QUADS:
 				totals['Quads'][0] += 1
-				totals['Quads'][1] += len( primitive.vertices[1] ) / 4
+				quadCount = len( primitive.vertices[1] ) / 4
+				totals['Quads'][1] += quadCount
+				totals['Vertices'][1] += len( primitive.vertices[1] )
+				totals['Lines'][1] += len( primitive.vertices[1] )
 
 		return totals
 
@@ -492,7 +523,7 @@ class RenderEngine( Tk.Frame ):
 
 		for obj in self.getObjects( primitive ):
 			if tag in obj.tags:
-				obj.hidden = not visible
+				obj.show = visible
 
 		self.window.updateRequired = True
 
@@ -684,6 +715,13 @@ class Primitive:
 				print( 'Warning! Unexpected number of colors given to primitive: ' + str(colors) )
 				assert len( colors[0] ) == 4, 'the given color should be an RGBA tuple.'
 				colors = ( colors[0], ) * pointCount
+			else:
+				# Number of colors matches number of points
+				flattenedList = []
+				for color in colors:
+					assert len( color ) == 4, 'the given colors should all be RGBA tuples.'
+					flattenedList.extend( color )
+				colors = flattenedList
 		except Exception as err:
 			print( 'Invalid color(s) given to create a primitive; {}'.format(err) )
 			colors = defaultColor * pointCount
@@ -787,7 +825,7 @@ class Primitive:
 
 class Vertex( Primitive ):
 
-	def __init__( self, coords, color=(0, 0, 0, 255), tags=(), hidden=False, size=2 ):
+	def __init__( self, coords, color=(0, 0, 0, 255), tags=(), show=True, size=4 ):
 		# Position
 		if coords:
 			self.x = coords[0]
@@ -804,59 +842,61 @@ class Vertex( Primitive ):
 
 		self.color = color
 		self.tags = tags
-		self.hidden = hidden
+		self.show = show
 		self.size = size		# For rendering appearance size
 	
 	def render( self, batch ):
-		if not self.hidden:
+		if self.show:
 			gl.glPointSize( self.size )
 			batch.add( 1, gl.GL_POINTS, None, ('v3f/static"', (self.x, self.y, self.z)), ('c4B/static"', self.color) )
 
 
 class Edge( Primitive ):
 
-	def __init__( self, vertices, color=None, colors=(), tags=(), hidden=False ):
+	def __init__( self, vertices, color=None, colors=(), tags=(), show=True, thickness=2 ):
 		self.vertices = ( 'v3f/static"', vertices )
 		self.vertexColors = ( 'c4B/static"', self.interpretColors( 2, color, colors ) )
 		self.tags = tags
-		self.hidden = hidden
+		self.show = show
+		self.thickness = thickness
 	
 	def render( self, batch ):
-		if not self.hidden:
+		if self.show:
+			gl.glLineWidth( self.thickness )
 			batch.add( 2, gl.GL_LINES, None, self.vertices, self.vertexColors )
 
 
 class Triangle( Primitive ):
 
-	def __init__( self, vertices, color=None, colors=(), tags=(), hidden=False ):
+	def __init__( self, vertices, color=None, colors=(), tags=(), show=True ):
 		self.vertices = ( 'v3f/static"', vertices )
 		self.vertexColors = ( 'c4B/static"', self.interpretColors( 3, color, colors ) )
 		self.normals = ( 'n3f/static"', [] )
 		self.tags = tags
-		self.hidden = hidden
+		self.show = show
 	
 	def render( self, batch ):
-		if not self.hidden:
+		if self.show:
 			batch.add( 3, gl.GL_TRIANGLES, None, self.vertices, self.vertexColors )
 
 
 class Quad( Primitive ):
 
-	def __init__( self, vertices, color=None, colors=(), tags=(), hidden=False ):
+	def __init__( self, vertices, color=None, colors=(), tags=(), show=True ):
 		self.vertices = ( 'v3f/static"', vertices )
 		self.vertexColors = ( 'c4B/static"', self.interpretColors( 4, color, colors ) )
 		self.normals = ( 'n3f/static"', [] )
 		self.tags = tags
-		self.hidden = hidden
+		self.show = show
 	
 	def render( self, batch ):
-		if not self.hidden:
+		if self.show:
 			batch.add( 4, gl.GL_QUADS, None, self.vertices, self.vertexColors )
 
 
 class VertexList( Primitive ):
 
-	def __init__( self, primitiveType, vertices, color=None, colors=(), tags=(), hidden=False ):
+	def __init__( self, primitiveType, vertices, color=None, colors=(), tags=(), show=True ):
 		self.type = self.interpretPrimType( primitiveType )
 		self.vertices = ( 'v3f/static"', [] )
 		self.vertexColors = ( 'c4B/static"', [] )
@@ -871,7 +911,7 @@ class VertexList( Primitive ):
 			self.addDegenerates()
 
 		self.tags = tags
-		self.hidden = hidden
+		self.show = show
 
 	def interpretPrimType( self, primType ):
 
@@ -898,24 +938,33 @@ class VertexList( Primitive ):
 			with zero area (or length) is created, which effectively skips over the degenerate 
 			vertex and disconnects the segments. """
 
-		# Repeat the first three coordinates at the start
-		self.vertices[1].insert( 0, self.vertices[1][2] )
-		self.vertices[1].insert( 0, self.vertices[1][2] )
-		self.vertices[1].insert( 0, self.vertices[1][2] )
+		if self.type == gl.GL_LINE_STRIP:
+			# Repeat the first two coordinates at the start
+			self.vertices[1].insert( 0, self.vertices[1][2] )
+			self.vertices[1].insert( 0, self.vertices[1][2] )
+			
+			# Repeat the last two coordinates at the end
+			self.vertices[1].extend( self.vertices[1][-2:] )
+		else:
+			# Triangle strip
+			# Repeat the first three coordinates at the start
+			self.vertices[1].insert( 0, self.vertices[1][2] )
+			self.vertices[1].insert( 0, self.vertices[1][2] )
+			self.vertices[1].insert( 0, self.vertices[1][2] )
+			
+			# Repeat the last three coordinates at the end
+			self.vertices[1].extend( self.vertices[1][-3:] )
 		
-		# Repeat the last three coordinates at the end
-		self.vertices[1].extend( self.vertices[1][-3:] )
-		
-		# Repeat the first three coordinates at the start
+		# Repeat the first color at the start
 		self.vertexColors[1].insert( 0, self.vertexColors[1][3] )
 		self.vertexColors[1].insert( 0, self.vertexColors[1][3] )
 		self.vertexColors[1].insert( 0, self.vertexColors[1][3] )
 		self.vertexColors[1].insert( 0, self.vertexColors[1][3] )
 		
-		# Repeat the last three coordinates at the end
+		# Repeat the last color at the end
 		self.vertexColors[1].extend( self.vertexColors[1][-4:] )
 
 	def render( self, batch ):
-		if not self.hidden:
+		if self.show:
 			count = len( self.vertices[1] ) / 3
 			batch.add( count, self.type, None, self.vertices, self.vertexColors )
