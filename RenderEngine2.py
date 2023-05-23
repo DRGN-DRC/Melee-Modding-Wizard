@@ -192,7 +192,7 @@ class RenderEngine( Tk.Frame ):
 
 		self.window.updateRequired = True
 
-	def addQuad( self, vertices, color=None, colors=(), tags=(), show=False ):
+	def addQuad( self, vertices, color=None, colors=(), tags=(), show=True ):
 
 		if len( vertices ) != 12:
 			print( 'Incorrect number of points given to create a quad: ' + str(vertices) )
