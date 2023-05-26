@@ -2035,27 +2035,27 @@ class DatFile( FileBase ):
 		if imageDataLength == -1:
 			imageDataLength = hsdStructures.ImageDataBlock.getDataLength( width, height, imageType )
 
-		# try:
-		assert imageDataLength >= 0x20, 'Invalid imageDataLength given to getTexture(): ' + hex( imageDataLength )
-		imageData = self.getData( imageDataOffset, imageDataLength )
+		try:
+			assert imageDataLength >= 0x20, 'Invalid imageDataLength given to getTexture(): ' + hex( imageDataLength )
+			imageData = self.getData( imageDataOffset, imageDataLength )
 
-		if imageType == 8 or imageType == 9 or imageType == 10: # Gather info on the palette.
-			paletteData, paletteType = self.getPaletteData( imageDataOffset )
-		else:
-			paletteData = ''
-			paletteType = None
+			if imageType == 8 or imageType == 9 or imageType == 10: # Gather info on the palette.
+				paletteData, paletteType = self.getPaletteData( imageDataOffset )
+			else:
+				paletteData = ''
+				paletteType = None
 
-		newImg = TplDecoder( '', (width, height), imageType, paletteType, imageData, paletteData )
-		newImg.deblockify() # This decodes the image data, creating an rgbaPixelArray.
+			newImg = TplDecoder( '', (width, height), imageType, paletteType, imageData, paletteData )
+			newImg.deblockify() # This decodes the image data, creating an rgbaPixelArray.
 
-		# Create an image with the decoded data
-		textureImage = Image.new( 'RGBA', (width, height) )
-		textureImage.putdata( newImg.rgbaPixelArray )
+			# Create an image with the decoded data
+			textureImage = Image.new( 'RGBA', (width, height) )
+			textureImage.putdata( newImg.rgbaPixelArray )
 
-		# except Exception as errMessage:
-		# 	print 'Unable to make out a texture for data at', hex(0x20+imageDataOffset)
-		# 	print errMessage
-		# 	return None
+		except Exception as errMessage:
+			print( 'Unable to make out a texture for data at ' + hex(0x20+imageDataOffset) )
+			print( errMessage )
+			return None
 
 		if getAsPilImage:
 			return textureImage

@@ -1164,7 +1164,7 @@ class DisplayListBlock( DataBlock ):
 					elif vertexDescriptor == '1BBBB': # 32-bit
 						baseLength += 4
 					else: # Failsafe
-						enumName = self.enums['Attribute_Name'][name]
+						enumName = VertexAttributesArray.enums['Attribute_Name'][name]
 						print( 'Warning! Invalid vertexDescriptor constructed for {}: {}'.format(enumName, vertexDescriptor) )
 						return []
 					baseFormat += vertexDescriptor
@@ -1261,7 +1261,17 @@ class DisplayListBlock( DataBlock ):
 				elif name == 11: # GX_VA_CLR0
 					vertex.color = self.decodeColor( compType, actualValues )
 				elif name == 12: # GX_VA_CLR1
-					print( 'Encountered GX_VA_CLR1' )
+					print( 'Encountered secondary color (GX_VA_CLR1)' )
+				elif name == 13: # GX_VA_TEX0
+					# Collect texture coordinates and normalize into the 0-1 range
+					if indexStride == 1:
+						vertex.s = actualValues[0]
+					else:
+						vertex.s = actualValues[0]
+						vertex.t = actualValues[1]
+				elif name > 13:
+					enumName = VertexAttributesArray.enums['Attribute_Name'][name]
+					print( 'Encountered {} in {}'.format(enumName, self.name) )
 
 			vertices.append( vertex )
 
@@ -1647,12 +1657,14 @@ class PolygonObjDesc( StructBase ): # A.k.a. Meshes
 		""" Initialize child structs and parse their data to decode model geometry. 
 			Returns a list of various primitive groups, in the form of VertexList objects. """
 
+		# Initialize the child structs, Vertex Attributes Array and Display List
 		vertexAttributes = self.initChild( VertexAttributesArray, 2 )
 		displayList = self.initChild( DisplayListBlock, 5 )
-		displayListLength = self.getValues( 'Display_List_Length' )
 
-		vertices = vertexAttributes.decodeEntries()
-		primitives = displayList.parse( displayListLength, vertices )
+		# Parse the attributes info and combine it with the display list data to build primitive lists
+		vertexAttributeInfo = vertexAttributes.decodeEntries()
+		displayListLength = self.getValues( 'Display_List_Length' )
+		primitives = displayList.parse( displayListLength, vertexAttributeInfo )
 
 		return primitives
 
@@ -1673,8 +1685,8 @@ class VertexAttributesArray( TableStruct ):
 				( 10, 'GX_VA_NRM' ), 		# Or GX_VA_NBT (Normal or Normal/Binormal/Tangent)
 				( 11, 'GX_VA_CLR0' ),
 				( 12, 'GX_VA_CLR1' ),
-				( 13, 'GX_VA_TEX0' ),
-				( 14, 'GX_VA_TEX1' ),		# Texture coordinates
+				( 13, 'GX_VA_TEX0' ),		# Texture coordinates
+				( 14, 'GX_VA_TEX1' ),
 				( 15, 'GX_VA_TEX2' ),
 				( 16, 'GX_VA_TEX3' ),
 				( 17, 'GX_VA_TEX4' ),
@@ -1943,13 +1955,11 @@ class VertexAttributesArray( TableStruct ):
 			# Unpack the vertex data struct's values and apply scaling
 			vertexData = struct.unpack( dataFormat, trimmedData )
 			#if compType != 4 and scale != 0 and name != 11 and name != 12: # If not a float and not a color attribute
-			if compType != 4 and scale != 0 and ( name == 9 or name == 10 ): # If not a float and name = GX_VA_POS or GX_VA_NRM/GX_VA_NBT
+			#if compType != 4 and scale != 0 and ( name == 9 or name == 10 ): # If not a float and name = GX_VA_POS or GX_VA_NRM/GX_VA_NBT
+			if compType != 4 and scale != 0: # If not a float and scale is non-zero
 				vertexData = [ value / float(1 << scale) for value in vertexData ]
 
-			# Separate the values into groups of vertex components
-			# iterReference = iter( vertexData )
-			# references = [ iterReference ] * dimensions
-			# vertexStream = [ group for group in zip( references ) ]
+			# Store the above info for this one attribute of a vertex
 			attributesInfo.append( (name, attrType, compType, vertexDescriptor, indexStride, vertexData) )
 
 		return attributesInfo

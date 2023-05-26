@@ -2955,7 +2955,7 @@ class StagePropertyEditor( ttk.Frame ):
 		# Model parts controls
 		modelPartsControls = ttk.Frame( self )
 		self.showBones = Tk.BooleanVar( value=False )
-		ttk.Checkbutton( modelPartsControls, text='Bones', variable=self.showBones, command=self.toggleBones ).grid( column=0, row=0, padx=(0, 8) )
+		ttk.Checkbutton( modelPartsControls, text='Bones', variable=self.showBones, command=self.toggleBones ).grid( column=0, row=0, padx=(0, 20) )
 		#ttk.Button( modelPartsControls, text='Info', command=self.viewModelInfo ).grid( column=1, row=1, padx=2 )
 		ttk.Button( modelPartsControls, text='View', command=self.viewModel ).grid( column=1, row=0, padx=2 )
 		ttk.Button( modelPartsControls, text='Info', command=self.viewModelInfo ).grid( column=1, row=1, padx=2 )

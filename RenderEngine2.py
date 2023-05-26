@@ -22,9 +22,10 @@ pyglet.options['debug_gl'] = False
 
 from pyglet import gl
 from pyglet.window import key, Projection3D
-from pyglet.app.base import EventLoop
-from pyglet.window.event import WindowEventLogger
 from pyglet.window import Window as pygletWindow
+from pyglet.app.base import EventLoop
+from pyglet.graphics import TextureGroup
+from pyglet.window.event import WindowEventLogger
 
 import globalData
 
@@ -53,7 +54,7 @@ class RenderEngine( Tk.Frame ):
 		# Create an invisible Pyglet window (cannot create a Pyglet canvas without a window)
 		display = pyglet.canvas.get_display()
 		screen = display.get_default_screen()
-		config = screen.get_matching_configs( gl.Config(double_buffer=True, depth_size=8, alpha_size=8, samples=8) )[0]
+		config = screen.get_matching_configs( gl.Config(double_buffer=True, depth_size=8, alpha_size=8, samples=4) )[0]
 		self.window = pygletWindow( display=display, config=config, width=self.width, height=self.height, resizable=resizable, visible=False )
 		self.fov = 60; self.znear = 0.1; self.zfar = 3000
 		self.window.projection = Projection3D( self.fov, self.znear, self.zfar )
@@ -73,6 +74,11 @@ class RenderEngine( Tk.Frame ):
 		gl.glEnable( gl.GL_ALPHA_TEST )
 		gl.glEnable( gl.GL_BLEND )
 		gl.glBlendFunc( gl.GL_SRC_ALPHA, gl.GL_ONE_MINUS_SRC_ALPHA )
+
+		gl.glEnable( gl.GL_TEXTURE_2D )
+		gl.glTexParameteri( gl.GL_TEXTURE_2D, gl.GL_TEXTURE_MAG_FILTER, gl.GL_LINEAR )
+		gl.glTexParameteri( gl.GL_TEXTURE_2D, gl.GL_TEXTURE_MIN_FILTER, gl.GL_LINEAR )
+
 		try:
 			gl.glEnable( gl.GL_LINE_SMOOTH ) # Anti-aliasing
 			gl.glEnable( gl.GL_POLYGON_SMOOTH )
@@ -114,6 +120,7 @@ class RenderEngine( Tk.Frame ):
 		self.triangles = []
 		self.quads = []
 		self.vertexLists = []
+		self.textures = {}
 
 		self.window.updateRequired = True
 
@@ -205,16 +212,14 @@ class RenderEngine( Tk.Frame ):
 
 		return quad
 	
-	def addVertexLists( self, vertexLists ):
+	def addVertexLists( self, vertexLists, textures ):
 
 		""" Adds one or more entries of a display list. Each display list entry contains 
 			one or more primitives of the same type (e.g. edge/triangle strip/etc)."""
 		
 		for vertexList in vertexLists:
-			# vertices
-			# assert len( self.vertices[1] ) / 3 == len( self.vertexColors[1] ) / 4, \
-			# 	'Invalid number of color values for vertex dimensions: {} color values; {} vertex coords'.format( len( self.vertexColors[1] ) / 4, len( self.vertices[1] ) / 3 )
-
+			if textures:
+				vertexList.textureGroup = self._addTextureGroup( textures )
 			self.vertexLists.append( vertexList )
 
 		self.window.updateRequired = True
@@ -268,34 +273,10 @@ class RenderEngine( Tk.Frame ):
 				parent = joint
 			self.renderJoint( nextJoint, parent, showBones )
 
-		# Check for a polygon object to render
-		try:
-			# Get the Display Object and then the Polygon Object
-			dobj = joint.DObj
-
-			# Iterate over this DObj and its siblings
-			for offset in [dobj.offset] + dobj.getSiblings():
-				dobj = joint.dat.getStruct( offset )
-				pobj = dobj.PObj
-
-				# Iterate over this PObj and its siblings
-				for offset in [pobj.offset] + pobj.getSiblings():
-					pobj = joint.dat.getStruct( offset )
-
-					# Parse out primitives for this mesh
-					pobjPrimitives = pobj.decodeGeometry()
-					self.addVertexLists( pobjPrimitives )
-					primitives.extend( pobjPrimitives )
-
-		except AttributeError:
-			pass # This is fine; likely a joint that doesn't have a DObj/PObj
-		except Exception as err:
-			if dobj and pobj:
-				print( 'Unable to render {}; {}'.format(pobj.name, err) )
-			elif dobj:
-				print( 'Unable to render {}; {}'.format(dobj.name, err) )
-			else:
-				print( 'Unable to render {}; {}'.format(joint.name, err) )
+		# Check for a display object and polygon object to render
+		dobj = joint.DObj
+		if dobj:
+			primitives.extend( self.renderPolygons(dobj) )
 
 		# Apply joint transformations for this joint's meshes as well as its children
 		transformationValues = joint.getValues()[5:14] # 9 values; 3 for each of rotation/scale/translation
@@ -314,9 +295,131 @@ class RenderEngine( Tk.Frame ):
 			edge = self.addEdge( (0,0,0) + vertices, colors=((0,255,0,255), (0,0,255,255)), tags=('bones',), show=showBones )
 			primitives.append( edge )
 
-		self.window.updateRequired = True
+		return primitives
+	
+	def renderPolygons( self, parentDobj ):
+
+		""" Parses and renders the given Display Object (DObj) and 
+			all of its siblings. """
+
+		primitives = []
+
+		# Check for a polygon object to render
+		try:
+			# Iterate over this DObj and its siblings
+			for offset in [parentDobj.offset] + parentDobj.getSiblings():
+				dobj = parentDobj.dat.getStruct( offset )
+				pobj = dobj.PObj
+
+				# Check for textures (usually just one, but there can be more)
+				textures = self.collectTextures( dobj )
+
+				# Iterate over this PObj and its siblings
+				for offset in [pobj.offset] + pobj.getSiblings():
+					pobj = dobj.dat.getStruct( offset )
+
+					# Parse out primitives for this mesh
+					pobjPrimitives = pobj.decodeGeometry()
+					self.addVertexLists( pobjPrimitives, textures )
+					primitives.extend( pobjPrimitives )
+
+		except AttributeError:
+			pass # This is fine; likely a joint that doesn't have a DObj/PObj
+		except Exception as err:
+			if dobj and pobj:
+				print( 'Unable to render {}; {}'.format(pobj.name, err) )
+			elif dobj:
+				print( 'Unable to render {}; {}'.format(dobj.name, err) )
+			else:
+				print( 'Unable to render {}; {}'.format(parentDobj.name, err) )
 
 		return primitives
+	
+	def collectTextures( self, dobj ):
+
+		""" Collects all textures attached to the given Display Object (DObj), 
+			Following all '_Next' pointers in the Texture Object(s). 
+			Returns a list of texture objects (structs). """
+
+		tobj = None
+		textures = []
+
+		try:
+			# Check for a texture object (TObj)
+			mobj = dobj.initChild( 'MaterialObjDesc', 2 )
+			tobj = mobj.initChild( 'TextureObjDesc', 2 )
+
+			while tobj:
+				# Get basic info on the texture
+				imgHeader = tobj.initChild( 'ImageObjDesc', 21 )
+				imageDataOffset, width, height, imageType, mipmapFlag, minLOD, maxLOD = imgHeader.getValues()
+
+				# Check for palette info
+				paletteHeader = tobj.initChild( 'PaletteObjDesc', 22 )
+				if paletteHeader:
+					paletteDataOffset = paletteHeader.getValues()[0]
+					paletteHeaderOffset = paletteHeader.offset
+				else:
+					paletteDataOffset = -1
+					paletteHeaderOffset = -1
+				
+				# Initialize a structure for the image data
+				texture = dobj.dat.initTexture( imageDataOffset, imgHeader.offset, paletteDataOffset, paletteHeaderOffset, width, height, imageType, maxLOD, 0 )
+				texture.tobj = tobj
+				texture.mobj = mobj
+				textures.append( texture )
+
+				# Check for siblings
+				tobj = tobj.initChild( 'TextureObjDesc', 1 )
+		
+		except AttributeError:
+			pass # This is fine; likely a DObj that doesn't have a MObj/TObj
+
+		except Exception as err:
+			if mobj and tobj:
+				print( 'Unable to get a texture from {}; {}'.format(tobj.name, err) )
+			elif mobj:
+				print( 'Unable to get a texture from {}; {}'.format(mobj.name, err) )
+			else:
+				print( 'Unable to get a texture from {}; {}'.format(dobj.name, err) )
+
+		return textures
+
+	def _addTextureGroup( self, textures ):
+
+		""" Converts the given texture objects (file structures) to 
+			textures for pyglet and stores them into texture groups. """
+
+		# # Itereate over texture objects that are based on the image data (.offset will be an image data offset)
+		# for textureObj in textures:
+		# 	textureGroup = self.textures.get( textureObj.offset )
+
+		# 	# Create a new texture group if this is the first time this texture is being seen
+		# 	if not textureGroup:
+		# 		# Decode the texture and convert it to a pyglet image
+		# 		width, height = textureObj.width, textureObj.height
+		# 		pilImage = textureObj.dat.getTexture( textureObj.offset, width, height, textureObj.imageType, textureObj.imageDataLength, getAsPilImage=True )
+		# 		pygletImage = pyglet.image.ImageData( width, height, 'RGBA', pilImage.tobytes(), pitch=-pilImage.width * 4 )
+		# 		texture = pygletImage.get_texture()
+
+		# 		# Create a pyglet TextureGroup object and store it
+		# 		textureGroup = HSD_Texture( texture, textures )
+		# 		self.textures[textureObj.offset] = textureGroup
+
+		# Use the first texture data offset as an ID
+		firstTextureOffset = textures[0].offset
+		
+		textureGroup = self.textures.get( firstTextureOffset )
+
+		if not textureGroup:
+			# Create a pyglet TextureGroup object and store it
+			textureGroup = HSD_Texture( textures )
+			self.textures[firstTextureOffset] = textureGroup
+		
+		# Multiple groups may have been created, but we'll just return the first for now
+		# firstTextureOffset = textures[0].offset
+		# return self.textures[firstTextureOffset]
+		return textureGroup
 
 	# def on_key_press( self, *args ):
 
@@ -380,11 +483,11 @@ class RenderEngine( Tk.Frame ):
 		dx, dy, buttons, modifiers = args[2:]
 
 		if buttons == 1: # Left-click button held
-			self.rotation_X += dx
-			self.rotation_Y -= dy
+			self.rotation_X += dx / 2.0
+			self.rotation_Y -= dy / 2.0
 		elif buttons == 4: # Right-click button held
-			self.translation_X += dx / 5.0
-			self.translation_Y += dy / 5.0
+			self.translation_X += dx / 2.0
+			self.translation_Y += dy / 2.0
 		# else: Multiple buttons held; do nothing and 
 		# wait 'til the user gets their act together. :P
 
@@ -837,8 +940,8 @@ class Vertex( Primitive ):
 			self.z = 0
 
 		# Texture coordinates
-		self.u = 0
-		self.v = 0
+		self.s = 0
+		self.t = 0
 
 		self.color = color
 		self.tags = tags
@@ -848,14 +951,14 @@ class Vertex( Primitive ):
 	def render( self, batch ):
 		if self.show:
 			gl.glPointSize( self.size )
-			batch.add( 1, gl.GL_POINTS, None, ('v3f/static"', (self.x, self.y, self.z)), ('c4B/static"', self.color) )
+			batch.add( 1, gl.GL_POINTS, None, ('v3f/static', (self.x, self.y, self.z)), ('c4B/static', self.color) )
 
 
 class Edge( Primitive ):
 
 	def __init__( self, vertices, color=None, colors=(), tags=(), show=True, thickness=2 ):
-		self.vertices = ( 'v3f/static"', vertices )
-		self.vertexColors = ( 'c4B/static"', self.interpretColors( 2, color, colors ) )
+		self.vertices = ( 'v3f/static', vertices )
+		self.vertexColors = ( 'c4B/static', self.interpretColors( 2, color, colors ) )
 		self.tags = tags
 		self.show = show
 		self.thickness = thickness
@@ -869,9 +972,9 @@ class Edge( Primitive ):
 class Triangle( Primitive ):
 
 	def __init__( self, vertices, color=None, colors=(), tags=(), show=True ):
-		self.vertices = ( 'v3f/static"', vertices )
-		self.vertexColors = ( 'c4B/static"', self.interpretColors( 3, color, colors ) )
-		self.normals = ( 'n3f/static"', [] )
+		self.vertices = ( 'v3f/static', vertices )
+		self.vertexColors = ( 'c4B/static', self.interpretColors( 3, color, colors ) )
+		self.normals = ( 'n3f/static', [] )
 		self.tags = tags
 		self.show = show
 	
@@ -883,9 +986,9 @@ class Triangle( Primitive ):
 class Quad( Primitive ):
 
 	def __init__( self, vertices, color=None, colors=(), tags=(), show=True ):
-		self.vertices = ( 'v3f/static"', vertices )
-		self.vertexColors = ( 'c4B/static"', self.interpretColors( 4, color, colors ) )
-		self.normals = ( 'n3f/static"', [] )
+		self.vertices = ( 'v3f/static', vertices )
+		self.vertexColors = ( 'c4B/static', self.interpretColors( 4, color, colors ) )
+		self.normals = ( 'n3f/static', [] )
 		self.tags = tags
 		self.show = show
 	
@@ -896,20 +999,24 @@ class Quad( Primitive ):
 
 class VertexList( Primitive ):
 
-	def __init__( self, primitiveType, vertices, color=None, colors=(), tags=(), show=True ):
+	def __init__( self, primitiveType, vertices, tags=(), show=True ):
 		self.type = self.interpretPrimType( primitiveType )
-		self.vertices = ( 'v3f/static"', [] )
-		self.vertexColors = ( 'c4B/static"', [] )
-		self.normals = ( 'n3f/static"', [] )
+		self.vertices = ( 'v3f/static', [] )
+		self.vertexColors = ( 'c4B/static', [] )
+		self.texCoords = ( 't2f/static', [] )
+		self.normals = ( 'n3f/static', [] )
+		self.textureGroup = None
 
 		for vertex in vertices:
 			self.vertices[1].extend( (vertex.x, vertex.y, vertex.z) )
 			self.vertexColors[1].extend( vertex.color )
+			self.texCoords[1].extend( (vertex.s, vertex.t) )
 
 		# Add degenerate vertices if needed
 		if self.type == gl.GL_LINE_STRIP or self.type == gl.GL_TRIANGLE_STRIP:
 			self.addDegenerates()
 
+		self.vertexCount = len( self.vertices[1] ) / 3
 		self.tags = tags
 		self.show = show
 
@@ -925,6 +1032,7 @@ class VertexList( Primitive ):
 		elif primType == 0x98: primitiveType = gl.GL_TRIANGLE_STRIP
 		elif primType == 0xA0: primitiveType = gl.GL_TRIANGLE_FAN
 		elif primType == 0x80: primitiveType = gl.GL_QUADS
+		# 0x88 == gl.GL_QUAD_STRIP?
 		else: # Failsafe
 			print( 'Warning! Invalid primitive type: 0x{:X}'.format(primType) )
 			primitiveType = gl.GL_POINTS
@@ -964,7 +1072,91 @@ class VertexList( Primitive ):
 		# Repeat the last color at the end
 		self.vertexColors[1].extend( self.vertexColors[1][-4:] )
 
+		# Repeat the first texture coords at the start
+		self.texCoords[1].insert( 0, self.texCoords[1][3] )
+		self.texCoords[1].insert( 0, self.texCoords[1][3] )
+		
+		# Repeat the last texture coords at the end
+		self.texCoords[1].extend( self.texCoords[1][-2:] )
+
 	def render( self, batch ):
 		if self.show:
-			count = len( self.vertices[1] ) / 3
-			batch.add( count, self.type, None, self.vertices, self.vertexColors )
+			batch.add( self.vertexCount, self.type, self.textureGroup, self.vertices, self.vertexColors, self.texCoords )
+
+
+class HSD_Texture( TextureGroup ):
+
+	def __init__( self, textures, parent=None ):
+		super( HSD_Texture, self ).__init__( parent )
+
+		# Use the first texture in the textures list by default
+		self.index = 0
+		self.textures = textures # A list of texture objects (file structs)
+		self.texture = self._convertTexObject( textures[0] )
+		self.pygletConversions = { textures[0].offset: self.texture }
+
+		self._setTexProperties()
+
+	def _setTexProperties( self ):
+		tobj = self.textures[self.index].tobj
+		tobjValues = tobj.getValues()
+		self.wrapModeS = tobjValues[13]
+		self.wrapModeT = tobjValues[14]
+		self.repeatS = tobjValues[15]
+		self.repeatT = tobjValues[16]
+
+		if self.wrapModeS == 0:
+			self.wrapModeS = gl.GL_CLAMP
+		elif self.wrapModeS == 1:
+			self.wrapModeS = gl.GL_REPEAT
+		if self.wrapModeT == 0:
+			self.wrapModeT = gl.GL_CLAMP
+		elif self.wrapModeT == 1:
+			self.wrapModeT = gl.GL_REPEAT
+
+	def _convertTexObject( self, textureObj ):
+
+		""" Decodes the given texture (struct) object and convert it to a pyglet image. """
+
+		# Decode the texture
+		width, height = textureObj.width, textureObj.height
+		pilImage = textureObj.dat.getTexture( textureObj.offset, width, height, textureObj.imageType, textureObj.imageDataLength, getAsPilImage=True )
+		
+		# Convert it for use with pyglet
+		#pygletImage = pyglet.image.ImageData( width, height, 'RGBA', pilImage.tobytes(), pitch=-pilImage.width * 4 )
+		pygletImage = pyglet.image.ImageData( width, height, 'RGBA', pilImage.tobytes() )
+		texture = pygletImage.get_texture()
+		# texture.anchor_x = width / 2
+		# texture.anchor_y = height / 2
+
+		return texture
+	
+	def changeTextureIndex( self, index ):
+
+		""" Switches the current texture to a different one 
+			in this group, converting it if needed. """
+
+		assert index >= 0 and index < len( self.textures ), 'Texture group index out of range! {}'.format( index )
+
+		self.index = index
+		textureObj = self.textures[index]
+		pygletTexture = self.pygletConversions.get( textureObj.offset )
+
+		# Check if this has already been decoded/converted
+		if not pygletTexture:
+			pygletTexture = self._convertTexObject( textureObj )
+			self.pygletConversions[textureObj.offset] = pygletTexture
+
+		self.texture = pygletTexture
+		self._setTexProperties()
+	
+	def set_state( self ):
+		gl.glEnable( self.texture.target )
+		gl.glBindTexture( self.texture.target, self.texture.id )
+
+		#if self.wrapModeS:
+		gl.glTexParameteri( gl.GL_TEXTURE_2D, gl.GL_TEXTURE_WRAP_S, self.wrapModeS )
+		gl.glTexParameteri( gl.GL_TEXTURE_2D, gl.GL_TEXTURE_WRAP_T, self.wrapModeT )
+
+	def unset_state( self ):
+		gl.glDisable( self.texture.target )
