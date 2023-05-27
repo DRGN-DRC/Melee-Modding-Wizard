@@ -1198,7 +1198,7 @@ class DisplayListBlock( DataBlock ):
 
 				# End the list if encountering an unrecognized type
 				if primitiveType not in self.enums['Primitive_Type'].keys():
-					break
+					continue
 
 				# Collect data for this primitive group and unpack it
 				dataLength = baseLength * indexCount
