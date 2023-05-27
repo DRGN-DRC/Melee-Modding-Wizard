@@ -671,12 +671,14 @@ class SubAction( DataBlock ):
 		0x07: ( "GoTo", 8, ('Padding', 'Pointer'), ('uint:26', 'uint:32')), # First param is "Target"?
 		0x08: ( "Set Loop Animation Timer", 4, (), ('int:26',) ),
 		0x09: ( "Unknown 0x09", 4, ('Unknown',), ('int:26',) ),
-		0x0A: ( "Graphic Effect", 0x14, ('Padding', 'Graphic ID', 'Bone ID', 
-										'Padding', 'Z Offset', 'Y Offset', 'X Offset', 
+		0x0A: ( "Graphic Effect", 0x14, ('Bone ID', 'Use Common Bone ID', 'Destroy On State Change', 
+										'Use Unknown Bone ID?', 'Unknown', 'Graphic ID', 'Unknown Bone ID?', 
+										'Z Offset', 'Y Offset', 'X Offset', 
 										'Z Range', 'Y Range', 'X Range'), 
-										('uint:26', 'uint:10', 'uint:6',		# First padding may be two params as: 'uint:8', 'uint:18'
-										'uint:16', 'int:16', 'int:16', 'int:16', 
-										'int:16', 'int:16', 'int:16') ),
+										('uint:8', 'bool', 'bool', 
+										'bool', 'uint:15', 'uint:16', 'uint:16', 
+										'int:16', 'int:16', 'int:16', 
+										'uint:16', 'uint:16', 'uint:16') ),
 
 		# https://smashboards.com/threads/melee-hacks-and-you-new-hackers-start-here-in-the-op.247119/page-48#post-10769744
 		# Details on Rebound (Hitbox Interaction): https://smashboards.com/threads/official-ask-anyone-frame-things-thread.313889/post-17742200
@@ -734,7 +736,7 @@ class SubAction( DataBlock ):
 										('bool', 'int:7', 'int:7', 'int:11') ),
 		0x29: ( "Animate Model", 4, ('Body Part', 'State', 'Unknown'), ('uint:10', 'uint:4', 'uint:12') ),
 		0x2A: ( "Unknown 0x2A", 4, ('Unknown',), ('int:26',) ),
-		0x2B: ( "Rumble", 4, ('Unknown',), ('int:26',) ),
+		0x2B: ( "Rumble", 4, ('Unknown Flag', 'Request Rumble', 'Request Rumble 2'), ('', '', 'int:26',) ),
 		0x2C: ( "Unknown 0x2C", 4, ('Padding', 'Flag'), ('uint:25', 'bool') ), # set flag
 		0x2D: ( "Unknown 0x2D", 0xC, ('Unknown',), ('int:90',) ),
 
