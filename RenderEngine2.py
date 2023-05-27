@@ -17,8 +17,11 @@ import Tkinter as Tk
 
 from collections import OrderedDict
 
-# Disable error checking for increased performance
+# Disable a few options for increased performance
 pyglet.options['debug_gl'] = False
+pyglet.options['audio'] = ( 'silent', )
+pyglet.options['shadow_window'] = False
+pyglet.options['search_local_libs'] = False
 
 from pyglet import gl
 from pyglet.window import key, Projection3D
@@ -59,6 +62,7 @@ class RenderEngine( Tk.Frame ):
 		self.fov = 60; self.znear = 0.1; self.zfar = 3000
 		self.window.projection = Projection3D( self.fov, self.znear, self.zfar )
 		self.window.on_draw = self.on_draw
+		self.bind( '<Expose>', self.refresh )
 		openGlVersion = self.window.context._info.get_version().split()[0]
 		# print( 'Rendering with OpenGL version {}'.format(openGlVersion) )
 
@@ -125,8 +129,6 @@ class RenderEngine( Tk.Frame ):
 		self.window.updateRequired = True
 
 	def resetView( self ):
-		self.maxZoom = 200
-
 		self.rotation_X = 0
 		self.rotation_Y = 0
 
@@ -151,6 +153,15 @@ class RenderEngine( Tk.Frame ):
 		self.window.switch_to()
 		gl.glViewport( 0, 0, self.width, self.height )
 		self.window._update_view_location( self.width, self.height )
+
+		self.window.updateRequired = True
+
+	def refresh( self, event ):
+
+		""" Tells the render engine to update/redraw the display canvas at its next opportunity. 
+			This is bound to the <Expose> Tkinter event, which will occur whenever at least 
+			some part of the program or widget becomes visible after having been covered up 
+			by another window or widget. """
 
 		self.window.updateRequired = True
 
@@ -222,6 +233,9 @@ class RenderEngine( Tk.Frame ):
 				vertexList.textureGroup = self._addTextureGroup( textures )
 			self.vertexLists.append( vertexList )
 
+			# self.window.updateRequired = True
+			# self.canvas.update()
+
 		self.window.updateRequired = True
 	
 	def addPrimitives( self, primitives ):
@@ -286,14 +300,22 @@ class RenderEngine( Tk.Frame ):
 			primitive.translate( *transformationValues[6:] )
 
 		# Add a vertex to represent this joint
-		vertices = transformationValues[6:]
-		primitives.append( self.addVertex( vertices, (255, 0, 0, 255), ('bones',), showBones ) )
-		
+		xyzCoords = transformationValues[6:]
+		primitives.append( self.addVertex( xyzCoords, (255, 0, 0, 255), ('bones',), showBones ) )
+
+		# Track the largest +/- x values to adjust the camera zoom
+		xCoordAbs = -abs( xyzCoords[0] )
+		if xCoordAbs < self.translation_Z and xCoordAbs > -self.zfar:
+			self.translation_Z = xCoordAbs - 100
+
 		# Connect a line between the current joint and its parent joint
 		if parent:
 			# Parent vertices will be added by the calling method's transformation step(s)
-			edge = self.addEdge( (0,0,0) + vertices, colors=((0,255,0,255), (0,0,255,255)), tags=('bones',), show=showBones )
+			edge = self.addEdge( (0,0,0) + xyzCoords, colors=((0,255,0,255), (0,0,255,255)), tags=('bones',), show=showBones )
 			primitives.append( edge )
+
+		# Update the display to show current progress
+		self.canvas.update()
 
 		return primitives
 	
@@ -1105,14 +1127,16 @@ class HSD_Texture( TextureGroup ):
 		self.repeatS = tobjValues[15]
 		self.repeatT = tobjValues[16]
 
-		if self.wrapModeS == 0:
-			self.wrapModeS = gl.GL_CLAMP
-		elif self.wrapModeS == 1:
-			self.wrapModeS = gl.GL_REPEAT
-		if self.wrapModeT == 0:
-			self.wrapModeT = gl.GL_CLAMP
-		elif self.wrapModeT == 1:
-			self.wrapModeT = gl.GL_REPEAT
+		# if self.wrapModeS == 0:
+		# 	self.wrapModeS = gl.GL_CLAMP
+		# elif self.wrapModeS == 1:
+		# 	self.wrapModeS = gl.GL_REPEAT
+		# elif self.wrapModeS == 2:
+		# 	self.wrapModeS = gl.GL_REPEAT
+		# if self.wrapModeT == 0:
+		# 	self.wrapModeT = gl.GL_CLAMP
+		# elif self.wrapModeT == 1:
+		# 	self.wrapModeT = gl.GL_REPEAT
 
 	def _convertTexObject( self, textureObj ):
 
@@ -1154,7 +1178,6 @@ class HSD_Texture( TextureGroup ):
 		gl.glEnable( self.texture.target )
 		gl.glBindTexture( self.texture.target, self.texture.id )
 
-		#if self.wrapModeS:
 		gl.glTexParameteri( gl.GL_TEXTURE_2D, gl.GL_TEXTURE_WRAP_S, self.wrapModeS )
 		gl.glTexParameteri( gl.GL_TEXTURE_2D, gl.GL_TEXTURE_WRAP_T, self.wrapModeT )
 
