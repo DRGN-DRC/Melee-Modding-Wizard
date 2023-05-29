@@ -20,7 +20,7 @@ from collections import OrderedDict
 # Disable a few options for increased performance
 pyglet.options['debug_gl'] = False
 pyglet.options['audio'] = ( 'silent', )
-pyglet.options['shadow_window'] = False
+#pyglet.options['shadow_window'] = False
 pyglet.options['search_local_libs'] = False
 
 from pyglet import gl

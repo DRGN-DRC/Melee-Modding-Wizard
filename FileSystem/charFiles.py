@@ -736,7 +736,7 @@ class SubAction( DataBlock ):
 										('bool', 'int:7', 'int:7', 'int:11') ),
 		0x29: ( "Animate Model", 4, ('Body Part', 'State', 'Unknown'), ('uint:10', 'uint:4', 'uint:12') ),
 		0x2A: ( "Unknown 0x2A", 4, ('Unknown',), ('int:26',) ),
-		0x2B: ( "Rumble", 4, ('Unknown Flag', 'Request Rumble', 'Request Rumble 2'), ('', '', 'int:26',) ),
+		0x2B: ( "Rumble", 4, ('Unknown Flag', 'Unknown Value', 'Unknown Value'), ('bool', 'int:12', 'int:13',) ),
 		0x2C: ( "Unknown 0x2C", 4, ('Padding', 'Flag'), ('uint:25', 'bool') ), # set flag
 		0x2D: ( "Unknown 0x2D", 0xC, ('Unknown',), ('int:90',) ),
 
