@@ -15,6 +15,8 @@ import os
 import ttk
 import time
 import struct
+import pyglet
+import tkFileDialog
 import Tkinter as Tk
 
 from binascii import hexlify
@@ -1050,6 +1052,9 @@ class StageManager( ttk.Frame ):
 		return offsets
 
 	def addStageSelectCanvas( self, pageName, filename ):
+
+		""" Adds a representation for a Stage Select Screen to the Stage Manager interface. 
+			These are added to the notebook widget in the top-left of the main Stage Selection tab. """
 
 		# Create a new tab/frame for this page and add it to the notebook
 		newTab = ttk.Frame( self.pagesNotebook )
@@ -3105,7 +3110,34 @@ class StagePropertyEditor( ttk.Frame ):
 			if next:
 				self._countStructs( next, structTotals, texturesProcessed, geomDataProcessed )
 
-	def importModelGroup( self ): pass
+	def importModelGroup( self ):
+
+		""" Called by the Import button below the model groups. Prompts the user 
+			for a file to load, then decodes it and replaces the currently selected joint. """
+
+		# Get the current selection
+		iidSelectionsTuple = self.modelPartsTree.selection()
+		if not iidSelectionsTuple:
+			msg( 'No model parts are selected!', 'Nothing to Report, Captain' )
+			return
+		elif len( iidSelectionsTuple ) != 1:
+			msg( 'Please only select one model group to replace.', 'Invalid Selection' )
+			return
+
+		# Prompt the user to choose a file to import
+		filepath = tkFileDialog.askopenfilename(
+			title="Choose a model file to open (replaces current selection).",
+			parent=self.winfo_toplevel(),
+			initialdir=globalData.getLastUsedDir( 'model' ),
+			filetypes=[('Model data files', '*.dae *.fbx *.obj *.stl'), ('DAT files', '*.dat *.usd'), ('All files', '*.*')]
+			)
+		
+		if filepath: # This will be empty if the user canceled
+			# Clear current rendered objects
+			self.engine.clearRenderings()
+
+			#pyglet.model.load( filepath )
+
 	def exportModelGroup( self ): pass
 	def addModelGroup( self ): pass
 	def deleteModelGroup( self ): pass
