@@ -1457,10 +1457,12 @@ class DatFile( FileBase ):
 		""" Performs a similar function as the updateData method. However, this requires a known structure to exist, 
 			and makes the appropriate modifications through it first before updating self.data. """
 
-		# Change the value in the struct
+		# If operating on an entry within a table struct, caculate a new value index
 		if entryIndex != -1:
 			assert isinstance( structure, hsdStructures.TableStruct ), 'Invalid usage of updateStructValue; must operate on a TableStruct if using an entryIndex.'
 			valueIndex = ( structure.entryValueCount * entryIndex ) + valueIndex
+
+		# Change the value in the struct
 		structure.setValue( valueIndex, newValue )
 		
 		# Update the file's data with that of the modified structure
@@ -1477,29 +1479,6 @@ class DatFile( FileBase ):
 			description += ' at 0x{:X}.'.format( offset )
 
 			self.recordChange( description, treeviewDescription )
-
-	# def updateStructEntryValue( self, structure, valueIndex, newValue, description='', trackChange=True ):
-		
-	# 	""" Performs a similar function as the updateData method. However, this requires a known structure to exist, 
-	# 		and makes the appropriate modifications through it first before updating self.data. """
-
-	# 	# Change the value in the struct
-	# 	structure.setValue( valueIndex, newValue )
-		
-	# 	# Update the file's data with that of the modified structure
-	# 	structure.data = struct.pack( structure.formatting, *structure.values )
-	# 	self.setData( structure.offset, structure.data )
-		
-	# 	# Record these changes
-	# 	if trackChange:
-	# 		# Create a description if one isn't provided. Amend it with e.g. ' at 0x1234'
-	# 		if not description:
-	# 			fieldName = structure.fields[valueIndex].replace( '_', ' ' )
-	# 			description = '{} modified for {}'.format( fieldName, structure.name )
-	# 		offset = 0x20 + structure.valueIndexToOffset( valueIndex ) # Accounting for file header
-	# 		description += ' at 0x{:X}.'.format( offset )
-
-	# 		self.recordChange( description )
 
 	def updateFlag( self, structure, valueIndex, bitNumber, flagState, trackChange=True ):
 		

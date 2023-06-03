@@ -23,7 +23,7 @@ from collections import OrderedDict
 import globalData
 
 from basicFunctions import uHex
-from RenderEngine2 import Vertex, Edge, Triangle, Quad, VertexList
+from RenderEngine2 import Vertex, VertexList
 
 showLogs = True
 
@@ -605,18 +605,18 @@ class StructBase( object ):
 		allStructs = []
 		subBranches = self.getChildren( includeSiblings=True )
 
-		# print( 'Descendants of ' + self.name )
-		# print( 'direct:' + str([ hex( 0x20 + s) for s in subBranches]) )
+		print( 'Descendants of ' + self.name )
+		print( 'direct:' + str([ hex( 0x20 + s) for s in subBranches]) )
 
 		for offset in subBranches:
 			structure = self.dat.getStruct( offset )
 			allStructs.append( structure )
 			decendants = structure.getBranchDescendants()
-			d2 = [ hex( 0x20 + d.offset) for d in decendants]
+			#d2 = [ hex( 0x20 + d.offset) for d in decendants]
 			#print( '\t' + str(d2) )
 			allStructs.extend( decendants )
 
-		#print( 'all:' + str([ hex( 0x20 + s.offset) for s in allStructs]) )
+		print( 'all:' + str([ hex( 0x20 + s.offset) for s in allStructs]) )
 
 		return allStructs
 
@@ -1181,7 +1181,7 @@ class DisplayListBlock( DataBlock ):
 				print( 'Invalid attribute type "{}"!'.format(attrType) )
 				return []
 
-		primitives = []
+		vertexLists = []
 		offset = 0
 
 		# Iterate over all entries in this display list
@@ -1198,6 +1198,8 @@ class DisplayListBlock( DataBlock ):
 
 				# End the list if encountering an unrecognized type
 				if primitiveType not in self.enums['Primitive_Type'].keys():
+					if debugging:
+						print( 'Found an unrecognized primitive type: 0x{:X}'.format(primitiveType) )
 					continue
 
 				# Collect data for this primitive group and unpack it
@@ -1208,18 +1210,9 @@ class DisplayListBlock( DataBlock ):
 					raise Exception( 'display list data ended prematurely.' )
 				displayListValues = struct.unpack( dataFormat, data )
 
-				# Parse the display list for vertices
-				vertices = self.parseDisplayListEntry( displayListValues, indexCount, attributesInfo )
-
-				# Build new primitives if this isn't just an array of vertices
-				# if primitiveType == 0xB8: # Points (Vertices)
-				# 	primitives.extend( vertices )
-				# else:
-				# 	prims = self.buildPrimitives( primitiveType, vertices )
-				# 	primitives.extend( prims )
-
-				prims = VertexList( primitiveType, vertices )
-				primitives.append( prims )
+				# Parse the display list for vertices and create a VertexList from them
+				vl = self.createVertexList( primitiveType, displayListValues, indexCount, attributesInfo )
+				vertexLists.append( vl )
 				
 				offset += dataLength
 
@@ -1227,14 +1220,15 @@ class DisplayListBlock( DataBlock ):
 			if debugging:
 				print( 'Unable to fully parse {}; {}'.format(self.name, err) )
 
-		return primitives
+		return vertexLists
 
-	def parseDisplayListEntry( self, displayListValues, indexCount, attributesInfo ):
+	def createVertexList( self, primitiveType, displayListValues, indexCount, attributesInfo ):
 
-		""" Produces a list of vertices from a single entry in the Display List. """
+		""" Creates a VertexList (one entry in the display list; i.e. one set of primitives), 
+			and gives it properties parsed out from the vertex attributes and display list data. """
 
 		displayListIndex = 0
-		vertices = []
+		vl = VertexList( primitiveType, None )
 
 		# Iterate over each attribute value/index for each entry in this display set
 		for i in range( indexCount ):
@@ -1245,89 +1239,47 @@ class DisplayListBlock( DataBlock ):
 				elif attrType == 1: # DIRECT
 					if name == 11 or name == 12: # Color values
 						valueIndex = displayListIndex * indexStride
-						actualValues = displayListValues[valueIndex:valueIndex+indexStride]
+						values = displayListValues[valueIndex:valueIndex+indexStride]
 						displayListIndex += indexStride
 					else: # Everything else (primarily matrix indices)
-						actualValues = ( displayListValues[displayListIndex], )
+						values = ( displayListValues[displayListIndex], )
 						displayListIndex += 1
 				else: # GX_INDEX8 / GX_INDEX16
 					valueIndex = displayListValues[displayListIndex] * indexStride
-					actualValues = vertexStream[valueIndex:valueIndex+indexStride]
+					values = vertexStream[valueIndex:valueIndex+indexStride]
 					displayListIndex += 1
 				
 				# Create the vertex and update it with the values collected above
-				if name == 9: # Positional data
-					vertex = Vertex( actualValues, color=(0, 0, 0, 255) )
+				if name == 0: # GX_VA_PNMTXIDX
+					vl.envelopeIndex = values[0]
+				elif name == 9: # Positional data
+					#vertex = Vertex( actualValues, color=(0, 0, 0, 255) )
+					vl.vertices[1].extend( values )
 				elif name == 11: # GX_VA_CLR0
-					vertex.color = self.decodeColor( compType, actualValues )
+					#vertex.color = self.decodeColor( compType, actualValues )
+					color = self.decodeColor( compType, values )
+					vl.vertexColors[1].extend( color )
 				elif name == 12: # GX_VA_CLR1
 					print( 'Encountered secondary color (GX_VA_CLR1)' )
 				elif name == 13: # GX_VA_TEX0
 					# Collect texture coordinates and normalize into the 0-1 range
-					if indexStride == 1:
-						vertex.s = actualValues[0]
-					else:
-						vertex.s = actualValues[0]
-						vertex.t = actualValues[1]
+					# if indexStride == 1:
+					# 	vertex.s = actualValues[0]
+					# else:
+					# 	vertex.s = actualValues[0]
+					# 	vertex.t = actualValues[1]
+					vl.texCoords[1].extend( values )
 				elif name > 13:
 					enumName = VertexAttributesArray.enums['Attribute_Name'][name]
 					print( 'Encountered {} in {}'.format(enumName, self.name) )
 
-			vertices.append( vertex )
+		vl.finalize()
 
-		return vertices
-	
-	# def buildPrimitives( self, primType, vertices ):
-		
-	# 	""" Takes a list of vertices and builds a list of primitives from them of the given type. """
-	
-	# 	if primType == 0xA8: # Lines
-	# 		primitive = Edge
-	# 		verticesPerPrim = 2
-	# 	elif primType == 0xB0: # Line Strips
-	# 		primitive = Edge
-	# 		verticesPerPrim = 2
-	# 	elif primType == 0x90: # Triangles
-	# 		primitive = Triangle
-	# 		verticesPerPrim = 3
-	# 	elif primType == 0x98: # Triangle Strips
-	# 		primitive = Triangle
-	# 		verticesPerPrim = 3
-	# 	elif primType == 0xA0: # Triangle Fan
-	# 		primitive = Triangle
-	# 		verticesPerPrim = 3
-	# 	else: # Quads
-	# 		primitive = Quad
-	# 		verticesPerPrim = 4
-
-	# 	# if len( vertices ) % verticesPerPrim != 0:
-	# 	# 	primName = self.enums['Primitive_Type'][primType]
-	# 	# 	primsToMake = len( vertices ) / verticesPerPrim
-	# 	# 	print( 'Warning! Found {} vertices to form {} {} primitives!'.format(len(vertices), primsToMake, primName) )
-
-	# 	# Prepare to iterate over groups of vertices
-	# 	vertexIter = iter( vertices )
-	# 	vertexList = [ vertexIter ] * verticesPerPrim
-
-	# 	# Iterate over each group of vertices for one primitive
-	# 	primitives = []
-	# 	for primVertices in zip( *vertexList ):
-	# 		# Create the new primitive and empty the default colors list
-	# 		prim = primitive( [] )
-	# 		prim.vertexColors = ( prim.vertexColors[0], [] )
-
-	# 		# Collect coordinates, colors, etc. from each vertex onto the new primitive
-	# 		for vertex in primVertices:
-	# 			prim.vertices[1].extend( (vertex.x, vertex.y, vertex.z) )
-	# 			prim.vertexColors[1].extend( vertex.color )
-
-	# 		primitives.append( prim )
-
-	# 	return primitives
+		return vl
 
 	def decodeColor( self, compType, pixelValues ):
 
-		""" Decodes 2 to 4 bytes of data into an ( R, G, B, A ) color (0-255 range). """
+		""" Decodes 2 to 4 bytes of data into an ( R, G, B, A ) color tuple (0-255 range). """
 
 		if compType == 0: # GX_RGB565 (2 bytes)
 			# 16 bit color without transparency
@@ -1458,6 +1410,10 @@ class JointObjDesc( StructBase ): # A.k.a Bone Structure
 
 class DisplayObjDesc( StructBase ):
 
+	""" Represents an object to be displayed (rendered), which includes 
+	 	a material with color and/or textures and other rendering properties, 
+		and a mesh. """
+
 	def __init__( self, *args, **kwargs ):
 		StructBase.__init__( self, *args, **kwargs )
 
@@ -1504,18 +1460,9 @@ class InverseMatrixObjDesc( StructBase ):
 
 		self.name = 'Inverse Bind Matrix ' + uHex( 0x20 + args[1] )
 		self.formatting = '>ffffffffffff'
-		self.fields = ( 'M00',
-						'M01',
-						'M02',
-						'M03',
-						'M10',
-						'M11',
-						'M12',
-						'M13',
-						'M20',
-						'M21',
-						'M22',
-						'M23',
+		self.fields = ( 'M00', 'M01', 'M02', 'M03',
+						'M10', 'M11', 'M12', 'M13',
+						'M20', 'M21', 'M22', 'M23',
 					)
 		self.length = 0x30
 		self.childClassIdentities = {}
@@ -1602,7 +1549,7 @@ class MaterialObjDesc( StructBase ):
 class PolygonObjDesc( StructBase ): # A.k.a. Meshes
 
 	flags = { 'Polygon_Flags': OrderedDict([
-				( '1<<0', 'SHAPESET_AVERAGE' ), # NOTINVERTED 
+				( '1<<0', 'SHAPESET_AVERAGE' ), # NOTINVERTED?
 				( '1<<1', 'SHAPESET_ADDITIVE' ),
 				( '1<<2', 'UNKNOWN' ),
 				( '1<<3', 'ANIMATED' ),
@@ -1628,6 +1575,10 @@ class PolygonObjDesc( StructBase ): # A.k.a. Meshes
 		self.length = 0x18
 		self.childClassIdentities = { 1: 'PolygonObjDesc', 2: 'VertexAttributesArray', 5: 'DisplayListBlock' }
 
+		self.isShapeSet = False
+		self.isEnvelope = False
+		self.hasJObjRef = False
+
 		# Check flags to determine last field name and child structure
 		try: # Exercising caution here because this structure hasn't been validated yet (which also means no self.data or unpacked values)
 			flagsOffset = args[1] + 0xC
@@ -1636,14 +1587,17 @@ class PolygonObjDesc( StructBase ): # A.k.a. Meshes
 			if flagsValue & 0x1000: # Uses ShapeAnims (SHAPEANIM flag set)
 				self.fields = mostFields + ( 'Shape_Set_Pointer', )
 				self.childClassIdentities[6] = 'ShapeSetDesc'
+				self.isShapeSet = True
 
 			elif flagsValue & 0x2000: # Uses Envelopes (ENVELOPE flag set)
 				self.fields = mostFields + ( 'Envelope_Array_Pointer', )
 				self.childClassIdentities[6] = 'EnvelopeArray'
+				self.isEnvelope = True
 
 			elif args[1] + 0x14 in self.dat.structureOffsets: # Not expected, but just in case....
 				self.fields = mostFields + ( 'JObjDesc_Pointer', )
 				print( self.name + ' found a JObjDesc pointer!' )
+				self.hasJObjRef = True
 
 			else:
 				self.fields = mostFields + ( 'Null Pointer',) # No underscore, so validation method ignores this as an actual pointer
@@ -1655,7 +1609,7 @@ class PolygonObjDesc( StructBase ): # A.k.a. Meshes
 	def decodeGeometry( self ):
 
 		""" Initialize child structs and parse their data to decode model geometry. 
-			Returns a list of various primitive groups, in the form of VertexList objects. """
+			Returns a list of VertexList objects, which are each a set of primitives. """
 
 		# Initialize the child structs, Vertex Attributes Array and Display List
 		vertexAttributes = self.initChild( VertexAttributesArray, 2 )
@@ -1664,15 +1618,15 @@ class PolygonObjDesc( StructBase ): # A.k.a. Meshes
 		# Parse the attributes info and combine it with the display list data to build primitive lists
 		vertexAttributeInfo = vertexAttributes.decodeEntries()
 		displayListLength = self.getValues( 'Display_List_Length' )
-		primitives = displayList.parse( displayListLength, vertexAttributeInfo )
+		vertexLists = displayList.parse( displayListLength, vertexAttributeInfo )
 
-		return primitives
+		return vertexLists
 
 
 class VertexAttributesArray( TableStruct ):
 
 	enums = { 'Attribute_Name': OrderedDict([
-				( 0, 'GX_VA_PNMTXIDX' ),	# Position/Normal matrix index
+				( 0, 'GX_VA_PNMTXIDX' ),	# Position/Normal matrix index (index into envelope array)
 				( 1, 'GX_VA_TEX0MTXIDX' ),	# Texture matrix indices
 				( 2, 'GX_VA_TEX1MTXIDX' ),
 				( 3, 'GX_VA_TEX2MTXIDX' ),
@@ -2857,7 +2811,10 @@ class CollissionSurface:
 			self.fill = self.outline = '#909090' # Darker Gray (arbitrary color, not from in vMelee)
 
 
-class ColCalcArea: # Areas are used in the game for fast collision calculations
+class ColCalcArea:
+	
+	""" Collision Calculation Area. Used to reduce the amount of 
+		processing needed for collision calculations. """
 
 	def __init__( self, vertexIndices ):
 		self.points = vertexIndices 	# (bottomLeftX, bottomLeftY, topRightX, topRightY)
