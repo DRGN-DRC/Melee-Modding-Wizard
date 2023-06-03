@@ -35,6 +35,7 @@ from guiSubComponents import (
 	importSingleFileWithGui, importSingleTexture, getNewNameFromUser, BasicWindow, ToolTip, 
 	ToolTipEditor, ToolTipButton, HexEditEntry, ColorSwatch, VerticalScrolledFrame, NeoTreeview )
 from audioManager import AudioControlModule
+from textureEditing import TexturesEditor
 
 
 class StageSwapTable( object ):
@@ -2932,14 +2933,10 @@ class StagePropertyEditor( ttk.Frame ):
 		treeWrapper.rowconfigure( 'all', weight=1 )
 		treeWrapper.grid( column=1, row=1, rowspan=2, sticky='nsew', padx=15, ipadx=3 )
 
-		# Initialize the map head struct
+		# Initialize the map head struct and the GObjs array
 		self.mapHead = self.file.getStructByLabel( 'map_head' )
-		generalPointsPointer, generalPointsCount, gobjsArrayPointer, gobjsArrayCount = self.mapHead.getValues()[:4]
-
-		# Initialize the structs for general points and the GObjs array
-		#genPoints = self.file.getStruct( generalPointsPointer, self.mapHead.offset )
+		gobjsArrayPointer = self.mapHead.getValues( 'Game_Objects_Array_Pointer' )
 		gobjsArray = self.file.getStruct( gobjsArrayPointer, self.mapHead.offset )
-		#gobjsArray = self.file.initSpecificStruct( , entryCount=gobjsArrayCount )
 
 		# Populate the treeview
 		offset = gobjsArray.offset
@@ -2961,13 +2958,13 @@ class StagePropertyEditor( ttk.Frame ):
 		modelPartsControls = ttk.Frame( self )
 		self.showBones = Tk.BooleanVar( value=False )
 		ttk.Checkbutton( modelPartsControls, text='Bones', variable=self.showBones, command=self.toggleBones ).grid( column=0, row=0, padx=(0, 20) )
-		#ttk.Button( modelPartsControls, text='Info', command=self.viewModelInfo ).grid( column=1, row=1, padx=2 )
 		ttk.Button( modelPartsControls, text='View', command=self.viewModel ).grid( column=1, row=0, padx=2 )
 		ttk.Button( modelPartsControls, text='Info', command=self.viewModelInfo ).grid( column=1, row=1, padx=2 )
 		ttk.Button( modelPartsControls, text='Import', command=self.importModelGroup ).grid( column=2, row=0, padx=2 )
 		ttk.Button( modelPartsControls, text='Add', command=self.addModelGroup ).grid( column=2, row=1, padx=2 )
 		ttk.Button( modelPartsControls, text='Export', command=self.exportModelGroup ).grid( column=3, row=0, padx=2 )
 		ttk.Button( modelPartsControls, text='Delete', command=self.deleteModelGroup ).grid( column=3, row=1, padx=2 )
+		ttk.Button( modelPartsControls, text='Edit Textures', command=self.editTextures ).grid( column=1, columnspan=3, row=2, padx=2, ipadx=22, pady=(3, 0) )
 		modelPartsControls.grid( column=2, row=2, padx=(0, 10), pady=9, ipady=3 )
 
 		# General points controls
@@ -2994,6 +2991,25 @@ class StagePropertyEditor( ttk.Frame ):
 		self.rowconfigure( 1, weight=1 )
 		self.rowconfigure( 2, weight=1 )
 		self.rowconfigure( 3, weight=1 )
+
+	def onModelPartSelect( self, event ):
+
+		""" Attempts to render each joint currently selected in the render window. """
+		
+		# Get the current selection
+		iidSelectionsTuple = self.modelPartsTree.selection()
+		if not iidSelectionsTuple: # Failsafe; not possible?
+			return
+
+		# Clear current rendered objects
+		self.engine.clearRenderings()
+
+		# Get the selected joint object(s)
+		for iid in iidSelectionsTuple:
+			joint = self.file.getStruct( int(iid) )
+			#tic = time.clock()
+			self.engine.renderJoint( joint, showBones=self.showBones.get() )
+			#print( 'render time: ' + str(time.clock()-tic))
 
 	def toggleBones( self ):
 		self.engine.showPart( 'bones', self.showBones.get() )
@@ -3130,34 +3146,76 @@ class StagePropertyEditor( ttk.Frame ):
 			parent=self.winfo_toplevel(),
 			initialdir=globalData.getLastUsedDir( 'model' ),
 			filetypes=[('Model data files', '*.dae *.fbx *.obj *.stl'), ('DAT files', '*.dat *.usd'), ('All files', '*.*')]
-			)
+		)
 		
+		# The above will return an empty string if the user canceled
 		if filepath: # This will be empty if the user canceled
-			# Clear current rendered objects
-			self.engine.clearRenderings()
-
-			#pyglet.model.load( filepath )
-
-	def exportModelGroup( self ): pass
-	def addModelGroup( self ): pass
-	def deleteModelGroup( self ): pass
-
-	def onModelPartSelect( self, event ):
-
-		""" Attempts to render each joint currently selected in the render window. """
-		
-		# Get the current selection
-		iidSelectionsTuple = self.modelPartsTree.selection()
-		if not iidSelectionsTuple: # Failsafe; not possible?
+			globalData.gui.updateProgramStatus( 'Operation canceled' )
 			return
-
+		
 		# Clear current rendered objects
 		self.engine.clearRenderings()
 
-		# Get the selected joint object(s)
-		for iid in iidSelectionsTuple:
-			joint = self.file.getStruct( int(iid) )
-			self.engine.renderJoint( joint, showBones=self.showBones.get() )
+		#pyglet.model.load( filepath )
+
+	def exportModelGroup( self ):
+
+		""" Called by the Export button below the model groups. Prompts the user 
+			for a select a destination folder and filename to export the currently selected joint. """
+		
+		# Get the current selection
+		iidSelectionsTuple = self.modelPartsTree.selection()
+		if not iidSelectionsTuple:
+			msg( 'No model parts are selected!', 'Nothing to Report, Captain' )
+			return
+
+		# Prompt for a place to save the file
+		savePath = tkFileDialog.asksaveasfilename(
+			title="Where would you like to export the file?",
+			parent=self.winfo_toplevel(),
+			initialdir=globalData.getLastUsedDir( 'model' ),
+			initialfile=self.file.filename,
+			defaultextension=self.file.ext[1:], # Removing dot
+			filetypes=[('Model data files', '*.dae *.fbx *.obj *.stl'), ('DAT files', '*.dat *.usd'), ('All files', '*.*')]
+		)
+
+		# The above will return an empty string if the user canceled
+		if not savePath:
+			globalData.gui.updateProgramStatus( 'Operation canceled' )
+			return ''
+
+		# Update the default directory to start in when opening or exporting files
+		globalData.setLastUsedDir( savePath, 'model' )
+
+		#parentJoint = self.file.getStruct( int(iidSelectionsTuple[0]) )
+		structs = self.file.getBranch( int(iidSelectionsTuple[0]) )
+		print( 'unsorted' )
+		print( [ '{}; {}'.format(s.offset, s.length) for s in structs] )
+
+		structs.sort( key=lambda s: s.offset)
+		
+		print( 'sorted' )
+		print( [ hex( 0x20 + s.offset) for s in structs] )
+
+
+	def addModelGroup( self ): pass
+	def deleteModelGroup( self ): pass
+
+	def editTextures( self ):
+
+		""" Loads up this stage in the Textures Editor interface. """
+
+		# Load the tab if it's not already present
+		mainGui = globalData.gui
+		if not mainGui.texturesTab:
+			mainGui.texturesTab = TexturesEditor( mainGui.mainTabFrame, mainGui )
+
+		# Switch to the tab
+		mainGui.mainTabFrame.select( mainGui.texturesTab )
+		
+		# Add a tab for the current file and populate it
+		mainGui.playSound( 'menuSelect' )
+		mainGui.texturesTab.addTab( self.file )
 
 	def onModelPartDoubleClick( self, event ): pass
 	

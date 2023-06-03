@@ -18,7 +18,7 @@ import Tkinter as Tk
 from collections import OrderedDict
 
 # Disable a few options for increased performance
-pyglet.options['debug_gl'] = False
+pyglet.options['debug_gl'] = True
 pyglet.options['audio'] = ( 'silent', )
 #pyglet.options['shadow_window'] = False
 pyglet.options['search_local_libs'] = False
@@ -27,7 +27,7 @@ from pyglet import gl
 from pyglet.window import key, Projection3D
 from pyglet.window import Window as pygletWindow
 from pyglet.app.base import EventLoop
-from pyglet.graphics import TextureGroup
+from pyglet.graphics import Group, TextureGroup
 from pyglet.window.event import WindowEventLogger
 
 import globalData
@@ -73,18 +73,26 @@ class RenderEngine( Tk.Frame ):
 
 		# Set up the OpenGL context
 		self.window.switch_to()
-		gl.glEnable( gl.GL_DEPTH_TEST ) # Do depth comparisons and update the depth buffer
-		gl.glDepthFunc( gl.GL_LEQUAL )
+		gl.glClearColor( *self.bgColor )
+
+		gl.glClearDepth( 1.0 ) # # Depth buffer setup
+		gl.glEnable( gl.GL_DEPTH_TEST ) # Do depth comparisons and enable depth testing
+		gl.glDepthFunc( gl.GL_LEQUAL ) # The type of depth testing to do
+
 		gl.glEnable( gl.GL_ALPHA_TEST )
 		gl.glEnable( gl.GL_BLEND )
 		gl.glBlendFunc( gl.GL_SRC_ALPHA, gl.GL_ONE_MINUS_SRC_ALPHA )
+		
+		#gl.glCullFace( gl.GL_BACK )
+		gl.glDisable( gl.GL_CULL_FACE ) # Enabled by default
+		#gl.glPolygonMode( gl.GL_FRONT_AND_BACK, gl.GL_LINE ) # Enable for wireframe mode (need to reset line widths)
 
 		gl.glEnable( gl.GL_TEXTURE_2D )
 		gl.glTexParameteri( gl.GL_TEXTURE_2D, gl.GL_TEXTURE_MAG_FILTER, gl.GL_LINEAR )
 		gl.glTexParameteri( gl.GL_TEXTURE_2D, gl.GL_TEXTURE_MIN_FILTER, gl.GL_LINEAR )
 
-		try:
-			gl.glEnable( gl.GL_LINE_SMOOTH ) # Anti-aliasing
+		try: # Anti-aliasing
+			gl.glEnable( gl.GL_LINE_SMOOTH )
 			gl.glEnable( gl.GL_POLYGON_SMOOTH )
 			gl.glEnable( gl.GL_MULTISAMPLE )
 			gl.glEnable( gl.GL_MULTISAMPLE_ARB )
@@ -137,6 +145,66 @@ class RenderEngine( Tk.Frame ):
 		self.translation_Z = 0.0
 
 		self.window.updateRequired = True
+
+	def focusCamera( self, tag='', primitive=None ):
+
+		""" Resets the camera and centers it on the object with the given tag. """
+
+		self.resetView()
+
+		xCoords = []
+		yCoords = []
+		zCoords = []
+
+		# Find all of the x/y/z coordinates of the target object(s)
+		for obj in self.getObjects( primitive ):
+			if not tag or tag in obj.tags:
+				if self.__class__ == Vertex:
+					xCoords.append( obj.x )
+					yCoords.append( obj.y )
+					zCoords.append( obj.z )
+				else:
+					# Iterate over the vertices by individual coordinates
+					coordsIter = iter( obj.vertices[1] )
+					coordsList = [ coordsIter ] * 3
+					for x, y, z in zip( *coordsList ):
+						xCoords.append( x )
+						yCoords.append( y )
+						zCoords.append( z )
+
+		# Set defaults and exit if no coordinates could be collected
+		if not xCoords or not yCoords or not zCoords:
+			self.translation_X = 0
+			self.translation_Y = 0
+			self.translation_Z = 0
+			return
+
+		# Calculate new camera X/Y coords
+		maxX = max( xCoords )
+		maxY = max( yCoords )
+		maxZ = max( zCoords )
+		x = ( maxX + min(xCoords) ) / 2.0
+		y = ( maxY + min(yCoords) ) / 2.0
+
+		# Determine depth; try to get entire model part in the frame
+		xSpan = maxX - x
+		ySpan = maxY - y
+		zSpan = maxZ - ( maxZ + min(zCoords) ) / 2
+		if xSpan > ySpan:
+			if zSpan > xSpan:
+				z = zSpan * -1.5
+			else:
+				z = xSpan * -1.5
+		else:
+			if zSpan > ySpan:
+				z = zSpan * -1.5
+			else:
+				z = ySpan * -1.5
+
+		# Set the new camera position
+		self.translation_X = -x
+		self.translation_Y = -y
+		self.translation_Z = z
 
 	def resizeViewport( self, event ):
 
@@ -223,14 +291,16 @@ class RenderEngine( Tk.Frame ):
 
 		return quad
 	
-	def addVertexLists( self, vertexLists, textures ):
+	def addVertexLists( self, vertexLists, textures, dobj='', pobj='', polygonGroup=None ):
 
 		""" Adds one or more entries of a display list. Each display list entry contains 
 			one or more primitives of the same type (e.g. edge/triangle strip/etc)."""
 		
 		for vertexList in vertexLists:
+			if dobj and pobj:
+				vertexList.tags = ( dobj, pobj )
 			if textures:
-				vertexList.textureGroup = self._addTextureGroup( textures )
+				vertexList.textureGroup = self._addTextureGroup( textures, polygonGroup )
 			self.vertexLists.append( vertexList )
 
 			# self.window.updateRequired = True
@@ -290,7 +360,7 @@ class RenderEngine( Tk.Frame ):
 		# Check for a display object and polygon object to render
 		dobj = joint.DObj
 		if dobj:
-			primitives.extend( self.renderPolygons(dobj) )
+			primitives.extend( self.renderDisplayObj(dobj) )
 
 		# Apply joint transformations for this joint's meshes as well as its children
 		transformationValues = joint.getValues()[5:14] # 9 values; 3 for each of rotation/scale/translation
@@ -304,9 +374,9 @@ class RenderEngine( Tk.Frame ):
 		primitives.append( self.addVertex( xyzCoords, (255, 0, 0, 255), ('bones',), showBones ) )
 
 		# Track the largest +/- x values to adjust the camera zoom
-		xCoordAbs = -abs( xyzCoords[0] )
+		xCoordAbs = -abs( xyzCoords[0] ) * 1.4
 		if xCoordAbs < self.translation_Z and xCoordAbs > -self.zfar:
-			self.translation_Z = xCoordAbs - 100
+			self.translation_Z = xCoordAbs
 
 		# Connect a line between the current joint and its parent joint
 		if parent:
@@ -319,34 +389,44 @@ class RenderEngine( Tk.Frame ):
 
 		return primitives
 	
-	def renderPolygons( self, parentDobj ):
+	def renderDisplayObj( self, parentDobj, includeSiblings=True ):
 
 		""" Parses and renders the given Display Object (DObj) and 
 			all of its siblings. """
 
 		primitives = []
+		dobjOffsets = [ parentDobj.offset ]
 
-		# Check for a polygon object to render
 		try:
 			# Iterate over this DObj and its siblings
-			for offset in [parentDobj.offset] + parentDobj.getSiblings():
+			if includeSiblings:
+				dobjOffsets += parentDobj.getSiblings()
+
+			for offset in dobjOffsets:
 				dobj = parentDobj.dat.getStruct( offset )
+
+				# Check for a polygon object to render
 				pobj = dobj.PObj
+				if not pobj:
+					continue
 
 				# Check for textures (usually just one, but there can be more)
 				textures = self.collectTextures( dobj )
 
 				# Iterate over this PObj and its siblings
-				for offset in [pobj.offset] + pobj.getSiblings():
-					pobj = dobj.dat.getStruct( offset )
+				for pobjOffset in [pobj.offset] + pobj.getSiblings():
+					pobj = dobj.dat.getStruct( pobjOffset )
+
+					# Create some additional rendering context for these polygons
+					#pGroup = PolygonGroup( pobj )
 
 					# Parse out primitives for this mesh
 					pobjPrimitives = pobj.decodeGeometry()
-					self.addVertexLists( pobjPrimitives, textures )
+					self.addVertexLists( pobjPrimitives, textures, str(offset), str(pobjOffset), None )
 					primitives.extend( pobjPrimitives )
 
-		except AttributeError:
-			pass # This is fine; likely a joint that doesn't have a DObj/PObj
+		# except AttributeError:
+		# 	pass # This is fine; likely a DObj that doesn't have a PObj
 		except Exception as err:
 			if dobj and pobj:
 				print( 'Unable to render {}; {}'.format(pobj.name, err) )
@@ -407,26 +487,10 @@ class RenderEngine( Tk.Frame ):
 
 		return textures
 
-	def _addTextureGroup( self, textures ):
+	def _addTextureGroup( self, textures, polygonGroup ):
 
 		""" Converts the given texture objects (file structures) to 
 			textures for pyglet and stores them into texture groups. """
-
-		# # Itereate over texture objects that are based on the image data (.offset will be an image data offset)
-		# for textureObj in textures:
-		# 	textureGroup = self.textures.get( textureObj.offset )
-
-		# 	# Create a new texture group if this is the first time this texture is being seen
-		# 	if not textureGroup:
-		# 		# Decode the texture and convert it to a pyglet image
-		# 		width, height = textureObj.width, textureObj.height
-		# 		pilImage = textureObj.dat.getTexture( textureObj.offset, width, height, textureObj.imageType, textureObj.imageDataLength, getAsPilImage=True )
-		# 		pygletImage = pyglet.image.ImageData( width, height, 'RGBA', pilImage.tobytes(), pitch=-pilImage.width * 4 )
-		# 		texture = pygletImage.get_texture()
-
-		# 		# Create a pyglet TextureGroup object and store it
-		# 		textureGroup = HSD_Texture( texture, textures )
-		# 		self.textures[textureObj.offset] = textureGroup
 
 		# Use the first texture data offset as an ID
 		firstTextureOffset = textures[0].offset
@@ -435,12 +499,9 @@ class RenderEngine( Tk.Frame ):
 
 		if not textureGroup:
 			# Create a pyglet TextureGroup object and store it
-			textureGroup = HSD_Texture( textures )
+			textureGroup = HSD_Texture( textures, polygonGroup )
 			self.textures[firstTextureOffset] = textureGroup
 		
-		# Multiple groups may have been created, but we'll just return the first for now
-		# firstTextureOffset = textures[0].offset
-		# return self.textures[firstTextureOffset]
 		return textureGroup
 
 	# def on_key_press( self, *args ):
@@ -519,52 +580,51 @@ class RenderEngine( Tk.Frame ):
 
 		""" Renders all primitives to the display. """
 
-		try:
-			# Clear the screen
-			gl.glClearColor( *self.bgColor )
-			gl.glClear( gl.GL_COLOR_BUFFER_BIT | gl.GL_DEPTH_BUFFER_BIT )
-			
-			# Set the projection matrix to a perspective projection and apply translation (camera pan)
-			gl.glMatrixMode( gl.GL_PROJECTION )
-			gl.glLoadIdentity()
-			gl.gluPerspective( self.fov, float(self.width) / self.height, self.znear, self.zfar )
-			gl.glTranslatef( self.translation_X, self.translation_Y, self.translation_Z )
+		# try:
+		# Clear the screen
+		gl.glClear( gl.GL_COLOR_BUFFER_BIT | gl.GL_DEPTH_BUFFER_BIT )
+		
+		# Set the projection matrix to a perspective projection and apply translation (camera pan)
+		gl.glMatrixMode( gl.GL_PROJECTION )
+		gl.glLoadIdentity()
+		gl.gluPerspective( self.fov, float(self.width) / self.height, self.znear, self.zfar )
+		gl.glTranslatef( self.translation_X, self.translation_Y, self.translation_Z )
 
-			# Set up the modelview matrix and apply mouse rotation input transformations
-			gl.glMatrixMode( gl.GL_MODELVIEW )
-			gl.glLoadIdentity()
-			gl.glRotatef( self.rotation_Y, 1, 0, 0 )
-			gl.glRotatef( self.rotation_X, 0, 1, 0 )
-			
-			# Render a batch for each set of objects that have been added
-			if self.vertices:
-				batch = pyglet.graphics.Batch()
-				for vertex in self.vertices:
-					vertex.render( batch )
-				batch.draw()
-			if self.edges:
-				batch = pyglet.graphics.Batch()
-				for edge in self.edges:
-					edge.render( batch )
-				batch.draw()
-			if self.triangles:
-				batch = pyglet.graphics.Batch()
-				for triangle in self.triangles:
-					triangle.render( batch )
-				batch.draw()
-			if self.quads:
-				batch = pyglet.graphics.Batch()
-				for quad in self.quads:
-					quad.render( batch )
-				batch.draw()
-			if self.vertexLists:
-				batch = pyglet.graphics.Batch()
-				for vList in self.vertexLists:
-					vList.render( batch )
-				batch.draw()
+		# Set up the modelview matrix and apply mouse rotation input transformations
+		gl.glMatrixMode( gl.GL_MODELVIEW )
+		gl.glLoadIdentity()
+		gl.glRotatef( self.rotation_Y, 1, 0, 0 )
+		gl.glRotatef( self.rotation_X, 0, 1, 0 )
+		
+		# Render a batch for each set of objects that have been added
+		if self.vertices:
+			batch = pyglet.graphics.Batch()
+			for vertex in self.vertices:
+				vertex.render( batch )
+			batch.draw()
+		if self.edges:
+			batch = pyglet.graphics.Batch()
+			for edge in self.edges:
+				edge.render( batch )
+			batch.draw()
+		if self.triangles:
+			batch = pyglet.graphics.Batch()
+			for triangle in self.triangles:
+				triangle.render( batch )
+			batch.draw()
+		if self.quads:
+			batch = pyglet.graphics.Batch()
+			for quad in self.quads:
+				quad.render( batch )
+			batch.draw()
+		if self.vertexLists:
+			batch = pyglet.graphics.Batch()
+			for vList in self.vertexLists:
+				vList.render( batch )
+			batch.draw()
 
-		except Exception as err:
-			print( 'An error occurred during rendering: {}'.format(err) )
+		# except Exception as err:
+		# 	print( 'An error occurred during rendering: {}'.format(err) )
 
 	def getObjects( self, primitive=None ):
 
@@ -584,7 +644,7 @@ class RenderEngine( Tk.Frame ):
 		else:
 			if primitive:
 				print( 'Warning; unrecognized primitive: ' + str(primitive) )
-			objects = self.vertices + self.edges + self.triangles + self.quads
+			objects = self.vertices + self.edges + self.triangles + self.quads + self.vertexLists
 
 		return objects
 	
@@ -1028,19 +1088,40 @@ class VertexList( Primitive ):
 		self.texCoords = ( 't2f/static', [] )
 		self.normals = ( 'n3f/static', [] )
 		self.textureGroup = None
+		self.envelopeIndex = -1
 
-		for vertex in vertices:
-			self.vertices[1].extend( (vertex.x, vertex.y, vertex.z) )
-			self.vertexColors[1].extend( vertex.color )
-			self.texCoords[1].extend( (vertex.s, vertex.t) )
+		# Extract vertex coordinates and other properties into flattened lists for rendering
+		# for vertex in vertices:
+		# 	self.vertices[1].extend( (vertex.x, vertex.y, vertex.z) )
+		# 	self.vertexColors[1].extend( vertex.color )
+		# 	self.texCoords[1].extend( (vertex.s, vertex.t) )
 
 		# Add degenerate vertices if needed
-		if self.type == gl.GL_LINE_STRIP or self.type == gl.GL_TRIANGLE_STRIP:
-			self.addDegenerates()
+		# if self.type == gl.GL_LINE_STRIP or self.type == gl.GL_TRIANGLE_STRIP:
+		# 	self.addDegenerates()
 
-		self.vertexCount = len( self.vertices[1] ) / 3
+		# self.vertexCount = len( self.vertices[1] ) / 3
+		self.vertexCount = 0
 		self.tags = tags
 		self.show = show
+
+	def finalize( self ):
+
+		""" Validates vertex colors and texture coordinates if they're present, 
+			or adds them if they're not. And adds degenerate vertices if needed. """
+
+		self.vertexCount = len( self.vertices[1] ) / 3
+
+		# Validate vertex colors or add them if not present
+		if len( self.vertexColors[1] ) / 4 != self.vertexCount:
+			self.vertexColors = ( self.vertexColors[0], (128, 128, 128, 255) * self.vertexCount )
+
+		# Validate vertex texture coordinates or add them if not present
+		if len( self.texCoords[1] ) / 2 != self.vertexCount:
+			self.texCoords = ( self.texCoords[0], (0.0, 0.0) * self.vertexCount )
+
+		if self.type == gl.GL_LINE_STRIP or self.type == gl.GL_TRIANGLE_STRIP:
+			self.addDegenerates()
 
 	def interpretPrimType( self, primType ):
 
@@ -1068,22 +1149,15 @@ class VertexList( Primitive ):
 			with zero area (or length) is created, which effectively skips over the degenerate 
 			vertex and disconnects the segments. """
 
-		if self.type == gl.GL_LINE_STRIP:
-			# Repeat the first two coordinates at the start
-			self.vertices[1].insert( 0, self.vertices[1][2] )
-			self.vertices[1].insert( 0, self.vertices[1][2] )
-			
-			# Repeat the last two coordinates at the end
-			self.vertices[1].extend( self.vertices[1][-2:] )
-		else:
-			# Triangle strip
-			# Repeat the first three coordinates at the start
-			self.vertices[1].insert( 0, self.vertices[1][2] )
-			self.vertices[1].insert( 0, self.vertices[1][2] )
-			self.vertices[1].insert( 0, self.vertices[1][2] )
-			
-			# Repeat the last three coordinates at the end
-			self.vertices[1].extend( self.vertices[1][-3:] )
+		# Repeat the first three coordinates at the start
+		self.vertices[1].insert( 0, self.vertices[1][2] )
+		self.vertices[1].insert( 0, self.vertices[1][2] )
+		self.vertices[1].insert( 0, self.vertices[1][2] )
+		
+		# Repeat the last three coordinates at the end
+		self.vertices[1].extend( self.vertices[1][-3:] )
+
+		self.vertexCount += 2
 		
 		# Repeat the first color at the start
 		self.vertexColors[1].insert( 0, self.vertexColors[1][3] )
@@ -1095,8 +1169,8 @@ class VertexList( Primitive ):
 		self.vertexColors[1].extend( self.vertexColors[1][-4:] )
 
 		# Repeat the first texture coords at the start
-		self.texCoords[1].insert( 0, self.texCoords[1][3] )
-		self.texCoords[1].insert( 0, self.texCoords[1][3] )
+		self.texCoords[1].insert( 0, self.texCoords[1][1] )
+		self.texCoords[1].insert( 0, self.texCoords[1][1] )
 		
 		# Repeat the last texture coords at the end
 		self.texCoords[1].extend( self.texCoords[1][-2:] )
@@ -1109,7 +1183,7 @@ class VertexList( Primitive ):
 class HSD_Texture( TextureGroup ):
 
 	def __init__( self, textures, parent=None ):
-		super( HSD_Texture, self ).__init__( parent )
+		self.parent = parent
 
 		# Use the first texture in the textures list by default
 		self.index = 0
@@ -1127,16 +1201,18 @@ class HSD_Texture( TextureGroup ):
 		self.repeatS = tobjValues[15]
 		self.repeatT = tobjValues[16]
 
-		# if self.wrapModeS == 0:
-		# 	self.wrapModeS = gl.GL_CLAMP
-		# elif self.wrapModeS == 1:
-		# 	self.wrapModeS = gl.GL_REPEAT
-		# elif self.wrapModeS == 2:
-		# 	self.wrapModeS = gl.GL_REPEAT
-		# if self.wrapModeT == 0:
-		# 	self.wrapModeT = gl.GL_CLAMP
-		# elif self.wrapModeT == 1:
-		# 	self.wrapModeT = gl.GL_REPEAT
+		if self.wrapModeS == 0:
+			self.wrapModeS = gl.GL_CLAMP
+		elif self.wrapModeS == 1:
+			self.wrapModeS = gl.GL_REPEAT
+		elif self.wrapModeS == 2:
+			self.wrapModeS = gl.GL_REPEAT
+		if self.wrapModeT == 0:
+			self.wrapModeT = gl.GL_CLAMP
+		elif self.wrapModeT == 1:
+			self.wrapModeT = gl.GL_REPEAT
+		elif self.wrapModeT == 2:
+			self.wrapModeT = gl.GL_REPEAT
 
 	def _convertTexObject( self, textureObj ):
 
@@ -1183,3 +1259,39 @@ class HSD_Texture( TextureGroup ):
 
 	def unset_state( self ):
 		gl.glDisable( self.texture.target )
+		pass
+
+
+class PolygonGroup( Group ):
+
+	def __init__( self, pobj, parent=None ):
+		self.parent = parent
+
+		# Parse the flags to configure polygon properties
+		flags = pobj.getValues( 'Polygon_Flags' )
+		if flags & 1<<14 and flags & 1<<15:
+			self.cullMode = gl.GL_FRONT_AND_BACK
+		elif flags & 1<<14:
+			self.cullMode = gl.GL_FRONT
+		elif flags & 1<<15:
+			self.cullMode = gl.GL_BACK
+		else:
+			self.cullMode = -1
+
+		# if flags & 1:
+		# 	self.windingOrder = gl.GL_CCW # Counter-clockwise
+		# else:
+		# 	self.windingOrder = gl.GL_CW # Clockwise
+	
+	def set_state( self ):
+		# if self.cullMode == -1:
+		# 	gl.glDisable( gl.GL_CULL_FACE )
+		# else:
+		# 	gl.glEnable( gl.GL_CULL_FACE )
+		# 	gl.glCullFace( self.cullMode )
+
+		# gl.glFrontFace( self.windingOrder )
+		pass
+
+	def unset_state( self ):
+		pass

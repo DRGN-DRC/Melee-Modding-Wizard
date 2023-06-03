@@ -24,10 +24,11 @@ from collections import OrderedDict
 import globalData
 from tplCodec import TplDecoder
 from FileSystem import hsdStructures, DatFile
+from RenderEngine2 import RenderEngine
 from basicFunctions import isNaN, validHex, humansize, grammarfyList, msg, copyToClipboard, printStatus, uHex, constructTextureFilename
-from guiSubComponents import ( exportMultipleTextures, importSingleTexture, BasicWindow, 
-		HexEditEntry, EnumOptionMenu, HexEditDropdown, ColorSwatch, MeleeColorPicker, 
-		FlagDecoder, ToolTip, VerticalScrolledFrame, ClickText )
+from guiSubComponents import ( LabelButton, exportMultipleTextures, getColoredShape, importSingleTexture, 
+		BasicWindow, HexEditEntry, EnumOptionMenu, HexEditDropdown, ColorSwatch, 
+		MeleeColorPicker, FlagDecoder, ToolTip, VerticalScrolledFrame, ClickText )
 
 
 imageFormats = { 0:'I4', 1:'I8', 2:'IA4', 3:'IA8', 4:'RGB565', 5:'RGB5A3', 6:'RGBA8', 8:'CI4', 9:'CI8', 10:'CI14x2', 14:'CMPR' }
@@ -46,6 +47,14 @@ class TexturesEditor( ttk.Notebook ):
 		# Add this tab to the main GUI, and add drag-and-drop functionality
 		mainGui.mainTabFrame.add( self, text=' Textures Editor ' )
 		mainGui.dnd.bindtarget( self, mainGui.dndHandler, 'text/uri-list' )
+
+		# Save some processing by initializing and manipulating these images just once (used for buttons)
+		downArrowImage = getColoredShape( 'arrowDown', '#7077ac', getAsPilImage=True )
+		downArrowImageHovered = getColoredShape( 'arrowDown', '#8089ff', getAsPilImage=True )
+		self.leftArrow = ImageTk.PhotoImage( downArrowImage.rotate(-90) )
+		self.leftArrowHovered = ImageTk.PhotoImage( downArrowImageHovered.rotate(-90) )
+		self.rightArrow = ImageTk.PhotoImage( downArrowImage.rotate(90) )
+		self.rightArrowHovered = ImageTk.PhotoImage( downArrowImageHovered.rotate(90) )
 
 	def addTab( self, fileObj ):
 
@@ -164,8 +173,8 @@ class TexturesEditorTab( ttk.Frame ):
 		self.datTextureTree.textureThumbnails = {}
 
 		# Background widgets for treeview when not populated
-		self.datTextureTreeBg = Tk.Label( self.datTextureTree, image=globalData.gui.imageBank('dndTarget'), borderwidth=0, highlightthickness=0 )
-		self.datTextureTreeBg.place( relx=0.5, rely=0.5, anchor='center' )
+		# self.datTextureTreeBg = Tk.Label( self.datTextureTree, image=globalData.gui.imageBank('dndTarget'), borderwidth=0, highlightthickness=0 )
+		# self.datTextureTreeBg.place( relx=0.5, rely=0.5, anchor='center' )
 		self.datTextureTreeStatusMsg = Tk.StringVar()
 		self.datTextureTreeStatusLabel = ttk.Label( self.datTextureTree, textvariable=self.datTextureTreeStatusMsg, background='white' )
 
@@ -230,7 +239,6 @@ class TexturesEditorTab( ttk.Frame ):
 		# Palette tab
 		self.palettePane = ttk.Frame( self.imageManipTabs, padding='16 0 0 0' )
 		self.imageManipTabs.add( self.palettePane, text=' Palette ', state='disabled' )
-		self.imageManipTabs.bind( '<<NotebookTabChanged>>', self.imageManipTabChanged )
 
 		# Left-side column (canvas and bg color changer button)
 		paletteTabLeftSide = Tk.Frame(self.palettePane)
@@ -286,6 +294,8 @@ class TexturesEditorTab( ttk.Frame ):
 		self.modelPropertiesPane.interior.opacityEntry = None
 		self.modelPropertiesPane.interior.opacityBtn = None
 		self.modelPropertiesPane.interior.opacityScale = None
+		self.modelPropertiesPane.interior.engine = None
+		self.modelPropertiesPane.interior.partIndex = -1
 
 		# Texture properties tab
 		self.texturePropertiesPane = VerticalScrolledFrame( self.imageManipTabs )
@@ -293,6 +303,7 @@ class TexturesEditorTab( ttk.Frame ):
 		self.imageManipTabs.add( self.texturePropertiesPane, text='Properties', state='disabled' )
 
 		self.imageManipTabs.pack( fill='both', expand=1 )
+		self.imageManipTabs.bind( '<<NotebookTabChanged>>', self.imageManipTabChanged )
 
 		secondRow.pack( fill='both', expand=1 )
 
@@ -331,12 +342,6 @@ class TexturesEditorTab( ttk.Frame ):
 
 		# Remove the background drag-n-drop image
 		self.datTextureTreeStatusLabel.place_forget()
-
-		# Reset the values on the Image tab.
-		# self.datFilesizeText.set( 'File Size:  ' )
-		# self.totalTextureSpaceText.set( 'Total Texture Size:  ' )
-		# self.texturesFoundText.set( 'Textures Found:  ' )
-		# self.texturesFilteredText.set( 'Filtered Out:  ' )
 
 		# Reset scroll position to the top
 		self.datTextureTree.yview_moveto( 0 )
@@ -422,7 +427,7 @@ class TexturesEditorTab( ttk.Frame ):
 	def populate( self, priorityTargets=(), useCache=False ):
 		
 		self.scanningFile = True
-		self.datTextureTreeBg.place_forget() # Removes the drag-and-drop image
+		# self.datTextureTreeBg.place_forget() # Removes the drag-and-drop image
 
 		# Update the name of the tab, top DAT/USD file path bar, and the Prev./Next buttons
 		fileName = self.file.isoPath.split( '/' )[-1]
@@ -648,41 +653,61 @@ class TexturesEditorTab( ttk.Frame ):
 		""" Updates the Next/Previous DAT buttons on the DAT Texture Tree tab. Sets their target file to load,
 			their tooltip/pop-up text, and the mouse cursor to appear when hovering over it. 'currentFile' will
 			be an iid for the file in the Disc File Tree tab. """
-
-		isoFileTree = globalData.gui.discTab.isoFileTree
+		
 		currentFile = self.file.isoPath
 
-		# Update the prev. file button
-		prevItem = isoFileTree.prev( currentFile )
-		while prevItem != '' and isoFileTree.item( prevItem, 'values' )[1] != 'file':
-			prevItem = isoFileTree.prev( prevItem ) # Skips over any folders.
-		if prevItem != '':
-			text = 'Click to load {}\nShift-click to open in a new tab.'.format( prevItem )
-			self.previousDatText.set( text )
-			self.previousDatButton.bind( '<Button-1>', lambda event, item=prevItem: self.openNewFile(path=item) )
-			self.previousDatButton.bind( '<Shift-Button-1>', lambda event, item=prevItem: self.openNewFile(path=item, newTab=True) )
-			self.previousDatButton.config( cursor='hand2' )
-		else:
-			self.previousDatText.set( 'No more!' )
-			self.previousDatButton.unbind('<Button-1>')
-			self.previousDatButton.unbind('<Shift-Button-1>')
-			self.previousDatButton.config( cursor='' )
+		# Determine the previous and next files (isoPaths)
+		if globalData.gui.discTab:
+			isoFileTree = globalData.gui.discTab.isoFileTree
 
-		# Update the next file button
-		nextItem = isoFileTree.next( currentFile )
-		while nextItem != '' and isoFileTree.item( nextItem, 'values' )[1] != 'file':
-			nextItem = isoFileTree.next( nextItem ) # Skips over any folders.
-		if nextItem != '':
-			text = 'Click to load {}\nShift-click to open in a new tab.'.format( nextItem )
-			self.nextDatText.set( text )
-			self.nextDatButton.bind( '<Button-1>', lambda event, item=nextItem: self.openNewFile(path=item) )
-			self.nextDatButton.bind( '<Shift-Button-1>', lambda event, item=nextItem: self.openNewFile(path=item, newTab=True) )
-			self.nextDatButton.config( cursor='hand2' )
+			# Get the prev. item
+			prevItem = isoFileTree.prev( currentFile )
+			while prevItem != '' and isoFileTree.item( prevItem, 'values' )[1] != 'file':
+				prevItem = isoFileTree.prev( prevItem ) # Skips over any folders.
+
+			# Get the next item
+			nextItem = isoFileTree.next( currentFile )
+			while nextItem != '' and isoFileTree.item( nextItem, 'values' )[1] != 'file':
+				nextItem = isoFileTree.next( nextItem ) # Skips over any folders.
+
+		else: # No disc tab available; use the disc itself
+			prevItem = ''
+			nextItem = ''
+			foundCurrent = False
+			for isoPath in globalData.disc.files:
+				if foundCurrent:
+					nextItem = isoPath
+					break
+				elif isoPath == currentFile:
+					foundCurrent = True
+				else:
+					prevItem = isoPath
+
+		self.updateFileChangeBtn( self.previousDatButton, prevItem )
+		self.updateFileChangeBtn( self.nextDatButton, nextItem )
+
+	def updateFileChangeBtn( self, button, newItem ):
+
+		""" Updates the Next/Prev. File buttons at the bottom of the 'Image' tab. """
+
+		if newItem != '':
+			# Bind a new target for the click event
+			hoverText = 'Click to load {}\nShift-click to open in a new tab.'.format( newItem )
+			button.bind( '<Button-1>', lambda event, item=newItem: self.openNewFile(path=item) )
+			button.bind( '<Shift-Button-1>', lambda event, item=newItem: self.openNewFile(path=item, newTab=True) )
+			button.config( cursor='hand2' )
 		else:
-			self.nextDatText.set( 'No more!' )
-			self.nextDatButton.unbind('<Button-1>')
-			self.nextDatButton.unbind('<Shift-Button-1>')
-			self.nextDatButton.config( cursor='' )
+			# Disable the button
+			hoverText = 'No more!'
+			button.unbind('<Button-1>')
+			button.unbind('<Shift-Button-1>')
+			button.config( cursor='' )
+
+		# Set the hover text
+		if button == self.nextDatButton:
+			self.nextDatText.set( hoverText )
+		else:
+			self.previousDatText.set( hoverText )
 
 	def treeview_sort_column( self, col, reverse ):
 		# Create a list of the items, as tuples of (statOfInterest, iid), and sort them
@@ -705,7 +730,10 @@ class TexturesEditorTab( ttk.Frame ):
 		# Set the function call for the next (reversed) sort.
 		self.datTextureTree.heading( col, command=lambda: self.treeview_sort_column(col, not reverse) )
 
-	def onTextureTreeSelect( self, event, iid='' ):
+	def onTextureTreeSelect( self, event, iid=None ):
+
+		""" Called when a texture is selected in the treeview. """
+
 		# Ensure there is an iid, or do nothing
 		if not iid:
 			iid = self.datTextureTree.selection()
@@ -722,7 +750,6 @@ class TexturesEditorTab( ttk.Frame ):
 
 		# Get the texture struct
 		texture = self.file.structs[imageDataOffset]
-		imageDataHeaderOffsets = texture.getParents()
 
 		# Determine whether to enable and update the Palette tab.
 		currentTab = globalData.gui.root.nametowidget( self.imageManipTabs.select() )
@@ -768,8 +795,10 @@ class TexturesEditorTab( ttk.Frame ):
 												'with this texture. These are stored end-to-end in this file with '
 												'other similar textures.' )
 
-		elif not imageDataHeaderOffsets:
-			lackOfUsefulStructsDescription = 'This file has no known image data headers or other structures to modify.'
+		if not lackOfUsefulStructsDescription:
+			imageDataHeaderOffsets = texture.getParents()
+			if not imageDataHeaderOffsets:
+				lackOfUsefulStructsDescription = 'This file has no known image data headers or other structures to modify.'
 
 		self.texturePropertiesPane.clear()
 		self.texturePropertiesPane.flagWidgets = [] # Useful for the Flag Decoder to more easily find widgets that need updating
@@ -789,7 +818,9 @@ class TexturesEditorTab( ttk.Frame ):
 
 		# Enable and update the Model tab
 		self.imageManipTabs.tab( self.modelPropertiesPane, state='normal' )
-		self.populateModelTab( imageDataHeaderOffsets, wraplength )
+		#self.populateModelTab( imageDataHeaderOffsets, wraplength )
+		if currentTab == self.modelPropertiesPane:
+			self.populateModelTab()
 
 		# Enable and update the Properties tab
 		self.imageManipTabs.tab( self.texturePropertiesPane, state='normal' )
@@ -975,12 +1006,31 @@ class TexturesEditorTab( ttk.Frame ):
 
 		return maxColors
 
-	def populateModelTab( self, imageDataHeaderOffsets, wraplength ):
+	def populateModelTab( self, iid=None ):
+
+		# Ensure there is an iid, or do nothing
+		if not iid:
+			iid = self.datTextureTree.selection()
+			if not iid: return
+		iid = iid[-1] # Selects the lowest position item selected in the treeview if multiple items are selected.
+
+		# Get the texture struct and its parents
+		imageDataOffset = int( iid )
+		texture = self.file.structs[imageDataOffset]
+		imageDataHeaderOffsets = texture.getParents()
+
 		modelPane = self.modelPropertiesPane.interior
-		vertPadding = 10
+		wraplength = modelPane.winfo_width() - 20
+		vertPadding = 8
 
 		# Clear the current contents
-		self.modelPropertiesPane.clear()
+		#self.modelPropertiesPane.clear()
+		for childWidget in modelPane.winfo_children():
+			if not isinstance( childWidget, RenderEngine ):
+				childWidget.destroy()
+
+		# Reset the scrollbar (if there is one displayed) to the top.
+		self.modelPropertiesPane.canvas.yview_moveto( 0 )
 
 		modelPane.imageDataHeaders = []
 		modelPane.nonImageDataHeaders = [] # Not expected
@@ -997,15 +1047,15 @@ class TexturesEditorTab( ttk.Frame ):
 
 				# Check the grandparent structs; expected to be Texture Structs or Image Data Header Arrays
 				for grandparentOffset in headerStruct.getParents():
+					# Try getting or initializing a Texture Struct
 					texStruct = self.file.initSpecificStruct( hsdStructures.TextureObjDesc, grandparentOffset, printWarnings=False )
 
-					# Try getting or initializing a Texture Struct
 					if texStruct:
 						modelPane.textureStructs.append( texStruct )
 					else:
+						# Try getting or initializing an Image Header Array Struct
 						arrayStruct = self.file.initSpecificStruct( hsdStructures.ImageHeaderArray, grandparentOffset, printWarnings=False )
 					
-						# Try getting or initializing an Image Header Array Struct
 						if arrayStruct:
 							modelPane.headerArrayStructs.append( arrayStruct )
 						else:
@@ -1014,43 +1064,6 @@ class TexturesEditorTab( ttk.Frame ):
 			else:
 				# Attempt to initialize it in a generalized way (attempts to identify; returns a general struct if unable)
 				modelPane.nonImageDataHeaders.append( self.file.getStruct(imageHeaderOffset) )
-
-		# Add a label for image data headers count
-		if len( modelPane.imageDataHeaders ) == 1: # todo: make searching work for multiple offsets
-			headerCountFrame = ttk.Frame( modelPane )
-			ttk.Label( headerCountFrame, text='Model Attachments (Image Data Headers):  {}'.format(len(modelPane.imageDataHeaders)), wraplength=wraplength ).pack( side='left' )
-			#PointerLink( headerCountFrame, modelPane.imageDataHeaders[0].offset ).pack( side='right', padx=5 )
-			headerCountFrame.pack( pady=(vertPadding*2, 0) )
-		else:
-			ttk.Label( modelPane, text='Model Attachments (Image Data Headers):  {}'.format(len(modelPane.imageDataHeaders)), wraplength=wraplength ).pack( pady=(vertPadding*2, 0) )
-
-		# Add a notice of non image data header structs, if any.
-		if modelPane.nonImageDataHeaders:
-			print( 'Non-Image Data Header detected as image data block parent!' )
-			if len( modelPane.nonImageDataHeaders ) == 1:
-				nonImageDataHeadersText = '1 non-image data header detected:  ' + modelPane.nonImageDataHeaders[0].name
-			else:
-				structNamesString = grammarfyList( [structure.name for structure in modelPane.nonImageDataHeaders] )
-				nonImageDataHeadersText = '{} non-image data headers detected:  {}'.format( len(modelPane.nonImageDataHeaders), structNamesString )
-			ttk.Label( modelPane, text=nonImageDataHeadersText, wraplength=wraplength ).pack( pady=(vertPadding, 0) )
-
-		# Add details for Texture Struct or Material Struct attachments
-		if len( modelPane.textureStructs ) == 1:
-			textStructsText = 'Associated with 1 Texture Struct.'
-		else:
-			textStructsText = 'Associated with {} Texture Structs.'.format( len(modelPane.textureStructs) )
-		ttk.Label( modelPane, text=textStructsText, wraplength=wraplength ).pack( pady=(vertPadding, 0) )
-		if len( modelPane.headerArrayStructs ) == 1:
-			arrayStructsText = 'Associated with 1 Material Animation.'
-		else:
-			arrayStructsText = 'Associated with {} Material Animations.'.format( len(modelPane.headerArrayStructs) )
-		ttk.Label( modelPane, text=arrayStructsText, wraplength=wraplength ).pack( pady=(vertPadding, 0) )
-
-		if modelPane.unexpectedStructs:
-			unexpectedStructsText = 'Unexpected Grandparent Structs: ' + grammarfyList( [structure.name for structure in modelPane.nonImageDataHeaders] )
-			ttk.Label( modelPane, text=unexpectedStructsText, wraplength=wraplength ).pack( pady=(vertPadding, 0) )
-			
-		ttk.Separator( modelPane, orient='horizontal' ).pack( fill='x', padx=24, pady=(vertPadding*2, vertPadding) )
 
 		# Get the associated material structs and display objects
 		modelPane.materialStructs = []
@@ -1065,8 +1078,82 @@ class TexturesEditorTab( ttk.Frame ):
 					for displayObjOffset in materialStruct.getParents():
 						displayObject = self.file.initSpecificStruct( hsdStructures.DisplayObjDesc, displayObjOffset )
 
-						if displayObject: 
+						if displayObject:
 							modelPane.displayObjects.append( displayObject )
+
+		print( 'material structs: ' + str([hex(0x20+obj.offset) for obj in modelPane.materialStructs]) )
+		print( 'displayObj structs: ' + str([hex(0x20+obj.offset) for obj in modelPane.displayObjects]) )
+
+		# Create a render canvas if any model parts were detected
+		if modelPane.displayObjects:
+			modelPane.dobjStringVar = Tk.StringVar()
+			defaultPart = modelPane.displayObjects[0]
+			modelPane.partIndex = 0
+
+			# Add the rendering widget if it's not present
+			if not modelPane.engine:
+				modelPane.engine = RenderEngine( modelPane, (400, 300), False, background=globalData.gui.defaultSystemBgColor, borderwidth=0, relief='groove' )
+			modelPane.engine.pack( pady=(vertPadding, 4) )
+
+			if len( modelPane.displayObjects ) == 1:
+				# Add a label below the rendering showing the Display Object's name
+				ttk.Label( modelPane, text=defaultPart.name ).pack( pady=(vertPadding, 4) )
+			else:
+				# Add a label below the rendering showing the Display Object's name, and controls to swap to other display objects
+				dobjSelectionControls = ttk.Frame( modelPane )
+				prevDobjBtn = LabelButton( dobjSelectionControls, '', self.renderPrevDobj, 'Previous Display Object' )
+				prevDobjBtn.defaultImage = prevDobjBtn['image'] = self.tabManager.leftArrow
+				prevDobjBtn.hoverImage = self.tabManager.leftArrowHovered
+				prevDobjBtn.pack( side='left' )
+				ttk.Label( dobjSelectionControls, textvariable=modelPane.dobjStringVar ).pack( side='left', padx=7 )
+				nextDobjBtn = LabelButton( dobjSelectionControls, '', self.renderNextDobj, 'Next Display Object' )
+				nextDobjBtn.defaultImage = nextDobjBtn['image'] = self.tabManager.rightArrow
+				nextDobjBtn.hoverImage = self.tabManager.rightArrowHovered
+				nextDobjBtn.pack( side='left' )
+				dobjSelectionControls.pack( pady=(vertPadding, 4) )
+
+			self.renderDobj()
+
+		else: # No model parts detected; fall back to text descriptions of what was found
+			if modelPane.engine:
+				modelPane.engine.pack_forget()
+
+			# Add a label for image data headers count
+			if len( modelPane.imageDataHeaders ) == 1: # todo: make searching work for multiple offsets
+				headerCountFrame = ttk.Frame( modelPane )
+				ttk.Label( headerCountFrame, text='Model Attachments (Image Data Headers):  {}'.format(len(modelPane.imageDataHeaders)), wraplength=wraplength ).pack( side='left' )
+				#PointerLink( headerCountFrame, modelPane.imageDataHeaders[0].offset ).pack( side='right', padx=5 )
+				headerCountFrame.pack( pady=(vertPadding*2, 0) )
+			else:
+				ttk.Label( modelPane, text='Model Attachments (Image Data Headers):  {}'.format(len(modelPane.imageDataHeaders)), wraplength=wraplength ).pack( pady=(vertPadding*2, 0) )
+
+			# Add a notice of non image data header structs, if any.
+			if modelPane.nonImageDataHeaders:
+				print( 'Non-Image Data Header detected as image data block parent!' )
+				if len( modelPane.nonImageDataHeaders ) == 1:
+					nonImageDataHeadersText = '1 non-image data header detected:  ' + modelPane.nonImageDataHeaders[0].name
+				else:
+					structNamesString = grammarfyList( [structure.name for structure in modelPane.nonImageDataHeaders] )
+					nonImageDataHeadersText = '{} non-image data headers detected:  {}'.format( len(modelPane.nonImageDataHeaders), structNamesString )
+				ttk.Label( modelPane, text=nonImageDataHeadersText, wraplength=wraplength ).pack( pady=(vertPadding, 0) )
+
+			# Add details for Texture Struct or Material Struct attachments
+			if len( modelPane.textureStructs ) == 1:
+				textStructsText = 'Associated with 1 Texture Struct.'
+			else:
+				textStructsText = 'Associated with {} Texture Structs.'.format( len(modelPane.textureStructs) )
+			ttk.Label( modelPane, text=textStructsText, wraplength=wraplength ).pack( pady=(vertPadding, 0) )
+			if len( modelPane.headerArrayStructs ) == 1:
+				arrayStructsText = 'Associated with 1 Material Animation.'
+			else:
+				arrayStructsText = 'Associated with {} Material Animations.'.format( len(modelPane.headerArrayStructs) )
+			ttk.Label( modelPane, text=arrayStructsText, wraplength=wraplength ).pack( pady=(vertPadding, 0) )
+
+			if modelPane.unexpectedStructs:
+				unexpectedStructsText = 'Unexpected Grandparent Structs: ' + grammarfyList( [structure.name for structure in modelPane.nonImageDataHeaders] )
+				ttk.Label( modelPane, text=unexpectedStructsText, wraplength=wraplength ).pack( pady=(vertPadding, 0) )
+				
+			ttk.Separator( modelPane, orient='horizontal' ).pack( fill='x', padx=24, pady=(vertPadding*2, vertPadding) )
 
 		# Display controls to adjust this texture's model transparency
 		# Set up the transparency control panel and initialize the control variables
@@ -1136,9 +1223,6 @@ class TexturesEditorTab( ttk.Frame ):
 		shininessEntry.grid( column=4, row=1, padx=6 )
 
 		colorsPane.pack( pady=(vertPadding, 0), expand=True, fill='x', padx=20 )
-		
-		print( 'material structs: ' + str([hex(0x20+obj.offset) for obj in modelPane.materialStructs]) )
-		print( 'displayObj structs: ' + str([hex(0x20+obj.offset) for obj in modelPane.displayObjects]) )
 
 		# Set initial values for the transparency controls and material colors above, or disable them
 		if modelPane.displayObjects:
@@ -1236,6 +1320,41 @@ class TexturesEditorTab( ttk.Frame ):
 			disabledControlsText = ('These controls are disabled because no Display Objects or Material Structs are directly associated with this texture. '
 									'If this is part of a texture animation, find the default/starting texture for it and edit the structs for that instead.' )
 			ttk.Label( modelPane, text=disabledControlsText, wraplength=wraplength ).pack( pady=(vertPadding, 0) )
+
+	def renderDobj( self ):
+		
+		""" Sets a particular model part to render in the Model tab for the currently selected texture. """
+		
+		# Get the part to render
+		modelPane = self.modelPropertiesPane.interior
+		modelPart = modelPane.displayObjects[modelPane.partIndex]
+
+		# Render the model part (DObj for this texture) and focus the camera on it
+		modelPane.engine.clearRenderings()
+		modelPane.engine.renderDisplayObj( modelPart, includeSiblings=True )
+		modelPane.engine.focusCamera()
+
+		# Set the label and button states
+		if len( modelPane.displayObjects ) > 1:
+			modelPane.dobjStringVar.set( '{}  ({} of {})'.format(modelPart.name, modelPane.partIndex+1, len(modelPane.displayObjects)) )
+		else:
+			modelPane.dobjStringVar.set( modelPart.name )
+
+	def renderPrevDobj( self, event ):
+		modelPane = self.modelPropertiesPane.interior
+		if modelPane.partIndex <= 0:
+			return
+		modelPane.partIndex -= 1
+
+		self.renderDobj()
+
+	def renderNextDobj( self, event ):
+		modelPane = self.modelPropertiesPane.interior
+		if modelPane.partIndex >= len( modelPane.displayObjects ) - 1:
+			return
+		modelPane.partIndex += 1
+
+		self.renderDobj()
 
 	def toggleHideJoint( self ):
 
@@ -1669,6 +1788,11 @@ class TexturesEditorTab( ttk.Frame ):
 
 		currentTab = globalData.gui.root.nametowidget( event.widget.select() )
 		currentTab.focus() # Don't want keyboard/widget focus at any particular place yet
+
+		state = self.imageManipTabs.tab( self.modelPropertiesPane, 'state' )
+
+		if currentTab == self.modelPropertiesPane and state != 'disabled':
+			self.populateModelTab()
 
 	def cyclePaletteCanvasColor( self, event ):
 

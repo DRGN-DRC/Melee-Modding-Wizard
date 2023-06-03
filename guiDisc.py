@@ -101,7 +101,7 @@ class DiscTab( ttk.Frame ):
 
 		# Add treeview event handlers
 		self.isoFileTree.bind( '<<TreeviewSelect>>', self.onFileTreeSelect )
-		# self.isoFileTree.bind( '<Double-1>', onFileTreeDoubleClick )
+		self.isoFileTree.bind( '<Double-1>', self.browseTexturesFromDisc )
 		self.isoFileTree.bind( "<3>", self.createContextMenu ) # Right-click
 
 		isoFileTreeWrapper.pack( fill='both', expand=1 )
@@ -1016,7 +1016,7 @@ class DiscTab( ttk.Frame ):
 				msg( "Unable to find the disc image. Be sure that the file path is correct and that the file hasn't been moved or deleted.", 'Disc Not Found', error=True )
 			return False
 
-	def getSingleFileSelection( self ):
+	def getSingleFileSelection( self, showWarnings=True ):
 
 		""" Checks that only a single item is selected in the treeview, 
 			and returns it if that's True. Otherwise returns None. 
@@ -1025,26 +1025,30 @@ class DiscTab( ttk.Frame ):
 		# Check that there's something selected
 		iidSelectionsTuple = self.isoFileTree.selection()
 		if not iidSelectionsTuple:
-			globalData.gui.updateProgramStatus( 'Hm?' )
-			msg( 'Please select a file to use this feature.', 'No File is Selected' )
+			if showWarnings:
+				globalData.gui.updateProgramStatus( 'Hm?' )
+				msg( 'Please select a file to use this feature.', 'No File is Selected' )
 			return None
 
 		elif len( iidSelectionsTuple ) != 1:
-			globalData.gui.updateProgramStatus( 'Hm?' )
-			msg( 'Please select only one file to load.', 'Too Many Files Selected' )
+			if showWarnings:
+				globalData.gui.updateProgramStatus( 'Hm?' )
+				msg( 'Please select only one file to load.', 'Too Many Files Selected' )
 			return None
 
 		# Check what kind of item is selected. May be "file", "nFolder" (native folder), or "cFolder" (convenience folder)
 		isoPath = iidSelectionsTuple[0]
 		itemType = self.isoFileTree.item( isoPath, 'values' )[1]
-		if itemType == 'file':
-			fileObj = globalData.disc.files.get( isoPath )
-			assert fileObj, 'IsoFileTree displays a missing file! ' + isoPath
+		if itemType != 'file':
+			if showWarnings:
+				msg( 'Please select just one file to load.', 'Folder Selected' )
+			return None
 
-			if self.goodDiscPath():
-				return fileObj
-		else:
-			msg( 'Please select just one file to load.', 'Folder Selected' )
+		fileObj = globalData.disc.files.get( isoPath )
+		assert fileObj, 'IsoFileTree displays a missing file! ' + isoPath
+
+		if self.goodDiscPath():
+			return fileObj
 	
 	def importSingleFile( self ):
 
@@ -1173,10 +1177,14 @@ class DiscTab( ttk.Frame ):
 		else:
 			printStatus( 'Restoration complete ({} files restored)'.format(len(iidSelections)), success=True )
 
-	def browseTexturesFromDisc( self ):
+	def browseTexturesFromDisc( self, event=None ):
 		mainGui = globalData.gui
 
-		fileObj = self.getSingleFileSelection()
+		if event: # Reached this by double-clicking (user might be trying to open a folder)
+			showWarnings = False
+		else:
+			showWarnings = True
+		fileObj = self.getSingleFileSelection( showWarnings )
 		if not fileObj: return
 
 		# Get the selected file and check whether it has textures (has a method to get them)
