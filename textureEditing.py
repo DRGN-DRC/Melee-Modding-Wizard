@@ -1331,7 +1331,10 @@ class TexturesEditorTab( ttk.Frame ):
 
 		# Render the model part (DObj for this texture) and focus the camera on it
 		modelPane.engine.clearRenderings()
-		modelPane.engine.renderDisplayObj( modelPart, includeSiblings=True )
+		modelPane.engine.renderDisplayObj( modelPart, includeSiblings=False )
+		# parentPointer = next( iter( modelPart.getParents() ) )
+		# parentJoint = self.file.initSpecificStruct( hsdStructures.JointObjDesc, parentPointer )
+		# modelPane.engine.renderJoint( parentJoint )
 		modelPane.engine.focusCamera()
 
 		# Set the label and button states

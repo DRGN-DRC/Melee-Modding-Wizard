@@ -127,6 +127,10 @@ class RenderEngine( Tk.Frame ):
 		self.master.after( 1, lambda: self.master.focus_force() )
 
 	def clearRenderings( self ):
+
+		# for obj in self.getObjects():
+		# 	obj.delete()
+
 		self.vertices = []
 		self.edges = []
 		self.triangles = []
@@ -159,7 +163,7 @@ class RenderEngine( Tk.Frame ):
 		# Find all of the x/y/z coordinates of the target object(s)
 		for obj in self.getObjects( primitive ):
 			if not tag or tag in obj.tags:
-				if self.__class__ == Vertex:
+				if obj.__class__ == Vertex:
 					xCoords.append( obj.x )
 					yCoords.append( obj.y )
 					zCoords.append( obj.z )
@@ -540,11 +544,10 @@ class RenderEngine( Tk.Frame ):
 
 		""" Move the camera in and out (toward/away) from the rendered model. """
 
-		#print( 'zoom' )
 		if event.delta > 0: # zoom in
-			self.translation_Z += 20
+			self.translation_Z *= .95
 		elif event.delta < 0: # zoom out
-			self.translation_Z -= 20
+			self.translation_Z *= 1.05
 
 		self.window.updateRequired = True
 
@@ -569,8 +572,11 @@ class RenderEngine( Tk.Frame ):
 			self.rotation_X += dx / 2.0
 			self.rotation_Y -= dy / 2.0
 		elif buttons == 4: # Right-click button held
-			self.translation_X += dx / 2.0
-			self.translation_Y += dy / 2.0
+			# Translate as a function of zoom level
+			# self.translation_X += dx / 2.0
+			# self.translation_Y += dy / 2.0
+			self.translation_X += self.translation_Z * 0.004 * -dx
+			self.translation_Y += self.translation_Z * 0.004 * -dy
 		# else: Multiple buttons held; do nothing and 
 		# wait 'til the user gets their act together. :P
 
@@ -1081,26 +1087,15 @@ class Quad( Primitive ):
 
 class VertexList( Primitive ):
 
-	def __init__( self, primitiveType, vertices, tags=(), show=True ):
+	def __init__( self, primitiveType, tags=(), show=True ):
 		self.type = self.interpretPrimType( primitiveType )
 		self.vertices = ( 'v3f/static', [] )
 		self.vertexColors = ( 'c4B/static', [] )
 		self.texCoords = ( 't2f/static', [] )
 		self.normals = ( 'n3f/static', [] )
+
 		self.textureGroup = None
 		self.envelopeIndex = -1
-
-		# Extract vertex coordinates and other properties into flattened lists for rendering
-		# for vertex in vertices:
-		# 	self.vertices[1].extend( (vertex.x, vertex.y, vertex.z) )
-		# 	self.vertexColors[1].extend( vertex.color )
-		# 	self.texCoords[1].extend( (vertex.s, vertex.t) )
-
-		# Add degenerate vertices if needed
-		# if self.type == gl.GL_LINE_STRIP or self.type == gl.GL_TRIANGLE_STRIP:
-		# 	self.addDegenerates()
-
-		# self.vertexCount = len( self.vertices[1] ) / 3
 		self.vertexCount = 0
 		self.tags = tags
 		self.show = show
@@ -1114,11 +1109,11 @@ class VertexList( Primitive ):
 
 		# Validate vertex colors or add them if not present
 		if len( self.vertexColors[1] ) / 4 != self.vertexCount:
-			self.vertexColors = ( self.vertexColors[0], (128, 128, 128, 255) * self.vertexCount )
+			self.vertexColors = ( self.vertexColors[0], [0, 0, 0, 255] * self.vertexCount )
 
 		# Validate vertex texture coordinates or add them if not present
 		if len( self.texCoords[1] ) / 2 != self.vertexCount:
-			self.texCoords = ( self.texCoords[0], (0.0, 0.0) * self.vertexCount )
+			self.texCoords = ( self.texCoords[0], [0.0, 0.0] * self.vertexCount )
 
 		if self.type == gl.GL_LINE_STRIP or self.type == gl.GL_TRIANGLE_STRIP:
 			self.addDegenerates()

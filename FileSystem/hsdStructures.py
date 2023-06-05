@@ -1147,9 +1147,9 @@ class DisplayListBlock( DataBlock ):
 			with the decoded vertex data. The attributesInfo argument is expected to be a list 
 			of tuples of the form ( name, attrType, compType, vertexDescriptor, indexStride, vertexStream ). """
 		
-		debugging = False
+		debugging = True
 
-		# Determine the data length and formatting for one entry in the display list
+		# Determine the data length and formatting for one vertex of one entry in the display list
 		baseLength = 0
 		baseFormat = ''
 		for name, attrType, compType, vertexDescriptor, _, _ in attributesInfo:
@@ -1191,27 +1191,27 @@ class DisplayListBlock( DataBlock ):
 				headerData = self.data[offset:offset+3]
 				if len( headerData ) < 3:
 					raise Exception( 'display list header data ended prematurely.' )
-				primitiveFlags, indexCount = struct.unpack( '>BH', headerData )
+				primitiveFlags, vertexCount = struct.unpack( '>BH', headerData )
 				primitiveType = primitiveFlags & 0xF8
 				#vertexStreamIndex = primitiveFlags & 7
 				offset += 3
 
 				# End the list if encountering an unrecognized type
 				if primitiveType not in self.enums['Primitive_Type'].keys():
-					if debugging:
+					if primitiveType != 0 and debugging:
 						print( 'Found an unrecognized primitive type: 0x{:X}'.format(primitiveType) )
 					continue
 
 				# Collect data for this primitive group and unpack it
-				dataLength = baseLength * indexCount
-				dataFormat = '>' + ( baseFormat * indexCount )
+				dataLength = baseLength * vertexCount
+				dataFormat = '>' + ( baseFormat * vertexCount )
 				data = self.data[offset:offset+dataLength]
 				if len( data ) < dataLength:
 					raise Exception( 'display list data ended prematurely.' )
 				displayListValues = struct.unpack( dataFormat, data )
 
 				# Parse the display list for vertices and create a VertexList from them
-				vl = self.createVertexList( primitiveType, displayListValues, indexCount, attributesInfo )
+				vl = self.createVertexList( primitiveType, displayListValues, vertexCount, attributesInfo )
 				vertexLists.append( vl )
 				
 				offset += dataLength
@@ -1222,16 +1222,16 @@ class DisplayListBlock( DataBlock ):
 
 		return vertexLists
 
-	def createVertexList( self, primitiveType, displayListValues, indexCount, attributesInfo ):
+	def createVertexList( self, primitiveType, displayListValues, vertexCount, attributesInfo ):
 
 		""" Creates a VertexList (one entry in the display list; i.e. one set of primitives), 
 			and gives it properties parsed out from the vertex attributes and display list data. """
 
 		displayListIndex = 0
-		vl = VertexList( primitiveType, None )
+		vl = VertexList( primitiveType )
 
 		# Iterate over each attribute value/index for each entry in this display set
-		for i in range( indexCount ):
+		for i in range( vertexCount ):
 			# Create the vertex and apply attributes (position/colors, etc.) for the current vertex
 			for name, attrType, compType, _, indexStride, vertexStream in attributesInfo:
 				if attrType == 0:
@@ -1329,7 +1329,7 @@ class VertexDataBlock( DataBlock ):
 	def __init__( self, *args, **kwargs ):
 		DataBlock.__init__( self, *args, **kwargs )
 
-		self.name = 'Vertex ' + self.name
+		self.name = 'Vertex Data Block' + self.name
 
 
 					# = --------------------------------------------------- = #
@@ -1882,7 +1882,7 @@ class VertexAttributesArray( TableStruct ):
 
 			# Assemble the formatting for this attribute
 			vertexDescriptor = '{}{}'.format( dimensions, valueFormat )
-			indexStride = dimensions * len( valueFormat ) # Number of values unpacked per vertex for this attribute
+			indexStride = dimensions * len( valueFormat ) # Number of values to unpack per vertex for this attribute
 
 			# Check if this is direct (GX_DIRECT) display list data; no data indexing
 			if attrType == 1 or stride == 0:
