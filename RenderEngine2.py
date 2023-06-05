@@ -75,7 +75,7 @@ class RenderEngine( Tk.Frame ):
 		self.window.switch_to()
 		gl.glClearColor( *self.bgColor )
 
-		gl.glClearDepth( 1.0 ) # # Depth buffer setup
+		gl.glClearDepth( 1.0 ) # Depth buffer setup
 		gl.glEnable( gl.GL_DEPTH_TEST ) # Do depth comparisons and enable depth testing
 		gl.glDepthFunc( gl.GL_LEQUAL ) # The type of depth testing to do
 
@@ -444,8 +444,8 @@ class RenderEngine( Tk.Frame ):
 	def collectTextures( self, dobj ):
 
 		""" Collects all textures attached to the given Display Object (DObj), 
-			Following all '_Next' pointers in the Texture Object(s). 
-			Returns a list of texture objects (structs). """
+			following all '_Next' pointers in the Texture Object(s). 
+			Returns a list of texture objects (file structs), to be decoded later. """
 
 		tobj = None
 		textures = []
@@ -586,51 +586,51 @@ class RenderEngine( Tk.Frame ):
 
 		""" Renders all primitives to the display. """
 
-		# try:
-		# Clear the screen
-		gl.glClear( gl.GL_COLOR_BUFFER_BIT | gl.GL_DEPTH_BUFFER_BIT )
-		
-		# Set the projection matrix to a perspective projection and apply translation (camera pan)
-		gl.glMatrixMode( gl.GL_PROJECTION )
-		gl.glLoadIdentity()
-		gl.gluPerspective( self.fov, float(self.width) / self.height, self.znear, self.zfar )
-		gl.glTranslatef( self.translation_X, self.translation_Y, self.translation_Z )
+		try:
+			# Clear the screen
+			gl.glClear( gl.GL_COLOR_BUFFER_BIT | gl.GL_DEPTH_BUFFER_BIT )
+			
+			# Set the projection matrix to a perspective projection and apply translation (camera pan)
+			gl.glMatrixMode( gl.GL_PROJECTION )
+			gl.glLoadIdentity()
+			gl.gluPerspective( self.fov, float(self.width) / self.height, self.znear, self.zfar )
+			gl.glTranslatef( self.translation_X, self.translation_Y, self.translation_Z )
 
-		# Set up the modelview matrix and apply mouse rotation input transformations
-		gl.glMatrixMode( gl.GL_MODELVIEW )
-		gl.glLoadIdentity()
-		gl.glRotatef( self.rotation_Y, 1, 0, 0 )
-		gl.glRotatef( self.rotation_X, 0, 1, 0 )
-		
-		# Render a batch for each set of objects that have been added
-		if self.vertices:
-			batch = pyglet.graphics.Batch()
-			for vertex in self.vertices:
-				vertex.render( batch )
-			batch.draw()
-		if self.edges:
-			batch = pyglet.graphics.Batch()
-			for edge in self.edges:
-				edge.render( batch )
-			batch.draw()
-		if self.triangles:
-			batch = pyglet.graphics.Batch()
-			for triangle in self.triangles:
-				triangle.render( batch )
-			batch.draw()
-		if self.quads:
-			batch = pyglet.graphics.Batch()
-			for quad in self.quads:
-				quad.render( batch )
-			batch.draw()
-		if self.vertexLists:
-			batch = pyglet.graphics.Batch()
-			for vList in self.vertexLists:
-				vList.render( batch )
-			batch.draw()
+			# Set up the modelview matrix and apply mouse rotation input transformations
+			gl.glMatrixMode( gl.GL_MODELVIEW )
+			gl.glLoadIdentity()
+			gl.glRotatef( self.rotation_Y, 1, 0, 0 )
+			gl.glRotatef( self.rotation_X, 0, 1, 0 )
+			
+			# Render a batch for each set of objects that have been added
+			if self.vertices:
+				batch = pyglet.graphics.Batch()
+				for vertex in self.vertices:
+					vertex.render( batch )
+				batch.draw()
+			if self.edges:
+				batch = pyglet.graphics.Batch()
+				for edge in self.edges:
+					edge.render( batch )
+				batch.draw()
+			if self.triangles:
+				batch = pyglet.graphics.Batch()
+				for triangle in self.triangles:
+					triangle.render( batch )
+				batch.draw()
+			if self.quads:
+				batch = pyglet.graphics.Batch()
+				for quad in self.quads:
+					quad.render( batch )
+				batch.draw()
+			if self.vertexLists:
+				batch = pyglet.graphics.Batch()
+				for vList in self.vertexLists:
+					vList.render( batch )
+				batch.draw()
 
-		# except Exception as err:
-		# 	print( 'An error occurred during rendering: {}'.format(err) )
+		except Exception as err:
+			print( 'An error occurred during rendering: {}'.format(err) )
 
 	def getObjects( self, primitive=None ):
 
@@ -1109,7 +1109,7 @@ class VertexList( Primitive ):
 
 		# Validate vertex colors or add them if not present
 		if len( self.vertexColors[1] ) / 4 != self.vertexCount:
-			self.vertexColors = ( self.vertexColors[0], [0, 0, 0, 255] * self.vertexCount )
+			self.vertexColors = ( self.vertexColors[0], [255, 255, 255, 255] * self.vertexCount )
 
 		# Validate vertex texture coordinates or add them if not present
 		if len( self.texCoords[1] ) / 2 != self.vertexCount:
@@ -1246,14 +1246,14 @@ class HSD_Texture( TextureGroup ):
 		self._setTexProperties()
 	
 	def set_state( self ):
-		gl.glEnable( self.texture.target )
+		#gl.glEnable( self.texture.target )
 		gl.glBindTexture( self.texture.target, self.texture.id )
 
 		gl.glTexParameteri( gl.GL_TEXTURE_2D, gl.GL_TEXTURE_WRAP_S, self.wrapModeS )
 		gl.glTexParameteri( gl.GL_TEXTURE_2D, gl.GL_TEXTURE_WRAP_T, self.wrapModeT )
 
 	def unset_state( self ):
-		gl.glDisable( self.texture.target )
+		#gl.glDisable( self.texture.target )
 		pass
 
 
