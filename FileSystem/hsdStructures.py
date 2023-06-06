@@ -381,7 +381,7 @@ class StructBase( object ):
 
 	def getFirstSibling( self ):
 
-		""" Returns the offset of the first sibling in this structure's group (even if it's this structure). 
+		""" Returns the offset of the first sibling in this structure's group (not the 'Next' struct to this one). 
 			Returns -1 if there are no siblings. """
 
 		if not self._siblingsChecked:
@@ -399,11 +399,11 @@ class StructBase( object ):
 
 	def getSiblings( self, nextOnly=False ):
 
-		""" Recursively gets all sibling structure offsets of the current struct, for each "Next_" field.
-			If nextOnly is True, only the first sibling is retrieved, but one is still returned for each field. 
-			self.siblings is only set if nextOnly=False and the entire list is gathered. 
-
-			This also initializes all sibling structs. """
+		""" Returns a list of all sibling structure offsets in this struct's group (from each "Next_" field).
+			If the struct has no Next fields, this returns an empty list. If it can have siblings but doesn't, 
+			a list with just one entry (this struct's offset) will be returned. If nextOnly is True, only the first 
+			sibling (pointed to by the current structure) is returned, and self.siblings will not be populated. 
+			This also initializes all sibling structs uncovered this way. """
 
 		if self._siblingsChecked:
 			return self.siblings
@@ -423,45 +423,63 @@ class StructBase( object ):
 			self._siblingsChecked = True
 			return self.siblings
 
-		# tic = time.clock()
+		allSiblingStructs = [] # List of actual structure objects, used to share the final siblings list to all structs
 
 		if not nextOnly: # Look for previous siblings which point to this struct
-			allSiblingStructs = [] # List of actual structure objects, used to share the final siblings list to all structs
-			parentOffsets = self.getParents()
+			# parentOffsets = self.getParents()
+			# currentStruct = self
+
+			# while parentOffsets:
+			# 	for offset in parentOffsets:
+			# 		if offset == currentStruct.offset: continue
+
+			# 		# Check if the higher-level parent struct is actually a sibling of the current struct
+			# 		elif currentStruct.isSibling( offset ): # Basically checks if a 'Next_' field was referenced to point to this struct
+			# 			sibs.insert( 0, offset )
+
+			# 			# Change to the previous sibling, and then check that structure too (do this recursively to the first sibling)
+			# 			currentStruct = self.dat.structs[ offset ]
+			# 			allSiblingStructs.insert( 0, currentStruct ) # Prepends instead of adding to the end
+
+			# 			parentOffsets = currentStruct.getParents()
+			# 			break
+
+			# 	else: # Above loop didn't break; none of the current parents are a sibling
+			# 		parentOffsets = None
+
+			# Recursively search for prior sibling structs until none are found
 			currentStruct = self
+			while currentStruct:
+				for pointerOffset, pointerValue in self.dat.pointers:
+					# Look for any pointers that point to this structure
+					if pointerValue == currentStruct.offset:
+						# Pointer found; get the structure that owns this pointer
+						parentOffset = self.dat.getPointerOwner( pointerOffset, offsetOnly=True )
+						if currentStruct.isSibling( parentOffset ):
+							currentStruct = self.dat.initSpecificStruct( self.__class__, parentOffset, printWarnings=False )
+							if currentStruct:
+								sibs.insert( 0, parentOffset )
+								allSiblingStructs.insert( 0, currentStruct )
+							break
+				else: # The loop above didn't break; no more prior structs found
+					currentStruct = None
 
-			while parentOffsets:
-				for offset in parentOffsets:
-					if offset == currentStruct.offset: continue
-
-					# Check if the higher-level parent struct is actually a sibling of the current struct
-					elif currentStruct.isSibling( offset ): # Basically checks if a 'Next_' field was referenced to point to this struct
-						sibs.insert( 0, offset )
-
-						# Change to the previous sibling, and then check that structure too (do this recursively to the first sibling)
-						currentStruct = self.dat.structs[ offset ]
-						allSiblingStructs.insert( 0, currentStruct ) # Prepends instead of adding to the end
-
-						parentOffsets = currentStruct.getParents()
-						break
-
-				else: # Above loop didn't break; none of the current parents are a sibling
-					parentOffsets = None
-
-			allSiblingStructs.append( self )
 			sibs.append( self.offset )
+			allSiblingStructs.append( self )
 
-		# Look for next siblings which this struct points to
+		# Look for next sibling that this struct points to
 		nextStruct = self
 		while nextStruct:
-			siblingPointerOffset = nextStruct.offset + struct.calcsize( nextStruct.formatting[1:siblingFieldIndex+1] ) # +1 due to endianness marker
+			# Calculate the absolute file offset for the pointer to the sibling (+1 to index due to endianness marker)
+			siblingPointerOffset = nextStruct.offset + struct.calcsize( nextStruct.formatting[1:siblingFieldIndex+1] )
 
 			if siblingPointerOffset in self.dat.pointerOffsets: # Found a valid sibling pointer
 				siblingOffset = nextStruct.getValues()[siblingFieldIndex]
 				
 				sibs.append( siblingOffset )
 
-				if nextOnly: return sibs # No need to continue and update other structures
+				if nextOnly:
+					return sibs # No need to continue and update other structures
 					
 				# Check for the next sibling's sibling (init a structure that's the same kind as the current struct)
 				nextStruct = self.dat.initSpecificStruct( self.__class__, siblingOffset, printWarnings=False )
@@ -479,11 +497,12 @@ class StructBase( object ):
 			else:
 				nextStruct = None
 
-		if not nextOnly:
+		# Check for the rest of the siblings if not returning just the first
+		if not nextOnly and allSiblingStructs:
 			if len( allSiblingStructs ) == 1: # Only dealing with this (self) struct
 				if self.structDepth:
 					self.structDepth = ( self.structDepth[0], 0 )
-				self.siblings = []
+				self.siblings = sibs
 				self._siblingsChecked = True
 
 			else: # Multiple structs need updating with the siblings list gathered above
@@ -494,17 +513,15 @@ class StructBase( object ):
 
 				# Now that the full set is known, share it to all of the sibling structs (so they don't need to make the same determination)
 				for siblingId, structure in enumerate( allSiblingStructs ):
-					structure.siblings = list( sibs ) # Create a copy of the list, so we don't edit the original in the step below
-					structure.siblings.remove( structure.offset ) # Removes the reference to a struct's own offset
+					# structure.siblings = list( sibs ) # Create a copy of the list, so we don't edit the original in the step below
+					# structure.siblings.remove( structure.offset ) # Removes the reference to a struct's own offset
+					structure.siblings = sibs
 					structure._siblingsChecked = True
 
 					if fileDepth:
 						structure.structDepth = ( fileDepth, siblingId )
 					else:
 						structure.structDepth = ( -1, siblingId )
-
-		# toc = time.clock()
-		# print 'time to get siblings:', toc - tic
 
 		return self.siblings
 
@@ -1750,6 +1767,7 @@ class VertexAttributesArray( TableStruct ):
 		for i in range( 7, len(self.fields), 8 ):
 			self.childClassIdentities[i] = 'VertexDataBlock'
 		self._siblingsChecked = True
+		self._attributeInfo = []
 
 	def determineDimensions( self, name, count ):
 
@@ -1860,7 +1878,10 @@ class VertexAttributesArray( TableStruct ):
 		""" Iterate over the attributes array, collect information on each attribute, 
 			and unpack the vertex attributes data. """
 
-		attributesInfo = []
+		if self._attributeInfo:
+			return self._attributeInfo
+		
+		self._attributeInfo = []
 
 		for i, (name, attrType, count, compType, scale, _, stride, dataPointer) in self.iterateEntries():
 
@@ -1886,7 +1907,7 @@ class VertexAttributesArray( TableStruct ):
 
 			# Check if this is direct (GX_DIRECT) display list data; no data indexing
 			if attrType == 1 or stride == 0:
-				attributesInfo.append( (name, attrType, compType, vertexDescriptor, indexStride, []) )
+				self._attributeInfo.append( (name, attrType, compType, vertexDescriptor, indexStride, []) )
 				continue
 
 			# Check that the vertex data pointer is pointing to a struct
@@ -1913,10 +1934,10 @@ class VertexAttributesArray( TableStruct ):
 			if compType != 4 and scale != 0: # If not a float and scale is non-zero
 				vertexData = [ value / float(1 << scale) for value in vertexData ]
 
-			# Store the above info for this one attribute of a vertex
-			attributesInfo.append( (name, attrType, compType, vertexDescriptor, indexStride, vertexData) )
+			# Store the info and data for this attribute
+			self._attributeInfo.append( (name, attrType, compType, vertexDescriptor, indexStride, vertexData) )
 
-		return attributesInfo
+		return self._attributeInfo
 
 
 class EnvelopeArray( StructBase ):
@@ -2393,8 +2414,9 @@ class MapHeadObjDesc( StructBase ):
 					jointGroup = self.dat.initSpecificStruct( JointObjDesc, jointGroupPtr, pointsArrayOffset, entryCount=arrayCount )
 					childOffset = jointGroup.getChildren()[0]
 					childStruct = self.dat.initSpecificStruct( JointObjDesc, childOffset, jointGroupPtr )
-					points = childStruct.getSiblings()[:]
-					points.insert( 0, childStruct.offset )
+					# points = childStruct.getSiblings()[:]
+					# points.insert( 0, childStruct.offset )
+					points = childStruct.getSiblings()
 
 					# Ensure the index is valid and collect the appropriate joint struct
 					if jointIndex < 1 or jointIndex > len( points ): # The joint index is 1-indexed
@@ -2422,8 +2444,9 @@ class MapHeadObjDesc( StructBase ):
 			# Initialize the joint group and get the offsets of the points/joints
 			childOffset = jointGroup.getChildren()[0]
 			childStruct = self.dat.initSpecificStruct( JointObjDesc, childOffset, jointGroupPtr )
-			points = childStruct.getSiblings()[:]
-			points.insert( 0, childStruct.offset )
+			# points = childStruct.getSiblings()[:]
+			# points.insert( 0, childStruct.offset )
+			points = childStruct.getSiblings()
 
 			pointsInfo = []
 

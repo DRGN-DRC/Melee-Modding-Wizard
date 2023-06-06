@@ -399,13 +399,14 @@ class RenderEngine( Tk.Frame ):
 			all of its siblings. """
 
 		primitives = []
-		dobjOffsets = [ parentDobj.offset ]
+
+		if includeSiblings:
+			dobjOffsets = parentDobj.getSiblings()
+		else:
+			dobjOffsets = [ parentDobj.offset ]
 
 		try:
-			# Iterate over this DObj and its siblings
-			if includeSiblings:
-				dobjOffsets += parentDobj.getSiblings()
-
+			# Iterate over this DObj (and its siblings, if enabled)
 			for offset in dobjOffsets:
 				dobj = parentDobj.dat.getStruct( offset )
 
@@ -418,7 +419,7 @@ class RenderEngine( Tk.Frame ):
 				textures = self.collectTextures( dobj )
 
 				# Iterate over this PObj and its siblings
-				for pobjOffset in [pobj.offset] + pobj.getSiblings():
+				for pobjOffset in pobj.getSiblings():
 					pobj = dobj.dat.getStruct( pobjOffset )
 
 					# Create some additional rendering context for these polygons

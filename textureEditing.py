@@ -1086,13 +1086,14 @@ class TexturesEditorTab( ttk.Frame ):
 
 		# Create a render canvas if any model parts were detected
 		if modelPane.displayObjects:
+			# Prepare tracking for the currently selected object
 			modelPane.dobjStringVar = Tk.StringVar()
 			defaultPart = modelPane.displayObjects[0]
 			modelPane.partIndex = 0
 
 			# Add the rendering widget if it's not present
 			if not modelPane.engine:
-				modelPane.engine = RenderEngine( modelPane, (400, 300), False, background=globalData.gui.defaultSystemBgColor, borderwidth=0, relief='groove' )
+				modelPane.engine = RenderEngine( modelPane, (440, 300), False, background=globalData.gui.defaultSystemBgColor, borderwidth=0, relief='groove' )
 			modelPane.engine.pack( pady=(vertPadding, 4) )
 
 			if len( modelPane.displayObjects ) == 1:
@@ -1331,7 +1332,7 @@ class TexturesEditorTab( ttk.Frame ):
 
 		# Render the model part (DObj for this texture) and focus the camera on it
 		modelPane.engine.clearRenderings()
-		modelPane.engine.renderDisplayObj( modelPart, includeSiblings=False )
+		modelPane.engine.renderDisplayObj( modelPart, includeSiblings=True )
 		# parentPointer = next( iter( modelPart.getParents() ) )
 		# parentJoint = self.file.initSpecificStruct( hsdStructures.JointObjDesc, parentPointer )
 		# modelPane.engine.renderJoint( parentJoint )
@@ -1387,7 +1388,7 @@ class TexturesEditorTab( ttk.Frame ):
 
 	def toggleDisplayListRendering( self ):
 
-		""" Toggles the defined length of the display lists associated with the currently texture currently selected 
+		""" Toggles the defined length of the display lists associated with the texture currently selected 
 			in the DAT Texture Tree tab (last item in the selection if multiple items are selected). """
 
 		# Get the bool determining whether to clear the DObj render lists from the GUI
@@ -1401,7 +1402,7 @@ class TexturesEditorTab( ttk.Frame ):
 			polygonSiblingObjs = [ self.file.structs[o] for o in polygonObj.getSiblings() ] # These should all be initialized through the .getSiblings method
 
 			# Process this object and its siblings
-			for polygonStruct in [polygonObj] + polygonSiblingObjs:
+			for polygonStruct in polygonSiblingObjs:
 				# Get info on this polygon object's display list
 				displayListLength, displayListPointer = polygonStruct.getValues()[4:6]
 				determinedListLength = self.file.getStructLength( displayListPointer ) / 0x20
