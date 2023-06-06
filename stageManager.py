@@ -3004,6 +3004,12 @@ class StagePropertyEditor( ttk.Frame ):
 		# Clear current rendered objects
 		self.engine.clearRenderings()
 
+		# Check if the first group is selected
+		if iidSelectionsTuple[0] == self.modelPartsTree.get_children()[0]:
+			# Turn on bone rendering if it's disabled (the first group is only bones)
+			if not self.showBones.get():
+				self.showBones.set( True )
+
 		# Get the selected joint object(s)
 		for iid in iidSelectionsTuple:
 			joint = self.file.getStruct( int(iid) )
