@@ -2597,17 +2597,17 @@ class VerticalScrolledFrame( Tk.Frame ):
 		The outer widget is essentially just a Frame; which can be attached using 
 		pack/place/grid geometry managers as normal. """
 
-	def __init__( self, parent, defaultHeight=700, *args, **kw ):
+	def __init__( self, parent, maxHeight=-1, *args, **kw ):
 		Tk.Frame.__init__( self, parent, *args, **kw )
 
 		# create a canvas object, and a vertical scrollbar for scrolling it
 		self.vscrollbar = Tk.Scrollbar( self, orient='vertical' )
 		self.vscrollbar.grid( column=1, row=0, sticky='ns' )
-		self.canvas = Tk.Canvas( self, bd=0, highlightthickness=0, yscrollcommand=self.vscrollbar.set ) #, height=defaultHeight
+		self.canvas = Tk.Canvas( self, bd=0, highlightthickness=0, yscrollcommand=self.vscrollbar.set )
 		self.canvas.grid( column=0, row=0, sticky='nsew' )
 		self.canvas.yview_scroll = self.yview_scroll
 		self.vscrollbar.config( command=self.canvas.yview )
-		#self.defaultHeight = defaultHeight
+		self.maxHeight = maxHeight
 
 		# reset the view
 		self.canvas.xview_moveto( 0 )
@@ -2616,7 +2616,6 @@ class VerticalScrolledFrame( Tk.Frame ):
 		# create a frame inside the canvas which will be scrolled with it
 		self.interior = Tk.Frame( self.canvas, relief='ridge' )
 		self.interior_id = self.canvas.create_window( 0, 0, window=self.interior, anchor='nw' )
-		#self.canvas.config( height=defaultHeight )
 
 		# add resize configuration for the canvas and scrollbar
 		self.rowconfigure( 0, weight=1 )
@@ -2629,21 +2628,32 @@ class VerticalScrolledFrame( Tk.Frame ):
 		self.canvas.bind( '<Configure>', self.configureInterior )
 
 	def configureCanvas( self, event=None ):
+
+		""" Called when the interior frame's size is changed. """
+
 		self.update_idletasks()
 		self.configureScrollbar()
 
 		# update the scroll area to match the size of the inner frame
 		self.canvas.config( scrollregion=self.canvas.bbox(self.interior_id) )
-		
+
 		interiorWidth = self.interior.winfo_reqwidth()
 		if interiorWidth != self.canvas.winfo_width():
 			# update the canvas' width to fit the inner frame
 			self.canvas.config( width=interiorWidth )
-		
-		if self.canvas.winfo_reqheight() > self.interior.winfo_height():
-			self.canvas.config( height=self.interior.winfo_reqheight() )
+
+		# match the canvas height to the height of the interior frame
+		interiorHeight = self.interior.winfo_reqheight()
+		if self.maxHeight != -1 and interiorHeight > self.maxHeight:
+			interiorHeight = self.maxHeight
+		if self.canvas.winfo_reqheight() != interiorHeight:
+			self.canvas.config( height=interiorHeight )
 
 	def configureInterior( self, event=None ):
+
+		""" Called when the canvas' size is changed, which should 
+			coincide with changes to the parent (the whole widget). """
+
 		self.update_idletasks()
 		self.configureScrollbar()
 
@@ -2652,9 +2662,10 @@ class VerticalScrolledFrame( Tk.Frame ):
 			# update the inner frame's width to fill the canvas
 			self.canvas.itemconfigure( self.interior_id, width=canvasWidth )
 		
-		# if self.interior.winfo_reqheight() != self.canvas.winfo_height():
+		# canvasHeight = self.canvas.winfo_height()
+		# if self.interior.winfo_reqheight() != canvasHeight:
 		# 	# update the inner frame's height to fill the canvas
-		# 	self.canvas.itemconfigure(self.interior_id, height=self.canvas.winfo_height())
+		# 	self.canvas.itemconfigure( self.interior_id, height=canvasHeight )
 
 	def configureScrollbar( self ):
 		# Check if a scrollbar is necessary, and add/remove it as needed.

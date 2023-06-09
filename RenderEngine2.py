@@ -15,6 +15,7 @@ import pyglet
 import win32api
 import Tkinter as Tk
 
+from operator import add, mul
 from collections import OrderedDict
 
 # Disable a few options for increased performance
@@ -150,19 +151,28 @@ class RenderEngine( Tk.Frame ):
 
 		self.window.updateRequired = True
 
-	def focusCamera( self, tag='', primitive=None ):
+	def focusCamera( self, tags=None, primitive=None, skipRotationReset=False ):
 
-		""" Resets the camera and centers it on the object with the given tag. """
+		""" Resets the camera and centers it on the object with the given tag. 
+			The tag and primitive arguments may be given to filter to targets. """
 
-		self.resetView()
+		if not skipRotationReset:
+			self.resetView()
 
 		xCoords = []
 		yCoords = []
 		zCoords = []
 
+		# Check if tags is an iterable or a single item
+		if tags:
+			if hasattr( tags, '__iter__' ):
+				tags = set( tags )
+			else: # Is not an iterable
+				tags = set( [tags] )
+
 		# Find all of the x/y/z coordinates of the target object(s)
 		for obj in self.getObjects( primitive ):
-			if not tag or tag in obj.tags:
+			if not tags or tags & set( obj.tags ):
 				if obj.__class__ == Vertex:
 					xCoords.append( obj.x )
 					yCoords.append( obj.y )
@@ -180,7 +190,7 @@ class RenderEngine( Tk.Frame ):
 		if not xCoords or not yCoords or not zCoords:
 			self.translation_X = 0
 			self.translation_Y = 0
-			self.translation_Z = 0
+			self.translation_Z = -10
 			return
 
 		# Calculate new camera X/Y coords
@@ -189,26 +199,29 @@ class RenderEngine( Tk.Frame ):
 		maxZ = max( zCoords )
 		x = ( maxX + min(xCoords) ) / 2.0
 		y = ( maxY + min(yCoords) ) / 2.0
+		z = ( maxZ + min(zCoords) ) / 2.0
 
-		# Determine depth; try to get entire model part in the frame
+		# Determine depth (zoom level); try to get the entire model part/group in the frame
 		xSpan = maxX - x
 		ySpan = maxY - y
-		zSpan = maxZ - ( maxZ + min(zCoords) ) / 2
+		zSpan = maxZ - z
 		if xSpan > ySpan:
+			# Use x-axis to determine zoom level
 			if zSpan > xSpan:
-				z = zSpan * -1.5
+				zOffset = zSpan * 1.6
 			else:
-				z = xSpan * -1.5
+				zOffset = xSpan * 1.5
 		else:
+			# Use y-axis to determine zoom level
 			if zSpan > ySpan:
-				z = zSpan * -1.5
+				zOffset = zSpan * 1.6
 			else:
-				z = ySpan * -1.5
+				zOffset = ySpan * 1.7
 
 		# Set the new camera position
 		self.translation_X = -x
 		self.translation_Y = -y
-		self.translation_Z = z
+		self.translation_Z = -z - abs( zOffset )
 
 	def resizeViewport( self, event ):
 
@@ -427,7 +440,7 @@ class RenderEngine( Tk.Frame ):
 
 					# Parse out primitives for this mesh
 					pobjPrimitives = pobj.decodeGeometry()
-					self.addVertexLists( pobjPrimitives, textures, str(offset), str(pobjOffset), None )
+					self.addVertexLists( pobjPrimitives, textures, offset, pobjOffset, None )
 					primitives.extend( pobjPrimitives )
 
 		# except AttributeError:
@@ -441,6 +454,36 @@ class RenderEngine( Tk.Frame ):
 				print( 'Unable to render {}; {}'.format(parentDobj.name, err) )
 
 		return primitives
+	
+	def applyJointTransformations( self, primitives, parentJoint ):
+
+		""" Recursively moves through all Joint struct parents until no more 
+			are found, and applies all of their transformation values to the 
+			given primitives. """
+
+		rotation = [ 0, 0, 0 ]
+		scale = [ 1.0, 1.0, 1.0 ]
+		translation = [ 0, 0, 0 ]
+
+		jointClass = globalData.fileStructureClasses['JointObjDesc']
+
+		# Ascend the Joint structures tree while accumulating transformation values
+		while parentJoint:
+			# Gather the current transform values
+			transformationValues = parentJoint.getValues()[5:14] # 9 values; 3 for each of rotation/scale/translation
+			rotation = list( map(add, rotation, transformationValues[:3]) )
+			scale = list( map(mul, scale, transformationValues[3:6]) )
+			translation = list( map(add, translation, transformationValues[6:]) )
+			
+			# Check for another parent joint
+			parentJointOffset = next(iter( parentJoint.getParents() ))
+			parentJoint = parentJoint.dat.initSpecificStruct( jointClass, parentJointOffset )
+		
+		# Apply the cumulated transforms
+		for primitive in primitives:
+			primitive.rotate( *rotation )
+			primitive.scale( *scale )
+			primitive.translate( *translation )
 	
 	def collectTextures( self, dobj ):
 
@@ -716,6 +759,16 @@ class RenderEngine( Tk.Frame ):
 		for obj in self.getObjects( primitive ):
 			if tag in obj.tags:
 				obj.show = visible
+
+		self.window.updateRequired = True
+
+	def showAll( self, visible=True, primitive=None ):
+
+		""" Toggles the visibility for all primitives with a specified tag. 
+			A primitive type may be given to improve performance. """
+
+		for obj in self.getObjects( primitive ):
+			obj.show = visible
 
 		self.window.updateRequired = True
 
