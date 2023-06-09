@@ -26,7 +26,7 @@ from tplCodec import TplDecoder
 from FileSystem import hsdStructures, DatFile
 from RenderEngine2 import RenderEngine
 from basicFunctions import isNaN, validHex, humansize, grammarfyList, msg, copyToClipboard, printStatus, uHex, constructTextureFilename
-from guiSubComponents import ( LabelButton, exportMultipleTextures, getColoredShape, importSingleTexture, 
+from guiSubComponents import ( ColoredLabelButton, LabelButton, exportMultipleTextures, getColoredShape, importSingleTexture, 
 		BasicWindow, HexEditEntry, EnumOptionMenu, HexEditDropdown, ColorSwatch, 
 		MeleeColorPicker, FlagDecoder, ToolTip, VerticalScrolledFrame, ClickText )
 
@@ -282,20 +282,26 @@ class TexturesEditorTab( ttk.Frame ):
 		# Model parts tab
 		self.modelPropertiesPane = VerticalScrolledFrame( self.imageManipTabs )
 		self.imageManipTabs.add( self.modelPropertiesPane, text='Model', state='disabled' )
-		self.modelPropertiesPane.interior.imageDataHeaders = []
-		self.modelPropertiesPane.interior.nonImageDataHeaders = [] # Not expected
-		self.modelPropertiesPane.interior.textureStructs = [] # Direct model attachments
-		self.modelPropertiesPane.interior.headerArrayStructs = [] # Used for animations
-		self.modelPropertiesPane.interior.unexpectedStructs = []
-		self.modelPropertiesPane.interior.materialStructs = []
-		self.modelPropertiesPane.interior.displayObjects = []
-		self.modelPropertiesPane.interior.hideJointChkBtn = None
-		self.modelPropertiesPane.interior.polyDisableChkBtn = None
-		self.modelPropertiesPane.interior.opacityEntry = None
-		self.modelPropertiesPane.interior.opacityBtn = None
-		self.modelPropertiesPane.interior.opacityScale = None
-		self.modelPropertiesPane.interior.engine = None
-		self.modelPropertiesPane.interior.partIndex = -1
+		modelPane = self.modelPropertiesPane.interior
+		modelPane.imageDataHeaders = []
+		modelPane.nonImageDataHeaders = [] # Not expected
+		modelPane.textureStructs = [] # Direct model attachments
+		modelPane.headerArrayStructs = [] # Used for animations
+		modelPane.unexpectedStructs = []
+		modelPane.materialStructs = []
+		modelPane.displayObjects = []
+		modelPane.hideJointChkBtn = None
+		modelPane.polyDisableChkBtn = None
+		modelPane.opacityEntry = None
+		modelPane.opacityBtn = None
+		modelPane.opacityScale = None
+		modelPane.engine = None
+		modelPane.renderOptionsBtn = None
+		modelPane.partIndex = -1
+		modelPane.dobjStringVar = Tk.StringVar()
+		modelPane.showRelatedParts = Tk.BooleanVar( value=True )
+		modelPane.autoCameraUpdates = Tk.BooleanVar( value=True )
+		self.renderOptionsWindow = None
 
 		# Texture properties tab
 		self.texturePropertiesPane = VerticalScrolledFrame( self.imageManipTabs )
@@ -1024,7 +1030,6 @@ class TexturesEditorTab( ttk.Frame ):
 		vertPadding = 8
 
 		# Clear the current contents
-		#self.modelPropertiesPane.clear()
 		for childWidget in modelPane.winfo_children():
 			if not isinstance( childWidget, RenderEngine ):
 				childWidget.destroy()
@@ -1081,13 +1086,12 @@ class TexturesEditorTab( ttk.Frame ):
 						if displayObject:
 							modelPane.displayObjects.append( displayObject )
 
-		print( 'material structs: ' + str([hex(0x20+obj.offset) for obj in modelPane.materialStructs]) )
-		print( 'displayObj structs: ' + str([hex(0x20+obj.offset) for obj in modelPane.displayObjects]) )
+		# print( 'material structs: ' + str([hex(0x20+obj.offset) for obj in modelPane.materialStructs]) )
+		# print( 'displayObj structs: ' + str([hex(0x20+obj.offset) for obj in modelPane.displayObjects]) )
 
 		# Create a render canvas if any model parts were detected
 		if modelPane.displayObjects:
 			# Prepare tracking for the currently selected object
-			modelPane.dobjStringVar = Tk.StringVar()
 			defaultPart = modelPane.displayObjects[0]
 			modelPane.partIndex = 0
 
@@ -1095,6 +1099,12 @@ class TexturesEditorTab( ttk.Frame ):
 			if not modelPane.engine:
 				modelPane.engine = RenderEngine( modelPane, (440, 300), False, background=globalData.gui.defaultSystemBgColor, borderwidth=0, relief='groove' )
 			modelPane.engine.pack( pady=(vertPadding, 4) )
+			
+			# Add a button to access the render options, and repopulate the window if it's open
+			modelPane.renderOptionsBtn = ColoredLabelButton( modelPane, 'gear', self.showDisplayOptions, 'Display Options' )
+			modelPane.renderOptionsBtn.place( anchor='ne', relx=1.0, x=-6, y=6 )
+			if self.renderOptionsWindow and self.renderOptionsWindow.window.winfo_exists():
+				self.renderOptionsWindow.repopulate()
 
 			if len( modelPane.displayObjects ) == 1:
 				# Add a label below the rendering showing the Display Object's name
@@ -1118,6 +1128,8 @@ class TexturesEditorTab( ttk.Frame ):
 		else: # No model parts detected; fall back to text descriptions of what was found
 			if modelPane.engine:
 				modelPane.engine.pack_forget()
+			if modelPane.renderOptionsBtn:
+				modelPane.renderOptionsBtn.destroy()
 
 			# Add a label for image data headers count
 			if len( modelPane.imageDataHeaders ) == 1: # todo: make searching work for multiple offsets
@@ -1322,7 +1334,7 @@ class TexturesEditorTab( ttk.Frame ):
 									'If this is part of a texture animation, find the default/starting texture for it and edit the structs for that instead.' )
 			ttk.Label( modelPane, text=disabledControlsText, wraplength=wraplength ).pack( pady=(vertPadding, 0) )
 
-	def renderDobj( self ):
+	def renderDobj( self, updateOptionsWindow=False ):
 		
 		""" Sets a particular model part to render in the Model tab for the currently selected texture. """
 		
@@ -1332,11 +1344,11 @@ class TexturesEditorTab( ttk.Frame ):
 
 		# Render the model part (DObj for this texture) and focus the camera on it
 		modelPane.engine.clearRenderings()
-		modelPane.engine.renderDisplayObj( modelPart, includeSiblings=True )
-		# parentPointer = next( iter( modelPart.getParents() ) )
-		# parentJoint = self.file.initSpecificStruct( hsdStructures.JointObjDesc, parentPointer )
-		# modelPane.engine.renderJoint( parentJoint )
-		modelPane.engine.focusCamera()
+		modelPane.engine.renderDisplayObj( modelPart, includeSiblings=modelPane.showRelatedParts.get() )
+		
+		# Align the camera to the object
+		if modelPane.autoCameraUpdates.get():
+			modelPane.engine.focusCamera()
 
 		# Set the label and button states
 		if len( modelPane.displayObjects ) > 1:
@@ -1344,13 +1356,22 @@ class TexturesEditorTab( ttk.Frame ):
 		else:
 			modelPane.dobjStringVar.set( modelPart.name )
 
+		# Check the box for the appropriate DObj in the render options window if it's open
+		if updateOptionsWindow and self.renderOptionsWindow and self.renderOptionsWindow.window.winfo_exists():
+			checkboxStates = self.renderOptionsWindow.checkboxStates
+			for i, dobj in enumerate( modelPane.displayObjects ):
+				if i == modelPane.partIndex:
+					checkboxStates[dobj.offset].set( True )
+				else:
+					checkboxStates[dobj.offset].set( False )
+
 	def renderPrevDobj( self, event ):
 		modelPane = self.modelPropertiesPane.interior
 		if modelPane.partIndex <= 0:
 			return
 		modelPane.partIndex -= 1
 
-		self.renderDobj()
+		self.renderDobj( True )
 
 	def renderNextDobj( self, event ):
 		modelPane = self.modelPropertiesPane.interior
@@ -1358,7 +1379,15 @@ class TexturesEditorTab( ttk.Frame ):
 			return
 		modelPane.partIndex += 1
 
-		self.renderDobj()
+		self.renderDobj( True )
+
+	def showDisplayOptions( self, event=None ):
+
+		""" Called by the gear icon to the right of the render window. 
+			Used to toggle various options for what is to be rendered. """
+
+		modelPane = self.modelPropertiesPane.interior
+		self.renderOptionsWindow = ModelTabRenderOptionsWindow( modelPane )
 
 	def toggleHideJoint( self ):
 
@@ -2350,3 +2379,171 @@ class TextureFiltersWindow( BasicWindow ):
 		self.imageTypeValue.set( '' )
 		self.offsetComparator.set( '=' )
 		self.offsetValue.set( '' )
+
+
+class ModelTabRenderOptionsWindow( BasicWindow ):
+
+	def __init__( self, modelPane ):
+
+		self.file = modelPane.displayObjects[0].dat
+		windowTitle = 'Model Render Options ({})'.format( self.file.filename )
+
+		if not BasicWindow.__init__( self, globalData.gui.root, windowTitle, resizable=True, unique=True ):
+			return # Unique window already exists; bringing that back into view now instead of creating a new window
+
+		self.modelPane = modelPane
+
+		tangentBtn = ttk.Checkbutton( self.window, text='Also show tangentially related parts', variable=self.modelPane.showRelatedParts, command=self.checkboxClicked )
+		tangentBtn.grid( column=0, row=0, pady=(12, 0), padx=20 )
+
+		# Add selection for Display Objects
+		self.partCheckboxesFrame = VerticalScrolledFrame( self.window, maxHeight=400 )
+		self.partCheckboxesFrame.grid( column=0, row=1, pady=12, sticky='nsew' )
+		self.populate()
+
+		cameraBtn = ttk.Checkbutton( self.window, text='Auto-update camera', variable=self.modelPane.autoCameraUpdates )
+		cameraBtn.grid( column=0, row=2, padx=20 )
+
+		# Select/deselect all buttons
+		lowerButtonsFrame = ttk.Frame( self.window )
+		ttk.Button( lowerButtonsFrame, text='Select all', command=self.selectAll ).pack( side='left', padx=5 )
+		ttk.Button( lowerButtonsFrame, text='Deselect all', command=self.deselectAll ).pack( side='left', padx=5 )
+		lowerButtonsFrame.grid( column=0, row=3, pady=12 )
+
+		# Configure resize behavior (only the VSF should change size)
+		self.window.columnconfigure( 0, weight=1 )
+		self.window.rowconfigure( 0, weight=0 )
+		self.window.rowconfigure( 1, weight=1 )
+		self.window.rowconfigure( 2, weight=0 )
+		self.window.rowconfigure( 3, weight=0 )
+
+	def populate( self ):
+
+		""" Adds a checkbox for each Display Object that may be displayed. """
+
+		self.checkboxStates = {} # key=DObjOffset, value=BooleanVar (for whether this dobj should be visible)
+		self.transformedRenders = {} # key=DObjOffset, value=True/False (for whether it has joint transforms applied)
+
+		# Create a dynamically sized frame for the individual display objects to show
+		for i, dobj in enumerate( self.modelPane.displayObjects ):
+			if i == self.modelPane.partIndex:
+				boolVar = Tk.BooleanVar( value=True )
+			else:
+				boolVar = Tk.BooleanVar( value=False )
+			self.checkboxStates[dobj.offset] = boolVar
+			ttk.Checkbutton( self.partCheckboxesFrame.interior, text=dobj.name, variable=boolVar, command=self.checkboxClicked ).pack()
+
+	def repopulate( self ):
+
+		""" Clears the current list of checkboxes, and then adds a 
+			checkbox for each Display Object that may be displayed. 
+			Use this to update the window if it's left open. """
+		
+		self.partCheckboxesFrame.clear()
+		self.populate()
+		self.window.geometry( '' ) # Updates the window size
+
+	def checkboxClicked( self ):
+
+		""" Updates the render when one of the checkboxes is clicked on. """
+
+		engine = self.modelPane.engine
+		showRelatedParts = self.modelPane.showRelatedParts.get()
+		allowCameraUpdate = self.modelPane.autoCameraUpdates.get()
+
+		# Check what structs are already available in the render window
+		renderedStructs = set()
+		for object in engine.vertexLists:
+			renderedStructs.update( object.tags )
+
+		# Check what parts need to be shown/rendered or hidden
+		partsToShow = []
+		# partsToHide = []
+		enabledObjects = []
+		singleSelectedDobj = -1
+		for dobjIndex, dobj in enumerate( self.modelPane.displayObjects ):
+			dobjSiblings = dobj.getSiblings()[:] # Making a copy, since we might edit it
+
+			# Show parts currently selected by the checkboxes
+			if self.checkboxStates[dobj.offset].get():
+				if showRelatedParts:
+					partsToShow.extend( dobjSiblings )
+				else:
+					partsToShow.append( dobj.offset )
+
+					# Collect siblings to hide if they're visible
+					# dobjSiblings.remove( dobj.offset )
+					# partsToHide.extend( dobjSiblings )
+
+				# Remember some details to update the title below the render window
+				enabledObjects.append( dobj )
+				singleSelectedDobj = dobjIndex
+			# else:
+			# 	partsToHide.extend( dobjSiblings )
+
+		# Hide everything by default
+		engine.showAll( visible=False, primitive='vertexList' )
+
+		# Apply joint transformations only if there are multiple parts being displayed
+		for offset in partsToShow:
+			if len( enabledObjects ) == 1:
+				if offset in renderedStructs:
+					# Already rendered; check if it has joint transformations applied
+					if self.transformedRenders.get( offset, False ):
+						engine.removePart( offset, 'vertexList' )
+					else:
+						engine.showPart( offset, True, 'vertexList' )
+						continue
+
+				self._renderPart( offset )
+
+			else: # Multiple parts to render. Joint translations should be applied
+				if offset in renderedStructs:
+					if self.transformedRenders.get( offset, False ):
+						engine.showPart( offset, True, 'vertexList' )
+						continue
+					else:
+						engine.removePart( offset, 'vertexList' )
+
+				self._renderPart( offset, applyTransformations=True )
+
+		# Adjust the camera, based on whether there is just one object or multiple to focus on
+		if allowCameraUpdate:
+			engine.focusCamera( tags=partsToShow, primitive='vertexList', skipRotationReset=False )
+
+		# Update the title string under the render window
+		if len( enabledObjects ) == 0:
+			self.modelPane.dobjStringVar.set( 'No Parts Selected' )
+		elif len( enabledObjects ) == 1:
+			self.modelPane.dobjStringVar.set( enabledObjects[0].name )
+			self.modelPane.partIndex = singleSelectedDobj
+		elif len( enabledObjects ) < 4:
+			title = 'Display Objects ' + grammarfyList( ['0x{:X}'.format(0x20+obj.offset) for obj in enabledObjects] )
+			self.modelPane.dobjStringVar.set( title )
+		else:
+			self.modelPane.dobjStringVar.set( 'Multiple Selected' )
+
+	def _renderPart( self, dobjOffset, applyTransformations=False ):
+
+		""" Adds a display object to the render window. """
+
+		# Part not yet added; render it now
+		engine = self.modelPane.engine
+		dobj = self.file.structs[dobjOffset]
+		primitives = engine.renderDisplayObj( dobj, includeSiblings=False )
+
+		if applyTransformations:
+			# Update relative position based on parent joint coordinates
+			parentJointOffset = next(iter( dobj.getParents() ))
+			parentJoint = self.file.initSpecificStruct( hsdStructures.JointObjDesc, parentJointOffset )
+			engine.applyJointTransformations( primitives, parentJoint )
+
+		self.transformedRenders[dobjOffset] = applyTransformations
+
+	def selectAll( self ):
+		[ boolVar.set(True) for boolVar in self.checkboxStates.values() ]
+		self.checkboxClicked()
+
+	def deselectAll( self ):
+		[ boolVar.set(False) for boolVar in self.checkboxStates.values() ]
+		self.checkboxClicked()
