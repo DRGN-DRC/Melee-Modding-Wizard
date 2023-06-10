@@ -60,8 +60,9 @@ class RenderEngine( Tk.Frame ):
 		screen = display.get_default_screen()
 		config = screen.get_matching_configs( gl.Config(double_buffer=True, depth_size=8, alpha_size=8, samples=4) )[0]
 		self.window = pygletWindow( display=display, config=config, width=self.width, height=self.height, resizable=resizable, visible=False )
-		self.fov = 60; self.znear = 0.1; self.zfar = 3000
-		self.window.projection = Projection3D( self.fov, self.znear, self.zfar )
+		self.fov = 60; self.zNear = 5; self.zFar = 3500
+		self.aspectRatio = self.width / float( self.height )
+		self.window.projection = Projection3D( self.fov, self.zNear, self.zFar )
 		self.window.on_draw = self.on_draw
 		self.bind( '<Expose>', self.refresh )
 		openGlVersion = self.window.context._info.get_version().split()[0]
@@ -103,6 +104,7 @@ class RenderEngine( Tk.Frame ):
 
 		self.clearRenderings()
 		self.resetView()
+		#self.defineFrustum()
 
 		# Set up event handling for controls
 		#self.window._enable_event_queue = True
@@ -139,6 +141,11 @@ class RenderEngine( Tk.Frame ):
 		self.vertexLists = []
 		self.textures = {}
 
+		# Add a marker to show the origin point
+		# self.addEdge( [-2,0,0, 2,0,0], (255, 0, 0, 255), tags=('originMarker',), thickness=3 )
+		# self.addEdge( [0,-2,0, 0,2,0], (0, 255, 0, 255), tags=('originMarker',), thickness=3 )
+		# self.addEdge( [0,0,-2, 0,0,2], (0, 0, 255, 255), tags=('originMarker',), thickness=3 )
+
 		self.window.updateRequired = True
 
 	def resetView( self ):
@@ -150,6 +157,29 @@ class RenderEngine( Tk.Frame ):
 		self.translation_Z = 0.0
 
 		self.window.updateRequired = True
+
+	def defineFrustum( self ):
+
+		""" Defines the viewable area of the render environment, which is 
+			composed of 6 sides and shaped like the cross-section of a pyramid. 
+			The result of this function is a list of the planes (sides) enclosing this area. """
+
+		# Create vectors for the plane corners (points on the near plane, and vectors to the far plane)
+		halfHeight = math.tan( self.fov / 2 ) * self.zNear
+		halfWidth = halfHeight * self.aspectRatio
+		topLeft = ( -halfWidth, halfHeight, -self.zNear )
+		topRight = ( halfWidth, halfHeight, -self.zNear )
+		bottomLeft = ( -halfWidth, -halfHeight, -self.zNear )
+		bottomRight = ( halfWidth, -halfHeight, -self.zNear )
+
+		self.frustum = (
+			Plane( (0,0,0)+bottomLeft+topLeft ), 		# Left
+			Plane( (0,0,0)+topLeft+topRight ), 			# Top
+			Plane( (0,0,0)+topRight+bottomRight ), 		# Right
+			Plane( (0,0,0)+bottomRight+bottomLeft ), 	# Bottom
+			Plane( bottomLeft+topLeft+topRight ),		# Near
+			Plane()	# Far
+		)
 
 	def focusCamera( self, tags=None, primitive=None, skipRotationReset=False ):
 
@@ -234,10 +264,16 @@ class RenderEngine( Tk.Frame ):
 		self.canvas['width'] = self.width
 		self.canvas['height'] = self.height
 
-		# Update the pyglet rendering canvas
+		# Update the GL rendering viewport and pyglet window/canvas
 		self.window.switch_to()
 		gl.glViewport( 0, 0, self.width, self.height )
 		self.window._update_view_location( self.width, self.height )
+
+		# Update the frustum if the aspect ratio changes
+		newAspectRatio = float(self.width) / self.height
+		if self.aspectRatio != newAspectRatio:
+			self.aspectRatio = newAspectRatio
+			#self.defineFrustum()
 
 		self.window.updateRequired = True
 
@@ -392,7 +428,7 @@ class RenderEngine( Tk.Frame ):
 
 		# Track the largest +/- x values to adjust the camera zoom
 		xCoordAbs = -abs( xyzCoords[0] ) * 1.4
-		if xCoordAbs < self.translation_Z and xCoordAbs > -self.zfar:
+		if xCoordAbs < self.translation_Z and xCoordAbs > -self.zFar:
 			self.translation_Z = xCoordAbs
 
 		# Connect a line between the current joint and its parent joint
@@ -615,6 +651,7 @@ class RenderEngine( Tk.Frame ):
 		if buttons == 1: # Left-click button held
 			self.rotation_X += dx / 2.0
 			self.rotation_Y -= dy / 2.0
+			# https://en.wikipedia.org/wiki/Transformation_matrix#Examples_in_3D_computer_graphics 		#todo
 		elif buttons == 4: # Right-click button held
 			# Translate as a function of zoom level
 			# self.translation_X += dx / 2.0
@@ -637,7 +674,7 @@ class RenderEngine( Tk.Frame ):
 			# Set the projection matrix to a perspective projection and apply translation (camera pan)
 			gl.glMatrixMode( gl.GL_PROJECTION )
 			gl.glLoadIdentity()
-			gl.gluPerspective( self.fov, float(self.width) / self.height, self.znear, self.zfar )
+			gl.gluPerspective( self.fov, float(self.width) / self.height, self.zNear, self.zFar )
 			gl.glTranslatef( self.translation_X, self.translation_Y, self.translation_Z )
 
 			# Set up the modelview matrix and apply mouse rotation input transformations
@@ -674,6 +711,7 @@ class RenderEngine( Tk.Frame ):
 				batch.draw()
 
 		except Exception as err:
+			# Do not raise an exception here, or the render loop will end.
 			print( 'An error occurred during rendering: {}'.format(err) )
 
 	def getObjects( self, primitive=None ):
@@ -932,6 +970,45 @@ class CustomEventLoop( EventLoop ):
 		# platform_event_loop.stop()
 
 
+class Plane:
+
+	""" Defined in point-normal form. """
+
+	def __init__( self, points ):
+		# Both are tuples of (z, y, z)
+		self.point = points[0] # Any point on the plane
+		self.normal = self._getNormal( points )
+
+	def _getNormal( self, points ):
+
+		""" Returns a vector that is perpendicular to the region of the given 3 points. """
+
+		# Create two vectors among the points (originating from same point)
+		p1x,p1y,p1z, p2x,p2y,p2z, p3x,p3y,p3z = points[:9]
+		ux, uy, uz = ( p2x-p1x, p2y-p1y, p2z-p1z ) # Vector from P1 to P2
+		vx, vy, vz = ( p3x-p1x, p3y-p1y, p3z-p1z ) # Vector from P1 to P3
+
+		# Calculate the cross product of the two vectors
+		return ( uy*vz-uz*vy, uz*vx-ux*vz, ux*vy-uy*vx )
+	
+	def equation( self, point ):
+
+		""" Equation of a plane, with normal vector (a, b, c). """
+
+		x, y, z = point
+		x0, y0, z0 = self.point
+		a, b, c = self.normal
+
+		return a * ( x - x0 ) + b * ( y - y0 ) + c ( z - z0 )
+
+	def pointOnPlane( self, point ):
+		return self.equation( point ) == 0
+	
+	def contains( self, point ):
+		x, y, z = point
+		return 
+
+
 class Primitive:
 
 	@staticmethod
@@ -1106,7 +1183,7 @@ class Edge( Primitive ):
 		self.thickness = thickness
 	
 	def render( self, batch ):
-		if self.show:
+		if self.show or 'originMarker' in self.tags:
 			gl.glLineWidth( self.thickness )
 			batch.add( 2, gl.GL_LINES, None, self.vertices, self.vertexColors )
 

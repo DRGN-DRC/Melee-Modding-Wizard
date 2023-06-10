@@ -1098,6 +1098,7 @@ class TexturesEditorTab( ttk.Frame ):
 			# Add the rendering widget if it's not present
 			if not modelPane.engine:
 				modelPane.engine = RenderEngine( modelPane, (440, 300), False, background=globalData.gui.defaultSystemBgColor, borderwidth=0, relief='groove' )
+				modelPane.engine.zNear = 1; modelPane.engine.zFar = 500
 			modelPane.engine.pack( pady=(vertPadding, 4) )
 			
 			# Add a button to access the render options, and repopulate the window if it's open
