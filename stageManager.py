@@ -2953,6 +2953,7 @@ class StagePropertyEditor( ttk.Frame ):
 		# Model display panel
 		self.engine = RenderEngine( self, (100, 100), True, background=globalData.gui.defaultSystemBgColor, borderwidth=0, relief='groove' )
 		self.engine.grid( column=2, row=1, sticky='nsew', padx=(0, 15) )
+		self.engine.zNear = 10; self.engine.zFar = 4000
 
 		# Model parts controls
 		modelPartsControls = ttk.Frame( self )
