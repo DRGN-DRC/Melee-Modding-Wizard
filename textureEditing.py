@@ -594,24 +594,13 @@ class TexturesEditorTab( ttk.Frame ):
 
 	def renderTextureData( self, imageDataOffset, width=-1, height=-1, imageType=-1, imageDataLength=-1, maxLOD=0, mipLevel=-1, problem=False, useCache=False ):
 
-		""" Decodes image data from the globally loaded DAT file at a given offset and creates an image out of it. This then
-			stores/updates the full image and a preview/thumbnail image (so that they're not garbage collected) and displays it in the GUI.
-			The image and its info is then displayed in the DAT Texture Tree tab's treeview (does not update the Dat Texture Tree subtabs). """
+		""" Decodes image data from the globally loaded DAT file at a given offset and creates an image out of it. 
+			This then stores/updates the full image and a preview/thumbnail image (so that they're not garbage 
+			collected) and displays it in the GUI. The image and its info is displayed in the DAT Texture Tree 
+			tab's treeview (this does not update the Dat Texture Tree subtabs, such as Image, Palette, etc). """
 
 		# If using the cache, there's no need to re-decode texture data (useful when just applying texture filtering)
 		if not useCache or imageDataOffset not in self.datTextureTree.textureThumbnails:
-			if not problem:
-				#tic = time.clock()
-				try:
-					pilImage = self.file.getTexture( imageDataOffset, width, height, imageType, imageDataLength, getAsPilImage=True )
-
-				except Exception as errMessage:
-					print( 'Unable to make out a texture for data at 0x{:X}; {}'.format(0x20+imageDataOffset, errMessage) )
-					problem = True
-
-				# toc = time.clock()
-				# print 'time to decode image for', hex(0x20+imageDataOffset) + ':', toc-tic
-
 			# Store the full image (or error image) so it's not garbage collected, and generate the preview thumbnail.
 			if problem:
 				# The error image is already 64x64, so it doesn't need to be resized for the thumbnail.
@@ -619,6 +608,16 @@ class TexturesEditorTab( ttk.Frame ):
 				self.datTextureTree.fullTextureRenders[imageDataOffset] = errorImage
 				self.datTextureTree.textureThumbnails[imageDataOffset] = errorImage
 			else:
+				try:
+					#tic = time.clock()
+					pilImage = self.file.getTexture( imageDataOffset, width, height, imageType, imageDataLength, getAsPilImage=True )
+					# toc = time.clock()
+					# print 'time to decode image for', hex(0x20+imageDataOffset) + ':', toc-tic
+
+				except Exception as errMessage:
+					print( 'Unable to make out a texture for data at 0x{:X}; {}'.format(0x20+imageDataOffset, errMessage) )
+					problem = True
+
 				self.datTextureTree.fullTextureRenders[imageDataOffset] = ImageTk.PhotoImage( pilImage )
 				pilImage.thumbnail( (64, 64), Image.ANTIALIAS )
 				self.datTextureTree.textureThumbnails[imageDataOffset] = ImageTk.PhotoImage( pilImage )
@@ -653,6 +652,12 @@ class TexturesEditorTab( ttk.Frame ):
 			imageDataLength = hsdStructures.ImageDataBlock.getDataLength( width, height, imageType )
 			mipLevel += 1
 			self.renderTextureData( imageDataOffset, width, height, imageType, imageDataLength, maxLOD, mipLevel, problem )
+			return
+
+		# Update the texture in the Model tab's 3D rendering, if it's available
+		renderEngine = self.modelPropertiesPane.interior.engine
+		if renderEngine:
+			renderEngine.reloadTexture( imageDataOffset )
 
 	def updatePrevNextFileButtons( self ):
 
