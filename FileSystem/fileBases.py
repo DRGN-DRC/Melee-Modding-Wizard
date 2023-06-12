@@ -121,9 +121,10 @@ class FileBase( object ):
 
 	def initTexture( self, offset, imageHeaderOffset, paletteDataOffset, paletteHeaderOffset, width, height, imageType, maxLOD, mipLevel ):
 
-		""" Initializes a raw block of image data without validation; these will have mostly 
-			the same methods as a standard struct and can be handled similarly. These will 
-			also include extra texture properties, such as width, height, imageType, etc. """
+		""" Initializes a raw block of image data without validation, and without decoding 
+			it. These will have mostly the same methods as a standard struct and can be 
+			handled similarly. These will also include extra texture properties, such as 
+			width, height, imageType, etc. """
 
 		# If the requested struct has already been created, return it
 		existingStruct = self.structs.get( offset, None )
@@ -2013,9 +2014,9 @@ class DatFile( FileBase ):
 		# Should have details on the texture by now; calculate length if still needed
 		if imageDataLength == -1:
 			imageDataLength = hsdStructures.ImageDataBlock.getDataLength( width, height, imageType )
+		assert imageDataLength >= 0x20, 'Invalid imageDataLength given to getTexture(): ' + hex( imageDataLength )
 
 		try:
-			assert imageDataLength >= 0x20, 'Invalid imageDataLength given to getTexture(): ' + hex( imageDataLength )
 			imageData = self.getData( imageDataOffset, imageDataLength )
 
 			if imageType == 8 or imageType == 9 or imageType == 10: # Gather info on the palette.
@@ -2041,7 +2042,7 @@ class DatFile( FileBase ):
 		else:
 			return ImageTk.PhotoImage( textureImage )
 
-	def setTexture( self, imageDataOffset, pilImage=None, texture=None, imagePath='', textureName='Texture', paletteQuality=3 ):
+	def setTexture( self, imageDataOffset, pilImage=None, texture=None, imagePath='', textureName='', paletteQuality=3 ):
 
 		""" Encodes image data into TPL format (if needed), and writes it into the file at the given offset. 
 			Input must be a data offset and either a PIL image or a file path to a texture file (PNG or TPL). 
@@ -2173,7 +2174,7 @@ class DatFile( FileBase ):
 
 		# Update the texture image data in the file
 		self.updateData( imageDataOffset, newImageData, trackChange=False )
-		self.recordChange( '{} updated at 0x{:X}'.format(textureName, 0x20+imageDataOffset) )
+		self.recordChange( '{} updated at 0x{:X}'.format(texture.name, 0x20+imageDataOffset) )
 
 		# Cascade mipmap changes, if they're present
 		if texture.maxLOD > 0 and texture.mipLevel < texture.maxLOD:

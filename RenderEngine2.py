@@ -344,16 +344,15 @@ class RenderEngine( Tk.Frame ):
 
 		return quad
 	
-	def addVertexLists( self, vertexLists, textures, dobj='', pobj='', polygonGroup=None ):
+	def addVertexLists( self, vertexLists, textureGroup=None, dobj='', pobj='' ):
 
 		""" Adds one or more entries of a display list. Each display list entry contains 
 			one or more primitives of the same type (e.g. edge/triangle strip/etc)."""
-		
+
 		for vertexList in vertexLists:
 			if dobj and pobj:
 				vertexList.tags = ( dobj, pobj )
-			if textures:
-				vertexList.textureGroup = self._addTextureGroup( textures, polygonGroup )
+			vertexList.textureGroup = textureGroup
 			self.vertexLists.append( vertexList )
 
 			# self.window.updateRequired = True
@@ -466,6 +465,10 @@ class RenderEngine( Tk.Frame ):
 
 				# Check for textures (usually just one, but there can be more)
 				textures = self.collectTextures( dobj )
+				if textures:
+					textureGroup = self._addTextureGroup( textures, None )
+				else:
+					textureGroup = None
 
 				# Iterate over this PObj and its siblings
 				for pobjOffset in pobj.getSiblings():
@@ -476,7 +479,7 @@ class RenderEngine( Tk.Frame ):
 
 					# Parse out primitives for this mesh
 					pobjPrimitives = pobj.decodeGeometry()
-					self.addVertexLists( pobjPrimitives, textures, offset, pobjOffset, None )
+					self.addVertexLists( pobjPrimitives, textureGroup, offset, pobjOffset )
 					primitives.extend( pobjPrimitives )
 
 		# except AttributeError:
@@ -548,7 +551,7 @@ class RenderEngine( Tk.Frame ):
 				else:
 					paletteDataOffset = -1
 					paletteHeaderOffset = -1
-				
+
 				# Initialize a structure for the image data
 				texture = dobj.dat.initTexture( imageDataOffset, imgHeader.offset, paletteDataOffset, paletteHeaderOffset, width, height, imageType, maxLOD, 0 )
 				texture.tobj = tobj
@@ -587,6 +590,19 @@ class RenderEngine( Tk.Frame ):
 			self.textures[firstTextureOffset] = textureGroup
 		
 		return textureGroup
+	
+	def reloadTexture( self, offset ):
+
+		""" Forces the texture to be be reinitialized and re-decoded from 
+			data in the dat file. Typically in cases it has been replaced. """
+
+		# Seek out and update the respective texture group
+		for group in self.textures.values():
+			if offset in [ texture.offset for texture in group.textures ]:
+				group.reloadTexture( offset )
+				break
+
+		self.window.updateRequired = True
 
 	# def on_key_press( self, *args ):
 
@@ -1342,18 +1358,17 @@ class HSD_Texture( TextureGroup ):
 
 	def _convertTexObject( self, textureObj ):
 
-		""" Decodes the given texture (struct) object and convert it to a pyglet image. """
+		""" Decodes the given texture (struct) object from the game's 
+			native texture format and converts it to a pyglet image. """
 
 		# Decode the texture
+		#print( 'Processing {}'.format(textureObj.name) )
 		width, height = textureObj.width, textureObj.height
 		pilImage = textureObj.dat.getTexture( textureObj.offset, width, height, textureObj.imageType, textureObj.imageDataLength, getAsPilImage=True )
 		
 		# Convert it for use with pyglet
-		#pygletImage = pyglet.image.ImageData( width, height, 'RGBA', pilImage.tobytes(), pitch=-pilImage.width * 4 )
 		pygletImage = pyglet.image.ImageData( width, height, 'RGBA', pilImage.tobytes() )
 		texture = pygletImage.get_texture()
-		# texture.anchor_x = width / 2
-		# texture.anchor_y = height / 2
 
 		return texture
 	
@@ -1375,6 +1390,28 @@ class HSD_Texture( TextureGroup ):
 
 		self.texture = pygletTexture
 		self._setTexProperties()
+
+	def reloadTexture( self, imageDataOffset ):
+
+		""" Deletes textures converted for use as pyglet textures, and 
+			converts a new instance from the texture object. Useful in 
+			case the original texture is updated/replaced. """
+
+		# Delete any stored converted instance of the texture
+		for offset in self.pygletConversions:
+			if offset == imageDataOffset:
+				del self.pygletConversions[imageDataOffset]
+				break
+
+		# Check if this is the 'current' texture, and re-convert it now if it is
+		for i, textureObj in enumerate( self.textures ):
+			if i == self.index and textureObj.offset == imageDataOffset:
+				# Re-convert a new texture object
+				pygletTexture = self._convertTexObject( textureObj )
+				self.pygletConversions[imageDataOffset] = pygletTexture
+				self.texture = pygletTexture
+				self._setTexProperties()
+				break
 	
 	def set_state( self ):
 		#gl.glEnable( self.texture.target )
@@ -1385,6 +1422,7 @@ class HSD_Texture( TextureGroup ):
 
 	def unset_state( self ):
 		#gl.glDisable( self.texture.target )
+		# unbind?
 		pass
 
 
