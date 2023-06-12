@@ -1080,6 +1080,11 @@ class TplEncoder( CodecBase ):
 
 	def quantizeCMPR( self, sourceColors ):
 
+		""" From 16 given colors, this reduces the set down to 4 colors to best 
+			represent them. These 4 colors will lie equidistant on a line, so 
+			they will then be represented in the final encoding as just 2 colors
+			(or 3 colors and 1 transparent entry if an alpha channel is needed). """
+
 		colors = sourceColors[:] # Copy the list to not modify the original
 
 		distance = -1
@@ -1088,7 +1093,8 @@ class TplEncoder( CodecBase ):
 		p2Index = -1
 		useTransparency = False
 		
-		# Calculate all pairwise distances between the colors in the given colorspace
+		# Calculate all pairwise distances between the colors in the 
+		# given colorspace, to find the two points furthest from each other
 		for i in range( 16 ):
 			p_1 = colors[i]
 
@@ -1123,15 +1129,18 @@ class TplEncoder( CodecBase ):
 
 		# Check if any disntaces were calculated and a selection of colors was made
 		if maxDistance == 0:
-
 			if distance == -1:
 				# No distance calculations were made; all of the colors are too transparent to matter
 				# All indices will point to the transparent palette entry
 				return 0, 0, 0xFFFFFFFF
 			else:
-				# All the pixels must be the same. Ensure the first value is larger (via LSB of green channel)
-				p1 = colors[0]
-				p1Value = p1[0]/8 << 11 | p1[1]/4 << 5 | p1[2]/8
+				# All the pixel colors must be the same. Ensure the first value is larger (via LSB of green channel)
+				color = colors[0]
+				index = 1
+				while not color: # Skip 'None' entries until a color is found
+					color = colors[index]
+					index += 1
+				p1Value = color[0]/8 << 11 | color[1]/4 << 5 | color[2]/8
 				return p1Value | 0b100000, p1Value & 0b1111111111011111, 0
 
 		# Remove the colors furthest from each other (identified above)
