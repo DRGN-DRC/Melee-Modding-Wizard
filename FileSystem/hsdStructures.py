@@ -257,7 +257,7 @@ class StructBase( object ):
 
 	def getAnyDataSectionParent( self ):
 
-		""" Only looks for one arbitrary parent offset, so this can be faster than getParents(). """
+		""" Only looks for one arbitrary parent (non-sibling) offset, so this can be faster than getParents(). """
 
 		if self.parents:
 			# Remove references of the root or reference node tables, and get an arbitrary item from the set
@@ -1207,7 +1207,7 @@ class DisplayListBlock( DataBlock ):
 				# Parse the header for this entry
 				headerData = self.data[offset:offset+3]
 				if len( headerData ) < 3:
-					raise Exception( 'display list header data ended prematurely.' )
+					raise Exception( 'display list header data ended prematurely (i{} of {})'.format(i, length) )
 				primitiveFlags, vertexCount = struct.unpack( '>BH', headerData )
 				primitiveType = primitiveFlags & 0xF8
 				#vertexStreamIndex = primitiveFlags & 7
@@ -1268,23 +1268,15 @@ class DisplayListBlock( DataBlock ):
 				
 				# Create the vertex and update it with the values collected above
 				if name == 0: # GX_VA_PNMTXIDX
-					vl.envelopeIndex = values[0]
-				elif name == 9: # Positional data
-					#vertex = Vertex( actualValues, color=(0, 0, 0, 255) )
+					vl.weights.append( values[0] )
+				elif name == 9: # Positional data (x, y, z coordinates)
 					vl.vertices[1].extend( values )
 				elif name == 11: # GX_VA_CLR0
-					#vertex.color = self.decodeColor( compType, actualValues )
 					color = self.decodeColor( compType, values )
 					vl.vertexColors[1].extend( color )
 				elif name == 12: # GX_VA_CLR1
 					print( 'Encountered secondary color (GX_VA_CLR1)' )
 				elif name == 13: # GX_VA_TEX0
-					# Collect texture coordinates and normalize into the 0-1 range
-					# if indexStride == 1:
-					# 	vertex.s = actualValues[0]
-					# else:
-					# 	vertex.s = actualValues[0]
-					# 	vertex.t = actualValues[1]
 					vl.texCoords[1].extend( values )
 				elif name > 13:
 					enumName = VertexAttributesArray.enums['Attribute_Name'][name]
@@ -1525,11 +1517,11 @@ class MaterialObjDesc( StructBase ):
 				( '1<<13', 'RENDER_ALPHA_MAT' ),
 				( '2<<13', 'RENDER_ALPHA_VTX' ),
 				( '3<<13', 'RENDER_ALPHA_BOTH' ),
-				( '1<<26', 'RENDER_SHADOW' ),
+				( '1<<26', 'RENDER_SHADOW' ),			# Allows shadows to be cast on the object
 				( '1<<27', 'RENDER_ZMODE_ALWAYS' ),
 				( '1<<28', 'RENDER_DF_NONE' ),
-				( '1<<29', 'RENDER_NO_ZUPDATE' ),
-				( '1<<30', 'RENDER_XLU' ),
+				( '1<<29', 'RENDER_NO_ZUPDATE' ),		# Sends object to the back (no Z order calculation)
+				( '1<<30', 'RENDER_XLU' ),				# Enables transparency application via color struct
 				( '1<<31', 'RENDER_USER' )
 			]) }
 
@@ -1601,12 +1593,12 @@ class PolygonObjDesc( StructBase ): # A.k.a. Meshes
 			flagsOffset = args[1] + 0xC
 			flagsValue = struct.unpack( '>H', self.dat.data[flagsOffset:flagsOffset+2] )[0]
 
-			if flagsValue & 0x1000: # Uses ShapeAnims (SHAPEANIM flag set)
+			if flagsValue & 0x1000: # Uses ShapeAnims (SHAPEANIM flag set), for vertex/mesh animations
 				self.fields = mostFields + ( 'Shape_Set_Pointer', )
 				self.childClassIdentities[6] = 'ShapeSetDesc'
 				self.isShapeSet = True
 
-			elif flagsValue & 0x2000: # Uses Envelopes (ENVELOPE flag set)
+			elif flagsValue & 0x2000: # Uses Envelopes (ENVELOPE flag set), for skin weights
 				self.fields = mostFields + ( 'Envelope_Array_Pointer', )
 				self.childClassIdentities[6] = 'EnvelopeArray'
 				self.isEnvelope = True
@@ -1639,6 +1631,30 @@ class PolygonObjDesc( StructBase ): # A.k.a. Meshes
 
 		return vertexLists
 
+	def applyBindMatrices( self, vertexLists ):
+
+		# Get a list of envelope objects from the envelope array
+		envelopeArray = self.initChild( EnvelopeArray, 6 )
+		envelopePointers = envelopeArray.getValues()[:-1] # Exclude last entry (the null terminator)
+		envelopes = [ self.dat.initSpecificStruct(EnvelopeObjDesc, offset, envelopeArray.offset) for offset in envelopePointers ]
+
+		for vl in vertexLists:
+			# Prepare for iterating over individual vertex coordinates
+			newCoords = []
+			coordsIter = iter( vl.vertices[1] )
+			coordsList = [ coordsIter ] * 3
+
+			for envelopeIndex, x, y, z in zip( vl.weights, *coordsList ):
+				envelope = envelopes[envelopeIndex]
+				if not envelope:
+					continue
+
+				# Apply the matrix
+				weightedVertex = envelope.applyMatrices( (x, y, z) )
+				newCoords.extend( weightedVertex )
+
+			vl.vertices = ( vl.vertices[0], newCoords )
+
 
 class VertexAttributesArray( TableStruct ):
 
@@ -1654,7 +1670,7 @@ class VertexAttributesArray( TableStruct ):
 				( 8, 'GX_VA_TEX7MTXIDX' ),
 				( 9, 'GX_VA_POS' ),			# Position
 				( 10, 'GX_VA_NRM' ), 		# Or GX_VA_NBT (Normal or Normal/Binormal/Tangent)
-				( 11, 'GX_VA_CLR0' ),
+				( 11, 'GX_VA_CLR0' ),		# Vertex colors (primary and secondary)
 				( 12, 'GX_VA_CLR1' ),
 				( 13, 'GX_VA_TEX0' ),		# Texture coordinates
 				( 14, 'GX_VA_TEX1' ),
@@ -1960,24 +1976,52 @@ class EnvelopeArray( StructBase ):
 			self.childClassIdentities[i] = 'EnvelopeObjDesc'
 
 
-class EnvelopeObjDesc( StructBase ):
+class EnvelopeObjDesc( TableStruct ):
+
+	""" Describes a series of inverse bind matrices and weights for their application to 
+		vertices. The inverse bind matrices are attached to JObjs pointed to by this struct. """
 
 	def __init__( self, *args, **kwargs ):
 		StructBase.__init__( self, *args, **kwargs )
 
 		self.name = 'Envelope Object ' + uHex( 0x20 + args[1] )
-		self._siblingsChecked = True
-
-		self.length = self.dat.getStructLength( self.offset ) - 8
-		self.entryCount = self.length / 8
-		self.padding = 8
 
 		# Use the above info to dynamically build this struct's basic properties
-		self.formatting = '>' + ( 'If' * self.entryCount )
-		self.fields = ( 'Joint_Pointer', 'Weight' ) * self.entryCount
+		self.formatting = '>If'
+		self.fields = ( 'Joint_Pointer', 'Weight' )
+		self.length = 8
+
+		# Define an entrycount for the struct before initializing as a table
+		deducedStructLength = self.dat.getStructLength( self.offset )
+		self.entryCount = deducedStructLength / self.length
+
+		TableStruct.__init__( self )
+
 		self.childClassIdentities = {}
 		for i in range( 0, self.entryCount*2, 2 ):
 			self.childClassIdentities[i] = 'JointObjDesc'
+
+	def applyMatrices( self, vertex ):
+		
+		# valueIter = iter( self.getValues() )
+		# for pointer, weight in zip( [valueIter, valueIter] ):
+		weightedVertex = [ 0, 0, 0 ]
+
+		for _, ( jointPointer, weight ) in self.iterateEntries():
+			# Get the inverse bind matrix for this joint
+			joint = self.dat.initSpecificStruct( JointObjDesc, jointPointer )
+			if not joint:
+				continue
+
+			matrix = joint.initChild( InverseMatrixObjDesc, 14 )
+			matrixValues = matrix.getValues()
+
+			for i in range( 3 ):
+				for j in range( 3 ):
+					index = i * 4 + j
+					weightedVertex[i] += matrixValues[index] * vertex[j] * weight
+
+		return weightedVertex
 
 
 class ShapeSetDesc( StructBase ):

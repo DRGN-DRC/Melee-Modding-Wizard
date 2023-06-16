@@ -394,6 +394,8 @@ class RenderEngine( Tk.Frame ):
 			Display Objects and Polygon Objects. Breaks down Polygon Objects 
 			into primitives and renders them to the display. """
 
+		# https://www.flipcode.com/documents/matrfaq.html#Q1 #todo
+
 		primitives = []
 
 		# Check for a child joint to render
@@ -412,7 +414,7 @@ class RenderEngine( Tk.Frame ):
 		# Check for a display object and polygon object to render
 		dobj = joint.DObj
 		if dobj:
-			primitives.extend( self.renderDisplayObj(dobj) )
+			primitives.extend( self.renderDisplayObj(dobj, joint) )
 
 		# Apply joint transformations for this joint's meshes as well as its children
 		transformationValues = joint.getValues()[5:14] # 9 values; 3 for each of rotation/scale/translation
@@ -441,7 +443,7 @@ class RenderEngine( Tk.Frame ):
 
 		return primitives
 	
-	def renderDisplayObj( self, parentDobj, includeSiblings=True ):
+	def renderDisplayObj( self, parentDobj, parentJoint=None, includeSiblings=True ):
 
 		""" Parses and renders the given Display Object (DObj) and 
 			all of its siblings. """
@@ -452,6 +454,10 @@ class RenderEngine( Tk.Frame ):
 			dobjOffsets = parentDobj.getSiblings()
 		else:
 			dobjOffsets = [ parentDobj.offset ]
+
+		if not parentJoint:
+			parentJointOffset = next( iter(parentDobj.getParents()) )
+			parentJoint = parentDobj.dat.getStruct( parentJointOffset )
 
 		try:
 			# Iterate over this DObj (and its siblings, if enabled)
@@ -481,6 +487,10 @@ class RenderEngine( Tk.Frame ):
 					pobjPrimitives = pobj.decodeGeometry()
 					self.addVertexLists( pobjPrimitives, textureGroup, offset, pobjOffset )
 					primitives.extend( pobjPrimitives )
+
+					# Apply the inverse bind matrix for the vertices of the above primitives
+					# if pobj.isEnvelope:
+					# 	pobj.applyBindMatrices( pobjPrimitives )
 
 		# except AttributeError:
 		# 	pass # This is fine; likely a DObj that doesn't have a PObj
@@ -668,6 +678,7 @@ class RenderEngine( Tk.Frame ):
 			self.rotation_X += dx / 2.0
 			self.rotation_Y -= dy / 2.0
 			# https://en.wikipedia.org/wiki/Transformation_matrix#Examples_in_3D_computer_graphics 		#todo
+			# http://n64devkit.square7.ch/tutorial/graphics/6/6_4.htm
 		elif buttons == 4: # Right-click button held
 			# Translate as a function of zoom level
 			# self.translation_X += dx / 2.0
@@ -1242,7 +1253,7 @@ class VertexList( Primitive ):
 		self.normals = ( 'n3f/static', [] )
 
 		self.textureGroup = None
-		self.envelopeIndex = -1
+		self.weights = []
 		self.vertexCount = 0
 		self.tags = tags
 		self.show = show
@@ -1316,6 +1327,11 @@ class VertexList( Primitive ):
 		
 		# Repeat the last texture coords at the end
 		self.texCoords[1].extend( self.texCoords[1][-2:] )
+
+		# Repeat first/last weights
+		if self.weights:
+			self.weights.insert( 0, self.weights[0] )
+			self.weights.append( self.weights[-1] )
 
 	def render( self, batch ):
 		if self.show:
