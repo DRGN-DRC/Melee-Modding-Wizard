@@ -1133,7 +1133,10 @@ class CharCostumeFile( CharFileBase, DatFile ):
 		colorSlots = globalData.costumeSlots.get( char, ('Nr',) )
 		return colorSlots.index( color )
 
-	def getSkeleton( self ):
+	def getSkeletonRoot( self ):
+
+		""" Returns the root bone in the model's skeleton 
+			(first child bone of the root node structure). """
 		
 		# Ensure root nodes and the string table have been parsed
 		self.initialize()
