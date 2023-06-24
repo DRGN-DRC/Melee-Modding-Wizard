@@ -139,12 +139,13 @@ class RenderEngine( Tk.Frame ):
 		self.triangles = []
 		self.quads = []
 		self.vertexLists = []
+		self.skeleton = {}
 		self.textures = {}
 
 		# Add a marker to show the origin point
-		# self.addEdge( [-2,0,0, 2,0,0], (255, 0, 0, 255), tags=('originMarker',), thickness=3 )
-		# self.addEdge( [0,-2,0, 0,2,0], (0, 255, 0, 255), tags=('originMarker',), thickness=3 )
-		# self.addEdge( [0,0,-2, 0,0,2], (0, 0, 255, 255), tags=('originMarker',), thickness=3 )
+		self.addEdge( [-2,0,0, 2,0,0], (255, 0, 0, 255), tags=('originMarker',), thickness=3 )
+		self.addEdge( [0,-2,0, 0,2,0], (0, 255, 0, 255), tags=('originMarker',), thickness=3 )
+		self.addEdge( [0,0,-2, 0,0,2], (0, 0, 255, 255), tags=('originMarker',), thickness=3 )
 
 		self.window.updateRequired = True
 
@@ -388,6 +389,33 @@ class RenderEngine( Tk.Frame ):
 
 		self.window.updateRequired = True
 
+	def loadSkeleton( self, rootJoint ):
+
+		self.skeleton = {}
+
+		child = rootJoint.initChild( 'JointObjDesc', 2 )
+		self._addBone( rootJoint, child )
+
+		self.window.updateRequired = True
+
+	def _addBone( self, parentJoint, childJoint ):
+
+		parentX, parentY, parentZ = parentJoint.getValues()[11:14]
+		childX, childY, childZ = childJoint.getValues()[11:14]
+
+		# Add this bone to the renderer and skeleton dictionary
+		rootBone = Bone( (parentX, parentY, parentZ, childX, childY, childZ) )
+		self.edges.append( rootBone )
+		self.skeleton[childJoint.offset]
+
+		# Check for children to add
+		grandchild = childJoint.initChild( 'JointObjDesc', 2 )
+		self._addBone( childJoint, grandchild )
+
+		# Check for siblings to add
+		sibling = childJoint.initChild( 'JointObjDesc', 3 )
+		self._addBone( childJoint, sibling )
+
 	def renderJoint( self, joint, parent=None, showBones=False ):
 
 		""" Recursively scans the given joint and all child/next joints for 
@@ -411,7 +439,7 @@ class RenderEngine( Tk.Frame ):
 				parent = joint
 			self.renderJoint( nextJoint, parent, showBones )
 
-		# Check for a display object and polygon object to render
+		# Check for a display object and polygon object(s) to render
 		dobj = joint.DObj
 		if dobj:
 			primitives.extend( self.renderDisplayObj(dobj, joint) )
@@ -438,7 +466,7 @@ class RenderEngine( Tk.Frame ):
 			edge = self.addEdge( (0,0,0) + xyzCoords, colors=((0,255,0,255), (0,0,255,255)), tags=('bones',), show=showBones )
 			primitives.append( edge )
 
-		# Update the display to show current progress
+		# Update the display to show current render progress
 		self.canvas.update()
 
 		return primitives
@@ -485,12 +513,18 @@ class RenderEngine( Tk.Frame ):
 
 					# Parse out primitives for this mesh
 					pobjPrimitives = pobj.decodeGeometry()
+
+					# Apply the inverse bind matrices for the vertices of the primitives collected above
+					if pobj.isEnvelope:
+						print( 'applying bind matrices to {}'.format(pobj.name) )
+						pobj.applyBindMatrices( pobjPrimitives, parentJoint )
+					elif pobj.isShapeSet:
+						print( '{} isShapeSet'.format(pobj.name) )
+					elif pobj.hasJObjRef:
+						print( '{} hasJObjRef'.format(pobj.name) )
+
 					self.addVertexLists( pobjPrimitives, textureGroup, offset, pobjOffset )
 					primitives.extend( pobjPrimitives )
-
-					# Apply the inverse bind matrix for the vertices of the above primitives
-					# if pobj.isEnvelope:
-					# 	pobj.applyBindMatrices( pobjPrimitives )
 
 		# except AttributeError:
 		# 	pass # This is fine; likely a DObj that doesn't have a PObj
@@ -525,10 +559,15 @@ class RenderEngine( Tk.Frame ):
 			translation = list( map(add, translation, transformationValues[6:]) )
 			
 			# Check for another parent joint
-			parentJointOffset = next(iter( parentJoint.getParents() ))
+			parents = parentJoint.getParents()
+			if not parents:
+				break
+
+			# Attempt to initialize the parent object
+			parentJointOffset = next(iter( parents ))
 			parentJoint = parentJoint.dat.initSpecificStruct( jointClass, parentJointOffset )
 		
-		# Apply the cumulated transforms
+		# Apply the accumulated transforms
 		for primitive in primitives:
 			primitive.rotate( *rotation )
 			primitive.scale( *scale )
@@ -1136,7 +1175,7 @@ class Primitive:
 		cos_z, sin_z = math.cos( rotationZ ), math.sin( rotationZ )
 
 		# Generate a 3D rotation matrix from angles around the X, Y, and Z axes
-		rotation_matrix = [
+		rotationMatrix = [
 			[cos_y * cos_z, -cos_x * sin_z + sin_x * sin_y * cos_z, sin_x * sin_z + cos_x * sin_y * cos_z], # X-axis rotation
 			[cos_y * sin_z, cos_x * cos_z + sin_x * sin_y * sin_z, -sin_x * cos_z + cos_x * sin_y * sin_z], # Y-axis rotation
 			[-sin_y, sin_x * cos_y, cos_x * cos_y] # Z-axis rotation
@@ -1145,7 +1184,7 @@ class Primitive:
 		# Multiply the rotation matrix with each vertices' coordinates
 		if self.__class__ == Vertex:
 			originalCoords = ( self.x, self.y, self.z )
-			rotatedCoords = self._matrixMultiply( rotation_matrix, originalCoords )
+			rotatedCoords = self._matrixMultiply( rotationMatrix, originalCoords )
 			self.x, self.y, self.z = rotatedCoords
 		else:
 			newCoords = []
@@ -1153,7 +1192,7 @@ class Primitive:
 			coordsList = [ coordsIter ] * 3
 
 			for point in zip( *coordsList ):
-				rotatedCoords = self._matrixMultiply( rotation_matrix, point )
+				rotatedCoords = self._matrixMultiply( rotationMatrix, point )
 				newCoords.extend( rotatedCoords )
 
 			self.vertices = ( self.vertices[0], newCoords )
@@ -1336,6 +1375,15 @@ class VertexList( Primitive ):
 	def render( self, batch ):
 		if self.show:
 			batch.add( self.vertexCount, self.type, self.textureGroup, self.vertices, self.vertexColors, self.texCoords )
+
+
+class Bone( Edge ):
+
+	def __init__( self, vertices, colors=((0,255,0,255), (0,0,255,255)), tags=('bones',), show=True, thickness=2 ):
+		super().__init__( vertices, None, colors, tags, show, thickness )
+
+		self.parent = None
+		self.children = ()
 
 
 class HSD_Texture( TextureGroup ):

@@ -9,6 +9,10 @@
 #		╚═╝     ╚═╝ ╚═╝     ╚═╝  ╚══╝╚══╝ 			 ------                                                   ------
 #		  -  - Melee Modding Wizard -  -  
 
+""" This module is a codec (encoder and decoder) for image/texture data in 
+	the Texture Palette Library (TPL) format. This format will be converted 
+	to or from PNG. """
+
 import os, sys
 import struct, time
 import png, subprocess 	# Used for png reading/writing, and command-line communication
@@ -32,20 +36,6 @@ pathToPngquant = os.path.join( scriptHomeFolder, 'bin', 'pngquant.exe' )
 
 class missingType( Exception ): pass
 class noPalette( Exception ): pass
-
-
-# def loadTextureFile( filePath ):
-
-# 	# If the imported file is in TPL format, convert it to PNG
-# 	if filePath[-4:] == '.tpl':
-# 		# Get image dimensions
-# 		with open( filepath, 'rb' ) as binaryFile:
-# 			binaryFile.seek( 0xC )
-# 			imageHeaderAddress = toInt( binaryFile.read(4) )
-
-# 		newImage = TplDecoder( filePath, (origWidth, origHeight), origImageType )
-# 		newFilePath = destinationFolder + newFileName + '.tpl'
-# 		newImage.createPngFile( newFilePath, creator='DTW - v' + programVersion )
 
 
 class CodecBase( object ): # The functions here in CodecBase are inherited by both of the encoder/decoder classes.
@@ -201,8 +191,8 @@ class CodecBase( object ): # The functions here in CodecBase are inherited by bo
 			pngImageInfo = pngImage.read()
 		except png.ChunkError as err:
 			# This may be due to a bug in GIMP (Details: https://smashboards.com/threads/dat-texture-wizard-current-version-6-0.373777/post-24014857)
-			# Attempt to re-read the file, being more lenient with errors
 			if 'Checksum error in iCCP chunk' in str( err ): # Expecting a string like "ChunkError: Checksum error in iCCP chunk: 0xE94B8A86 != 0xEDF8F065."
+				# Attempt to re-read the file, being more lenient with errors
 				print( 'Encountered a bad iCCP chunk. Ignoring it.' )
 				pngImageInfo = pngImage.read( lenient=True ) # With lenient=True, checksum failures will raise warnings rather than exceptions
 			else:

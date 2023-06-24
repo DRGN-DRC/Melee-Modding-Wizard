@@ -885,7 +885,7 @@ class TableStruct( StructBase ):
 	def iterateEntries( self ):
 
 		""" Generator method to loop over entries in this table. Each iteration 
-			yields the entry count (iteration number) and values for that entry. """
+			yields the entry index (iteration number) and values for that entry. """
 		
 		values = self.getValues()
 
@@ -1268,7 +1268,7 @@ class DisplayListBlock( DataBlock ):
 				
 				# Create the vertex and update it with the values collected above
 				if name == 0: # GX_VA_PNMTXIDX
-					vl.weights.append( values[0] )
+					vl.weights.append( values[0] / 3 )
 				elif name == 9: # Positional data (x, y, z coordinates)
 					vl.vertices[1].extend( values )
 				elif name == 11: # GX_VA_CLR0
@@ -1478,6 +1478,136 @@ class InverseMatrixObjDesc( StructBase ):
 		self._siblingsChecked = True
 		self._childrenChecked = True
 
+	# def invertMatrix( self, matrix ):
+	# 	# Get the number of rows and columns of the matrix
+	# 	rows = len(matrix)
+	# 	cols = len(matrix[0])
+
+	# 	# Create an identity matrix of the same size
+	# 	identity = [[1 if i == j else 0 for j in range(cols)] for i in range(rows)]
+
+	# 	# Augment the original matrix with the identity matrix
+	# 	augmented = [row + identity_row for row, identity_row in zip(matrix, identity)]
+
+	# 	# Perform row operations to convert the original matrix to the identity matrix
+	# 	for i in range(rows):
+	# 		# Scale the current row to make the leading entry 1
+	# 		scale = augmented[i][i]
+	# 		for j in range(cols * 2):
+	# 			augmented[i][j] /= scale
+
+	# 		# Perform row operations to eliminate other entries in the current column
+	# 		for k in range(rows):
+	# 			if k != i:
+	# 				factor = augmented[k][i]
+	# 				for j in range(cols * 2):
+	# 					augmented[k][j] -= factor * augmented[i][j]
+
+	# 	# Extract the inverted matrix from the augmented matrix
+	# 	inverted_matrix = [row[cols:] for row in augmented]
+
+	# 	return inverted_matrix
+	def getMatrixMinor( self, m,i,j ):
+		return [row[:j] + row[j+1:] for row in (m[:i]+m[i+1:])]
+	
+	def getMatrixDeternminant( self, m ):
+		#base case for 2x2 matrix
+		# if len(m) == 2:
+		# 	return m[0][0]*m[1][1]-m[0][1]*m[1][0]
+
+		determinant = 0
+		for c in range(len(m)):
+			determinant += ((-1)**c)*m[0][c]*self.getMatrixDeternminant(self.getMatrixMinor(m,0,c))
+		return determinant
+
+	def getMatrixInverse( self, unflattenedMatrix ):
+		# Convert the flattened matrix to a 2D array (4x4)
+		m = [unflattenedMatrix[i:i+4] for i in range(0, 16, 4)]
+
+		determinant = self.getMatrixDeternminant(m)
+		if determinant == 0:
+			return unflattenedMatrix
+
+		#special case for 2x2 matrix:
+		# if len(m) == 2:
+		# 	return [[m[1][1]/determinant, -1*m[0][1]/determinant],
+		# 		[-1*m[1][0]/determinant, m[0][0]/determinant]]
+
+		#find matrix of cofactors
+		cofactors = []
+		for r in range(len(m)):
+			cofactorRow = []
+			for c in range(len(m)):
+				minor = self.getMatrixMinor(m,r,c)
+				cofactorRow.append(((-1)**(r+c)) * self.getMatrixDeternminant(minor))
+			cofactors.append(cofactorRow)
+		cofactors = map(list,zip(*cofactors)) # Use "list(map(list,zip(*cofactors)))" for Python 3
+		for r in range(len(cofactors)):
+			for c in range(len(cofactors)):
+				cofactors[r][c] = cofactors[r][c]/determinant
+				
+		# Convert the inverted matrix back to a flattened array
+		inverted_matrix_flattened = [element for row in cofactors for element in row]
+
+		return inverted_matrix_flattened
+	
+	def eliminate( self, r1, r2, col, target=0 ):
+		fac = (r2[col]-target) / r1[col]
+		for i in range(len(r2)):
+			r2[i] -= fac * r1[i]
+
+	def gauss( self, a ):
+		for i in range(len(a)):
+			if a[i][i] == 0:
+				for j in range(i+1, len(a)):
+					if a[i][j] != 0:
+						a[i], a[j] = a[j], a[i]
+						break
+				else:
+					raise ValueError("Matrix is not invertible")
+			for j in range(i+1, len(a)):
+				self.eliminate(a[i], a[j], i)
+		for i in range(len(a)-1, -1, -1):
+			for j in range(i-1, -1, -1):
+				self.eliminate(a[i], a[j], i)
+		for i in range(len(a)):
+			self.eliminate(a[i], a[i], i, target=1)
+		return a
+
+	def inverse( self, unflattenedMatrix ):
+		# Convert the flattened matrix to a 2D array (4x4)
+		a = [ list(unflattenedMatrix[i:i+4]) for i in range(0, 16, 4) ]
+
+		tmp = [[] for _ in a]
+		for i,row in enumerate(a):
+			assert len(row) == len(a)
+			tmp[i].extend(row + [0]*i + [1] + [0]*(len(a)-i-1))
+		self.gauss(tmp)
+		ret = []
+		for i in range(len(tmp)):
+			ret.append(tmp[i][len(tmp[i])//2:])
+		#return ret
+
+		# Convert the inverted matrix back to a flattened array
+		inverted_matrix_flattened = [element for row in ret for element in row]
+
+		return inverted_matrix_flattened
+
+	def build4x4( self ):
+
+		""" Builds out the matrix from a 4x3 column-major format into a flattened 4x4 matrix. """
+
+		v = self.getValues()
+
+		matrix = ( 
+			v[0], v[4], v[8],  0, 
+			v[1], v[5], v[9],  0, 
+			v[2], v[6], v[10], 0, 
+			v[3], v[7], v[11], 1, 
+		)
+
+		return matrix
+
 
 # class ReferenceObjDesc( StructBase ):
 
@@ -1609,7 +1739,7 @@ class PolygonObjDesc( StructBase ): # A.k.a. Meshes
 				self.hasJObjRef = True
 
 			else:
-				self.fields = mostFields + ( 'Null Pointer',) # No underscore, so validation method ignores this as an actual pointer
+				self.fields = mostFields + ( 'Null Terminator',)
 
 		except Exception as err:
 			self.fields = mostFields + ( 'Unknown Pointer', ) # No underscore, so validation method ignores this as an actual pointer
@@ -1631,7 +1761,7 @@ class PolygonObjDesc( StructBase ): # A.k.a. Meshes
 
 		return vertexLists
 
-	def applyBindMatrices( self, vertexLists ):
+	def applyBindMatrices( self, vertexLists, parentJoint ):
 
 		# Get a list of envelope objects from the envelope array
 		envelopeArray = self.initChild( EnvelopeArray, 6 )
@@ -1646,10 +1776,10 @@ class PolygonObjDesc( StructBase ): # A.k.a. Meshes
 
 			for envelopeIndex, x, y, z in zip( vl.weights, *coordsList ):
 				envelope = envelopes[envelopeIndex]
-				if not envelope:
+				if not envelope: # Failsafe
 					continue
 
-				# Apply the matrix
+				# Apply the matrices
 				weightedVertex = envelope.applyMatrices( (x, y, z) )
 				newCoords.extend( weightedVertex )
 
@@ -1724,20 +1854,7 @@ class VertexAttributesArray( TableStruct ):
 				( 2, 'GX_U16' ),	# 0 - 65535
 				( 3, 'GX_S16' ),	# -32767 - +32767
 				( 4, 'GX_F32' ),	# Float
-			]),
-			# 'Component_Count': OrderedDict([
-			# 	( , 'GX_POS_XY' ),
-			# 	( , 'GX_POS_XYZ' ),
-			# 	( , 'GX_NRM_XYZ' ),
-			# 	( , 'GX_NRM_NBT' ),
-			# 	( , 'GX_NRM_NBT3 (HW2 only)' ),
-			# 	( , 'GX_CLR_RGB' ),
-			# 	( , 'GX_CLR_RGBA' ),
-			# 	( , 'GX_TEX_S' ),
-			# 	( , 'GX_TEX_ST' )
-			# ]),
-			'GXCompCnt': OrderedDict([ (0, 'GX_DEFAULT') ]),
-
+			])
 	}
 
 	def __init__( self, *args, **kwargs ):
@@ -2005,24 +2122,95 @@ class EnvelopeObjDesc( TableStruct ):
 		
 		# valueIter = iter( self.getValues() )
 		# for pointer, weight in zip( [valueIter, valueIter] ):
-		weightedVertex = [ 0, 0, 0 ]
+		vertex = list(vertex) + [ 1.0 ]
+		weightedVertex = [ 0, 0, 0, 1.0 ]
+		#weightedVertex = list(vertex) + [ 1.0 ]
 
 		for _, ( jointPointer, weight ) in self.iterateEntries():
+			if weight == 0:
+				continue
+
 			# Get the inverse bind matrix for this joint
 			joint = self.dat.initSpecificStruct( JointObjDesc, jointPointer )
 			if not joint:
 				continue
 
+			transformationValues = joint.getValues()[5:14] # 9 values; 3 for each of rotation/scale/translation
+			rotation = transformationValues[:3]
+			scale = transformationValues[3:6]
+			translation = transformationValues[6:]
+
 			matrix = joint.initChild( InverseMatrixObjDesc, 14 )
-			matrixValues = matrix.getValues()
+			#matrixValues = matrix.getValues()
+			matrixValues = matrix.build4x4()
+			#matrixValues = matrix.getMatrixInverse( matrixValues )
+			#matrixValues = matrix.inverse( matrixValues )
 
 			for i in range( 3 ):
-				for j in range( 3 ):
+				for j in range( 4 ):
 					index = i * 4 + j
 					weightedVertex[i] += matrixValues[index] * vertex[j] * weight
+				
+				# Apply translation component
+				weightedVertex[i] += matrixValues[12+i] * weight
 
-		return weightedVertex
+			#weightedVertex = [weightedVertex[0] + matrixValues[12], weightedVertex[1] + matrixValues[13], weightedVertex[2] + matrixValues[14], 1.0]
 
+			#weightedVertex = [ value * weight for value in weightedVertex ]
+
+			# if vl:
+			# 	vl.rotate( *rotation )
+
+			# Compute sin and cos values to make a rotation matrix
+			cos_x, sin_x = math.cos( rotation[0] * weight ), math.sin( rotation[0] * weight )
+			cos_y, sin_y = math.cos( rotation[1] * weight ), math.sin( rotation[1] * weight )
+			cos_z, sin_z = math.cos( rotation[2] * weight ), math.sin( rotation[2] * weight )
+
+			# Generate a 3D rotation matrix from angles around the X, Y, and Z axes
+			rotationMatrix = [
+				[cos_y * cos_z, -cos_x * sin_z + sin_x * sin_y * cos_z, sin_x * sin_z + cos_x * sin_y * cos_z], # X-axis rotation
+				[cos_y * sin_z, cos_x * cos_z + sin_x * sin_y * sin_z, -sin_x * cos_z + cos_x * sin_y * sin_z], # Y-axis rotation
+				[-sin_y, sin_x * cos_y, cos_x * cos_y] # Z-axis rotation
+			]
+
+			#rotationMatrix = matrix.inverse( rotationMatrix )
+			weightedVertex = self._matrixMultiply( rotationMatrix, weightedVertex[:3] )
+
+
+			weightedVertex[0] *= scale[0] * weight
+			weightedVertex[1] *= scale[1] * weight
+			weightedVertex[2] *= scale[2] * weight
+			
+			weightedVertex[0] += translation[0] * weight
+			weightedVertex[1] += translation[1] * weight
+			weightedVertex[2] += translation[2] * weight
+
+		return weightedVertex[:3]
+
+	def _matrixMultiply( self, matrix, vertex ):
+
+		""" Multipies a 3x3 matrix with a vertex to transform it. """
+
+		coordCount = len( vertex )
+		result = [ 0.0 ] * coordCount
+
+		for i in range( len(matrix) ):
+			for j in range( coordCount ):
+				result[i] += matrix[i][j] * vertex[j]
+
+		return result
+
+def matrix_multiply(matrix1, matrix2):
+	result = []
+	for i in range(len(matrix1)):
+		row = []
+		for j in range(len(matrix2[0])):
+			sum = 0
+			for k in range(len(matrix2)):
+				sum += matrix1[i][k] * matrix2[k][j]
+			row.append(sum)
+		result.append(row)
+	return result
 
 class ShapeSetDesc( StructBase ):
 

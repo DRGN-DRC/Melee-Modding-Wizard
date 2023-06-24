@@ -622,7 +622,7 @@ class DiscTab( ttk.Frame ):
 			# 	pobj = dobj.PObj
 			# 	pobj.decodeGeometry()
 			# 	s1 = discFile.getStruct( 0xAC64 )
-			# 	#s1 = discFile.getSkeleton()
+			# 	#s1 = discFile.getSkeletonRoot()
 			# 	s2 = discFile.getStruct( 0xA9FC )
 			# 	structsEquivalent = discFile.structuresEquivalent( s1, s2, False )
 			# 	print( '0x{:x} equivalent to 0x{:x}: {}'.format(s1.offset, s2.offset, structsEquivalent) )
@@ -631,8 +631,8 @@ class DiscTab( ttk.Frame ):
 			# 	# Check for Nr costume
 			# 	defaultCostume = globalData.disc.files.get( 'GALE01/Pl' + discFile.charAbbr + 'Nr.dat' )
 			# 	if defaultCostume:
-			# 		#structsEquivalent = discFile.structuresEquivalent( defaultCostume.getSkeleton(), discFile.getSkeleton(), True, [DisplayObjDesc] )
-			# 		structsEquivalent = discFile.structuresEquivalent( defaultCostume.getSkeleton(), discFile.getSkeleton(), True, None, [JointObjDesc, InverseMatrixObjDesc] )
+			# 		#structsEquivalent = discFile.structuresEquivalent( defaultCostume.getSkeletonRoot(), discFile.getSkeletonRoot(), True, [DisplayObjDesc] )
+			# 		structsEquivalent = discFile.structuresEquivalent( defaultCostume.getSkeletonRoot(), discFile.getSkeletonRoot(), True, None, [JointObjDesc, InverseMatrixObjDesc] )
 			# 		print( discFile.charAbbr + discFile.colorAbbr + ' skele equivalent to Nr costume: ' + str(structsEquivalent) )
 			
 			self.isoFileTree.insert( parent, 'end', iid=discFile.isoPath, text=' ' + entryName, values=(description, 'file') )

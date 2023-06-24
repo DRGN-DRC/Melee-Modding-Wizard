@@ -1351,7 +1351,7 @@ class TexturesEditorTab( ttk.Frame ):
 		# Render the model part (DObj for this texture) and focus the camera on it
 		modelPane.engine.clearRenderings()
 		modelPane.engine.renderDisplayObj( modelPart, includeSiblings=modelPane.showRelatedParts.get() )
-		
+
 		# Align the camera to the object
 		if modelPane.autoCameraUpdates.get():
 			modelPane.engine.focusCamera()
