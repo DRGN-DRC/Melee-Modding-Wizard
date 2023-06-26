@@ -763,6 +763,7 @@ class StageFile( DatFile ):
 		self._isRandomNeutralStage = False
 		self._stageInfoStruct = None
 		self._randomNeutralId = -1
+		self._mapHead = None
 
 	@property
 	def externalId( self ):
@@ -797,6 +798,12 @@ class StageFile( DatFile ):
 			return -1
 		else:
 			return self._randomNeutralId
+
+	@property
+	def mapHead( self ):
+		if not self._mapHead:
+			self._mapHead = self.getStructByLabel( 'map_head' )
+		return self._mapHead
 
 	@property
 	def initFunction( self ):
@@ -1063,12 +1070,19 @@ class StageFile( DatFile ):
 		texturesInfo.sort()
 
 		return texturesInfo
+	
+	def getGObjs( self ):
+
+		""" Returns the stage's GObjs Array (Game Objects). """
+
+		mapHead = self.mapHead
+		gobjsArrayPointer = mapHead.getValues( 'Game_Objects_Array_Pointer' )
+
+		return self.initSpecificStruct( hsdStructures.MapGameObjectsArray, gobjsArrayPointer, mapHead.offset, (2, 0) )
 
 	def getGeneralPoint( self, pointType ):
 
-		""" Returns the 'general point' (e.g. spawn points, stage borders, etc.), if it 
-			exists within the General Points Arrays. Returns None if it doesn't. """
+		""" Returns the given 'general point' (e.g. spawn points, stage borders, etc.), 
+			if it exists within the General Points Arrays. Returns None if it doesn't. """
 
-		# Initialize the map head struct
-		mapHead = self.file.getStructByLabel( 'map_head' )
-		mapHead.getGeneralPoint( 7 )
+		return self.mapHead.getGeneralPoint( pointType )

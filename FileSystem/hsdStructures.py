@@ -2627,8 +2627,8 @@ class MapHeadObjDesc( StructBase ):
 
 	def getGeneralPoint( self, targetPointType ):
 
-		""" Returns the 'general point' (e.g. spawn points, stage borders, etc.), if it 
-			exists within the General Points Arrays. Returns None if it doesn't. """
+		""" Returns the given 'general point' (e.g. spawn points, stage borders, etc.), 
+			if it exists within the General Points Arrays. Returns None if it doesn't. """
 
 		pointsArrayOffset, pointsArrayCount = self.getValues()[:2]
 		pointsArray = self.dat.initSpecificStruct( MapGeneralPointsArray, pointsArrayOffset, self.offset, entryCount=pointsArrayCount )

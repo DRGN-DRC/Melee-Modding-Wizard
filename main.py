@@ -37,6 +37,7 @@ FR_PRIVATE  = 0x10
 FR_NOT_ENUM = 0x20
 
 # Internal dependencies
+#tic = time.clock()
 import globalData
 
 from tools import CharacterColorConverter, TriCspCreator, AsmToHexConverter, CodeLookup
@@ -55,6 +56,8 @@ from stageManager import StageManager
 from audioManager import AudioManager, AudioEngine
 from characterModding import CharModding
 from newTkDnD.tkDnD import TkDnD
+# toc = time.clock()
+# print('internal module load time: ' + str(toc-tic))
 
 
 class FileMenu( Tk.Menu, object ):
@@ -1420,26 +1423,26 @@ class MainMenuCanvas( Tk.Canvas ):
 		# Add new options
 		if globalData.disc.isMelee and globalData.disc.is20XX:
 			self.menuOptionCount = 7
-			self.addMenuOption( 'Disc Management', '#394aa6', 69, self.loadDiscManagement, showAnimations, 'Disc File Tree and Disc Details tabs.' ) # blue
+			self.addMenuOption( 'Disc Management', '#394aa6', 69, self.mainGui.loadDiscManagement, showAnimations, 'Disc File Tree and Disc Details tabs.' ) # blue
 			self.addMenuOption( 'Code Manager', '#a13728', 21, self.browseCodes, showAnimations, 'Make code-related modifications.' ) # red
-			self.addMenuOption( 'Stage Manager', '#077523', -19, self.loadStageEditor, showAnimations, 'Configure stage loading.' ) # green
+			self.addMenuOption( 'Stage Manager', '#077523', -19, self.mainGui.loadStageEditor, showAnimations, 'Configure stage loading.' ) # green
 			self.addMenuOption( 'Music Manager', '#9f853b', -40, self.loadMusicManager, showAnimations, 'Listen to and configure music.' ) # yellow
-			self.addMenuOption( 'Sound Effect Editor', '#7b5467', 0, self.loadDiscManagement, showAnimations, 'WIP!' ) # pinkish (blended)
+			self.addMenuOption( 'Sound Effect Editor', '#7b5467', 0, self.mainGui.loadDiscManagement, showAnimations, 'WIP!' ) # pinkish (blended)
 			self.addMenuOption( 'Character Modding', '#53c6b8', -35, self.loadCharacterModder, showAnimations, 'Modify character properties.' ) # teal
 			self.addMenuOption( 'Debug Menu Editor', '#582493', -22, self.loadDebugMenuEditor, showAnimations, 'View/edit the in-game Debug Menu.' ) # purple
 
 		elif globalData.disc.isMelee:
 			self.menuOptionCount = 6
-			self.addMenuOption( 'Disc Management', '#394aa6', 60, self.loadDiscManagement, showAnimations, 'Disc File Tree and Disc Details tabs.' ) # blue
+			self.addMenuOption( 'Disc Management', '#394aa6', 60, self.mainGui.loadDiscManagement, showAnimations, 'Disc File Tree and Disc Details tabs.' ) # blue
 			self.addMenuOption( 'Code Manager', '#a13728', 14, self.browseCodes, showAnimations, 'Make code-related modifications.' ) # red
-			self.addMenuOption( 'Stage Manager', '#077523', -22, self.loadStageEditor, showAnimations, 'Configure stage loading.' ) # green
+			self.addMenuOption( 'Stage Manager', '#077523', -22, self.mainGui.loadStageEditor, showAnimations, 'Configure stage loading.' ) # green
 			self.addMenuOption( 'Music Manager', '#9f853b', -40, self.loadMusicManager, showAnimations, 'Listen to and configure music.' ) # yellow
-			self.addMenuOption( 'Sound Effect Editor', '#7b5467', 0, self.loadDiscManagement, showAnimations, 'WIP!' ) # pinkish (blended)
+			self.addMenuOption( 'Sound Effect Editor', '#7b5467', 0, self.mainGui.loadDiscManagement, showAnimations, 'WIP!' ) # pinkish (blended)
 			self.addMenuOption( 'Character Modding', '#53c6b8', -30, self.loadCharacterModder, showAnimations, 'Modify character properties.' ) # teal
 
 		else:
 			self.menuOptionCount = 3
-			self.addMenuOption( 'Disc Management', '#394aa6', 21, self.loadDiscManagement, showAnimations, 'Disc File Tree and Disc Details tabs.' ) # blue
+			self.addMenuOption( 'Disc Management', '#394aa6', 21, self.mainGui.loadDiscManagement, showAnimations, 'Disc File Tree and Disc Details tabs.' ) # blue
 			self.addMenuOption( 'Code Manager', '#a13728', -34, self.browseCodes, showAnimations, 'Make code-related modifications.' ) # red
 			self.addMenuOption( 'Music Manager', '#9f853b', -14, self.loadMusicManager, showAnimations, 'Listen to and configure music.' ) # yellow
 
@@ -1469,49 +1472,6 @@ class MainMenuCanvas( Tk.Canvas ):
 
 		self.mainGui.root.update()
 		self.mainGui.updateProgramStatus( 'Ready' )
-
-	def loadDiscManagement( self, event=None ):
-		
-		""" Adds the Disc File Tree and Disc Details tabs to the GUI, 
-			and switches to the Disc File Tree tab. """
-
-		# Add/initialize the Disc File Tree tab
-		if not self.mainGui.discTab:
-			self.mainGui.discTab = DiscTab( self.mainGui.mainTabFrame, self.mainGui )
-		self.mainGui.discTab.loadDisc( switchTab=True )
-
-		# Add/initialize the Disc Details tab, and load the disc's info into it
-		# if not self.mainGui.discDetailsTab:
-		# 	self.mainGui.discDetailsTab = DiscDetailsTab( self.mainGui.mainTabFrame, self.mainGui )
-		# self.mainGui.discDetailsTab.loadDiscDetails()
-
-		# self.mainGui.root.update() # Flush pending hover events that will try to change the program status
-		# globalData.gui.updateProgramStatus( 'Ready' )
-
-		# Play a sound effect and start the banner animation
-		self.mainGui.playSound( 'menuSelect' )
-		self.mainGui.discTab.updateBanner( self.mainGui.discTab )
-
-	def loadStageEditor( self, event=None ):
-
-		""" Add the Stage Manager tab to the GUI and select it. """
-	
-		# Load the stage info/editor
-		if not self.mainGui.stageManagerTab:
-			self.mainGui.stageManagerTab = StageManager( self.mainGui.mainTabFrame, self.mainGui )
-
-		# Switch to the tab
-		self.mainGui.mainTabFrame.select( self.mainGui.stageManagerTab )
-		self.update_idletasks() # Population will take a second; so switch first to show that something is happening
-		
-		if globalData.disc.is20XX:
-			self.mainGui.stageManagerTab.load20XXStageLists()
-		else:
-			self.mainGui.stageManagerTab.loadVanillaStageLists()
-		
-		# self.mainGui.root.update() # Flush pending hover events that will try to change the program status
-		# globalData.gui.updateProgramStatus( 'Ready' )
-		self.mainGui.playSound( 'menuSelect' )
 
 	def loadMusicManager( self, event=None ):
 
@@ -2456,6 +2416,50 @@ class MainGui( Tk.Frame, object ):
 			# else:
 			self.root.destroy() # Stops the GUI's mainloop and destroys all widgets. https://stackoverflow.com/a/42928131/8481154
 
+	def loadDiscManagement( self, event=None ):
+		
+		""" Adds the Disc File Tree tab to the GUI, populates it, and switches to it. """
+
+		# Add/initialize the Disc File Tree tab
+		if not self.discTab:
+			self.discTab = DiscTab( self.mainTabFrame, self )
+		self.discTab.loadDisc( switchTab=True )
+
+		# self.root.update() # Flush pending hover events that will try to change the program status
+		# globalData.gui.updateProgramStatus( 'Ready' )
+
+		# Play a sound effect and start the banner animation
+		self.playSound( 'menuSelect' )
+		self.discTab.updateBanner( self.discTab )
+
+	def loadStageEditor( self, event=None, targetStage=None ):
+
+		""" Adds the Stage Manager tab to the GUI and selects it. If a specific file is provided, 
+			that stage will be added as a new tab as well and will be switched to instead of the main tab. """
+	
+		# Load the stage info/editor
+		if not self.stageManagerTab:
+			self.stageManagerTab = StageManager( self.mainTabFrame, self )
+
+		# Switch to the main Stage Manager tab
+		self.mainTabFrame.select( self.stageManagerTab )
+
+		if targetStage:
+			# Create a tab for the specific requested stage and switch to it
+			self.stageManagerTab.addStageFileTab( targetStage )
+		else:
+			# Population will take a second; so switch first to show that something is happening
+			self.stageManagerTab.update_idletasks()
+
+		if globalData.disc.is20XX:
+			self.stageManagerTab.load20XXStageLists()
+		else:
+			self.stageManagerTab.loadVanillaStageLists()
+
+		# self.root.update() # Flush pending hover events that will try to change the program status
+		# globalData.gui.updateProgramStatus( 'Ready' )
+		self.playSound( 'menuSelect' )
+
 	def addCodeConstructionTab( self ):
 		
 		if not self.codeConstructionTab:
@@ -3182,6 +3186,8 @@ if __name__ == '__main__':
 		# Load the program settings and initialize the GUI
 		globalData.gui = gui = MainGui()
 		gui.audioEngine = AudioEngine()
+		# print('gui load time: ' + str(time.clock()-toc))
+		# print('program load time: ' + str(time.clock()-tic))
 
 		#gui.fileHandler( [r"D:\Tex\SSBM ISO\vanilla test iso\Super Smash Bros. Melee (v1.02).iso"] )
 		#gui.fileMenu.browseCodeLibrary()

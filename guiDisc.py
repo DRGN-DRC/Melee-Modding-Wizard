@@ -392,8 +392,7 @@ class DiscTab( ttk.Frame ):
 		# for discFile in disc.files.itervalues():
 		# 	if discFile.__class__.__name__ == 'StageFile':
 		# 		discFile.initialize()
-		# 		mapHead = discFile.getStructByLabel( 'map_head' )
-		# 		print( discFile.filename, mapHead.getGeneralPoints() )
+		# 		print( discFile.filename, discFile.mapHead.getGeneralPoints() )
 		# 	if issubclass( discFile.__class__, CharCostumeFile ):
 		# 		if not discFile.charAbbr in ( 'Bo', 'Gl', 'Mh', 'Ch', 'Gk', 'Sb' ) \
 		# 			and not ( discFile.filename.startswith( 'PlKb' ) and 'Cp' in discFile.filename ):
@@ -1961,6 +1960,9 @@ class DiscMenu( Tk.Menu, object ):
 				self.add_command( label='List Animations', command=self.listAnimations )												# S
 			elif self.fileObj.__class__ == CharDataFile:
 				self.add_command( label='List Action Table Entries', command=self.listActionTableEntries )
+			elif self.fileObj.__class__ == StageFile:
+				self.add_command( label='Edit Stage', command=self.editStage )
+
 		# self.add_command( label='Import Multiple Files', underline=7, command=importMultipleIsoFiles )								# M
 			self.add_separator()
 
@@ -2106,6 +2108,13 @@ class DiscMenu( Tk.Menu, object ):
 			lines.append( '\t{} | {} - {}'.format(i, uHex(offset + 0x20), actionName) )
 			
 		cmsg( '\n'.join(lines), title )
+
+	def editStage( self ):
+
+		""" Adds the Stage Manager tab to the GUI if it's not already present, 
+			then adds a new tab for the currently selected stage and selects it. """
+
+		globalData.gui.loadStageEditor( targetStage=self.fileObj )
 
 	def openSisTextEditor( self ):
 		SisTextEditor( self.fileObj )
