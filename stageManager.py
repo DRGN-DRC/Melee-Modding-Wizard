@@ -736,7 +736,7 @@ class StageManager( ttk.Frame ):
 										'OnGo Function:') ).grid( column=0, row=0, padx=(0, 5) )
 		self.basicInfoLabel = ttk.Label( basicLabelFrame, width=25 )
 		self.basicInfoLabel.grid( column=1, row=0 )
-		ttk.Button( basicLabelFrame, text='Edit Basic Properties', width=24, command=self.editBasicProperties ).grid( column=0, columnspan=2, row=1, pady=(3, 0) )
+		ttk.Button( basicLabelFrame, text='Edit Properties', width=24, command=self.editBasicProperties ).grid( column=0, columnspan=2, row=1, pady=(3, 0) )
 		basicLabelFrame.grid( column=0, row=0, padx=(padding, 0), pady=padding )
 
 		# Stage Swap Details
@@ -943,13 +943,29 @@ class StageManager( ttk.Frame ):
 		if not stageFile:
 			msg( 'Please first select a stage to edit!', 'No Stage Selected', warning=True )
 			return
+		
+		self.addStageFileTab( stageFile )
 
-		# Open the editor
-		newTab = StagePropertyEditor( self, stageFile )
-		self.tabManager.add( newTab, text=stageFile.filename )
+	def addStageFileTab( self, stageFile ):
 
-		# Switch to and populate the new tab
-		self.tabManager.select( newTab )
+		""" Adds a new tab for the given stage file to the Stage Manager interface, 
+			or switches to an existing tab if that file is already open. """
+
+		# Check if a tab has already been created/added for this file
+		for windowName in self.tabManager.tabs()[1:]: # Skips first 'Stage Selection' tab
+			tab = globalData.gui.root.nametowidget( windowName )
+
+			if tab.file == stageFile: # Found it!
+				self.tabManager.select( tab )
+				break
+
+		else: # Loop above didn't break; mod not found
+			# Create a new tab for this file and populate it
+			newTab = StagePropertyEditor( self, stageFile )
+			self.tabManager.add( newTab, text=stageFile.filename )
+
+			# Switch to the new tab
+			self.tabManager.select( newTab )
 
 	def updateSwapDetails( self, newIntStageId, newExtStageId, iFilenameOffset, byteReplacePointer, byteReplacement, randByteReplacements, stageFlags ):
 
@@ -2828,6 +2844,7 @@ class MusicBehaviorEditor( BasicWindow ):
 
 class StagePropertyEditor( ttk.Frame ):
 
+	# Define some headers to organize the properties into groups in the UI
 	propertyGroups = {
 		0x8: 'Default Camera',
 		0x4C: 'Pause Camera',
@@ -2838,6 +2855,7 @@ class StagePropertyEditor( ttk.Frame ):
 	def __init__( self, parent, stageFile ):
 		ttk.Frame.__init__( self, parent )
 
+		stageFile.initialize()
 		self.file = stageFile
 		self.grGroundParam = stageFile.getStructByLabel( 'grGroundParam' )
 
@@ -2934,9 +2952,7 @@ class StagePropertyEditor( ttk.Frame ):
 		treeWrapper.grid( column=1, row=1, rowspan=2, sticky='nsew', padx=15, ipadx=3 )
 
 		# Initialize the map head struct and the GObjs array
-		self.mapHead = self.file.getStructByLabel( 'map_head' )
-		gobjsArrayPointer = self.mapHead.getValues( 'Game_Objects_Array_Pointer' )
-		gobjsArray = self.file.getStruct( gobjsArrayPointer, self.mapHead.offset )
+		gobjsArray = self.file.getGObjs()
 
 		# Populate the treeview
 		offset = gobjsArray.offset
@@ -3262,9 +3278,8 @@ class StageModelViewer( BasicWindow ):
 	
 	def __init__( self, stageFile, dimensions, **kwargs ):
 		self.file = stageFile
-		self.mapHead = self.file.getStructByLabel( 'map_head' )
 		
-		windowTitle = 'Basic Stage Properties - ' + stageFile.filename
+		windowTitle = 'Stage Editor - ' + stageFile.filename
 		resizable = True
 		controlPanelWidth = 270
 		engineDimensions = ( dimensions[0] - controlPanelWidth, dimensions[1] ) # Make some space for the side control panel
@@ -3284,8 +3299,6 @@ class StageModelViewer( BasicWindow ):
 		
 		self.engine = RenderEngine( self.window, engineDimensions, resizable )
 		self.engine.pack( side='left', expand=True, fill='both' )
-
-		# Determine default zoom
 
 		self.showBlastZones = Tk.BooleanVar( value=True )
 		self.showCamLimits = Tk.BooleanVar( value=True )
@@ -3312,6 +3325,7 @@ class StageModelViewer( BasicWindow ):
 		self.singlePointEditFrame.grid( column=0, columnspan=2, row=row, pady=(20, 3), padx=10 )
 
 		self.renderSpawnPoints()
+		self.determineDefaultZoom()
 
 	def toggleBlastzones( self, visible=None ):
 		if visible != None:
@@ -3416,8 +3430,8 @@ class StageModelViewer( BasicWindow ):
 			Returns the top-left and bottom-right joints which define the rectangle. """
 
 		# Parse the map head and get blast zone coordinates
-		topLeftJoints = self.mapHead.getGeneralPoint( pointType1 )
-		bottomRightJoints = self.mapHead.getGeneralPoint( pointType2 )
+		topLeftJoints = self.file.getGeneralPoint( pointType1 )
+		bottomRightJoints = self.file.getGeneralPoint( pointType2 )
 
 		# Check that we only found one of each point, just in case there's something crazy out there
 		if not topLeftJoints:
@@ -3495,8 +3509,7 @@ class StageModelViewer( BasicWindow ):
 		""" Renders general points for player and item spawns in the window, 
 			and returns two list of names for all of these points found. """
 
-		pointGroups = self.mapHead.getGeneralPoints()
-
+		pointGroups = self.file.mapHead.getGeneralPoints()
 		playerSpawns = []
 		itemSpawns = []
 
@@ -3599,7 +3612,7 @@ class StageModelViewer( BasicWindow ):
 		pointType = reverseDictLookup( typeDict, targetPointName )
 
 		# Get the point's JObj and x/y coords
-		joint = self.mapHead.getGeneralPoint( pointType )[0] #todo allow editing multiple at once
+		joint = self.file.getGeneralPoint( pointType )[0] #todo allow editing multiple at once
 		x = joint.getValues( 'Translation_X' )
 		y = joint.getValues( 'Translation_Y' )
 
@@ -3620,3 +3633,35 @@ class StageModelViewer( BasicWindow ):
 		valueEntry.grid( column=1, row=row+1, pady=2, padx=(5, 20) )
 		valueEntry.pointType = pointType
 		valueEntry.callback = self.redrawPoints # Called to update the display when the above is modified
+
+	def determineDefaultZoom( self ):
+
+		""" Sets the default/original zoom level of the renderer. Based on the size of the 
+			stage's blast-zones if they are set to be visible. If they are not visible, the 
+			camera limits are used if they are visible. If neither of these are set to be 
+			visible, the stage's collisions are used. """
+
+		coords = []
+
+		if self.showBlastZones.get():
+			for edge in self.engine.edges:
+				if 'blastzone' not in edge.tags:
+					continue
+
+				coords.extend( edge.vertices[1][:2] ) # X/Y coords for the first point
+				coords.extend( edge.vertices[1][3:5] ) # X/Y coords for the second point
+
+		elif self.showCamLimits.get():
+			for edge in self.engine.edges:
+				if 'camera' not in edge.tags:
+					continue
+
+				coords.extend( edge.vertices[1][:2] ) # X/Y coords for the first point
+				coords.extend( edge.vertices[1][3:5] ) # X/Y coords for the second point
+
+		else: # Base off of collision links (all X/Y coords are already available in the spot table)
+			coords = self.spotTable.values
+
+		maxCoord = max( [abs(value) for value in coords] )
+
+		self.engine.translation_Z = maxCoord * -1.4

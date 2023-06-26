@@ -23,7 +23,7 @@ from collections import OrderedDict
 # Internal dependencies
 import globalData
 from tplCodec import TplDecoder
-from FileSystem import hsdStructures, DatFile
+from FileSystem import hsdStructures, DatFile, CharCostumeFile
 from RenderEngine2 import RenderEngine
 from basicFunctions import isNaN, validHex, humansize, grammarfyList, msg, copyToClipboard, printStatus, uHex, constructTextureFilename
 from guiSubComponents import ( ColoredLabelButton, LabelButton, exportMultipleTextures, getColoredShape, importSingleTexture, 
@@ -58,15 +58,25 @@ class TexturesEditor( ttk.Notebook ):
 
 	def addTab( self, fileObj ):
 
-		""" Creates a new tab in the Textures Editor interface for the given file. """
-		
-		# Create the new tab for the given file
-		newTab = TexturesEditorTab( self, fileObj )
-		self.add( newTab, text=fileObj.filename )
+		""" Adds a new tab for the given file to the Textures Editor interface, 
+			or switches to an existing tab if that file is already open. """
 
-		# Switch to and populate the new tab
-		self.select( newTab )
-		newTab.populate()
+		# Check if a tab has already been created/added for this file
+		for windowName in self.tabs():
+			tab = globalData.gui.root.nametowidget( windowName )
+
+			if tab.file == fileObj: # Found it!
+				self.select( tab )
+				break
+
+		else: # Loop above didn't break; mod not found
+			# Create the new tab for the given file
+			newTab = TexturesEditorTab( self, fileObj )
+			self.add( newTab, text=fileObj.filename )
+
+			# Switch to and populate the new tab
+			self.select( newTab )
+			newTab.populate()
 
 	def haltAllScans( self, programClosing=False ):
 
@@ -1104,6 +1114,12 @@ class TexturesEditorTab( ttk.Frame ):
 			if not modelPane.engine:
 				modelPane.engine = RenderEngine( modelPane, (440, 300), False, background=globalData.gui.defaultSystemBgColor, borderwidth=0, relief='groove' )
 				modelPane.engine.zNear = 1; modelPane.engine.zFar = 500
+
+				# If this is a character file, initialize the model's skeleton
+				# if isinstance( self.file, CharCostumeFile ):
+				# 	rootJoint = self.file.getSkeletonRoot()
+				# 	modelPane.engine.loadSkeleton( rootJoint )
+			
 			modelPane.engine.pack( pady=(vertPadding, 4) )
 			
 			# Add a button to access the render options, and repopulate the window if it's open

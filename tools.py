@@ -1743,7 +1743,7 @@ class CharacterColorConverter( BasicWindow ):
 
 		# If a disc is loaded, load the Disc File Tree tab and switch to it
 		if globalData.disc:
-			mainGui.mainMenu.loadDiscManagement()
+			mainGui.loadDiscManagement()
 			mainGui.root.deiconify()
 			mainGui.discTab.scrollToSection( 'Characters' )
 		
