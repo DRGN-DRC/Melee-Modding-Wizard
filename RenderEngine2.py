@@ -102,6 +102,7 @@ class RenderEngine( Tk.Frame ):
 			print( 'Warning: Anti-aliasing is not supported on this computer.' )
 			print( 'Rendering with OpenGL version {}'.format(openGlVersion) )
 
+		self.edges = []
 		self.clearRenderings()
 		self.resetView()
 		#self.defineFrustum()
@@ -129,17 +130,25 @@ class RenderEngine( Tk.Frame ):
 		# Move focus to the parent window (will be the pyglet window by default)
 		self.master.after( 1, lambda: self.master.focus_force() )
 
-	def clearRenderings( self ):
+	def clearRenderings( self, preserveBones=True ):
 
 		# for obj in self.getObjects():
 		# 	obj.delete()
 
+		if preserveBones:
+			bones = []
+			for edge in self.edges:
+				if 'bones' in edge.tags:
+					bones.append( edge )
+			self.edges = bones
+		else:
+			self.edges = []
+			self.skeleton = {}
+
 		self.vertices = []
-		self.edges = []
 		self.triangles = []
 		self.quads = []
 		self.vertexLists = []
-		self.skeleton = {}
 		self.textures = {}
 
 		# Add a marker to show the origin point
@@ -391,30 +400,106 @@ class RenderEngine( Tk.Frame ):
 
 	def loadSkeleton( self, rootJoint ):
 
+		""" Initialize joints used for bones in the model, create bone objects for them, 
+			and calculate model tranformations for all bone vertices, which will be used for their meshes. """
+
 		self.skeleton = {}
+		Bone.count = 0
 
 		child = rootJoint.initChild( 'JointObjDesc', 2 )
-		self._addBone( rootJoint, child )
+		rotation = rootJoint.getValues()[5:8] # (rx, ry, rz)
+		translation = rootJoint.getValues()[11:14] # (tx, ty, tz)
+		# rx, ry, rz, sx, sy, sz, tx, ty, tz = rootJoint.getValues()[5:14]
+
+		# modelMatrix = [
+		# 	rx*sx, ry, rz, 0,
+		# 	0, sy, 0, 0,
+		# 	0, 0, sz, 0,
+		# 	tx, ty, tz, 1,
+		# ]
+		modelMatrix = [
+			1.0, 0, 0, 0,
+			0, 1.0, 0, 0,
+			0, 0, 1.0, 0,
+			0, 0, 0, 1.0,
+		]
+		self._addBone( rootJoint, child, translation, rotation, modelMatrix )
+
+		#print( 'Added these bones: ' + str([hex(o+0x20) for o in self.skeleton]) )
 
 		self.window.updateRequired = True
 
-	def _addBone( self, parentJoint, childJoint ):
+	def _addBone( self, parentJoint, thisJoint, modelTranslation, modelRotation, modelMatrix ):
 
-		parentX, parentY, parentZ = parentJoint.getValues()[11:14]
-		childX, childY, childZ = childJoint.getValues()[11:14]
+		""" Recursive helper function to loadSkeleton(); creates a bone for the given joints, 
+			adds it model skeleton dictionary, and does the same for their children. """
 
 		# Add this bone to the renderer and skeleton dictionary
-		rootBone = Bone( (parentX, parentY, parentZ, childX, childY, childZ) )
-		self.edges.append( rootBone )
-		self.skeleton[childJoint.offset]
+		bone = Bone( parentJoint, thisJoint, modelTranslation, modelRotation, modelMatrix )
+		self.edges.append( bone )
+		self.skeleton[thisJoint.offset] = bone
+
+		# Update model transformations for the child bone(s)
+		localRotation = thisJoint.getValues()[5:8] # (rx, ry, rz)
+		localScale = thisJoint.getValues()[8:11] # (sx, sy, sz)
+		# if localScale != (1.0, 1.0, 1.0):
+		# 	print( '{} scale: {}'.format(childJoint.name, localScale) )
+		modelRotation = map( add, modelRotation, localRotation )
+		localTranslation = thisJoint.getValues()[11:14] # (tx, ty, tz)
+		# modelTranslation = map( add, modelTranslation, localTranslation )
+		modelTranslation = bone.vertices[1][3:]
+
+		#modelMatrix = self._updateModelMatrix( modelMatrix, localRotation, localScale, localTranslation )
 
 		# Check for children to add
-		grandchild = childJoint.initChild( 'JointObjDesc', 2 )
-		self._addBone( childJoint, grandchild )
+		childJoint = thisJoint.initChild( 'JointObjDesc', 2 )
+		if childJoint:
+			for siblingOffset in childJoint.getSiblings():
+				# if siblingOffset == childJoint.offset:
+				# 	continue
+				if siblingOffset in self.skeleton:
+					continue
 
-		# Check for siblings to add
-		sibling = childJoint.initChild( 'JointObjDesc', 3 )
-		self._addBone( childJoint, sibling )
+				sibling = childJoint.dat.getStruct( siblingOffset )
+				
+				# localRotation = sibling.getValues()[5:8] # (rx, ry, rz)
+				# modelRotation = map( add, modelRotation, localRotation )
+
+				if not sibling.isBone:
+					print( 'Non-bone added to skeleton: ' + hex(0x20+sibling.offset) )
+
+				self._addBone( thisJoint, sibling, modelTranslation, modelRotation, modelMatrix )
+				bone.children.append( sibling.offset )
+
+	def _updateModelMatrix( self, matrix, rotation, scale, translation ):
+
+		# Compute sin and cos values to make a rotation matrix
+		cos_x, sin_x = math.cos( rotation[0] ), math.sin( rotation[0] )
+		cos_y, sin_y = math.cos( rotation[1] ), math.sin( rotation[1] )
+		cos_z, sin_z = math.cos( rotation[2] ), math.sin( rotation[2] )
+		
+		# Rotation
+		matrix[0] += cos_y * cos_z 	# M11
+		matrix[1] += cos_y * sin_z 	# M12
+		matrix[2] += -sin_y 		# M13
+		matrix[4] += cos_z * sin_x * sin_y - cos_x * sin_z 	# M21
+		matrix[5] += sin_z * sin_x * sin_y + cos_x * cos_z 	# M22
+		matrix[6] += sin_x * cos_y 		# M23
+		matrix[8] += cos_z * cos_x * sin_y + sin_x * sin_z 	# M31
+		matrix[9] += sin_z * cos_x * sin_y - sin_x * cos_z 	# M32
+		matrix[10] += cos_x * cos_y 	# M33
+
+		# Scale
+		matrix[0] *= scale[0]
+		matrix[5] *= scale[1]
+		matrix[10] *= scale[2]
+
+		# Translation
+		matrix[3] += translation[0]
+		matrix[7] += translation[1]
+		matrix[11] += translation[2]
+
+		return matrix
 
 	def renderJoint( self, joint, parent=None, showBones=False ):
 
@@ -1041,8 +1126,12 @@ class Plane:
 	""" Defined in point-normal form. """
 
 	def __init__( self, points ):
+
+		""" Should be initialized with a flattened list of coordinates 
+			for 3 or more points (x, y, z coords for each; i.e. >= 9 values). """
+
 		# Both are tuples of (z, y, z)
-		self.point = points[0] # Any point on the plane
+		self.point = points[:3] # Any point on the plane
 		self.normal = self._getNormal( points )
 
 	def _getNormal( self, points ):
@@ -1068,6 +1157,9 @@ class Plane:
 		return a * ( x - x0 ) + b * ( y - y0 ) + c ( z - z0 )
 
 	def pointOnPlane( self, point ):
+
+		""" Returns True if the given point is on this plane. """
+
 		return self.equation( point ) == 0
 	
 	def contains( self, point ):
@@ -1075,7 +1167,7 @@ class Plane:
 		return 
 
 
-class Primitive:
+class Primitive( object ):
 
 	@staticmethod
 	def interpretColors( pointCount, color, colors ):
@@ -1163,7 +1255,8 @@ class Primitive:
 
 	def rotate( self, rotationX, rotationY, rotationZ ):
 
-		""" Rotates the primitive's vertex coordinates around each axis by the given angle amounts (in radians). """
+		""" Rotates the primitive's vertex coordinates around each axis by the given angle amounts (in radians). 
+			Rotates in XYZ order. """
 
 		# Do nothing if all rotation amounts are zero
 		if not rotationX and not rotationY and not rotationZ:
@@ -1184,7 +1277,7 @@ class Primitive:
 		# Multiply the rotation matrix with each vertices' coordinates
 		if self.__class__ == Vertex:
 			originalCoords = ( self.x, self.y, self.z )
-			rotatedCoords = self._matrixMultiply( rotationMatrix, originalCoords )
+			rotatedCoords = self.matrixMultiply_3x3( rotationMatrix, originalCoords )
 			self.x, self.y, self.z = rotatedCoords
 		else:
 			newCoords = []
@@ -1192,12 +1285,36 @@ class Primitive:
 			coordsList = [ coordsIter ] * 3
 
 			for point in zip( *coordsList ):
-				rotatedCoords = self._matrixMultiply( rotationMatrix, point )
+				rotatedCoords = self.matrixMultiply_3x3( rotationMatrix, point )
 				newCoords.extend( rotatedCoords )
 
 			self.vertices = ( self.vertices[0], newCoords )
 
-	def _matrixMultiply( self, matrix, vertex ):
+	def transform( self, m ):
+
+		""" Applies rotaion, scale, and translation transformations to this 
+			primitive's vertices using the given transformation matrix. """
+
+		# Multiply the rotation matrix with each vertices' coordinates
+		if self.__class__ == Vertex:
+			x, y, z = ( self.x, self.y, self.z )
+			
+			self.x = m[0]*x + m[1]*y + m[2]*z + m[3]
+			self.y = m[4]*x + m[5]*y + m[6]*z + m[7]
+			self.z = m[8]*x + m[9]*y + m[10]*z + m[11]
+		else:
+			newCoords = []
+			coordsIter = iter( self.vertices[1] )
+			coordsList = [ coordsIter ] * 3
+
+			for x, y, z in zip( *coordsList ):
+				newCoords.append( m[0]*x + m[1]*y + m[2]*z + m[3] )
+				newCoords.append( m[4]*x + m[5]*y + m[6]*z + m[7] )
+				newCoords.append( m[8]*x + m[9]*y + m[10]*z + m[11] )
+
+			self.vertices = ( self.vertices[0], newCoords )
+
+	def matrixMultiply_3x3( self, matrix, vertex ):
 
 		""" Multipies a 3x3 matrix with a vertex to transform it. """
 
@@ -1207,6 +1324,24 @@ class Primitive:
 		for i in range( len(matrix) ):
 			for j in range( coordCount ):
 				result[i] += matrix[i][j] * vertex[j]
+
+		return result
+
+	def matrixMultiply_4x4( self, matrix1, matrix2 ):
+
+		""" Performs matrix multiplication on two flattened 4x4 
+			arrays representing matrices in column-major format. """
+
+		# Check if the matrices are compatible for multiplication
+		assert len( matrix1 ) == len( matrix2 ), "Incompatible matrix dimensions for multiplication"
+
+		result = [ 0.0 ] * 16
+
+		# Calculate the dot product for each element in the result
+		for i in range( 4 ):
+			for j in range( 4 ):
+				for k in range( 4 ):
+					result[i * 4 + j] += matrix1[i * 4 + k] * matrix2[k * 4 + j]
 
 		return result
 
@@ -1379,11 +1514,64 @@ class VertexList( Primitive ):
 
 class Bone( Edge ):
 
-	def __init__( self, vertices, colors=((0,255,0,255), (0,0,255,255)), tags=('bones',), show=True, thickness=2 ):
-		super().__init__( vertices, None, colors, tags, show, thickness )
+	count = 0
 
-		self.parent = None
-		self.children = ()
+	def __init__( self, parent, child, translation, rotation, modelMatrix, show=True, thickness=1 ):
+
+		# Collect vertex coordinates for the start and end points of the bone
+		#parentX, parentY, parentZ = parent.getValues()[11:14]
+
+		# Collect local rotation, scale, and translation values, and build a list of vertex coordinates for the bone
+		rx, ry, rz, sx, sy, sz, tx, ty, tz = child.getValues()[5:14]
+		#vertices = ( parentX, parentY, parentZ, childX, childY, childZ )
+
+		# Initialize the bone relative to the origin to make rotation simple
+		vertices = ( 0, 0, 0, tx, ty, tz )
+
+		colors = ( (0,255,0,255), (0,0,255,255) ) # Green to Blue fade
+		tags=( 'bones', )
+
+		super( Bone, self ).__init__( vertices, None, colors, tags, show, thickness )
+
+		self.name = 'Joint_' + str( self.count )
+		self.count += 1
+		self.parent = parent.offset
+		self.children = []
+
+		#self.worldTransform = []
+		#modelTranslation = map( add, translation, localTranslation )
+		#modelRotation = map( add, rotation, (rx, ry, rz) )
+
+		#epsilon = sys.float_info.epsilon
+
+		# Apply transformations from the parent(s) to this bone
+		self.rotate( *rotation )
+		self.scale( sx, sy, sz )
+		self.translate( *translation )
+		#self.transform( modelMatrix ) #todo
+
+	# def buildTransformMatrix( self, rotation, size, translation ):
+
+	# 	matrix = [0.0] * 16
+
+	# 	# Rotation
+	# 	cos_theta = math.cos(rotation)
+	# 	sin_theta = math.sin(rotation)
+	# 	matrix[0] = cos_theta * size[0]
+	# 	matrix[1] = sin_theta * size[0]
+	# 	matrix[4] = -sin_theta * size[1]
+	# 	matrix[5] = cos_theta * size[1]
+	# 	matrix[10] = size[2]
+
+	# 	# Translation
+	# 	matrix[12] = translation[0]
+	# 	matrix[13] = translation[1]
+	# 	matrix[14] = translation[2]
+
+	# 	# Homogeneous coordinate
+	# 	matrix[15] = 1.0
+
+	# 	return matrix
 
 
 class HSD_Texture( TextureGroup ):
@@ -1459,7 +1647,7 @@ class HSD_Texture( TextureGroup ):
 
 		""" Deletes textures converted for use as pyglet textures, and 
 			converts a new instance from the texture object. Useful in 
-			case the original texture is updated/replaced. """
+			case the original texture is updated or replaced. """
 
 		# Delete any stored converted instance of the texture
 		for offset in self.pygletConversions:
@@ -1478,16 +1666,14 @@ class HSD_Texture( TextureGroup ):
 				break
 	
 	def set_state( self ):
-		#gl.glEnable( self.texture.target )
+		gl.glEnable( self.texture.target )
 		gl.glBindTexture( self.texture.target, self.texture.id )
 
 		gl.glTexParameteri( gl.GL_TEXTURE_2D, gl.GL_TEXTURE_WRAP_S, self.wrapModeS )
 		gl.glTexParameteri( gl.GL_TEXTURE_2D, gl.GL_TEXTURE_WRAP_T, self.wrapModeT )
 
 	def unset_state( self ):
-		#gl.glDisable( self.texture.target )
-		# unbind?
-		pass
+		gl.glDisable( self.texture.target )
 
 
 class PolygonGroup( Group ):
