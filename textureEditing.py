@@ -1116,9 +1116,9 @@ class TexturesEditorTab( ttk.Frame ):
 				modelPane.engine.zNear = 1; modelPane.engine.zFar = 500
 
 				# If this is a character file, initialize the model's skeleton
-				# if isinstance( self.file, CharCostumeFile ):
-				# 	rootJoint = self.file.getSkeletonRoot()
-				# 	modelPane.engine.loadSkeleton( rootJoint )
+				if isinstance( self.file, CharCostumeFile ):
+					rootJoint = self.file.getSkeletonRoot()
+					modelPane.engine.loadSkeleton( rootJoint )
 			
 			modelPane.engine.pack( pady=(vertPadding, 4) )
 			

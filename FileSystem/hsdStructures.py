@@ -1392,7 +1392,7 @@ class JointObjDesc( StructBase ): # A.k.a Bone Structure
 						'Child_Pointer',
 						'Next_Sibling_Pointer',
 						'Display_Object_Pointer',
-						'Rotation_X',
+						'Rotation_X',		# Euler rotaion angles
 						'Rotation_Y',
 						'Rotation_Z',
 						'Scale_X',
@@ -1416,6 +1416,15 @@ class JointObjDesc( StructBase ): # A.k.a Bone Structure
 			self._dobj = self.dat.initSpecificStruct( DisplayObjDesc, pointer, self.offset )
 		return self._dobj
 
+	@property
+	def isBone( self ):
+		flags = self.getValues( 'Joint_Flags' )
+
+		# Check for the SKELETON and SKELETON_ROOT flags
+		if flags & 1 or flags & 2:
+			return True
+		else:
+			return False
 
 class DisplayObjDesc( StructBase ):
 
