@@ -407,99 +407,38 @@ class RenderEngine( Tk.Frame ):
 		Bone.count = 0
 
 		child = rootJoint.initChild( 'JointObjDesc', 2 )
-		rotation = rootJoint.getValues()[5:8] # (rx, ry, rz)
-		translation = rootJoint.getValues()[11:14] # (tx, ty, tz)
-		# rx, ry, rz, sx, sy, sz, tx, ty, tz = rootJoint.getValues()[5:14]
 
-		# modelMatrix = [
-		# 	rx*sx, ry, rz, 0,
-		# 	0, sy, 0, 0,
-		# 	0, 0, sz, 0,
-		# 	tx, ty, tz, 1,
-		# ]
-		modelMatrix = [
-			1.0, 0, 0, 0,
-			0, 1.0, 0, 0,
-			0, 0, 1.0, 0,
-			0, 0, 0, 1.0,
-		]
-		self._addBone( rootJoint, child, translation, rotation, modelMatrix )
+		modelMatrix = rootJoint.buildLocalMatrix()
+		self._addBone( rootJoint, child, modelMatrix )
 
 		#print( 'Added these bones: ' + str([hex(o+0x20) for o in self.skeleton]) )
 
 		self.window.updateRequired = True
 
-	def _addBone( self, parentJoint, thisJoint, modelTranslation, modelRotation, modelMatrix ):
+	def _addBone( self, parentJoint, thisJoint, modelMatrix ):
 
 		""" Recursive helper function to loadSkeleton(); creates a bone for the given joints, 
 			adds it model skeleton dictionary, and does the same for their children. """
 
 		# Add this bone to the renderer and skeleton dictionary
-		bone = Bone( parentJoint, thisJoint, modelTranslation, modelRotation, modelMatrix )
+		bone = Bone( parentJoint, thisJoint, modelMatrix )
 		self.edges.append( bone )
 		self.skeleton[thisJoint.offset] = bone
-
-		# Update model transformations for the child bone(s)
-		localRotation = thisJoint.getValues()[5:8] # (rx, ry, rz)
-		localScale = thisJoint.getValues()[8:11] # (sx, sy, sz)
-		# if localScale != (1.0, 1.0, 1.0):
-		# 	print( '{} scale: {}'.format(childJoint.name, localScale) )
-		modelRotation = map( add, modelRotation, localRotation )
-		localTranslation = thisJoint.getValues()[11:14] # (tx, ty, tz)
-		# modelTranslation = map( add, modelTranslation, localTranslation )
-		modelTranslation = bone.vertices[1][3:]
-
-		#modelMatrix = self._updateModelMatrix( modelMatrix, localRotation, localScale, localTranslation )
 
 		# Check for children to add
 		childJoint = thisJoint.initChild( 'JointObjDesc', 2 )
 		if childJoint:
 			for siblingOffset in childJoint.getSiblings():
-				# if siblingOffset == childJoint.offset:
-				# 	continue
 				if siblingOffset in self.skeleton:
 					continue
 
 				sibling = childJoint.dat.getStruct( siblingOffset )
-				
-				# localRotation = sibling.getValues()[5:8] # (rx, ry, rz)
-				# modelRotation = map( add, modelRotation, localRotation )
 
 				if not sibling.isBone:
 					print( 'Non-bone added to skeleton: ' + hex(0x20+sibling.offset) )
 
-				self._addBone( thisJoint, sibling, modelTranslation, modelRotation, modelMatrix )
+				self._addBone( thisJoint, sibling, bone.modelMatrix )
 				bone.children.append( sibling.offset )
-
-	def _updateModelMatrix( self, matrix, rotation, scale, translation ):
-
-		# Compute sin and cos values to make a rotation matrix
-		cos_x, sin_x = math.cos( rotation[0] ), math.sin( rotation[0] )
-		cos_y, sin_y = math.cos( rotation[1] ), math.sin( rotation[1] )
-		cos_z, sin_z = math.cos( rotation[2] ), math.sin( rotation[2] )
-		
-		# Rotation
-		matrix[0] += cos_y * cos_z 	# M11
-		matrix[1] += cos_y * sin_z 	# M12
-		matrix[2] += -sin_y 		# M13
-		matrix[4] += cos_z * sin_x * sin_y - cos_x * sin_z 	# M21
-		matrix[5] += sin_z * sin_x * sin_y + cos_x * cos_z 	# M22
-		matrix[6] += sin_x * cos_y 		# M23
-		matrix[8] += cos_z * cos_x * sin_y + sin_x * sin_z 	# M31
-		matrix[9] += sin_z * cos_x * sin_y - sin_x * cos_z 	# M32
-		matrix[10] += cos_x * cos_y 	# M33
-
-		# Scale
-		matrix[0] *= scale[0]
-		matrix[5] *= scale[1]
-		matrix[10] *= scale[2]
-
-		# Translation
-		matrix[3] += translation[0]
-		matrix[7] += translation[1]
-		matrix[11] += translation[2]
-
-		return matrix
 
 	def renderJoint( self, joint, parent=None, showBones=False ):
 
@@ -602,11 +541,13 @@ class RenderEngine( Tk.Frame ):
 					# Apply the inverse bind matrices for the vertices of the primitives collected above
 					if pobj.isEnvelope:
 						print( 'applying bind matrices to {}'.format(pobj.name) )
-						pobj.applyBindMatrices( pobjPrimitives, parentJoint )
+						pobj.applyBindMatrices( pobjPrimitives, parentJoint, self.skeleton )
 					elif pobj.isShapeSet:
 						print( '{} isShapeSet'.format(pobj.name) )
 					elif pobj.hasJObjRef:
 						print( '{} hasJObjRef'.format(pobj.name) )
+					else:
+						print( 'no matrices to apply' )
 
 					self.addVertexLists( pobjPrimitives, textureGroup, offset, pobjOffset )
 					primitives.extend( pobjPrimitives )
@@ -1293,36 +1234,36 @@ class Primitive( object ):
 	def transform( self, m ):
 
 		""" Applies rotaion, scale, and translation transformations to this 
-			primitive's vertices using the given transformation matrix. """
+			primitive's vertices using the given transformation matrix. 
+			The given matrix should be a flattened 4x4, in column-major order. """
 
-		# Multiply the rotation matrix with each vertices' coordinates
+		# Apply the transformations to each vertices' coordinates
 		if self.__class__ == Vertex:
 			x, y, z = ( self.x, self.y, self.z )
 			
-			self.x = m[0]*x + m[1]*y + m[2]*z + m[3]
-			self.y = m[4]*x + m[5]*y + m[6]*z + m[7]
-			self.z = m[8]*x + m[9]*y + m[10]*z + m[11]
+			self.x = m[0]*x + m[4]*y + m[8]*z + m[12]
+			self.y = m[1]*x + m[5]*y + m[9]*z + m[13]
+			self.z = m[2]*x + m[6]*y + m[10]*z + m[14]
 		else:
 			newCoords = []
 			coordsIter = iter( self.vertices[1] )
 			coordsList = [ coordsIter ] * 3
 
 			for x, y, z in zip( *coordsList ):
-				newCoords.append( m[0]*x + m[1]*y + m[2]*z + m[3] )
-				newCoords.append( m[4]*x + m[5]*y + m[6]*z + m[7] )
-				newCoords.append( m[8]*x + m[9]*y + m[10]*z + m[11] )
+				newCoords.append( m[0]*x + m[4]*y + m[8]*z + m[12] )
+				newCoords.append( m[1]*x + m[5]*y + m[9]*z + m[13] )
+				newCoords.append( m[2]*x + m[6]*y + m[10]*z + m[14] )
 
 			self.vertices = ( self.vertices[0], newCoords )
 
 	def matrixMultiply_3x3( self, matrix, vertex ):
 
-		""" Multipies a 3x3 matrix with a vertex to transform it. """
+		""" Multipies a 3x3 matrix with a vertex to rotate it. """
 
-		coordCount = len( vertex )
-		result = [ 0.0 ] * coordCount
+		result = [ 0.0, 0.0, 0.0 ]
 
-		for i in range( len(matrix) ):
-			for j in range( coordCount ):
+		for i in range( 3 ):
+			for j in range( 3 ):
 				result[i] += matrix[i][j] * vertex[j]
 
 		return result
@@ -1341,7 +1282,8 @@ class Primitive( object ):
 		for i in range( 4 ):
 			for j in range( 4 ):
 				for k in range( 4 ):
-					result[i * 4 + j] += matrix1[i * 4 + k] * matrix2[k * 4 + j]
+					#result[i * 4 + j] += matrix1[i * 4 + k] * matrix2[k * 4 + j] # row-major
+					result[i + j * 4] += matrix1[i + k * 4] * matrix2[k + j * 4]
 
 		return result
 
@@ -1516,62 +1458,30 @@ class Bone( Edge ):
 
 	count = 0
 
-	def __init__( self, parent, child, translation, rotation, modelMatrix, show=True, thickness=1 ):
+	def __init__( self, parent, joint, modelMatrix, show=True, thickness=1 ):
 
-		# Collect vertex coordinates for the start and end points of the bone
-		#parentX, parentY, parentZ = parent.getValues()[11:14]
-
-		# Collect local rotation, scale, and translation values, and build a list of vertex coordinates for the bone
-		rx, ry, rz, sx, sy, sz, tx, ty, tz = child.getValues()[5:14]
-		#vertices = ( parentX, parentY, parentZ, childX, childY, childZ )
-
-		# Initialize the bone relative to the origin to make rotation simple
+		# Initialize coordinates for two vertices (initially relative to the origin to make rotation simple)
+		tx, ty, tz = joint.getValues()[11:14]
 		vertices = ( 0, 0, 0, tx, ty, tz )
 
+		# Initialize as a custom edge primitive
 		colors = ( (0,255,0,255), (0,0,255,255) ) # Green to Blue fade
 		tags=( 'bones', )
-
 		super( Bone, self ).__init__( vertices, None, colors, tags, show, thickness )
 
-		self.name = 'Joint_' + str( self.count )
-		self.count += 1
+		self.name = 'Joint_' + str( Bone.count )
+		Bone.count += 1
 		self.parent = parent.offset
 		self.children = []
 
-		#self.worldTransform = []
-		#modelTranslation = map( add, translation, localTranslation )
-		#modelRotation = map( add, rotation, (rx, ry, rz) )
+		# Build a local matrix for this joint, and use it to update the current model matrix
+		localMatrix = joint.buildLocalMatrix()
+		self.modelMatrix = self.matrixMultiply_4x4( modelMatrix, localMatrix )
 
-		#epsilon = sys.float_info.epsilon
+		#epsilon = sys.float_info.epsilon # e.g. 2.22044604925e-16
 
-		# Apply transformations from the parent(s) to this bone
-		self.rotate( *rotation )
-		self.scale( sx, sy, sz )
-		self.translate( *translation )
-		#self.transform( modelMatrix ) #todo
-
-	# def buildTransformMatrix( self, rotation, size, translation ):
-
-	# 	matrix = [0.0] * 16
-
-	# 	# Rotation
-	# 	cos_theta = math.cos(rotation)
-	# 	sin_theta = math.sin(rotation)
-	# 	matrix[0] = cos_theta * size[0]
-	# 	matrix[1] = sin_theta * size[0]
-	# 	matrix[4] = -sin_theta * size[1]
-	# 	matrix[5] = cos_theta * size[1]
-	# 	matrix[10] = size[2]
-
-	# 	# Translation
-	# 	matrix[12] = translation[0]
-	# 	matrix[13] = translation[1]
-	# 	matrix[14] = translation[2]
-
-	# 	# Homogeneous coordinate
-	# 	matrix[15] = 1.0
-
-	# 	return matrix
+		# Apply transformations from the parent(s) to this bone to get its vertices into model space
+		self.transform( modelMatrix )
 
 
 class HSD_Texture( TextureGroup ):

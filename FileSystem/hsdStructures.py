@@ -1426,6 +1426,45 @@ class JointObjDesc( StructBase ): # A.k.a Bone Structure
 		else:
 			return False
 
+	def buildLocalMatrix( self ):
+
+		""" Constructs a flattened 4x4 transformation matrix from this 
+			bone's rotation, scale, and translation x/y/z values. """
+		
+		matrix = [
+			0, 0, 0, 0,
+			0, 0, 0, 0,
+			0, 0, 0, 0,
+			0, 0, 0, 1.0,
+		]
+
+		# Collect local rotation, scale, and translation values
+		rx, ry, rz, sx, sy, sz, tx, ty, tz = self.getValues()[5:14]
+
+		# Compute sin and cos values to build a rotation matrix
+		cos_x, sin_x = math.cos( rx ), math.sin( rx )
+		cos_y, sin_y = math.cos( ry ), math.sin( ry )
+		cos_z, sin_z = math.cos( rz ), math.sin( rz )
+
+		# Rotation and scale
+		matrix[0] = sx * cos_y * cos_z 	# M11
+		matrix[1] = sx * cos_y * sin_z 	# M12
+		matrix[2] = sx * -sin_y 		# M13
+		matrix[4] = sy * cos_z * sin_x * sin_y - cos_x * sin_z 	# M21
+		matrix[5] = sy * sin_z * sin_x * sin_y + cos_x * cos_z 	# M22
+		matrix[6] = sy * sin_x * cos_y 		# M23
+		matrix[8] = sz * cos_z * cos_x * sin_y + sin_x * sin_z 	# M31
+		matrix[9] = sz * sin_z * cos_x * sin_y - sin_x * cos_z 	# M32
+		matrix[10] = sz * cos_x * cos_y 	# M33
+
+		# Translation
+		matrix[12] += tx
+		matrix[13] += ty
+		matrix[14] += tz
+
+		return matrix
+
+
 class DisplayObjDesc( StructBase ):
 
 	""" Represents an object to be displayed (rendered), which includes 
@@ -1770,7 +1809,7 @@ class PolygonObjDesc( StructBase ): # A.k.a. Meshes
 
 		return vertexLists
 
-	def applyBindMatrices( self, vertexLists, parentJoint ):
+	def applyBindMatrices( self, vertexLists, parentJoint, skeleton ):
 
 		# Get a list of envelope objects from the envelope array
 		envelopeArray = self.initChild( EnvelopeArray, 6 )
@@ -1789,7 +1828,7 @@ class PolygonObjDesc( StructBase ): # A.k.a. Meshes
 					continue
 
 				# Apply the matrices
-				weightedVertex = envelope.applyMatrices( (x, y, z) )
+				weightedVertex = envelope.applyMatrices( x, y, z, skeleton )
 				newCoords.extend( weightedVertex )
 
 			vl.vertices = ( vl.vertices[0], newCoords )
@@ -2127,74 +2166,51 @@ class EnvelopeObjDesc( TableStruct ):
 		for i in range( 0, self.entryCount*2, 2 ):
 			self.childClassIdentities[i] = 'JointObjDesc'
 
-	def applyMatrices( self, vertex ):
-		
-		# valueIter = iter( self.getValues() )
-		# for pointer, weight in zip( [valueIter, valueIter] ):
-		vertex = list(vertex) + [ 1.0 ]
-		weightedVertex = [ 0, 0, 0, 1.0 ]
-		#weightedVertex = list(vertex) + [ 1.0 ]
+	def applyMatrices( self, x, y, z, skeleton ):
 
-		for _, ( jointPointer, weight ) in self.iterateEntries():
-			if weight == 0:
-				continue
+		values = self.getValues()
+
+		# See if we can avoid the loops
+		if self.entryCount == 2 and values[-1] == 0:
+			jointPointer = values[0]
 
 			# Get the inverse bind matrix for this joint
-			joint = self.dat.initSpecificStruct( JointObjDesc, jointPointer )
-			if not joint:
-				continue
+			# joint = self.dat.initSpecificStruct( JointObjDesc, jointPointer )
+			# matrixStruct = joint.initChild( InverseMatrixObjDesc, 14 )
+			# inverseBindMatrix = matrixStruct.build4x4()
 
-			transformationValues = joint.getValues()[5:14] # 9 values; 3 for each of rotation/scale/translation
-			rotation = transformationValues[:3]
-			scale = transformationValues[3:6]
-			translation = transformationValues[6:]
-
-			matrix = joint.initChild( InverseMatrixObjDesc, 14 )
-			#matrixValues = matrix.getValues()
-			matrixValues = matrix.build4x4()
-			#matrixValues = matrix.getMatrixInverse( matrixValues )
-			#matrixValues = matrix.inverse( matrixValues )
-
-			for i in range( 3 ):
-				for j in range( 4 ):
-					index = i * 4 + j
-					weightedVertex[i] += matrixValues[index] * vertex[j] * weight
-				
-				# Apply translation component
-				weightedVertex[i] += matrixValues[12+i] * weight
-
-			#weightedVertex = [weightedVertex[0] + matrixValues[12], weightedVertex[1] + matrixValues[13], weightedVertex[2] + matrixValues[14], 1.0]
-
-			#weightedVertex = [ value * weight for value in weightedVertex ]
-
-			# if vl:
-			# 	vl.rotate( *rotation )
-
-			# Compute sin and cos values to make a rotation matrix
-			cos_x, sin_x = math.cos( rotation[0] * weight ), math.sin( rotation[0] * weight )
-			cos_y, sin_y = math.cos( rotation[1] * weight ), math.sin( rotation[1] * weight )
-			cos_z, sin_z = math.cos( rotation[2] * weight ), math.sin( rotation[2] * weight )
-
-			# Generate a 3D rotation matrix from angles around the X, Y, and Z axes
-			rotationMatrix = [
-				[cos_y * cos_z, -cos_x * sin_z + sin_x * sin_y * cos_z, sin_x * sin_z + cos_x * sin_y * cos_z], # X-axis rotation
-				[cos_y * sin_z, cos_x * cos_z + sin_x * sin_y * sin_z, -sin_x * cos_z + cos_x * sin_y * sin_z], # Y-axis rotation
-				[-sin_y, sin_x * cos_y, cos_x * cos_y] # Z-axis rotation
-			]
-
-			#rotationMatrix = matrix.inverse( rotationMatrix )
-			weightedVertex = self._matrixMultiply( rotationMatrix, weightedVertex[:3] )
-
-
-			weightedVertex[0] *= scale[0] * weight
-			weightedVertex[1] *= scale[1] * weight
-			weightedVertex[2] *= scale[2] * weight
+			bone = skeleton[jointPointer]
+			# m = bone.matrixMultiply_4x4( inverseBindMatrix, bone.modelMatrix )
+			m = bone.modelMatrix
 			
-			weightedVertex[0] += translation[0] * weight
-			weightedVertex[1] += translation[1] * weight
-			weightedVertex[2] += translation[2] * weight
+			new_x = m[0]*x + m[4]*y + m[8]*z + m[12]
+			new_y = m[1]*x + m[5]*y + m[9]*z + m[13]
+			new_z = m[2]*x + m[6]*y + m[10]*z + m[14]
 
-		return weightedVertex[:3]
+			return ( new_x, new_y, new_z )
+		
+		else:
+			weightedVertex = [ 0, 0, 0 ]
+
+			for _, ( jointPointer, weight ) in self.iterateEntries():
+				if weight == 0:
+					continue
+
+				# Get the inverse bind matrix for this joint
+				joint = self.dat.initSpecificStruct( JointObjDesc, jointPointer )
+				matrixStruct = joint.initChild( InverseMatrixObjDesc, 14 )
+				inverseBindMatrix = matrixStruct.build4x4()
+
+				# Combine the matrices of the bone with the inverse bind matrix
+				bone = skeleton[jointPointer]
+				m = bone.matrixMultiply_4x4( inverseBindMatrix, bone.modelMatrix )
+				
+				# Apply the final matrix to get the vertex into model space
+				weightedVertex[0] += ( m[0]*x + m[4]*y + m[8]*z + m[12] ) * weight
+				weightedVertex[1] += ( m[1]*x + m[5]*y + m[9]*z + m[13] ) * weight
+				weightedVertex[2] += ( m[2]*x + m[6]*y + m[10]*z + m[14] ) * weight
+
+			return weightedVertex
 
 	def _matrixMultiply( self, matrix, vertex ):
 
