@@ -103,6 +103,7 @@ class RenderEngine( Tk.Frame ):
 			print( 'Rendering with OpenGL version {}'.format(openGlVersion) )
 
 		self.edges = []
+		self.skeleton = {}
 		self.clearRenderings()
 		self.resetView()
 		#self.defineFrustum()
@@ -152,9 +153,9 @@ class RenderEngine( Tk.Frame ):
 		self.textures = {}
 
 		# Add a marker to show the origin point
-		self.addEdge( [-2,0,0, 2,0,0], (255, 0, 0, 255), tags=('originMarker',), thickness=3 )
-		self.addEdge( [0,-2,0, 0,2,0], (0, 255, 0, 255), tags=('originMarker',), thickness=3 )
-		self.addEdge( [0,0,-2, 0,0,2], (0, 0, 255, 255), tags=('originMarker',), thickness=3 )
+		# self.addEdge( [-2,0,0, 2,0,0], (255, 0, 0, 255), tags=('originMarker',), thickness=3 )
+		# self.addEdge( [0,-2,0, 0,2,0], (0, 255, 0, 255), tags=('originMarker',), thickness=3 )
+		# self.addEdge( [0,0,-2, 0,0,2], (0, 0, 255, 255), tags=('originMarker',), thickness=3 )
 
 		self.window.updateRequired = True
 
@@ -227,7 +228,7 @@ class RenderEngine( Tk.Frame ):
 						zCoords.append( z )
 
 		# Set defaults and exit if no coordinates could be collected
-		if not xCoords or not yCoords or not zCoords:
+		if not xCoords:
 			self.translation_X = 0
 			self.translation_Y = 0
 			self.translation_Z = -10
@@ -398,7 +399,7 @@ class RenderEngine( Tk.Frame ):
 
 		self.window.updateRequired = True
 
-	def loadSkeleton( self, rootJoint ):
+	def loadSkeleton( self, rootJoint, showBones=True ):
 
 		""" Initialize joints used for bones in the model, create bone objects for them, 
 			and calculate model tranformations for all bone vertices, which will be used for their meshes. """
@@ -409,19 +410,19 @@ class RenderEngine( Tk.Frame ):
 		child = rootJoint.initChild( 'JointObjDesc', 2 )
 
 		modelMatrix = rootJoint.buildLocalMatrix()
-		self._addBone( rootJoint, child, modelMatrix )
+		self._addBone( rootJoint, child, modelMatrix, showBones )
 
 		#print( 'Added these bones: ' + str([hex(o+0x20) for o in self.skeleton]) )
 
 		self.window.updateRequired = True
 
-	def _addBone( self, parentJoint, thisJoint, modelMatrix ):
+	def _addBone( self, parentJoint, thisJoint, modelMatrix, showBones ):
 
 		""" Recursive helper function to loadSkeleton(); creates a bone for the given joints, 
 			adds it model skeleton dictionary, and does the same for their children. """
 
 		# Add this bone to the renderer and skeleton dictionary
-		bone = Bone( parentJoint, thisJoint, modelMatrix )
+		bone = Bone( parentJoint, thisJoint, modelMatrix, showBones )
 		self.edges.append( bone )
 		self.skeleton[thisJoint.offset] = bone
 
@@ -437,7 +438,7 @@ class RenderEngine( Tk.Frame ):
 				if not sibling.isBone:
 					print( 'Non-bone added to skeleton: ' + hex(0x20+sibling.offset) )
 
-				self._addBone( thisJoint, sibling, bone.modelMatrix )
+				self._addBone( thisJoint, sibling, bone.modelMatrix, showBones )
 				bone.children.append( sibling.offset )
 
 	def renderJoint( self, joint, parent=None, showBones=False ):
@@ -466,7 +467,7 @@ class RenderEngine( Tk.Frame ):
 		# Check for a display object and polygon object(s) to render
 		dobj = joint.DObj
 		if dobj:
-			primitives.extend( self.renderDisplayObj(dobj, joint) )
+			primitives.extend( self.renderDisplayObj(dobj) )
 
 		# Apply joint transformations for this joint's meshes as well as its children
 		transformationValues = joint.getValues()[5:14] # 9 values; 3 for each of rotation/scale/translation
@@ -495,7 +496,7 @@ class RenderEngine( Tk.Frame ):
 
 		return primitives
 	
-	def renderDisplayObj( self, parentDobj, parentJoint=None, includeSiblings=True ):
+	def renderDisplayObj( self, parentDobj, includeSiblings=True ):
 
 		""" Parses and renders the given Display Object (DObj) and 
 			all of its siblings. """
@@ -506,10 +507,6 @@ class RenderEngine( Tk.Frame ):
 			dobjOffsets = parentDobj.getSiblings()
 		else:
 			dobjOffsets = [ parentDobj.offset ]
-
-		if not parentJoint:
-			parentJointOffset = next( iter(parentDobj.getParents()) )
-			parentJoint = parentDobj.dat.getStruct( parentJointOffset )
 
 		try:
 			# Iterate over this DObj (and its siblings, if enabled)
@@ -540,8 +537,8 @@ class RenderEngine( Tk.Frame ):
 
 					# Apply the inverse bind matrices for the vertices of the primitives collected above
 					if pobj.isEnvelope:
-						print( 'applying bind matrices to {}'.format(pobj.name) )
-						pobj.applyBindMatrices( pobjPrimitives, parentJoint, self.skeleton )
+						#print( 'applying bind matrices to {}'.format(pobj.name) )
+						pobj.moveToModelSpace( pobjPrimitives, self.skeleton )
 					elif pobj.isShapeSet:
 						print( '{} isShapeSet'.format(pobj.name) )
 					elif pobj.hasJObjRef:
@@ -1458,7 +1455,7 @@ class Bone( Edge ):
 
 	count = 0
 
-	def __init__( self, parent, joint, modelMatrix, show=True, thickness=1 ):
+	def __init__( self, parent, joint, modelMatrix, show=True, thickness=2 ):
 
 		# Initialize coordinates for two vertices (initially relative to the origin to make rotation simple)
 		tx, ty, tz = joint.getValues()[11:14]

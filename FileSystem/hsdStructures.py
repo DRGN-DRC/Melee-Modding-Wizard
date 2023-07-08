@@ -1164,7 +1164,7 @@ class DisplayListBlock( DataBlock ):
 			with the decoded vertex data. The attributesInfo argument is expected to be a list 
 			of tuples of the form ( name, attrType, compType, vertexDescriptor, indexStride, vertexStream ). """
 		
-		debugging = True
+		debugging = False
 
 		# Determine the data length and formatting for one vertex of one entry in the display list
 		baseLength = 0
@@ -1809,7 +1809,10 @@ class PolygonObjDesc( StructBase ): # A.k.a. Meshes
 
 		return vertexLists
 
-	def applyBindMatrices( self, vertexLists, parentJoint, skeleton ):
+	def moveToModelSpace( self, vertexLists, skeleton ):
+
+		""" Applies transformations to the vertices of this object's mesh to convert 
+			them from bind-pose or local-bone space to model space. """
 
 		# Get a list of envelope objects from the envelope array
 		envelopeArray = self.initChild( EnvelopeArray, 6 )
@@ -2168,10 +2171,16 @@ class EnvelopeObjDesc( TableStruct ):
 
 	def applyMatrices( self, x, y, z, skeleton ):
 
+		""" Applies the weighted transformations for all joints/bones applicable 
+			(from this envelope object) to the given vertex coordinates. If more 
+			than one joint's transforms are needed, the vertices are expected to 
+			be in bind-pose space. If not, they are already in local-bone space. """
+
 		values = self.getValues()
 
 		# See if we can avoid the loops
 		if self.entryCount == 2 and values[-1] == 0:
+			# Only applying transformations from one bone
 			jointPointer = values[0]
 
 			# Get the inverse bind matrix for this joint
@@ -2190,6 +2199,7 @@ class EnvelopeObjDesc( TableStruct ):
 			return ( new_x, new_y, new_z )
 		
 		else:
+			# Applying transformations from multiple bones
 			weightedVertex = [ 0, 0, 0 ]
 
 			for _, ( jointPointer, weight ) in self.iterateEntries():
