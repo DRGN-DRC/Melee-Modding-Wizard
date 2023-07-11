@@ -309,8 +309,9 @@ class TexturesEditorTab( ttk.Frame ):
 		modelPane.renderOptionsBtn = None
 		modelPane.partIndex = -1
 		modelPane.dobjStringVar = Tk.StringVar()
-		modelPane.showRelatedParts = Tk.BooleanVar( value=True )
+		modelPane.showRelatedParts = Tk.BooleanVar( value=False )
 		modelPane.autoCameraUpdates = Tk.BooleanVar( value=True )
+		modelPane.showBones = Tk.BooleanVar( value=False )
 		self.renderOptionsWindow = None
 
 		# Texture properties tab
@@ -1118,7 +1119,7 @@ class TexturesEditorTab( ttk.Frame ):
 				# If this is a character file, initialize the model's skeleton
 				if isinstance( self.file, CharCostumeFile ):
 					rootJoint = self.file.getSkeletonRoot()
-					modelPane.engine.loadSkeleton( rootJoint )
+					modelPane.engine.loadSkeleton( rootJoint, modelPane.showBones.get() )
 			
 			modelPane.engine.pack( pady=(vertPadding, 4) )
 			
@@ -1196,7 +1197,7 @@ class TexturesEditorTab( ttk.Frame ):
 		jointHidden = Tk.BooleanVar()
 		displayListDisabled = Tk.BooleanVar() # Whether or not display list length has been set to 0
 
-		modelPane.hideJointChkBtn = ttk.Checkbutton( transparencyPane, text='Disable Joint Rendering', variable=jointHidden, command=self.toggleHideJoint )
+		modelPane.hideJointChkBtn = ttk.Checkbutton( transparencyPane, text='Disable Part Rendering', variable=jointHidden, command=self.toggleHideJoint )
 		modelPane.hideJointChkBtn.var = jointHidden
 		modelPane.hideJointChkBtn.grid( column=0, row=0, sticky='w', columnspan=3 )
 		modelPane.polyDisableChkBtn = ttk.Checkbutton( transparencyPane, text='Disable Polygon (Display List) Rendering', variable=displayListDisabled, command=self.toggleDisplayListRendering )
@@ -1218,7 +1219,7 @@ class TexturesEditorTab( ttk.Frame ):
 		transparencyPane.columnconfigure( 2, weight=1 )
 
 		# Add a help button for texture/model disablement and transparency
-		helpText = ( 'Disabling Joint Rendering will set the "Hidden" flag (bit 4) for all of the lowest-level Joint Structures '
+		helpText = ( 'Disabling Part Rendering will set the "Hidden" flag (bit 4) for all of the lowest-level Joint Structures '
 					"connected to the selected texture (parents to this texture's Display Object(s)). That will be just "
 					"one particular Joint Struct in most cases, however that may be the parent for multiple parts of the model. "
 					"To have finer control over which model parts are disabled, consider the Disable Polygon Rendering option."
@@ -1363,14 +1364,39 @@ class TexturesEditorTab( ttk.Frame ):
 		# Get the part to render
 		modelPane = self.modelPropertiesPane.interior
 		modelPart = modelPane.displayObjects[modelPane.partIndex]
+		# showRelated = modelPane.showRelatedParts.get()
 
 		# Render the model part (DObj for this texture) and focus the camera on it
 		modelPane.engine.clearRenderings()
+		# allRelatedDobjs = modelPart.getSiblings()
+		# if not showRelated:
+		# 	# Just display this one part
+		# 	modelPane.engine.renderDisplayObj( modelPart, includeSiblings=False )
+		# elif len( allRelatedDobjs ) <= 5:
+		# 	# Show the part and all of its siblings (there are just two)
+		# 	modelPane.engine.renderDisplayObj( modelPart, includeSiblings=True )
+		# else:
+		# 	# Restrict to just a few parts
+		# 	if allRelatedDobjs[0] == modelPart.offset: # Get first 3
+		# 		partsToShow = allRelatedDobjs[:3]
+		# 	elif allRelatedDobjs[-1] == modelPart.offset: # Get last 3
+		# 		partsToShow = allRelatedDobjs[-3:]
+		# 	else: # Get the target part and the parts immediately before and after it
+		# 		for i, offset in enumerate( allRelatedDobjs ):
+		# 			if offset == modelPart.offset:
+		# 				partsToShow = allRelatedDobjs[i-2:i+3]
+		# 				break
+		# 		else: # Failsafe; above loop didn't break
+		# 			print( 'Unable to find {} among siblings'.format(modelPart.name) )
+		# 			return
+		# 	for partOffset in partsToShow:
+		# 		part = self.file.structs[partOffset]
+		# 		modelPane.engine.renderDisplayObj( part, includeSiblings=False )
 		modelPane.engine.renderDisplayObj( modelPart, includeSiblings=modelPane.showRelatedParts.get() )
 
 		# Align the camera to the object
 		if modelPane.autoCameraUpdates.get():
-			modelPane.engine.focusCamera()
+			modelPane.engine.focusCamera( primitive='vertexList' )
 
 		# Set the label and button states
 		if len( modelPane.displayObjects ) > 1:
@@ -2415,22 +2441,25 @@ class ModelTabRenderOptionsWindow( BasicWindow ):
 
 		self.modelPane = modelPane
 
-		tangentBtn = ttk.Checkbutton( self.window, text='Also show tangentially related parts', variable=self.modelPane.showRelatedParts, command=self.checkboxClicked )
-		tangentBtn.grid( column=0, row=0, pady=(12, 0), padx=20 )
-
 		# Add selection for Display Objects
 		self.partCheckboxesFrame = VerticalScrolledFrame( self.window, maxHeight=400 )
-		self.partCheckboxesFrame.grid( column=0, row=1, pady=12, sticky='nsew' )
+		self.partCheckboxesFrame.grid( column=0, row=0, sticky='nsew', pady=(12, 12) )
 		self.populate()
+
+		tangentBtn = ttk.Checkbutton( self.window, text='Show related parts (DObj siblings)', variable=self.modelPane.showRelatedParts, command=self.checkboxClicked )
+		tangentBtn.grid( column=0, row=1, padx=20 )
 
 		cameraBtn = ttk.Checkbutton( self.window, text='Auto-update camera', variable=self.modelPane.autoCameraUpdates )
 		cameraBtn.grid( column=0, row=2, padx=20 )
+		
+		showBonesBtn = ttk.Checkbutton( self.window, text='Show model bones', variable=self.modelPane.showBones, command=self.toggleBonesVisibility )
+		showBonesBtn.grid( column=0, row=3, padx=20 )
 
 		# Select/deselect all buttons
 		lowerButtonsFrame = ttk.Frame( self.window )
 		ttk.Button( lowerButtonsFrame, text='Select all', command=self.selectAll ).pack( side='left', padx=5 )
 		ttk.Button( lowerButtonsFrame, text='Deselect all', command=self.deselectAll ).pack( side='left', padx=5 )
-		lowerButtonsFrame.grid( column=0, row=3, pady=12 )
+		lowerButtonsFrame.grid( column=0, row=4, pady=12 )
 
 		# Configure resize behavior (only the VSF should change size)
 		self.window.columnconfigure( 0, weight=1 )
@@ -2569,3 +2598,11 @@ class ModelTabRenderOptionsWindow( BasicWindow ):
 	def deselectAll( self ):
 		[ boolVar.set(False) for boolVar in self.checkboxStates.values() ]
 		self.checkboxClicked()
+
+	def toggleBonesVisibility( self ):
+
+		""" Toggles the visibility state of bones in the renderer, and updates it. """
+
+		showBones = self.modelPane.showBones.get()
+		self.modelPane.engine.showPart( 'bones', showBones, 'edge' )
+
