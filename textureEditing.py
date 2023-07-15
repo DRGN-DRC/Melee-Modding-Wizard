@@ -309,9 +309,10 @@ class TexturesEditorTab( ttk.Frame ):
 		modelPane.renderOptionsBtn = None
 		modelPane.partIndex = -1
 		modelPane.dobjStringVar = Tk.StringVar()
-		modelPane.showRelatedParts = Tk.BooleanVar( value=False )
+		modelPane.showRelatedParts = Tk.BooleanVar( value=True )
 		modelPane.autoCameraUpdates = Tk.BooleanVar( value=True )
 		modelPane.showBones = Tk.BooleanVar( value=False )
+		modelPane.showHighPoly = Tk.BooleanVar( value=True )
 		self.renderOptionsWindow = None
 
 		# Texture properties tab
@@ -1114,7 +1115,7 @@ class TexturesEditorTab( ttk.Frame ):
 			# Add the rendering widget if it's not present
 			if not modelPane.engine:
 				modelPane.engine = RenderEngine( modelPane, (440, 300), False, background=globalData.gui.defaultSystemBgColor, borderwidth=0, relief='groove' )
-				modelPane.engine.zNear = 1; modelPane.engine.zFar = 500
+				modelPane.engine.zNear = .5; modelPane.engine.zFar = 250
 
 				# If this is a character file, initialize the model's skeleton
 				if isinstance( self.file, CharCostumeFile ):
@@ -1126,7 +1127,7 @@ class TexturesEditorTab( ttk.Frame ):
 			# Add a button to access the render options, and repopulate the window if it's open
 			modelPane.renderOptionsBtn = ColoredLabelButton( modelPane, 'gear', self.showDisplayOptions, 'Display Options' )
 			modelPane.renderOptionsBtn.place( anchor='ne', relx=1.0, x=-6, y=6 )
-			if self.renderOptionsWindow and self.renderOptionsWindow.window.winfo_exists():
+			if self.renderOptionsWindowIsOpen():
 				self.renderOptionsWindow.repopulate()
 
 			if len( modelPane.displayObjects ) == 1:
@@ -1364,35 +1365,21 @@ class TexturesEditorTab( ttk.Frame ):
 		# Get the part to render
 		modelPane = self.modelPropertiesPane.interior
 		modelPart = modelPane.displayObjects[modelPane.partIndex]
-		# showRelated = modelPane.showRelatedParts.get()
 
 		# Render the model part (DObj for this texture) and focus the camera on it
 		modelPane.engine.clearRenderings()
-		# allRelatedDobjs = modelPart.getSiblings()
-		# if not showRelated:
-		# 	# Just display this one part
-		# 	modelPane.engine.renderDisplayObj( modelPart, includeSiblings=False )
-		# elif len( allRelatedDobjs ) <= 5:
-		# 	# Show the part and all of its siblings (there are just two)
-		# 	modelPane.engine.renderDisplayObj( modelPart, includeSiblings=True )
-		# else:
-		# 	# Restrict to just a few parts
-		# 	if allRelatedDobjs[0] == modelPart.offset: # Get first 3
-		# 		partsToShow = allRelatedDobjs[:3]
-		# 	elif allRelatedDobjs[-1] == modelPart.offset: # Get last 3
-		# 		partsToShow = allRelatedDobjs[-3:]
-		# 	else: # Get the target part and the parts immediately before and after it
-		# 		for i, offset in enumerate( allRelatedDobjs ):
-		# 			if offset == modelPart.offset:
-		# 				partsToShow = allRelatedDobjs[i-2:i+3]
-		# 				break
-		# 		else: # Failsafe; above loop didn't break
-		# 			print( 'Unable to find {} among siblings'.format(modelPart.name) )
-		# 			return
-		# 	for partOffset in partsToShow:
-		# 		part = self.file.structs[partOffset]
-		# 		modelPane.engine.renderDisplayObj( part, includeSiblings=False )
-		modelPane.engine.renderDisplayObj( modelPart, includeSiblings=modelPane.showRelatedParts.get() )
+		#modelPane.engine.renderDisplayObj( modelPart, includeSiblings=modelPane.showRelatedParts.get() )
+		if not modelPane.showRelatedParts.get():
+			# Just display this one part
+			modelPane.engine.renderDisplayObj( modelPart, includeSiblings=False )
+		elif not isinstance( self.file, CharCostumeFile ):
+			# Show this part and all related (sibling) Display Objects
+			modelPane.engine.renderDisplayObj( modelPart, includeSiblings=True )
+		else:
+			# Use the model's skeleton to find a few near-by parts
+			for partOffset in self.findRelatedParts( modelPart, modelPane.engine.skeleton ):
+				part = self.file.getStruct( partOffset )
+				modelPane.engine.renderDisplayObj( part, includeSiblings=False )
 
 		# Align the camera to the object
 		if modelPane.autoCameraUpdates.get():
@@ -1405,7 +1392,7 @@ class TexturesEditorTab( ttk.Frame ):
 			modelPane.dobjStringVar.set( modelPart.name )
 
 		# Check the box for the appropriate DObj in the render options window if it's open
-		if updateOptionsWindow and self.renderOptionsWindow and self.renderOptionsWindow.window.winfo_exists():
+		if updateOptionsWindow and self.renderOptionsWindowIsOpen():
 			checkboxStates = self.renderOptionsWindow.checkboxStates
 			for i, dobj in enumerate( modelPane.displayObjects ):
 				if i == modelPane.partIndex:
@@ -1429,6 +1416,67 @@ class TexturesEditorTab( ttk.Frame ):
 
 		self.renderDobj( True )
 
+	def findRelatedParts( self, targetDObj, skeleton ):
+
+		""" Searches a model skeleton to find a few model parts that 
+			are related to (close proximity to) the given DObj. Also 
+			determines which model parts are high or low poly, which 
+			are then included or filtered out, based on option toggle. """
+		
+		# Determine high/low-poly model parts
+		try:
+			# Get the Pl__.dat file
+			plFilename = 'Pl' + self.file.charAbbr + '.dat'
+			plFile = globalData.disc.getFile( plFilename )
+
+			# Get the part visibility lookup table and parse lookup entries
+			lookupTable = plFile.getModelLookupTable()
+			visibilityTable = lookupTable.initChild( 'CostumeVisibilityTable', 1 )
+			costumeIndex = self.file.getCostumeId()
+			costumeEntry = visibilityTable.getEntryValues( costumeIndex )
+
+			# Try to get a high-poly lookup group for this costume, or default to the first set
+			highPolyGroupArray = plFile.getStruct( costumeEntry[0] )
+			if not highPolyGroupArray:
+				costumeEntry = visibilityTable.getEntryValues( 0 ) # First costume index
+				highPolyGroupArray = plFile.getStruct( costumeEntry[0] )
+
+			# Recursively parse the array structs and get all high-poly IDs
+			highPolyIds = highPolyGroupArray.getLookupIds()
+		except Exception as err:
+			print( 'Unable to get model high-poly part IDs; {}'.format(err) )
+			highPolyIds = []
+
+		# Check the option to display high or low poly parts
+		modelPane = self.modelPropertiesPane.interior
+		showHighPoly = modelPane.showHighPoly.get()
+
+		# Get a list of all potentially related display objects
+		modelPartOffsets = targetDObj.getSiblings()
+		modelParts = [ self.file.structs[o] for o in modelPartOffsets ] # These should all be initialized through the .getSiblings method
+
+		# Check what bones the given DObj is attached to or influenced by
+		targetJoints = targetDObj.getBoneAttachments()
+		targetBones = [ bone for bone in skeleton.values() if bone.joint.offset in targetJoints ]
+
+		# Scan the skeleton for the target bones
+		relatedParts = set([ targetDObj.offset ])
+		for part in modelParts:
+			# Skip parts based on high or low-poly
+			if part.id in highPolyIds and not showHighPoly:
+				continue
+
+			boneAttachments = part.getBoneAttachments()
+
+			# Extend the related parts to include the parent and children of the target bone(s)
+			for bone in targetBones:
+				if bone.parent in boneAttachments:
+					relatedParts.add( part.offset )
+				elif set( bone.children ) & set( boneAttachments ):
+					relatedParts.add( part.offset )
+
+		return relatedParts
+
 	def showDisplayOptions( self, event=None ):
 
 		""" Called by the gear icon to the right of the render window. 
@@ -1436,6 +1484,22 @@ class TexturesEditorTab( ttk.Frame ):
 
 		modelPane = self.modelPropertiesPane.interior
 		self.renderOptionsWindow = ModelTabRenderOptionsWindow( modelPane )
+
+	def renderOptionsWindowIsOpen( self ):
+
+		""" If self.renderOptionsWindow is None, the window hasn't 
+			been created once yet for this texture editor tab. There's 
+			also an occasional occurance where the window has been created 
+			but it has lost the .window property after being created. 
+			Unsure how or why it happens, but it can! """
+
+		try:
+			if self.renderOptionsWindow.window.winfo_exists():
+				return True
+		except:
+			pass
+
+		return False
 
 	def toggleHideJoint( self ):
 
@@ -2441,32 +2505,45 @@ class ModelTabRenderOptionsWindow( BasicWindow ):
 
 		self.modelPane = modelPane
 
+		ttk.Label( self.window, text='This texture is used by the\nmodel on these parts:', justify='center' ).grid( column=0, row=0, columnspan=2, padx=10, pady=6 )
+
 		# Add selection for Display Objects
 		self.partCheckboxesFrame = VerticalScrolledFrame( self.window, maxHeight=400 )
-		self.partCheckboxesFrame.grid( column=0, row=0, sticky='nsew', pady=(12, 12) )
+		self.partCheckboxesFrame.grid( column=0, row=1, columnspan=2, sticky='nsew', pady=6 )
 		self.populate()
 
+		ttk.Separator( self.window, orient='horizontal' ).grid( column=0, row=2, columnspan=2, sticky='ew', padx=42, pady=6 )
+
 		tangentBtn = ttk.Checkbutton( self.window, text='Show related parts (DObj siblings)', variable=self.modelPane.showRelatedParts, command=self.checkboxClicked )
-		tangentBtn.grid( column=0, row=1, padx=20 )
+		tangentBtn.grid( column=0, row=3, columnspan=2, padx=20 )
+
+		showHighPolyBtn = ttk.Radiobutton( self.window, text='High-poly', variable=self.modelPane.showHighPoly, value=True )
+		showHighPolyBtn.grid( column=0, row=4, padx=8, sticky='e' )
+		showLowPolyBtn = ttk.Radiobutton( self.window, text='Low-poly', variable=self.modelPane.showHighPoly, value=False )
+		showLowPolyBtn.grid( column=1, row=4, padx=8, sticky='w' )
+
+		showBonesBtn = ttk.Checkbutton( self.window, text='Show model bones', variable=self.modelPane.showBones, command=self.toggleBonesVisibility )
+		showBonesBtn.grid( column=0, row=5, columnspan=2, padx=20 )
 
 		cameraBtn = ttk.Checkbutton( self.window, text='Auto-update camera', variable=self.modelPane.autoCameraUpdates )
-		cameraBtn.grid( column=0, row=2, padx=20 )
-		
-		showBonesBtn = ttk.Checkbutton( self.window, text='Show model bones', variable=self.modelPane.showBones, command=self.toggleBonesVisibility )
-		showBonesBtn.grid( column=0, row=3, padx=20 )
+		cameraBtn.grid( column=0, row=6, columnspan=2, padx=20 )
 
 		# Select/deselect all buttons
 		lowerButtonsFrame = ttk.Frame( self.window )
 		ttk.Button( lowerButtonsFrame, text='Select all', command=self.selectAll ).pack( side='left', padx=5 )
 		ttk.Button( lowerButtonsFrame, text='Deselect all', command=self.deselectAll ).pack( side='left', padx=5 )
-		lowerButtonsFrame.grid( column=0, row=4, pady=12 )
+		lowerButtonsFrame.grid( column=0, row=7, columnspan=2, pady=12 )
 
 		# Configure resize behavior (only the VSF should change size)
-		self.window.columnconfigure( 0, weight=1 )
+		self.window.columnconfigure( 'all', weight=1 )
 		self.window.rowconfigure( 0, weight=0 )
 		self.window.rowconfigure( 1, weight=1 )
 		self.window.rowconfigure( 2, weight=0 )
 		self.window.rowconfigure( 3, weight=0 )
+		self.window.rowconfigure( 4, weight=0 )
+		self.window.rowconfigure( 5, weight=0 )
+		self.window.rowconfigure( 6, weight=0 )
+		self.window.rowconfigure( 7, weight=0 )
 
 	def populate( self ):
 

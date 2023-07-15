@@ -633,6 +633,11 @@ class DiscTab( ttk.Frame ):
 			# 		#structsEquivalent = discFile.structuresEquivalent( defaultCostume.getSkeletonRoot(), discFile.getSkeletonRoot(), True, [DisplayObjDesc] )
 			# 		structsEquivalent = discFile.structuresEquivalent( defaultCostume.getSkeletonRoot(), discFile.getSkeletonRoot(), True, None, [JointObjDesc, InverseMatrixObjDesc] )
 			# 		print( discFile.charAbbr + discFile.colorAbbr + ' skele equivalent to Nr costume: ' + str(structsEquivalent) )
+
+			# if discFile.__class__.__name__ == 'CharDataFile':
+			# 	lookupTable = discFile.getModelLookupTable()
+			# 	print( discFile.filename + ' | ' + discFile.charName )
+			# 	print( lookupTable.getValues() )
 			
 			self.isoFileTree.insert( parent, 'end', iid=discFile.isoPath, text=' ' + entryName, values=(description, 'file') )
 		except Exception as err:

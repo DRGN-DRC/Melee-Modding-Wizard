@@ -406,6 +406,8 @@ class RenderEngine( Tk.Frame ):
 
 		self.skeleton = {}
 		Bone.count = 0
+		dobjClass = globalData.fileStructureClasses.get( 'DisplayObjDesc' )
+		dobjClass.count = 0
 
 		child = rootJoint.initChild( 'JointObjDesc', 2 )
 
@@ -426,6 +428,26 @@ class RenderEngine( Tk.Frame ):
 		self.edges.append( bone )
 		self.skeleton[thisJoint.offset] = bone
 
+		# Give IDs to the primary Display Objects (useful for determining high/low-model parts)
+		dobj = thisJoint.initChild( 'DisplayObjDesc', 4 )
+		if dobj:
+			dobjClass = globalData.fileStructureClasses.get( 'DisplayObjDesc' )
+			for offset in dobj.getSiblings():
+				sibling = thisJoint.dat.getStruct( offset )
+				if sibling:
+					sibling.id = dobjClass.count
+					dobjClass.count += 1
+		
+		# Give IDs to the primary Display Objects (useful for determining high/low-model parts)
+		dobj = parentJoint.initChild( 'DisplayObjDesc', 4 )
+		if dobj:
+			dobjClass = globalData.fileStructureClasses.get( 'DisplayObjDesc' )
+			for offset in dobj.getSiblings():
+				sibling = parentJoint.dat.getStruct( offset )
+				if sibling:
+					sibling.id = dobjClass.count
+					dobjClass.count += 1
+
 		# Check for children to add
 		childJoint = thisJoint.initChild( 'JointObjDesc', 2 )
 		if childJoint:
@@ -445,7 +467,10 @@ class RenderEngine( Tk.Frame ):
 
 		""" Recursively scans the given joint and all child/next joints for 
 			Display Objects and Polygon Objects. Breaks down Polygon Objects 
-			into primitives and renders them to the display. """
+			into primitives and renders them to the display. This method is 
+			used for model parts with static rigging (no animations) as it only 
+			applys translations from parent joints (ignoring rotation/scale) 
+			and does not use a skeleton. """
 
 		# https://www.flipcode.com/documents/matrfaq.html#Q1 #todo
 
@@ -1467,6 +1492,7 @@ class Bone( Edge ):
 		super( Bone, self ).__init__( vertices, None, colors, tags, show, thickness )
 
 		self.name = 'Joint_' + str( Bone.count )
+		self.joint = joint
 		Bone.count += 1
 		self.parent = parent.offset
 		self.children = []

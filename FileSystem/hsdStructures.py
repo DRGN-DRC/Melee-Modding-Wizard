@@ -425,28 +425,7 @@ class StructBase( object ):
 
 		allSiblingStructs = [] # List of actual structure objects, used to share the final siblings list to all structs
 
-		if not nextOnly: # Look for previous siblings which point to this struct
-			# parentOffsets = self.getParents()
-			# currentStruct = self
-
-			# while parentOffsets:
-			# 	for offset in parentOffsets:
-			# 		if offset == currentStruct.offset: continue
-
-			# 		# Check if the higher-level parent struct is actually a sibling of the current struct
-			# 		elif currentStruct.isSibling( offset ): # Basically checks if a 'Next_' field was referenced to point to this struct
-			# 			sibs.insert( 0, offset )
-
-			# 			# Change to the previous sibling, and then check that structure too (do this recursively to the first sibling)
-			# 			currentStruct = self.dat.structs[ offset ]
-			# 			allSiblingStructs.insert( 0, currentStruct ) # Prepends instead of adding to the end
-
-			# 			parentOffsets = currentStruct.getParents()
-			# 			break
-
-			# 	else: # Above loop didn't break; none of the current parents are a sibling
-			# 		parentOffsets = None
-
+		if not nextOnly:
 			# Recursively search for prior sibling structs until none are found
 			currentStruct = self
 			while currentStruct:
@@ -548,23 +527,32 @@ class StructBase( object ):
 
 	def initChild( self, structClass, valueIndex=-1, valueName='' ):
 
-		""" Initializes a child structure of the given class and returns it. """
+		""" Initializes a child structure of the given class and returns it. 
+			The given class may be the actual class object, or a string of it. 
+			The value to use as the child pointer may be given by valueIndex, 
+			OR by the valueName (the value's field name). """
+		
+		assert valueIndex != -1 or valueName != '', 'Invalid call to Struct.initChild(); no valueIndex or valueName provided.'
 
 		if isinstance( structClass, str ):
 			structClass = globalData.fileStructureClasses.get( structClass )
 		
-		if valueIndex != -1:
-			pointer = self.getValues()[valueIndex]
-		elif valueName:
-			pointer = self.getValues( valueName )
-		else:
-			print( 'Invalid call to Struct.initChild(); no valueIndex or valueName provided.' )
+		# Ensure we have a value index
+		if valueIndex == -1:
+			if valueName not in self.fields:
+				print( 'Unable to initialize child struct; field name "{}" not found.'.format(valueName) )
+				return None
+			
+			valueIndex = self.fields.index( valueName )
+		
+		# Get the pointer offset and ensure there's a valid pointer there
+		pointerOffset = self.valueIndexToOffset( valueIndex )
+		if pointerOffset not in self.dat.pointerOffsets:
 			return None
+		
+		pointer = self.getValues()[valueIndex]
 
-		if pointer == 0:
-			return None
-
-		return self.dat.initSpecificStruct( structClass, pointer, self.offset )
+		return self.dat.initSpecificStruct( structClass, pointer, self.offset, printWarnings=False )
 
 	def getChildren( self, includeSiblings=False ):
 
@@ -1471,6 +1459,8 @@ class DisplayObjDesc( StructBase ):
 	 	a material with color and/or textures and other rendering properties, 
 		and a mesh. """
 
+	count = 0
+
 	def __init__( self, *args, **kwargs ):
 		StructBase.__init__( self, *args, **kwargs )
 
@@ -1484,6 +1474,7 @@ class DisplayObjDesc( StructBase ):
 		self.length = 0x10
 		self.childClassIdentities = { 1: 'DisplayObjDesc', 2: 'MaterialObjDesc', 3: 'PolygonObjDesc' }
 		self._pobj = None
+		self.id = -1
 
 	def validated( self, deducedStructLength=-1 ):
 		if not super( DisplayObjDesc, self ).validated( False, deducedStructLength ): 
@@ -1499,6 +1490,7 @@ class DisplayObjDesc( StructBase ):
 				return False
 
 		self.provideChildHints()
+
 		return True
 
 	@property
@@ -1508,6 +1500,40 @@ class DisplayObjDesc( StructBase ):
 			if pointer == 0: return None
 			self._pobj = self.dat.initSpecificStruct( PolygonObjDesc, pointer, self.offset )
 		return self._pobj
+	
+	def getBoneAttachments( self ):
+
+		""" Returns a list of bones (joint offsets) that this mesh is attached to or influenced by. """
+
+		bones = []
+		polygonObj = self.initChild( PolygonObjDesc, 3 )
+
+		if polygonObj.isEnvelope:
+			# Get a list of envelope objects from the envelope array
+			envelopeArray = polygonObj.initChild( EnvelopeArray, 6 )
+			envelopes = envelopeArray.getEnvelopes()
+
+			# Collect joints (bones) from the envelopes
+			for envelope in envelopes:
+				for _, ( jointPointer, weight ) in envelope.iterateEntries():
+					if weight == 0:
+						continue
+					joint = self.dat.initSpecificStruct( JointObjDesc, jointPointer, envelope.offset )
+					bones.append( joint.offset )
+		
+		elif polygonObj.hasJObjRef:
+			# Return just the single joint referenced
+			bone = polygonObj.initChild( JointObjDesc, 6 )
+			bones.append( bone.offset )
+		
+		else:
+			# Get the parent joint this DObj is attached to
+			for parentOffset in self.getParents():
+				joint = self.dat.initSpecificStruct( JointObjDesc, parentOffset )
+				if joint:
+					bones.append( joint.offset )
+
+		return bones
 
 
 class InverseMatrixObjDesc( StructBase ):
@@ -1522,7 +1548,6 @@ class InverseMatrixObjDesc( StructBase ):
 						'M20', 'M21', 'M22', 'M23',
 					)
 		self.length = 0x30
-		self.childClassIdentities = {}
 		self._siblingsChecked = True
 		self._childrenChecked = True
 
@@ -1648,10 +1673,10 @@ class InverseMatrixObjDesc( StructBase ):
 		v = self.getValues()
 
 		matrix = ( 
-			v[0], v[4], v[8],  0, 
-			v[1], v[5], v[9],  0, 
-			v[2], v[6], v[10], 0, 
-			v[3], v[7], v[11], 1, 
+			v[0], v[4], v[8],  0.0, 
+			v[1], v[5], v[9],  0.0, 
+			v[2], v[6], v[10], 0.0, 
+			v[3], v[7], v[11], 1.0, 
 		)
 
 		return matrix
@@ -1816,8 +1841,7 @@ class PolygonObjDesc( StructBase ): # A.k.a. Meshes
 
 		# Get a list of envelope objects from the envelope array
 		envelopeArray = self.initChild( EnvelopeArray, 6 )
-		envelopePointers = envelopeArray.getValues()[:-1] # Exclude last entry (the null terminator)
-		envelopes = [ self.dat.initSpecificStruct(EnvelopeObjDesc, offset, envelopeArray.offset) for offset in envelopePointers ]
+		envelopes = envelopeArray.getEnvelopes()
 
 		for vl in vertexLists:
 			# Prepare for iterating over individual vertex coordinates
@@ -1912,6 +1936,16 @@ class VertexAttributesArray( TableStruct ):
 		StructBase.__init__( self, *args, **kwargs )
 
 		self.name = 'Vertex Attributes Array ' + uHex( 0x20 + args[1] )
+		self.fields = (	'Attribute_Name',			# 0x0  -{ GXAttr
+						'Attribute_Type',			# 0x4  -{ GXAttrType (i.e. index type)
+						'Component_Count',			# 0x8  -{ GXCompCnt ('Comp' may also be PosComp/NrmComp/ClrComp/TexComp)
+						'Component_Type',			# 0xC  -{ GXCompType/GXClrCompType (i.e. value formatting; int8, uint16, etc.)
+						'Scale',					# 0x10 -{ 
+						'Padding',					# 0x11 -{ 
+						'Stride',					# 0x12 -{ 
+						'Vertex_Data_Pointer' )		# 0x14 -{ 
+		self.formatting = '>IIIIBBHI'
+		self.length = 0x18
 
 		# Attempt to get the length and array count of this struct
 		deducedStructLength = self.dat.getStructLength( self.offset ) # This length will include any padding too
@@ -1931,24 +1965,9 @@ class VertexAttributesArray( TableStruct ):
 			except:
 				self.entryCount = -1
 
-		# Need to set some properties at instance level, rather than usual class level, since they can change
-		self.fields = (	'Attribute_Name',			# 0x0  -{ GXAttr
-						'Attribute_Type',			# 0x4  -{ GXAttrType (i.e. index type)
-						'Component_Count',			# 0x8  -{ GXCompCnt ('Comp' may also be PosComp/NrmComp/ClrComp/TexComp)
-						'Component_Type',			# 0xC  -{ GXCompType/GXClrCompType (i.e. value formatting; int8, uint16, etc.)
-						'Scale',					# 0x10 -{ 
-						'Padding',					# 0x11 -{ 
-						'Stride',					# 0x12 -{ 
-						'Vertex_Data_Pointer' )		# 0x14 -{ 
-			
-		# Use the above info to dynamically build this struct's properties
-		self.formatting = '>IIIIBBHI'
-		self.length = 0x18
-
 		TableStruct.__init__( self )
 
-		self.childClassIdentities = {}
-		for i in range( 7, len(self.fields), 8 ):
+		for i in range( 7, len(self.fields), self.entryValueCount ):
 			self.childClassIdentities[i] = 'VertexDataBlock'
 		self._siblingsChecked = True
 		self._attributeInfo = []
@@ -2139,15 +2158,21 @@ class EnvelopeArray( StructBase ):
 		# Use the above info to dynamically build this struct's basic properties
 		self.formatting = '>' + ( 'I' * self.entryCount ) + 'I'
 		self.fields = ( 'Envelope_Pointer', ) * self.entryCount + ( 'Null Terminator', )
-		self.childClassIdentities = {}
 		for i in range( 0, self.entryCount ):
 			self.childClassIdentities[i] = 'EnvelopeObjDesc'
+
+	def getEnvelopes( self ):
+
+		""" Returns a list of the envelope objects described by this array. """
+
+		envelopePointers = self.getValues()[:-1] # Exclude last entry (the null terminator)
+		return [ self.dat.initSpecificStruct(EnvelopeObjDesc, offset, self.offset) for offset in envelopePointers ]
 
 
 class EnvelopeObjDesc( TableStruct ):
 
 	""" Describes a series of inverse bind matrices and weights for their application to 
-		vertices. The inverse bind matrices are attached to JObjs pointed to by this struct. """
+		vertices. The inverse bind matrices are attached to JObjs described by this struct. """
 
 	def __init__( self, *args, **kwargs ):
 		StructBase.__init__( self, *args, **kwargs )
@@ -2165,8 +2190,7 @@ class EnvelopeObjDesc( TableStruct ):
 
 		TableStruct.__init__( self )
 
-		self.childClassIdentities = {}
-		for i in range( 0, self.entryCount*2, 2 ):
+		for i in range( 0, self.entryCount*2, self.entryValueCount ):
 			self.childClassIdentities[i] = 'JointObjDesc'
 
 	def applyMatrices( self, x, y, z, skeleton ):
@@ -2222,18 +2246,18 @@ class EnvelopeObjDesc( TableStruct ):
 
 			return weightedVertex
 
-	def _matrixMultiply( self, matrix, vertex ):
+	# def _matrixMultiply( self, matrix, vertex ):
 
-		""" Multipies a 3x3 matrix with a vertex to transform it. """
+	# 	""" Multipies a 3x3 matrix with a vertex to transform it. """
 
-		coordCount = len( vertex )
-		result = [ 0.0 ] * coordCount
+	# 	coordCount = len( vertex )
+	# 	result = [ 0.0 ] * coordCount
 
-		for i in range( len(matrix) ):
-			for j in range( coordCount ):
-				result[i] += matrix[i][j] * vertex[j]
+	# 	for i in range( len(matrix) ):
+	# 		for j in range( coordCount ):
+	# 			result[i] += matrix[i][j] * vertex[j]
 
-		return result
+	# 	return result
 
 def matrix_multiply(matrix1, matrix2):
 	result = []
@@ -2369,7 +2393,6 @@ class MaterialColorObjDesc( StructBase ):
 						'Shininess'
 					)
 		self.length = 0x14
-		self.childClassIdentities = {}
 		self._siblingsChecked = True
 		self._childrenChecked = True
 
@@ -2433,7 +2456,6 @@ class PixelProcObjDesc( StructBase ): # Pixel Processor Struct (PEDesc)
 						'Alpha Compare 1'			#			(comp1)
 					)
 		self.length = 0xC
-		self.childClassIdentities = {}
 		self._siblingsChecked = True
 		self._childrenChecked = True
 
@@ -2550,7 +2572,6 @@ class LodObjDes( StructBase ):	# Level Of Detail
 						'Max_Anisotrophy'	# GXAnisotropy
 					)
 		self.length = 0x10
-		self.childClassIdentities = {}
 		self._siblingsChecked = True
 		self._childrenChecked = True
 
@@ -2591,7 +2612,6 @@ class TevObjDesc( StructBase ):
 						'Active'
 					)
 		self.length = 0x20
-		self.childClassIdentities = {}
 		self._siblingsChecked = True
 		self._childrenChecked = True
 
@@ -2626,7 +2646,6 @@ class CameraObjDesc( StructBase ): # CObjDesc
 						'Projection_Right'	# 0x3C
 					)
 		self.length = 0x40
-		self.childClassIdentities = {}
 		self._siblingsChecked = True
 
 
@@ -2767,8 +2786,7 @@ class MapGeneralPointsArray( TableStruct ):
 
 		TableStruct.__init__( self )
 
-		self.childClassIdentities = {}
-		for i in range( 0, len(self.fields), 3 ):
+		for i in range( 0, len(self.fields), self.entryValueCount ):
 			self.childClassIdentities[i] = 'JointObjDesc'
 			self.childClassIdentities[i+1] = 'MapPointTypesArray'
 
@@ -2815,7 +2833,6 @@ class MapPointTypesArray( TableStruct ):
 		self.formatting = '>HH'
 		self.fields = ( 'Joint_Object_Index', 'Point_Type' )
 		self.length = 4
-		self.childClassIdentities = {}
 
 		TableStruct.__init__( self )
 		self._childrenChecked = True
@@ -2829,13 +2846,6 @@ class MapGameObjectsArray( TableStruct ):	# Makes up an array of GOBJs (a.k.a. G
 		StructBase.__init__( self, *args, **kwargs )
 
 		self.name = 'Game Objects Array ' + uHex( 0x20 + args[1] )
-
-		# Check the parent's Game_Objects_Array_Count to see how many elements should be in this array structure
-		parentOffset = self.getAnyDataSectionParent()
-		parentStruct = self.dat.initSpecificStruct( MapHeadObjDesc, parentOffset )
-		self.entryCount = parentStruct.getValues()[3]
-
-		# Need to set some properties at instance level, rather than usual class level, since they can change
 		self.fields = (	'Root_Joint_Pointer',				# 0x0
 						'Joint_Anim_Array_Pointer',			# 0x4
 						'Material_Anim_Array_Pointer',		# 0x8
@@ -2850,14 +2860,17 @@ class MapGameObjectsArray( TableStruct ):	# Makes up an array of GOBJs (a.k.a. G
 						'Shadow_Enable_Array_Pointer',		# 0x2C		Points to a null-terminated halfword array
 						'Shadow_Enable_Array_Count',		# 0x30
 					)
-
 		self.formatting = '>IIIIIIIIIIIII'
 		self.length = 0x34
-		
+
+		# Check the parent's Game_Objects_Array_Count to see how many elements should be in this array structure
+		parentOffset = self.getAnyDataSectionParent()
+		parentStruct = self.dat.initSpecificStruct( MapHeadObjDesc, parentOffset )
+		self.entryCount = parentStruct.getValues()[3]
+
 		TableStruct.__init__( self )
 
-		self.childClassIdentities = {}
-		for i in range( 0, len(self.fields), 13 ):
+		for i in range( 0, len(self.fields), self.entryValueCount ):
 			self.childClassIdentities[i] = 'JointObjDesc'
 			self.childClassIdentities[i+1] = 'JointAnimStructArray'
 			#self.childClassIdentities[i+2] = 'MatAnimJointDesc'
@@ -3029,7 +3042,6 @@ class MapLinkTable( StructBase ):
 		parentStruct = self.dat.initSpecificStruct( MapCollisionData, parentOffset )
 		self.entryCount = parentStruct.getValues()[3]
 
-		# Need to set some properties at instance level, rather than usual class level, since they can change
 		fields = (
 			'Starting_Spot_Index', 
 			'Ending_Spot_Index',
@@ -3127,7 +3139,6 @@ class MapAreaTable( StructBase ): # A.k.a. Line Groups
 		self.entryCount = parentStruct.getValues()[15]
 		#print 'entry count for Area Table:', hex( self.entryCount ), 'length:', hex(0x28*self.entryCount), 'apparent length:', hex(self.dat.getStructLength( self.offset ))
 
-		# Need to set some properties at instance level, rather than usual class level, since they can change
 		fields = (  'Top_Link_Index', 
 					'Top_Links_Count',
 					'Bottom_Link_Index', 
@@ -3383,7 +3394,7 @@ class JointAnimStructArray( StructBase ):
 		self.formatting = '>' + ( 'I' * self.entryCount )
 		self.fields = ( 'Joint_Anim._Struct_Pointer', ) * ( self.entryCount - 1 ) + ( 'Null Terminator', )
 		self.length = structLength
-		self.childClassIdentities = {}
+
 		for i in range( 0, self.entryCount - 1 ):
 			self.childClassIdentities[i] = 'JointAnimationDesc'
 
@@ -3605,7 +3616,7 @@ class ImageHeaderArray( StructBase ):
 		self.formatting = '>' + ( 'I' * self.entryCount )
 		self.fields = ( 'Image_Header_Pointer', ) * self.entryCount
 		self.length = 4 * self.entryCount
-		self.childClassIdentities = {}
+
 		for i in range( 0, self.entryCount ):
 			self.childClassIdentities[i] = 'ImageObjDesc'
 
@@ -3627,7 +3638,7 @@ class PaletteHeaderArray( StructBase ):
 		self.formatting = '>' + ( 'I' * self.entryCount )
 		self.fields = ( 'Palette_Header_Pointer', ) * self.entryCount
 		self.length = 4 * self.entryCount
-		self.childClassIdentities = {}
+
 		for i in range( 0, self.entryCount ):
 			self.childClassIdentities[i] = 'PaletteObjDesc'
 

@@ -348,6 +348,18 @@ class CharDataFile( CharFileBase, DatFile ):
 		
 		return propStruct
 
+	def getModelLookupTable( self ):
+
+		self.initialize()
+
+		# Get the root fighter data table
+		fighterTableOffset = self.rootNodes[0][0] # Root nodes is a list of tuples, each of the form ( structOffset, string )
+		ftDataTable = self.initSpecificStruct( FighterDataTable, fighterTableOffset )
+
+		# Get and return the lookup table
+		tablePointer = ftDataTable.getValues()[2]
+		return self.initSpecificStruct( ModelLookupTables, tablePointer, ftDataTable.offset )
+
 	def getActionTable( self ):
 
 		self.initialize()
@@ -358,7 +370,7 @@ class CharDataFile( CharFileBase, DatFile ):
 
 		# Get and return the action table
 		actionTablePointer = ftDataTable.getValues()[3]
-		return self.getStruct( actionTablePointer )
+		return self.initSpecificStruct( ActionTable, actionTablePointer, ftDataTable.offset )
 
 
 class FighterDataTable( StructBase ):
@@ -398,7 +410,183 @@ class FighterDataTable( StructBase ):
 		self.length = 0x60
 		self.structDepth = ( 2, 0 )
 		self._siblingsChecked = True
-		self.childClassIdentities = { 0: 'GeneralFighterProperties', 1: 'SpecialCharacterAttributes', 3: 'ActionTable' }
+		self.childClassIdentities = { 
+			0: 'GeneralFighterProperties', 
+			1: 'SpecialCharacterAttributes', 
+			2: 'ModelLookupTables', 
+			3: 'ActionTable' 
+		}
+
+
+class ModelLookupTables( StructBase ):
+
+	""" Character model-part lookup table, used to determine which parts of 
+		a model should be visible (such as for high-poly or low-poly), along 
+		with information on some specific materials and bones. """
+
+	def __init__( self, *args, **kwargs ):
+		StructBase.__init__( self, *args, **kwargs )
+
+		self.name = 'Model Lookup Table ' + uHex( 0x20 + self.offset )
+		self.formatting = '>IIIIBBBBBBH'
+		self.fields = ( 'Visibility_Group_Lookup_Lengths',
+						'Part_Visibility_Table_Pointer',
+						'Material_Group_Lookup_Lengths',
+						'Material_Lookup_Table_Pointer',
+						'Item_Hold_Bone',
+						'Shield_Bone',
+						'TopOfHead_Bone',
+						'LeftFoot_Bone',
+						'RightFoot_Bone',
+						'Padding',
+						'Padding'
+					)
+		self.length = 0x18
+		self.structDepth = ( 3, 0 )
+		self._siblingsChecked = True
+		self.childClassIdentities = { 
+			1: 'CostumeVisibilityTable', 
+			#3: 'MaterialLookupTable'
+		}
+
+
+class CostumeVisibilityTable( TableStruct ):
+
+	""" Character model-part lookup table, used to determine which parts of 
+		a model should be visible (such as for high-poly or low-poly). This 
+		table contains 4 values per entry, where each entry is for each one 
+		of the costume slots available for this character. """
+
+	def __init__( self, *args, **kwargs ):
+		StructBase.__init__( self, *args, **kwargs )
+
+		self.name = 'Part Visibility Table' + uHex( 0x20 + self.offset )
+		self.formatting = '>IIII'
+		self.fields = ( 'High_Poly_Group_Pointer',
+						'Low_Poly_Group_Pointer',
+						'Metal_Group_Pointer',
+						'Metal_Main_Group_Pointer'
+					)
+		self.length = 0x10
+		self.structDepth = ( 4, 0 )
+		self._siblingsChecked = True
+
+		# Attempt to get the length and array count of this struct
+		deducedStructLength = self.dat.getStructLength( self.offset )
+		self.entryCount = deducedStructLength / 0x10
+
+		TableStruct.__init__( self )
+
+		for i in range( 0, len(self.fields) ):
+			self.childClassIdentities[i] = 'GroupLookupArray'
+
+
+class GroupLookupArray( TableStruct ):
+
+	""" An array of Count and Pointer entries. """
+
+	def __init__( self, *args, **kwargs ):
+		StructBase.__init__( self, *args, **kwargs )
+
+		self.name = 'Group Lookup Array' + uHex( 0x20 + self.offset )
+		self.formatting = '>II'
+		self.fields = ( 'SubArray_Count', 'SubGroup_Pointer' )
+		self.length = 8
+		self.structDepth = ( 5, 0 )
+		self._siblingsChecked = True
+
+		# Get the array count for this struct
+		lookupTable = self.dat.getModelLookupTable()
+		self.entryCount = lookupTable.getValues()[0]
+
+		TableStruct.__init__( self )
+
+		for i in range( 0, len(self.fields), self.entryValueCount ):
+			self.childClassIdentities[i+1] = 'SubGroupLookupArray'
+
+	def initChildren( self ):
+
+		""" Initializes all child structs with the entryCount values present in this struct. """
+
+		children = []
+
+		for _, ( count, subGroupPointer ) in self.iterateEntries():
+			if count == 0:
+				continue
+
+			subGroupArray = self.dat.initSpecificStruct( SubGroupLookupArray, subGroupPointer, self.offset, (6, 0), count )
+			if subGroupArray:
+				children.append( subGroupArray )
+
+		return children
+	
+	def getLookupIds( self ):
+
+		""" Initializes all child SubGroup Arrays, gets all of their children (LookupEntry structs), 
+			and processes them to get their ID values. """
+
+		entries = []
+
+		for subGroupArray in self.initChildren():
+			lookupEntries = subGroupArray.initChildren()
+			for entry in lookupEntries:
+				entries.extend( entry.getValues() )
+
+		return entries
+
+
+class SubGroupLookupArray( TableStruct ):
+
+	""" An array of Count and Pointer entries. """
+
+	def __init__( self, *args, **kwargs ):
+		StructBase.__init__( self, *args, **kwargs )
+
+		self.name = 'SubGroup Lookup Array' + uHex( 0x20 + self.offset )
+		self.formatting = '>II'
+		self.fields = ( 'Lookup_Entry_Count', 'Lookup_Pointer' )
+		self.length = 8
+		self.structDepth = ( 6, 0 )
+		self._siblingsChecked = True
+
+		# Get the array count for this struct (unused if parent's "initChildren" is used)
+		if self.entryCount == -1:
+			# Check the parent's SubArray_Count to see how many elements should be in this array
+			parentOffset = self.getAnyDataSectionParent()
+			parentStruct = self.dat.initSpecificStruct( GroupLookupArray, parentOffset )
+			for _, ( count, pointer ) in parentStruct.iterateEntries():
+				if pointer == self.offset:
+					self.entryCount = count
+					break
+
+		TableStruct.__init__( self )
+
+		for i in range( 0, len(self.fields), self.entryValueCount ):
+			self.childClassIdentities[i+1] = 'LookupEntry'
+
+	def initChildren( self ):
+
+		""" Initializes all child structs with the idCount (data length) values present in this struct. """
+
+		children = []
+
+		for _, ( idCount, entryPointer ) in self.iterateEntries():
+			if idCount == 0:
+				continue
+
+			lookupEntry = self.dat.initDataBlock( LookupEntry, entryPointer, self.offset, (7, 0), idCount )
+			if lookupEntry:
+				children.append( lookupEntry )
+
+		return children
+
+
+class LookupEntry( DataBlock ):
+
+	def __init__( self, *args, **kwargs ):
+		StructBase.__init__( self, *args, **kwargs )
+
+		self.name = 'Lookup Entry ' + uHex( 0x20 + self.offset )
 
 
 class GeneralFighterProperties( DataBlock ):
@@ -593,8 +781,7 @@ class ActionTable( TableStruct ):
 		TableStruct.__init__( self )
 		#super( ActionTable, self ).__init__( self ) # probably should use this instead
 
-		self.childClassIdentities = {}
-		for i in range( 3, len(self.fields), 8 ):
+		for i in range( 3, len(self.fields), self.entryValueCount ):
 			self.childClassIdentities[i] = 'SubAction'
 
 
@@ -1060,6 +1247,19 @@ class CharCostumeFile( CharFileBase, DatFile ):
 
 		return colorAbbr
 
+	def getCostumeId( self ):
+
+		""" Converts this file's costume color to an index or costume ID, 
+			which the game uses to choose a costume file. This will default 
+			to 0 (the neutral/Nr slot) if the character is not found, which 
+			is fine for "extra" characters such as Master Hand or Wireframes. """
+
+		char = self.charAbbr
+		color = self.colorAbbr
+
+		colorSlots = globalData.costumeSlots.get( char, ('Nr',) )
+		return colorSlots.index( color )
+
 	def getDescription( self ):
 		
 		# Attempt to get the character name this file is for
@@ -1120,23 +1320,10 @@ class CharCostumeFile( CharFileBase, DatFile ):
 
 		return filename
 
-	def getCostumeId( self ):
-
-		""" Converts this file's costume color to an index or costume ID, 
-			which the game uses to choose a costume file. This will default 
-			to 0 (the neutral/Nr slot) if the character is not found, which 
-			is fine for "extra" characters such as Master Hand or Wireframes. """
-
-		char = self.charAbbr
-		color = self.colorAbbr
-
-		colorSlots = globalData.costumeSlots.get( char, ('Nr',) )
-		return colorSlots.index( color )
-
 	def getSkeletonRoot( self ):
 
 		""" Returns the root bone in the model's skeleton 
-			(first child bone of the root node structure). """
+			(first bone of the first root node structure). """
 		
 		# Ensure root nodes and the string table have been parsed
 		self.initialize()
@@ -1144,9 +1331,6 @@ class CharCostumeFile( CharFileBase, DatFile ):
 		firstNodeOffset, firstNodeString = self.rootNodes[0]
 		assert firstNodeString.endswith( 'Share_joint' ), 'Unable to get skeleton; incorrect root node string encountered: ' + firstNodeString
 
-		# Get the skeleton struct (should be the first child joint/bone of the first root node)
+		# Get the skeleton struct (should be the joint/bone of the first root node)
 		jointClass = globalData.fileStructureClasses['JointObjDesc']
-		rootBone = self.initSpecificStruct( jointClass, firstNodeOffset )
-		skeletonStructOffset = rootBone.getValues( 'Child_Pointer' )
-		
-		return self.initSpecificStruct( jointClass, skeletonStructOffset )
+		return self.initSpecificStruct( jointClass, firstNodeOffset )
