@@ -94,7 +94,7 @@ class StructBase( object ):
 
 		# Separate the actual struct data from any padding, and perform some basic validation
 		structData = self.dat.getData( self.offset, deducedStructLength )
-		paddingData = structData[self.offset + self.length:]
+		paddingData = structData[self.length:]
 		structData = structData[:self.length] # Trim off any padding
 		if not any( structData ):
 			# Check if there's a class hint for this struct
@@ -107,7 +107,8 @@ class StructBase( object ):
 				skipValuesValidation = True
 			else:
 				return False # Assume it's an unknown structure
-		if any( paddingData ): return False # If values are found in the padding, it's probably not padding (and thus it's an unknown structure)
+		if any( paddingData ):
+			return False # If values are found in the padding, it's probably not padding (and thus it's an unknown structure)
 
 		# Invalidate based on the expectation of children
 		if not self.childClassIdentities and self.hasChildren():

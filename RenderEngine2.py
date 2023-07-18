@@ -533,10 +533,19 @@ class RenderEngine( Tk.Frame ):
 		else:
 			dobjOffsets = [ parentDobj.offset ]
 
+		# Check current vertexList tags to prevent creating duplicate DObjs
+		vertexListTags = set()
+		for vertList in self.getObjects( 'vertexList' ):
+			vertexListTags.update( vertList.tags )
+
 		try:
 			# Iterate over this DObj (and its siblings, if enabled)
-			for offset in dobjOffsets:
-				dobj = parentDobj.dat.getStruct( offset )
+			for dobjOffset in reversed( dobjOffsets ):
+				dobj = parentDobj.dat.getStruct( dobjOffset )
+
+				# Prevent creating duplicate DObjs
+				if dobjOffset in vertexListTags:
+					continue
 
 				# Check for a polygon object to render
 				pobj = dobj.PObj
@@ -568,10 +577,10 @@ class RenderEngine( Tk.Frame ):
 						print( '{} isShapeSet'.format(pobj.name) )
 					elif pobj.hasJObjRef:
 						print( '{} hasJObjRef'.format(pobj.name) )
-					else:
-						print( 'no matrices to apply' )
+					# else:
+					# 	print( 'no matrices to apply' )
 
-					self.addVertexLists( pobjPrimitives, textureGroup, offset, pobjOffset )
+					self.addVertexLists( pobjPrimitives, textureGroup, dobjOffset, pobjOffset )
 					primitives.extend( pobjPrimitives )
 
 		# except AttributeError:
