@@ -23,7 +23,7 @@ from collections import OrderedDict
 # Internal dependencies
 import globalData
 from tplCodec import TplDecoder
-from FileSystem import hsdStructures, DatFile, CharCostumeFile
+from FileSystem import hsdStructures, DatFile, CharCostumeFile, StageFile
 from RenderEngine2 import RenderEngine
 from basicFunctions import isNaN, validHex, humansize, grammarfyList, msg, copyToClipboard, printStatus, uHex, constructTextureFilename
 from guiSubComponents import ( ColoredLabelButton, LabelButton, exportMultipleTextures, getColoredShape, importSingleTexture, 
@@ -1115,15 +1115,21 @@ class TexturesEditorTab( ttk.Frame ):
 			# Add the rendering widget if it's not present
 			if not modelPane.engine:
 				modelPane.engine = RenderEngine( modelPane, (440, 300), False, background=globalData.gui.defaultSystemBgColor, borderwidth=0, relief='groove' )
-				modelPane.engine.zNear = .5; modelPane.engine.zFar = 250
 
 				# If this is a character file, initialize the model's skeleton
 				if isinstance( self.file, CharCostumeFile ):
 					rootJoint = self.file.getSkeletonRoot()
 					modelPane.engine.loadSkeleton( rootJoint, modelPane.showBones.get() )
+
+				# Set frustum limits (near/far rendering limits)
+					modelPane.engine.zNear = .5; modelPane.engine.zFar = 250
+				elif isinstance( self.file, StageFile ):
+					modelPane.engine.zNear = 10.0; modelPane.engine.zFar = 4000
+				else:
+					modelPane.engine.zNear = 1.0; modelPane.engine.zFar = 1000
 			
 			modelPane.engine.pack( pady=(vertPadding, 4) )
-			
+
 			# Add a button to access the render options, and repopulate the window if it's open
 			modelPane.renderOptionsBtn = ColoredLabelButton( modelPane, 'gear', self.showDisplayOptions, 'Display Options' )
 			modelPane.renderOptionsBtn.place( anchor='ne', relx=1.0, x=-6, y=6 )
@@ -1147,7 +1153,7 @@ class TexturesEditorTab( ttk.Frame ):
 				nextDobjBtn.pack( side='left' )
 				dobjSelectionControls.pack( pady=(vertPadding, 4) )
 
-			self.renderDobj()
+			self.renderDobj( [defaultPart] )
 
 		else: # No model parts detected; fall back to text descriptions of what was found
 			if modelPane.engine:
@@ -1335,11 +1341,6 @@ class TexturesEditorTab( ttk.Frame ):
 			shininessEntry.insert( 0, shininess )
 			shininessEntry.offsets = shininessHexOffsets
 
-			# Add bindings for input submission
-			# diffusionEntry.bind( '<Return>', updateEntryHex )
-			# ambienceEntry.bind( '<Return>', updateEntryHex )
-			# highlightsEntry.bind( '<Return>', updateEntryHex )
-			# shininessEntry.bind( '<Return>', updateEntryHex )
 		else:
 			# Disable the render checkbuttons and transparency controls
 			modelPane.hideJointChkBtn.configure( state='disabled' )
@@ -1358,38 +1359,87 @@ class TexturesEditorTab( ttk.Frame ):
 									'If this is part of a texture animation, find the default/starting texture for it and edit the structs for that instead.' )
 			ttk.Label( modelPane, text=disabledControlsText, wraplength=wraplength ).pack( pady=(vertPadding, 0) )
 
-	def renderDobj( self, updateOptionsWindow=False ):
-		
-		""" Sets a particular model part to render in the Model tab for the currently selected texture. """
-		
-		# Get the part to render
+	def renderPrevDobj( self, event ):
 		modelPane = self.modelPropertiesPane.interior
+		if modelPane.partIndex <= 0:
+			modelPane.partIndex = len( modelPane.displayObjects ) - 1
+		else:
+			modelPane.partIndex -= 1
+		
 		modelPart = modelPane.displayObjects[modelPane.partIndex]
 
-		# Render the model part (DObj for this texture) and focus the camera on it
-		modelPane.engine.clearRenderings()
-		#modelPane.engine.renderDisplayObj( modelPart, includeSiblings=modelPane.showRelatedParts.get() )
-		if not modelPane.showRelatedParts.get():
-			# Just display this one part
-			modelPane.engine.renderDisplayObj( modelPart, includeSiblings=False )
-		elif not isinstance( self.file, CharCostumeFile ):
-			# Show this part and all related (sibling) Display Objects
-			modelPane.engine.renderDisplayObj( modelPart, includeSiblings=True )
-		else:
-			# Use the model's skeleton to find a few near-by parts
-			for partOffset in self.findRelatedParts( modelPart, modelPane.engine.skeleton ):
-				part = self.file.getStruct( partOffset )
-				modelPane.engine.renderDisplayObj( part, includeSiblings=False )
+		self.renderDobj( [modelPart], True )
 
-		# Align the camera to the object
+	def renderNextDobj( self, event ):
+		modelPane = self.modelPropertiesPane.interior
+		if modelPane.partIndex >= len( modelPane.displayObjects ) - 1:
+			modelPane.partIndex = 0
+		else:
+			modelPane.partIndex += 1
+		
+		modelPart = modelPane.displayObjects[modelPane.partIndex]
+
+		self.renderDobj( [modelPart], True )
+
+	def renderDobj( self, modelParts, updateOptionsWindow=False ):
+		
+		""" Sets one or more model parts to render in the Model tab for the currently 
+			selected texture. The model parts given to this function should be DObjs 
+			which the currently selected texture is actually a part of or used for. 
+			However, this function may add additional model parts (DObj siblings) to 
+			provide additional visual context to the user for the rendered scene. """
+		
+		# Clear current renders
+		modelPane = self.modelPropertiesPane.interior
+		modelPane.engine.clearRenderings()
+
+		if not modelParts:
+			modelPane.dobjStringVar.set( 'No Parts Selected' )
+			return
+
+		showRelated = modelPane.showRelatedParts.get()
+		if not showRelated:
+			for modelPart in modelParts:
+				# Just display this one part
+				primitives = modelPane.engine.renderDisplayObj( modelPart, includeSiblings=False )
+
+				# Update relative position based on parent joint coordinates
+				parentJointOffset = next(iter( modelPart.getParents() ))
+				parentJoint = self.file.initSpecificStruct( hsdStructures.JointObjDesc, parentJointOffset )
+				modelPane.engine.applyJointTransformations( primitives, parentJoint )
+
+		elif isinstance( self.file, CharCostumeFile ):
+			for modelPart in modelParts:
+				# Use the model's skeleton to find a few near-by parts
+				for partOffset in self.findRelatedParts( modelPart, modelPane.engine.skeleton ):
+					part = self.file.getStruct( partOffset )
+					modelPane.engine.renderDisplayObj( part, includeSiblings=False )
+
+		else:
+			# Show this part and all related (sibling) Display Objects
+			for modelPart in modelParts:
+				primitives = modelPane.engine.renderDisplayObj( modelPart, includeSiblings=True )
+
+				# Update relative position based on parent joint coordinates
+				parentJointOffset = next(iter( modelPart.getParents() ))
+				parentJoint = self.file.initSpecificStruct( hsdStructures.JointObjDesc, parentJointOffset )
+				modelPane.engine.applyJointTransformations( primitives, parentJoint )
+
+		# Align the camera to the object(s)
 		if modelPane.autoCameraUpdates.get():
 			modelPane.engine.focusCamera( primitive='vertexList' )
 
-		# Set the label and button states
-		if len( modelPane.displayObjects ) > 1:
-			modelPane.dobjStringVar.set( '{}  ({} of {})'.format(modelPart.name, modelPane.partIndex+1, len(modelPane.displayObjects)) )
-		else:
-			modelPane.dobjStringVar.set( modelPart.name )
+		# Update the title string under the render window
+		if len( modelPane.displayObjects ) == 1:
+			modelPane.dobjStringVar.set( modelParts[0].name )
+		elif len( modelParts ) > 1: # Multiple DObjs (with or without siblings) selected for render
+			if len( modelParts ) < 4:
+				title = 'Display Objects ' + grammarfyList( ['0x{:X}'.format(0x20+obj.offset) for obj in modelParts] )
+				modelPane.dobjStringVar.set( title )
+			else:
+				modelPane.dobjStringVar.set( 'Multiple Parts Selected' )
+		else: # Multiple DObjs available, but only one is selected
+			modelPane.dobjStringVar.set( '{}  ({} of {})'.format(modelParts[0].name, modelPane.partIndex+1, len(modelPane.displayObjects)) )
 
 		# Check the box for the appropriate DObj in the render options window if it's open
 		if updateOptionsWindow and self.renderOptionsWindowIsOpen():
@@ -1399,22 +1449,6 @@ class TexturesEditorTab( ttk.Frame ):
 					checkboxStates[dobj.offset].set( True )
 				else:
 					checkboxStates[dobj.offset].set( False )
-
-	def renderPrevDobj( self, event ):
-		modelPane = self.modelPropertiesPane.interior
-		if modelPane.partIndex <= 0:
-			return
-		modelPane.partIndex -= 1
-
-		self.renderDobj( True )
-
-	def renderNextDobj( self, event ):
-		modelPane = self.modelPropertiesPane.interior
-		if modelPane.partIndex >= len( modelPane.displayObjects ) - 1:
-			return
-		modelPane.partIndex += 1
-
-		self.renderDobj( True )
 
 	def findRelatedParts( self, targetDObj, skeleton ):
 
@@ -1462,13 +1496,17 @@ class TexturesEditorTab( ttk.Frame ):
 		# Scan the skeleton for the target bones
 		relatedParts = set([ targetDObj.offset ])
 		for part in modelParts:
-			# Skip parts based on high or low-poly
-			if part.id in highPolyIds and not showHighPoly:
+			# Skip low-poly parts if they should be hidden
+			if showHighPoly and part.id not in highPolyIds:
+				continue
+
+			# Skip high-poly parts if they should be hidden
+			elif not showHighPoly and part.id in highPolyIds:
 				continue
 
 			boneAttachments = part.getBoneAttachments()
 
-			# Extend the related parts to include the parent and children of the target bone(s)
+			# If related, extend the related parts set to include the parent & children of the target bone(s)
 			for bone in targetBones:
 				if bone.parent in boneAttachments:
 					relatedParts.add( part.offset )
@@ -1483,7 +1521,7 @@ class TexturesEditorTab( ttk.Frame ):
 			Used to toggle various options for what is to be rendered. """
 
 		modelPane = self.modelPropertiesPane.interior
-		self.renderOptionsWindow = ModelTabRenderOptionsWindow( modelPane )
+		self.renderOptionsWindow = ModelTabRenderOptionsWindow( self, modelPane )
 
 	def renderOptionsWindowIsOpen( self ):
 
@@ -2495,7 +2533,7 @@ class TextureFiltersWindow( BasicWindow ):
 
 class ModelTabRenderOptionsWindow( BasicWindow ):
 
-	def __init__( self, modelPane ):
+	def __init__( self, editorTab, modelPane ):
 
 		self.file = modelPane.displayObjects[0].dat
 		windowTitle = 'Model Render Options ({})'.format( self.file.filename )
@@ -2503,6 +2541,7 @@ class ModelTabRenderOptionsWindow( BasicWindow ):
 		if not BasicWindow.__init__( self, globalData.gui.root, windowTitle, resizable=True, unique=True ):
 			return # Unique window already exists; bringing that back into view now instead of creating a new window
 
+		self.editorTab = editorTab
 		self.modelPane = modelPane
 
 		ttk.Label( self.window, text='This texture is used by the\nmodel on these parts:', justify='center' ).grid( column=0, row=0, columnspan=2, padx=10, pady=6 )
@@ -2517,10 +2556,11 @@ class ModelTabRenderOptionsWindow( BasicWindow ):
 		tangentBtn = ttk.Checkbutton( self.window, text='Show related parts (DObj siblings)', variable=self.modelPane.showRelatedParts, command=self.checkboxClicked )
 		tangentBtn.grid( column=0, row=3, columnspan=2, padx=20 )
 
-		showHighPolyBtn = ttk.Radiobutton( self.window, text='High-poly', variable=self.modelPane.showHighPoly, value=True )
-		showHighPolyBtn.grid( column=0, row=4, padx=8, sticky='e' )
-		showLowPolyBtn = ttk.Radiobutton( self.window, text='Low-poly', variable=self.modelPane.showHighPoly, value=False )
-		showLowPolyBtn.grid( column=1, row=4, padx=8, sticky='w' )
+		self.showHighPolyBtn = ttk.Radiobutton( self.window, text='High-poly', variable=self.modelPane.showHighPoly, value=True, command=self.checkboxClicked )
+		self.showHighPolyBtn.grid( column=0, row=4, padx=8, sticky='e' )
+		self.showLowPolyBtn = ttk.Radiobutton( self.window, text='Low-poly', variable=self.modelPane.showHighPoly, value=False, command=self.checkboxClicked )
+		self.showLowPolyBtn.grid( column=1, row=4, padx=8, sticky='w' )
+		self.updatePolyBtn()
 
 		showBonesBtn = ttk.Checkbutton( self.window, text='Show model bones', variable=self.modelPane.showBones, command=self.toggleBonesVisibility )
 		showBonesBtn.grid( column=0, row=5, columnspan=2, padx=20 )
@@ -2544,6 +2584,14 @@ class ModelTabRenderOptionsWindow( BasicWindow ):
 		self.window.rowconfigure( 5, weight=0 )
 		self.window.rowconfigure( 6, weight=0 )
 		self.window.rowconfigure( 7, weight=0 )
+
+	def updatePolyBtn( self ):
+		if isinstance( self.editorTab.file, CharCostumeFile ):
+			self.showHighPolyBtn.config( state='enabled' )
+			self.showLowPolyBtn.config( state='enabled' )
+		else:
+			self.showHighPolyBtn.config( state='disabled' )
+			self.showLowPolyBtn.config( state='disabled' )
 
 	def populate( self ):
 
@@ -2569,6 +2617,7 @@ class ModelTabRenderOptionsWindow( BasicWindow ):
 		
 		self.partCheckboxesFrame.clear()
 		self.populate()
+		self.updatePolyBtn()
 		self.window.geometry( '' ) # Updates the window size
 
 	def checkboxClicked( self ):
@@ -2576,13 +2625,13 @@ class ModelTabRenderOptionsWindow( BasicWindow ):
 		""" Updates the render when one of the checkboxes is clicked on. """
 
 		engine = self.modelPane.engine
-		showRelatedParts = self.modelPane.showRelatedParts.get()
-		allowCameraUpdate = self.modelPane.autoCameraUpdates.get()
+		# showRelatedParts = self.modelPane.showRelatedParts.get()
+		# allowCameraUpdate = self.modelPane.autoCameraUpdates.get()
 
 		# Check what structs are already available in the render window
-		renderedStructs = set()
-		for object in engine.vertexLists:
-			renderedStructs.update( object.tags )
+		# renderedStructs = set()
+		# for object in engine.vertexLists:
+		# 	renderedStructs.update( object.tags )
 
 		# Check what parts need to be shown/rendered or hidden
 		partsToShow = []
@@ -2590,14 +2639,14 @@ class ModelTabRenderOptionsWindow( BasicWindow ):
 		enabledObjects = []
 		singleSelectedDobj = -1
 		for dobjIndex, dobj in enumerate( self.modelPane.displayObjects ):
-			dobjSiblings = dobj.getSiblings()[:] # Making a copy, since we might edit it
+			#dobjSiblings = dobj.getSiblings()[:] # Making a copy, since we might edit it
 
 			# Show parts currently selected by the checkboxes
 			if self.checkboxStates[dobj.offset].get():
-				if showRelatedParts:
-					partsToShow.extend( dobjSiblings )
-				else:
-					partsToShow.append( dobj.offset )
+				# if showRelatedParts:
+				# 	partsToShow.extend( dobjSiblings )
+				# else:
+				# 	partsToShow.append( dobj.offset )
 
 					# Collect siblings to hide if they're visible
 					# dobjSiblings.remove( dobj.offset )
@@ -2609,64 +2658,66 @@ class ModelTabRenderOptionsWindow( BasicWindow ):
 			# else:
 			# 	partsToHide.extend( dobjSiblings )
 
+		self.editorTab.renderDobj( enabledObjects )
+
 		# Hide everything by default
-		engine.showAll( visible=False, primitive='vertexList' )
+		#engine.showAll( visible=False, primitive='vertexList' )
 
 		# Apply joint transformations only if there are multiple parts being displayed
-		for offset in partsToShow:
-			if len( enabledObjects ) == 1:
-				if offset in renderedStructs:
-					# Already rendered; check if it has joint transformations applied
-					if self.transformedRenders.get( offset, False ):
-						engine.removePart( offset, 'vertexList' )
-					else:
-						engine.showPart( offset, True, 'vertexList' )
-						continue
+		# for offset in partsToShow:
+		# 	if len( enabledObjects ) == 1:
+		# 		if offset in renderedStructs:
+		# 			# Already rendered; check if it has joint transformations applied
+		# 			if self.transformedRenders.get( offset, False ):
+		# 				engine.removePart( offset, 'vertexList' )
+		# 			else:
+		# 				engine.showPart( offset, True, 'vertexList' )
+		# 				continue
 
-				self._renderPart( offset )
+		# 		self._renderPart( offset )
 
-			else: # Multiple parts to render. Joint translations should be applied
-				if offset in renderedStructs:
-					if self.transformedRenders.get( offset, False ):
-						engine.showPart( offset, True, 'vertexList' )
-						continue
-					else:
-						engine.removePart( offset, 'vertexList' )
+		# 	else: # Multiple parts to render. Joint translations should be applied
+		# 		if offset in renderedStructs:
+		# 			if self.transformedRenders.get( offset, False ):
+		# 				engine.showPart( offset, True, 'vertexList' )
+		# 				continue
+		# 			else:
+		# 				engine.removePart( offset, 'vertexList' )
 
-				self._renderPart( offset, applyTransformations=True )
+		# 		self._renderPart( offset, applyTransformations=True )
 
 		# Adjust the camera, based on whether there is just one object or multiple to focus on
-		if allowCameraUpdate:
-			engine.focusCamera( tags=partsToShow, primitive='vertexList', skipRotationReset=False )
+		# if allowCameraUpdate:
+		# 	engine.focusCamera( tags=partsToShow, primitive='vertexList', skipRotationReset=False )
 
 		# Update the title string under the render window
-		if len( enabledObjects ) == 0:
-			self.modelPane.dobjStringVar.set( 'No Parts Selected' )
-		elif len( enabledObjects ) == 1:
-			self.modelPane.dobjStringVar.set( enabledObjects[0].name )
-			self.modelPane.partIndex = singleSelectedDobj
-		elif len( enabledObjects ) < 4:
-			title = 'Display Objects ' + grammarfyList( ['0x{:X}'.format(0x20+obj.offset) for obj in enabledObjects] )
-			self.modelPane.dobjStringVar.set( title )
-		else:
-			self.modelPane.dobjStringVar.set( 'Multiple Selected' )
+		# if len( enabledObjects ) == 0:
+		# 	self.modelPane.dobjStringVar.set( 'No Parts Selected' )
+		# elif len( enabledObjects ) == 1:
+		# 	self.modelPane.dobjStringVar.set( enabledObjects[0].name )
+		# 	self.modelPane.partIndex = singleSelectedDobj
+		# elif len( enabledObjects ) < 4:
+		# 	title = 'Display Objects ' + grammarfyList( ['0x{:X}'.format(0x20+obj.offset) for obj in enabledObjects] )
+		# 	self.modelPane.dobjStringVar.set( title )
+		# else:
+		# 	self.modelPane.dobjStringVar.set( 'Multiple Selected' )
 
-	def _renderPart( self, dobjOffset, applyTransformations=False ):
+	# def _renderPart( self, dobjOffset, applyTransformations=False ):
 
-		""" Adds a display object to the render window. """
+	# 	""" Adds a display object to the render window. """
 
-		# Part not yet added; render it now
-		engine = self.modelPane.engine
-		dobj = self.file.structs[dobjOffset]
-		primitives = engine.renderDisplayObj( dobj, includeSiblings=False )
+	# 	# Part not yet added; render it now
+	# 	engine = self.modelPane.engine
+	# 	dobj = self.file.structs[dobjOffset]
+	# 	primitives = engine.renderDisplayObj( dobj, includeSiblings=False )
 
-		if applyTransformations:
-			# Update relative position based on parent joint coordinates
-			parentJointOffset = next(iter( dobj.getParents() ))
-			parentJoint = self.file.initSpecificStruct( hsdStructures.JointObjDesc, parentJointOffset )
-			engine.applyJointTransformations( primitives, parentJoint )
+	# 	if applyTransformations:
+	# 		# Update relative position based on parent joint coordinates
+	# 		parentJointOffset = next(iter( dobj.getParents() ))
+	# 		parentJoint = self.file.initSpecificStruct( hsdStructures.JointObjDesc, parentJointOffset )
+	# 		engine.applyJointTransformations( primitives, parentJoint )
 
-		self.transformedRenders[dobjOffset] = applyTransformations
+	# 	self.transformedRenders[dobjOffset] = applyTransformations
 
 	def selectAll( self ):
 		[ boolVar.set(True) for boolVar in self.checkboxStates.values() ]
