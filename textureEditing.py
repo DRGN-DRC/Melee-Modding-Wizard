@@ -313,6 +313,8 @@ class TexturesEditorTab( ttk.Frame ):
 		modelPane.autoCameraUpdates = Tk.BooleanVar( value=True )
 		modelPane.showBones = Tk.BooleanVar( value=False )
 		modelPane.showHighPoly = Tk.BooleanVar( value=True )
+		modelPane.highPolyIds = []
+		modelPane.lowPolyIds = []
 		self.renderOptionsWindow = None
 
 		# Texture properties tab
@@ -1114,20 +1116,7 @@ class TexturesEditorTab( ttk.Frame ):
 
 			# Add the rendering widget if it's not present
 			if not modelPane.engine:
-				modelPane.engine = RenderEngine( modelPane, (440, 300), False, background=globalData.gui.defaultSystemBgColor, borderwidth=0, relief='groove' )
-
-				# If this is a character file, initialize the model's skeleton
-				if isinstance( self.file, CharCostumeFile ):
-					rootJoint = self.file.getSkeletonRoot()
-					modelPane.engine.loadSkeleton( rootJoint, modelPane.showBones.get() )
-
-				# Set frustum limits (near/far rendering limits)
-					modelPane.engine.zNear = .5; modelPane.engine.zFar = 250
-				elif isinstance( self.file, StageFile ):
-					modelPane.engine.zNear = 10.0; modelPane.engine.zFar = 4000
-				else:
-					modelPane.engine.zNear = 1.0; modelPane.engine.zFar = 1000
-			
+				self.initializeRenderEngine()
 			modelPane.engine.pack( pady=(vertPadding, 4) )
 
 			# Add a button to access the render options, and repopulate the window if it's open
@@ -1359,6 +1348,42 @@ class TexturesEditorTab( ttk.Frame ):
 									'If this is part of a texture animation, find the default/starting texture for it and edit the structs for that instead.' )
 			ttk.Label( modelPane, text=disabledControlsText, wraplength=wraplength ).pack( pady=(vertPadding, 0) )
 
+	def initializeRenderEngine( self ):
+
+		""" Creates a render engine for this tab, sets its frustum to nominal values, 
+			and performs some extra processing for models with a skeleton. """
+		
+		modelPane = self.modelPropertiesPane.interior
+		modelPane.engine = RenderEngine( modelPane, (440, 300), False, background=globalData.gui.defaultSystemBgColor, borderwidth=0, relief='groove' )
+
+		# If this is a character file, initialize the model's skeleton and check model part high/low-poly aspects
+		if isinstance( self.file, CharCostumeFile ):
+			rootJoint = self.file.getSkeletonRoot()
+			modelPane.engine.loadSkeleton( rootJoint, modelPane.showBones.get() )
+
+			# Determine high/low-poly model parts
+			try:
+				# Get the Pl__.dat file
+				plFilename = 'Pl' + self.file.charAbbr + '.dat'
+				plFile = globalData.disc.getFile( plFilename )
+
+				# Get the part visibility lookup table and parse lookup entries
+				lookupTable = plFile.getModelLookupTable()
+				visibilityTable = lookupTable.initChild( 'CostumeVisibilityTable', 1 )
+				costumeIndex = self.file.getCostumeId()
+
+				modelPane.highPolyIds = visibilityTable.getHighPolyPartIds( costumeIndex )
+				modelPane.lowPolyIds = visibilityTable.getLowPolyPartIds( costumeIndex )
+			except Exception as err:
+				print( 'Unable to get model high/low-poly part IDs; {}'.format(err) )
+
+		# Set frustum limits (near/far rendering limits)
+			modelPane.engine.zNear = .5; modelPane.engine.zFar = 250
+		elif isinstance( self.file, StageFile ):
+			modelPane.engine.zNear = 10.0; modelPane.engine.zFar = 4000
+		else:
+			modelPane.engine.zNear = 1.0; modelPane.engine.zFar = 1000
+
 	def renderPrevDobj( self, event ):
 		modelPane = self.modelPropertiesPane.interior
 		if modelPane.partIndex <= 0:
@@ -1456,30 +1481,6 @@ class TexturesEditorTab( ttk.Frame ):
 			are related to (close proximity to) the given DObj. Also 
 			determines which model parts are high or low poly, which 
 			are then included or filtered out, based on option toggle. """
-		
-		# Determine high/low-poly model parts
-		try:
-			# Get the Pl__.dat file
-			plFilename = 'Pl' + self.file.charAbbr + '.dat'
-			plFile = globalData.disc.getFile( plFilename )
-
-			# Get the part visibility lookup table and parse lookup entries
-			lookupTable = plFile.getModelLookupTable()
-			visibilityTable = lookupTable.initChild( 'CostumeVisibilityTable', 1 )
-			costumeIndex = self.file.getCostumeId()
-			costumeEntry = visibilityTable.getEntryValues( costumeIndex )
-
-			# Try to get a high-poly lookup group for this costume, or default to the first set
-			highPolyGroupArray = plFile.getStruct( costumeEntry[0] )
-			if not highPolyGroupArray:
-				costumeEntry = visibilityTable.getEntryValues( 0 ) # First costume index
-				highPolyGroupArray = plFile.getStruct( costumeEntry[0] )
-
-			# Recursively parse the array structs and get all high-poly IDs
-			highPolyIds = highPolyGroupArray.getLookupIds()
-		except Exception as err:
-			print( 'Unable to get model high-poly part IDs; {}'.format(err) )
-			highPolyIds = []
 
 		# Check the option to display high or low poly parts
 		modelPane = self.modelPropertiesPane.interior
@@ -1490,21 +1491,25 @@ class TexturesEditorTab( ttk.Frame ):
 		modelParts = [ self.file.structs[o] for o in modelPartOffsets ] # These should all be initialized through the .getSiblings method
 
 		# Check what bones the given DObj is attached to or influenced by
-		targetJoints = targetDObj.getBoneAttachments()
-		targetBones = [ bone for bone in skeleton.values() if bone.joint.offset in targetJoints ]
+		targetJoints = set( targetDObj.getBoneAttachments() )
+		targetBones = set([ bone for bone in skeleton.values() if bone.joint.offset in targetJoints ])
 
-		# Scan the skeleton for the target bones
-		relatedParts = set([ targetDObj.offset ])
+		# Scan the skeleton for parts attached to or near the target bones
+		relatedParts = set()
 		for part in modelParts:
 			# Skip low-poly parts if they should be hidden
-			if showHighPoly and part.id not in highPolyIds:
+			if showHighPoly and part.id in modelPane.lowPolyIds:
 				continue
 
 			# Skip high-poly parts if they should be hidden
-			elif not showHighPoly and part.id in highPolyIds:
+			elif not showHighPoly and part.id in modelPane.highPolyIds:
 				continue
 
 			boneAttachments = part.getBoneAttachments()
+
+			# Check if this part attaches to the same target bone(s)
+			if targetJoints.intersection( boneAttachments ):
+				relatedParts.add( part.offset )
 
 			# If related, extend the related parts set to include the parent & children of the target bone(s)
 			for bone in targetBones:
@@ -2533,7 +2538,18 @@ class TextureFiltersWindow( BasicWindow ):
 
 class ModelTabRenderOptionsWindow( BasicWindow ):
 
+	stylesAdded = False
+
 	def __init__( self, editorTab, modelPane ):
+
+		# Create some custom styles for this some of this window's widgets
+		if not self.stylesAdded:
+			style = globalData.gui.style
+			style.configure( 'Red.TCheckbutton', foreground='#EC7328' )
+			style.configure( 'Blue.TCheckbutton', foreground='#698DCF' )
+			style.configure( 'Red.TRadiobutton', foreground='#EC7328' )
+			style.configure( 'Blue.TRadiobutton', foreground='#698DCF' )
+			self.stylesAdded = True
 
 		self.file = modelPane.displayObjects[0].dat
 		windowTitle = 'Model Render Options ({})'.format( self.file.filename )
@@ -2544,21 +2560,21 @@ class ModelTabRenderOptionsWindow( BasicWindow ):
 		self.editorTab = editorTab
 		self.modelPane = modelPane
 
-		ttk.Label( self.window, text='This texture is used by the\nmodel on these parts:', justify='center' ).grid( column=0, row=0, columnspan=2, padx=10, pady=6 )
+		ttk.Label( self.window, text='This texture is used by the\nmodel on these parts:', justify='center' ).grid( column=0, row=0, columnspan=2, padx=10, pady=(6, 2) )
 
 		# Add selection for Display Objects
 		self.partCheckboxesFrame = VerticalScrolledFrame( self.window, maxHeight=400 )
 		self.partCheckboxesFrame.grid( column=0, row=1, columnspan=2, sticky='nsew', pady=6 )
 		self.populate()
 
-		ttk.Separator( self.window, orient='horizontal' ).grid( column=0, row=2, columnspan=2, sticky='ew', padx=42, pady=6 )
+		ttk.Separator( self.window, orient='horizontal' ).grid( column=0, row=2, columnspan=2, sticky='ew', padx=42, pady=(6, 12) )
 
 		tangentBtn = ttk.Checkbutton( self.window, text='Show related parts (DObj siblings)', variable=self.modelPane.showRelatedParts, command=self.checkboxClicked )
 		tangentBtn.grid( column=0, row=3, columnspan=2, padx=20 )
 
-		self.showHighPolyBtn = ttk.Radiobutton( self.window, text='High-poly', variable=self.modelPane.showHighPoly, value=True, command=self.checkboxClicked )
+		self.showHighPolyBtn = ttk.Radiobutton( self.window, text='High-poly', variable=self.modelPane.showHighPoly, value=True, command=self.checkboxClicked, style='Red.TRadiobutton' )
 		self.showHighPolyBtn.grid( column=0, row=4, padx=8, sticky='e' )
-		self.showLowPolyBtn = ttk.Radiobutton( self.window, text='Low-poly', variable=self.modelPane.showHighPoly, value=False, command=self.checkboxClicked )
+		self.showLowPolyBtn = ttk.Radiobutton( self.window, text='Low-poly', variable=self.modelPane.showHighPoly, value=False, command=self.checkboxClicked, style='Blue.TRadiobutton' )
 		self.showLowPolyBtn.grid( column=1, row=4, padx=8, sticky='w' )
 		self.updatePolyBtn()
 
@@ -2607,7 +2623,14 @@ class ModelTabRenderOptionsWindow( BasicWindow ):
 			else:
 				boolVar = Tk.BooleanVar( value=False )
 			self.checkboxStates[dobj.offset] = boolVar
-			ttk.Checkbutton( self.partCheckboxesFrame.interior, text=dobj.name, variable=boolVar, command=self.checkboxClicked ).pack()
+			if dobj.id in self.modelPane.highPolyIds:
+				style = 'Red.TCheckbutton'
+			elif dobj.id in self.modelPane.lowPolyIds:
+				style = 'Blue.TCheckbutton'
+			else:
+				style = 'TCheckbutton'
+
+			ttk.Checkbutton( self.partCheckboxesFrame.interior, text=dobj.name, variable=boolVar, command=self.checkboxClicked, style=style ).pack()
 
 	def repopulate( self ):
 
