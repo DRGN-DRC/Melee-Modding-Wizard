@@ -859,6 +859,8 @@ class TableStruct( StructBase ):
 		""" Gets values only for one specific table/array entry. If you'd like to 
 			iterate over all entries/values, .iterateEntries() will be more efficient. """
 
+		assert entryIndex < self.entryCount, 'Invalid entryIndex; {} >= self.entryCount ({})'.format( entryIndex, self.entryCount )
+
 		valuesIndex = self.entryValueCount * entryIndex
 		return self.getValues()[valuesIndex:valuesIndex+self.entryValueCount]
 

@@ -411,6 +411,9 @@ class RenderEngine( Tk.Frame ):
 
 		child = rootJoint.initChild( 'JointObjDesc', 2 )
 
+		# Give IDs to the primary Display Objects (useful for determining high/low-model parts)
+		self._enumerateDObjs( rootJoint )
+
 		modelMatrix = rootJoint.buildLocalMatrix()
 		self._addBone( rootJoint, child, modelMatrix, showBones )
 
@@ -421,32 +424,15 @@ class RenderEngine( Tk.Frame ):
 	def _addBone( self, parentJoint, thisJoint, modelMatrix, showBones ):
 
 		""" Recursive helper function to loadSkeleton(); creates a bone for the given joints, 
-			adds it model skeleton dictionary, and does the same for their children. """
+			adds it to the model skeleton dictionary, and repeats for this bone's children. """
 
 		# Add this bone to the renderer and skeleton dictionary
 		bone = Bone( parentJoint, thisJoint, modelMatrix, showBones )
 		self.edges.append( bone )
 		self.skeleton[thisJoint.offset] = bone
 
-		# Give IDs to the primary Display Objects (useful for determining high/low-model parts)
-		dobj = thisJoint.initChild( 'DisplayObjDesc', 4 )
-		if dobj:
-			dobjClass = globalData.fileStructureClasses.get( 'DisplayObjDesc' )
-			for offset in dobj.getSiblings():
-				sibling = thisJoint.dat.getStruct( offset )
-				if sibling:
-					sibling.id = dobjClass.count
-					dobjClass.count += 1
-		
-		# Give IDs to the primary Display Objects (useful for determining high/low-model parts)
-		dobj = parentJoint.initChild( 'DisplayObjDesc', 4 )
-		if dobj:
-			dobjClass = globalData.fileStructureClasses.get( 'DisplayObjDesc' )
-			for offset in dobj.getSiblings():
-				sibling = parentJoint.dat.getStruct( offset )
-				if sibling:
-					sibling.id = dobjClass.count
-					dobjClass.count += 1
+		# Give IDs to the Display Objects (useful for determining high/low-model parts)
+		self._enumerateDObjs( thisJoint )
 
 		# Check for children to add
 		childJoint = thisJoint.initChild( 'JointObjDesc', 2 )
@@ -462,6 +448,25 @@ class RenderEngine( Tk.Frame ):
 
 				self._addBone( thisJoint, sibling, bone.modelMatrix, showBones )
 				bone.children.append( sibling.offset )
+
+	def _enumerateDObjs( self, joint ):
+
+		""" Enumerates Display Objects (model parts) as they're encountered across the skeleton. 
+			These enumerations are useful for determining high/low-model parts within the model. """
+
+		# Check for a display object on this joint
+		dobj = joint.initChild( 'DisplayObjDesc', 4 )
+		if not dobj:
+			return
+
+		dobjClass = globalData.fileStructureClasses.get( 'DisplayObjDesc' )
+
+		# Get all sibling objects (including this one) in this set and assign them IDs
+		for offset in dobj.getSiblings():
+			sibling = joint.dat.getStruct( offset )
+			if sibling:
+				sibling.id = dobjClass.count
+				dobjClass.count += 1
 
 	def renderJoint( self, joint, parent=None, showBones=False ):
 

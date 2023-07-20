@@ -1037,7 +1037,7 @@ class DiscTab( ttk.Frame ):
 		elif len( iidSelectionsTuple ) != 1:
 			if showWarnings:
 				globalData.gui.updateProgramStatus( 'Hm?' )
-				msg( 'Please select only one file to load.', 'Too Many Files Selected' )
+				msg( 'Please select just one file to load.', 'Too Many Files Selected' )
 			return None
 
 		# Check what kind of item is selected. May be "file", "nFolder" (native folder), or "cFolder" (convenience folder)
@@ -1045,7 +1045,7 @@ class DiscTab( ttk.Frame ):
 		itemType = self.isoFileTree.item( isoPath, 'values' )[1]
 		if itemType != 'file':
 			if showWarnings:
-				msg( 'Please select just one file to load.', 'Folder Selected' )
+				msg( 'A folder is selected. Please select just one file to load.', 'Folder Selected' )
 			return None
 
 		fileObj = globalData.disc.files.get( isoPath )

@@ -480,6 +480,36 @@ class CostumeVisibilityTable( TableStruct ):
 		for i in range( 0, len(self.fields) ):
 			self.childClassIdentities[i] = 'GroupLookupArray'
 
+	def _getGroupArray( self, costumeIndex, arrayGroupIndex ):
+
+		""" This attempts to get a group of pointers (one entry in this struct) 
+			for a particular costume index. However, entries for some costumes 
+			may be null, in which case we fall back to the default (first) entry. """
+
+		costumeEntry = self.getEntryValues( costumeIndex ) # Tuple of 4 pointers
+
+		# Try to get a lookup group for this costume, or default to the first set
+		arrayGroup = self.dat.getStruct( costumeEntry[arrayGroupIndex] )
+		if not arrayGroup and costumeIndex != 0:
+			costumeEntry = self.getEntryValues( 0 ) # Try again with first costume index
+			arrayGroup = self.dat.getStruct( costumeEntry[arrayGroupIndex] )
+
+		return arrayGroup
+
+	def getHighPolyPartIds( self, costumeIndex ):
+
+		""" Recursively parses the array group structs and gets all high-poly IDs. """
+		
+		highPolyGroupArray = self._getGroupArray( costumeIndex, 0 )
+		return highPolyGroupArray.getLookupIds()
+
+	def getLowPolyPartIds( self, costumeIndex ):
+
+		""" Recursively parses the array group structs and gets all low-poly IDs. """
+		
+		lowPolyGroupArray = self._getGroupArray( costumeIndex, 1 )
+		return lowPolyGroupArray.getLookupIds()
+
 
 class GroupLookupArray( TableStruct ):
 
