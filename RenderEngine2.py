@@ -574,16 +574,9 @@ class RenderEngine( Tk.Frame ):
 					# Parse out primitives for this mesh
 					pobjPrimitives = pobj.decodeGeometry()
 
-					# Apply the inverse bind matrices for the vertices of the primitives collected above
-					if pobj.isEnvelope:
-						#print( 'applying bind matrices to {}'.format(pobj.name) )
+					# If this is something attached to a skeleton, update part coordinates to model space
+					if self.skeleton:
 						pobj.moveToModelSpace( pobjPrimitives, self.skeleton )
-					elif pobj.isShapeSet:
-						print( '{} isShapeSet'.format(pobj.name) )
-					elif pobj.hasJObjRef:
-						print( '{} hasJObjRef'.format(pobj.name) )
-					# else:
-					# 	print( 'no matrices to apply' )
 
 					self.addVertexLists( pobjPrimitives, textureGroup, dobjOffset, pobjOffset )
 					primitives.extend( pobjPrimitives )
@@ -1307,7 +1300,8 @@ class Primitive( object ):
 	def matrixMultiply_4x4( self, matrix1, matrix2 ):
 
 		""" Performs matrix multiplication on two flattened 4x4 
-			arrays representing matrices in column-major format. """
+			arrays representing matrices in column-major format. 
+			Creates a new matrix and does not modify the originals."""
 
 		# Check if the matrices are compatible for multiplication
 		assert len( matrix1 ) == len( matrix2 ), "Incompatible matrix dimensions for multiplication"

@@ -1420,7 +1420,8 @@ class JointObjDesc( StructBase ): # A.k.a Bone Structure
 	def buildLocalMatrix( self ):
 
 		""" Constructs a flattened 4x4 transformation matrix from this 
-			bone's rotation, scale, and translation x/y/z values. """
+			bone's rotation, scale, and translation x/y/z values. This 
+			matrix is therefore relative to the parent joint. """
 		
 		matrix = [
 			0, 0, 0, 0,
@@ -1842,24 +1843,79 @@ class PolygonObjDesc( StructBase ): # A.k.a. Meshes
 		""" Applies transformations to the vertices of this object's mesh to convert 
 			them from bind-pose or local-bone space to model space. """
 
-		# Get a list of envelope objects from the envelope array
-		envelopeArray = self.initChild( EnvelopeArray, 6 )
-		envelopes = envelopeArray.getEnvelopes()
+		if self.isEnvelope:
+			# Get a list of envelope objects from the envelope array
+			envelopeArray = self.initChild( EnvelopeArray, 6 )
+			envelopes = envelopeArray.getEnvelopes()
 
+			for vl in vertexLists:
+				# Prepare for iterating over individual vertex coordinates
+				newCoords = []
+				coordsIter = iter( vl.vertices[1] )
+				coordsList = [ coordsIter ] * 3
+
+				for envelopeIndex, x, y, z in zip( vl.weights, *coordsList ):
+					envelope = envelopes[envelopeIndex]
+					if not envelope: # Failsafe
+						continue
+
+					# Apply the matrices
+					weightedVertex = envelope.applyMatrices( x, y, z, skeleton )
+					newCoords.extend( weightedVertex )
+
+				vl.vertices = ( vl.vertices[0], newCoords )
+
+			return
+
+		elif self.isShapeSet:
+			print( '{} isShapeSet'.format(self.name) )
+			return
+
+		# Use a reference or parent JObj to determine model space
+		elif self.hasJObjRef:
+			print( '{} hasJObjRef'.format(self.name) )
+
+			# Get the governing JObj
+			joint = self.initChild( JointObjDesc, 6 )
+
+		else:
+			# Get the parent DObj this mesh is attached to
+			dobj = None
+			for parentOffset in self.getParents():
+				dobj = self.dat.initSpecificStruct( DisplayObjDesc, parentOffset )
+				if dobj: break
+
+			# Unable to continue without a parent DObj!
+			if not dobj:
+				print( 'Unable to initialize a parent DObj for ' + self.name )
+				return
+
+			# Get the parent JObj this DObj is attached to
+			joint = None
+			for parentOffset in dobj.getParents():
+				joint = self.dat.initSpecificStruct( JointObjDesc, parentOffset )
+				if joint: break
+
+		# Unable to continue without a JObj!
+		if not joint:
+			print( 'Unable to initialize a governing joint for ' + self.name )
+			return
+
+		# Get the model matrix
+		bone = skeleton[joint.offset]
+		m = bone.modelMatrix
+
+		# Apply the final matrix to get the vertices into model space
 		for vl in vertexLists:
 			# Prepare for iterating over individual vertex coordinates
 			newCoords = []
 			coordsIter = iter( vl.vertices[1] )
 			coordsList = [ coordsIter ] * 3
 
-			for envelopeIndex, x, y, z in zip( vl.weights, *coordsList ):
-				envelope = envelopes[envelopeIndex]
-				if not envelope: # Failsafe
-					continue
-
-				# Apply the matrices
-				weightedVertex = envelope.applyMatrices( x, y, z, skeleton )
-				newCoords.extend( weightedVertex )
+			for x, y, z in zip( *coordsList ):
+				newCoords.append( m[0]*x + m[4]*y + m[8]*z + m[12] )
+				newCoords.append( m[1]*x + m[5]*y + m[9]*z + m[13] )
+				newCoords.append( m[2]*x + m[6]*y + m[10]*z + m[14] )
 
 			vl.vertices = ( vl.vertices[0], newCoords )
 
@@ -2203,18 +2259,19 @@ class EnvelopeObjDesc( TableStruct ):
 			than one joint's transforms are needed, the vertices are expected to 
 			be in bind-pose space. If not, they are already in local-bone space. """
 
-		values = self.getValues()
+		structValues = self.getValues()
 
-		# See if we can avoid the loops
-		if self.entryCount == 2 and values[-1] == 0:
+		# See if we can avoid some loops
+		if self.entryCount == 2 and structValues[-1] == 0:
 			# Only applying transformations from one bone
-			jointPointer = values[0]
+			jointPointer = structValues[0]
 
 			# Get the inverse bind matrix for this joint
 			# joint = self.dat.initSpecificStruct( JointObjDesc, jointPointer )
 			# matrixStruct = joint.initChild( InverseMatrixObjDesc, 14 )
 			# inverseBindMatrix = matrixStruct.build4x4()
 
+			# Combine the matrices of the bone with the inverse bind matrix
 			bone = skeleton[jointPointer]
 			# m = bone.matrixMultiply_4x4( inverseBindMatrix, bone.modelMatrix )
 			m = bone.modelMatrix
@@ -2233,13 +2290,13 @@ class EnvelopeObjDesc( TableStruct ):
 				if weight == 0:
 					continue
 
-				# Get the inverse bind matrix for this joint
-				joint = self.dat.initSpecificStruct( JointObjDesc, jointPointer )
-				matrixStruct = joint.initChild( InverseMatrixObjDesc, 14 )
+				# Get the inverse bind matrix for this bone/joint
+				bone = skeleton[jointPointer]
+				#joint = self.dat.initSpecificStruct( JointObjDesc, jointPointer )
+				matrixStruct = bone.joint.initChild( InverseMatrixObjDesc, 14 )
 				inverseBindMatrix = matrixStruct.build4x4()
 
 				# Combine the matrices of the bone with the inverse bind matrix
-				bone = skeleton[jointPointer]
 				m = bone.matrixMultiply_4x4( inverseBindMatrix, bone.modelMatrix )
 				
 				# Apply the final matrix to get the vertex into model space
@@ -2249,30 +2306,6 @@ class EnvelopeObjDesc( TableStruct ):
 
 			return weightedVertex
 
-	# def _matrixMultiply( self, matrix, vertex ):
-
-	# 	""" Multipies a 3x3 matrix with a vertex to transform it. """
-
-	# 	coordCount = len( vertex )
-	# 	result = [ 0.0 ] * coordCount
-
-	# 	for i in range( len(matrix) ):
-	# 		for j in range( coordCount ):
-	# 			result[i] += matrix[i][j] * vertex[j]
-
-	# 	return result
-
-def matrix_multiply(matrix1, matrix2):
-	result = []
-	for i in range(len(matrix1)):
-		row = []
-		for j in range(len(matrix2[0])):
-			sum = 0
-			for k in range(len(matrix2)):
-				sum += matrix1[i][k] * matrix2[k][j]
-			row.append(sum)
-		result.append(row)
-	return result
 
 class ShapeSetDesc( StructBase ):
 

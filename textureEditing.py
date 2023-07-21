@@ -1422,28 +1422,25 @@ class TexturesEditorTab( ttk.Frame ):
 			modelPane.dobjStringVar.set( 'No Parts Selected' )
 			return
 
-		showRelated = modelPane.showRelatedParts.get()
-		if not showRelated:
-			for modelPart in modelParts:
-				# Just display this one part
-				primitives = modelPane.engine.renderDisplayObj( modelPart, includeSiblings=False )
+		if isinstance( self.file, CharCostumeFile ):
+			if modelPane.showRelatedParts.get():
+				for modelPart in modelParts:
+					# Use the model's skeleton to find a few near-by parts
+					for partOffset in self.findRelatedParts( modelPart, modelPane.engine.skeleton ):
+						part = self.file.getStruct( partOffset )
+						modelPane.engine.renderDisplayObj( part, includeSiblings=False )
+			else:
+				# Show strictly the given parts
+				for modelPart in modelParts:
+					if self.hideBasedOnPoly( modelPart ):
+						continue
 
-				# Update relative position based on parent joint coordinates
-				parentJointOffset = next(iter( modelPart.getParents() ))
-				parentJoint = self.file.initSpecificStruct( hsdStructures.JointObjDesc, parentJointOffset )
-				modelPane.engine.applyJointTransformations( primitives, parentJoint )
-
-		elif isinstance( self.file, CharCostumeFile ):
-			for modelPart in modelParts:
-				# Use the model's skeleton to find a few near-by parts
-				for partOffset in self.findRelatedParts( modelPart, modelPane.engine.skeleton ):
-					part = self.file.getStruct( partOffset )
-					modelPane.engine.renderDisplayObj( part, includeSiblings=False )
-
+					modelPane.engine.renderDisplayObj( modelPart, includeSiblings=False )
 		else:
-			# Show this part and all related (sibling) Display Objects
+			# No skeleton to use when position various parts; fall back to basic joint transforms only
+			showRelated = modelPane.showRelatedParts.get()
 			for modelPart in modelParts:
-				primitives = modelPane.engine.renderDisplayObj( modelPart, includeSiblings=True )
+				primitives = modelPane.engine.renderDisplayObj( modelPart, includeSiblings=showRelated )
 
 				# Update relative position based on parent joint coordinates
 				parentJointOffset = next(iter( modelPart.getParents() ))
@@ -1482,10 +1479,6 @@ class TexturesEditorTab( ttk.Frame ):
 			determines which model parts are high or low poly, which 
 			are then included or filtered out, based on option toggle. """
 
-		# Check the option to display high or low poly parts
-		modelPane = self.modelPropertiesPane.interior
-		showHighPoly = modelPane.showHighPoly.get()
-
 		# Get a list of all potentially related display objects
 		modelPartOffsets = targetDObj.getSiblings()
 		modelParts = [ self.file.structs[o] for o in modelPartOffsets ] # These should all be initialized through the .getSiblings method
@@ -1497,12 +1490,7 @@ class TexturesEditorTab( ttk.Frame ):
 		# Scan the skeleton for parts attached to or near the target bones
 		relatedParts = set()
 		for part in modelParts:
-			# Skip low-poly parts if they should be hidden
-			if showHighPoly and part.id in modelPane.lowPolyIds:
-				continue
-
-			# Skip high-poly parts if they should be hidden
-			elif not showHighPoly and part.id in modelPane.highPolyIds:
+			if self.hideBasedOnPoly( part ):
 				continue
 
 			boneAttachments = part.getBoneAttachments()
@@ -1519,6 +1507,24 @@ class TexturesEditorTab( ttk.Frame ):
 					relatedParts.add( part.offset )
 
 		return relatedParts
+	
+	def hideBasedOnPoly( self, part ):
+
+		""" Determines whether a model part should be visible or hidden, 
+			based on whether it's a high or low-poly part. """
+
+		modelPane = self.modelPropertiesPane.interior
+		showHighPoly = modelPane.showHighPoly.get()
+
+		# Skip low-poly parts if they should be hidden
+		if showHighPoly and part.id in modelPane.lowPolyIds:
+			return True
+
+		# Skip high-poly parts if they should be hidden
+		elif not showHighPoly and part.id in modelPane.highPolyIds:
+			return True
+		
+		return False
 
 	def showDisplayOptions( self, event=None ):
 
