@@ -1110,14 +1110,13 @@ class TexturesEditorTab( ttk.Frame ):
 
 		# Create a render canvas if any model parts were detected
 		if modelPane.displayObjects:
-			# Prepare tracking for the currently selected object
-			defaultPart = modelPane.displayObjects[0]
-			modelPane.partIndex = 0
-
 			# Add the rendering widget if it's not present
 			if not modelPane.engine:
 				self.initializeRenderEngine()
 			modelPane.engine.pack( pady=(vertPadding, 4) )
+
+			# Determine a part to show by default
+			modelPart = self.determineDefaultPart()
 
 			# Add a button to access the render options, and repopulate the window if it's open
 			modelPane.renderOptionsBtn = ColoredLabelButton( modelPane, 'gear', self.showDisplayOptions, 'Display Options' )
@@ -1127,7 +1126,7 @@ class TexturesEditorTab( ttk.Frame ):
 
 			if len( modelPane.displayObjects ) == 1:
 				# Add a label below the rendering showing the Display Object's name
-				ttk.Label( modelPane, text=defaultPart.name ).pack( pady=(vertPadding, 4) )
+				ttk.Label( modelPane, text=modelPart.name ).pack( pady=(vertPadding, 4) )
 			else:
 				# Add a label below the rendering showing the Display Object's name, and controls to swap to other display objects
 				dobjSelectionControls = ttk.Frame( modelPane )
@@ -1142,7 +1141,7 @@ class TexturesEditorTab( ttk.Frame ):
 				nextDobjBtn.pack( side='left' )
 				dobjSelectionControls.pack( pady=(vertPadding, 4) )
 
-			self.renderDobj( [defaultPart] )
+			self.renderDobj( [modelPart] )
 
 		else: # No model parts detected; fall back to text descriptions of what was found
 			if modelPane.engine:
@@ -1383,6 +1382,45 @@ class TexturesEditorTab( ttk.Frame ):
 			modelPane.engine.zNear = 10.0; modelPane.engine.zFar = 4000
 		else:
 			modelPane.engine.zNear = 1.0; modelPane.engine.zFar = 1000
+
+	def determineDefaultPart( self ):
+
+		""" Attempts to intelligently determine a model part (DObj) to 
+			show by default in the Model tab when a texture is selected. 
+			Prioritizes selection for high or low-poly parts depending 
+			on the current state of that option. If a part is not found 
+			for the current high/low-poly option, the option will be changed. """
+
+		# Get the default part; i.e. the first part used by the selected texture
+		modelPane = self.modelPropertiesPane.interior
+		modelPane.partIndex = 0
+		defaultPart = modelPane.displayObjects[0]
+
+		# Determine whether the user currently has high or low-poly parts selected for display
+		if modelPane.showHighPoly.get():
+			# Use the default part if it's high-poly
+			if defaultPart.id not in modelPane.highPolyIds:
+				# Check if a high-poly part is available
+				for i, part in enumerate( modelPane.displayObjects ):
+					if part.id in modelPane.highPolyIds:
+						modelPane.partIndex = i
+						return part
+				else: # The above loop didn't return; no high-poly part found
+					# Switch the high/low-poly part option to low and display the default part
+					modelPane.showHighPoly.set( False )
+		else:
+			# Use the default part if it's low-poly
+			if defaultPart.id not in modelPane.lowPolyIds:
+				# Check if a low-poly part is available
+				for i, part in enumerate( modelPane.displayObjects ):
+					if part.id in modelPane.lowPolyIds:
+						modelPane.partIndex = i
+						return part
+				else: # The above loop didn't return; no low-poly part found
+					# Switch the high/low-poly part option to high and display the default part
+					modelPane.showHighPoly.set( True )
+
+		return defaultPart
 
 	def renderPrevDobj( self, event ):
 		modelPane = self.modelPropertiesPane.interior
