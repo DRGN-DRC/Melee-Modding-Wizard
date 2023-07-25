@@ -2365,7 +2365,7 @@ class TextureObjDesc( StructBase ):
 		StructBase.__init__( self, *args, **kwargs )
 
 		self.name = 'Texture Struct ' + uHex( 0x20 + args[1] )
-		self.formatting = '>IIIIfffffffffII??HIfIIIII'
+		self.formatting = '>IIIIfffffffffIIBBHIfIIIII'
 		self.fields = ( 'Name_Pointer',
 						'Next_Sibling_Pointer',
 						'GXTexMapID',

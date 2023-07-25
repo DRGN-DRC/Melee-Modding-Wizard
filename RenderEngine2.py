@@ -358,12 +358,13 @@ class RenderEngine( Tk.Frame ):
 	def addVertexLists( self, vertexLists, textureGroup=None, dobj='', pobj='' ):
 
 		""" Adds one or more entries of a display list. Each display list entry contains 
-			one or more primitives of the same type (e.g. edge/triangle strip/etc)."""
+			one or more primitives of the same type (e.g. edge/triangle-strip/etc)."""
 
 		for vertexList in vertexLists:
 			if dobj and pobj:
 				vertexList.tags = ( dobj, pobj )
-			vertexList.textureGroup = textureGroup
+			if textureGroup:
+				vertexList.addTextureGroup( textureGroup )
 			self.vertexLists.append( vertexList )
 
 			# self.window.updateRequired = True
@@ -1404,6 +1405,24 @@ class VertexList( Primitive ):
 		self.tags = tags
 		self.show = show
 
+	def interpretPrimType( self, primType ):
+
+		""" Translates a primitive type for a display list vertex group/list 
+			into an OpenGL primitive type. """
+
+		if primType == 0xB8: primitiveType = gl.GL_POINTS
+		elif primType == 0xA8: primitiveType = gl.GL_LINES
+		elif primType == 0xB0: primitiveType = gl.GL_LINE_STRIP
+		elif primType == 0x90: primitiveType = gl.GL_TRIANGLES
+		elif primType == 0x98: primitiveType = gl.GL_TRIANGLE_STRIP
+		elif primType == 0xA0: primitiveType = gl.GL_TRIANGLE_FAN
+		elif primType == 0x80: primitiveType = gl.GL_QUADS
+		else: # Failsafe
+			print( 'Warning! Invalid primitive type: 0x{:X}'.format(primType) )
+			primitiveType = gl.GL_POINTS
+
+		return primitiveType
+
 	def finalize( self ):
 
 		""" Validates vertex colors and texture coordinates if they're present, 
@@ -1421,25 +1440,6 @@ class VertexList( Primitive ):
 
 		if self.type == gl.GL_LINE_STRIP or self.type == gl.GL_TRIANGLE_STRIP:
 			self.addDegenerates()
-
-	def interpretPrimType( self, primType ):
-
-		""" Translates a primitive type for a display list vertex group/list 
-			into an OpenGL primitive type. """
-
-		if primType == 0xB8: primitiveType = gl.GL_POINTS
-		elif primType == 0xA8: primitiveType = gl.GL_LINES
-		elif primType == 0xB0: primitiveType = gl.GL_LINE_STRIP
-		elif primType == 0x90: primitiveType = gl.GL_TRIANGLES
-		elif primType == 0x98: primitiveType = gl.GL_TRIANGLE_STRIP
-		elif primType == 0xA0: primitiveType = gl.GL_TRIANGLE_FAN
-		elif primType == 0x80: primitiveType = gl.GL_QUADS
-		# 0x88 == gl.GL_QUAD_STRIP?
-		else: # Failsafe
-			print( 'Warning! Invalid primitive type: 0x{:X}'.format(primType) )
-			primitiveType = gl.GL_POINTS
-
-		return primitiveType
 	
 	def addDegenerates( self ):
 
@@ -1478,6 +1478,22 @@ class VertexList( Primitive ):
 		if self.weights:
 			self.weights.insert( 0, self.weights[0] )
 			self.weights.append( self.weights[-1] )
+
+	def addTextureGroup( self, textureGroup ):
+
+		""" Links a render group to this primitive and adjusts texture 
+			coordinates according to properties of the associated texture
+			for textures that should be repeated or mirrored across a surface. """
+		
+		self.textureGroup = textureGroup
+		
+		# Extend discrete space texture coordinates (0-1 range) beyond the 1.0 range
+		if textureGroup.repeatS != 1:
+			newCoords = [ coord * textureGroup.repeatS if i % 2 == 0 else coord for i, coord in enumerate(self.texCoords[1]) ]
+			self.texCoords = ( self.texCoords[0], newCoords )
+		if textureGroup.repeatT != 1:
+			newCoords = [ coord * textureGroup.repeatT if i % 2 == 1 else coord for i, coord in enumerate(self.texCoords[1]) ]
+			self.texCoords = ( self.texCoords[0], newCoords )
 
 	def render( self, batch ):
 		if self.show:
@@ -1523,31 +1539,37 @@ class HSD_Texture( TextureGroup ):
 		# Use the first texture in the textures list by default
 		self.index = 0
 		self.textures = textures # A list of texture objects (file structs)
+		self._setTexProperties()
 		self.texture = self._convertTexObject( textures[0] )
 		self.pygletConversions = { textures[0].offset: self.texture }
 
-		self._setTexProperties()
-
 	def _setTexProperties( self ):
+
+		""" Checks a few properties from the texture's TObj struct, 
+			and prepares wrap modes and repeat properties for render. """
+
 		tobj = self.textures[self.index].tobj
 		tobjValues = tobj.getValues()
+
 		self.wrapModeS = tobjValues[13]
 		self.wrapModeT = tobjValues[14]
 		self.repeatS = tobjValues[15]
 		self.repeatT = tobjValues[16]
 
+		# Translate GX enums to pyglet/OpenGL equivalents
 		if self.wrapModeS == 0:
-			self.wrapModeS = gl.GL_CLAMP
+			self.wrapModeS = gl.GL_CLAMP_TO_EDGE
 		elif self.wrapModeS == 1:
 			self.wrapModeS = gl.GL_REPEAT
 		elif self.wrapModeS == 2:
-			self.wrapModeS = gl.GL_REPEAT
+			self.wrapModeS = gl.GL_MIRRORED_REPEAT_IBM
+
 		if self.wrapModeT == 0:
-			self.wrapModeT = gl.GL_CLAMP
+			self.wrapModeT = gl.GL_CLAMP_TO_EDGE
 		elif self.wrapModeT == 1:
 			self.wrapModeT = gl.GL_REPEAT
 		elif self.wrapModeT == 2:
-			self.wrapModeT = gl.GL_REPEAT
+			self.wrapModeT = gl.GL_MIRRORED_REPEAT_IBM
 
 	def _convertTexObject( self, textureObj ):
 
@@ -1576,13 +1598,13 @@ class HSD_Texture( TextureGroup ):
 		textureObj = self.textures[index]
 		pygletTexture = self.pygletConversions.get( textureObj.offset )
 
+		self.texture = pygletTexture
+		self._setTexProperties()
+
 		# Check if this has already been decoded/converted
 		if not pygletTexture:
 			pygletTexture = self._convertTexObject( textureObj )
 			self.pygletConversions[textureObj.offset] = pygletTexture
-
-		self.texture = pygletTexture
-		self._setTexProperties()
 
 	def reloadTexture( self, imageDataOffset ):
 
@@ -1599,11 +1621,12 @@ class HSD_Texture( TextureGroup ):
 		# Check if this is the 'current' texture, and re-convert it now if it is
 		for i, textureObj in enumerate( self.textures ):
 			if i == self.index and textureObj.offset == imageDataOffset:
+				#self._setTexProperties()
+
 				# Re-convert a new texture object
 				pygletTexture = self._convertTexObject( textureObj )
 				self.pygletConversions[imageDataOffset] = pygletTexture
 				self.texture = pygletTexture
-				self._setTexProperties()
 				break
 	
 	def set_state( self ):
