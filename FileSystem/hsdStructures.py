@@ -1307,17 +1307,29 @@ class DisplayListBlock( DataBlock ):
 			# 16 bit color with transparency
 			# RRRRGGGGBBBBAAAA
 			pixelValue = pixelValues[0]
-			r = ( pixelValue >> 12 ) * 16
-			g = ( pixelValue >> 8 & 0b1111 ) * 16
-			b = ( pixelValue >> 4 & 0b1111 ) * 16
-			a = ( pixelValue & 0b1111 ) * 16
+			r = pixelValue >> 12
+			g = pixelValue >> 8 & 0b1111
+			b = pixelValue >> 4 & 0b1111
+			a = pixelValue & 0b1111
+
+			# Normalize into the 0-255 range
+			r = r * 16 + r
+			g = g * 16 + g
+			b = b * 16 + b
+			a = a * 16 + a
 		elif compType == 4: # GX_RGBA6 (3 bytes)
 			# 24 bit color with transparency
 			# RRRRRRGGGGGGBBBBBBAAAAAA
-			r = ( pixelValues[0] >> 2 ) * 4
-			g = ( ((pixelValues[0] & 0b11) << 4) + pixelValues[1] >> 4 ) * 4
-			b = ( (pixelValues[1] & 0b1111) + pixelValues[2] >> 6 ) * 4
-			a = ( pixelValues[2] & 0b111111 ) * 4
+			r = pixelValues[0] >> 2
+			g = ( (pixelValues[0] & 0b11) << 4 ) + pixelValues[1] >> 4
+			b = ( pixelValues[1] & 0b1111 ) + pixelValues[2] >> 6
+			a = pixelValues[2] & 0b111111
+
+			# Normalize into the 0-255 range
+			r = r * 4 + r
+			g = g * 4 + g
+			b = b * 4 + b
+			a = a * 4 + a
 
 		return ( r, g, b, a )
 
