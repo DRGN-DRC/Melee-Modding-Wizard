@@ -9,7 +9,7 @@
 #		╚═╝     ╚═╝ ╚═╝     ╚═╝  ╚══╝╚══╝ 			 ------                                                   ------
 #		  -  - Melee Modding Wizard -  -  
 
-""" Container for global data that all scripts may access. 
+""" Container for global data that all program files or modules may access. 
 	Contains settings, settings-related load/save functions, and look-up tables. """
 
 programVersion = '0.9.8'

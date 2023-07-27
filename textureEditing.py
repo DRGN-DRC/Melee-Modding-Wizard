@@ -310,6 +310,7 @@ class TexturesEditorTab( ttk.Frame ):
 		modelPane.partIndex = -1
 		modelPane.dobjStringVar = Tk.StringVar()
 		modelPane.showRelatedParts = Tk.BooleanVar( value=True )
+		modelPane.showAllParts = Tk.BooleanVar( value=False )
 		modelPane.autoCameraUpdates = Tk.BooleanVar( value=True )
 		modelPane.showBones = Tk.BooleanVar( value=False )
 		modelPane.showHighPoly = Tk.BooleanVar( value=True )
@@ -1377,11 +1378,14 @@ class TexturesEditorTab( ttk.Frame ):
 				print( 'Unable to get model high/low-poly part IDs; {}'.format(err) )
 
 		# Set frustum limits (near/far rendering limits)
-			modelPane.engine.zNear = .5; modelPane.engine.zFar = 250
+			modelPane.engine.zNear = 1.0; modelPane.engine.zFar = 800
 		elif isinstance( self.file, StageFile ):
 			modelPane.engine.zNear = 10.0; modelPane.engine.zFar = 4000
+
+			# Attempt to initialize any skeletons
+			modelPane.engine.loadStageSkeletons( self.file, modelPane.showBones.get() )
 		else:
-			modelPane.engine.zNear = 1.0; modelPane.engine.zFar = 1000
+			modelPane.engine.zNear = 2.5; modelPane.engine.zFar = 1500
 
 	def determineDefaultPart( self ):
 
@@ -1423,6 +1427,10 @@ class TexturesEditorTab( ttk.Frame ):
 		return defaultPart
 
 	def renderPrevDobj( self, event ):
+
+		""" Called by the 'back' arrow underneath the render window. 
+			Switches to the last or previous DObj for rendering. """
+
 		modelPane = self.modelPropertiesPane.interior
 		if modelPane.partIndex <= 0:
 			modelPane.partIndex = len( modelPane.displayObjects ) - 1
@@ -1431,9 +1439,21 @@ class TexturesEditorTab( ttk.Frame ):
 		
 		modelPart = modelPane.displayObjects[modelPane.partIndex]
 
+		# Toggle the showHighPoly option if it would otherwise hide the part
+		if isinstance( self.file, CharCostumeFile ):
+			showHighPoly = modelPane.showHighPoly.get()
+			if showHighPoly and modelPart.id in modelPane.lowPolyIds:
+				modelPane.showHighPoly.set( False )
+			elif not showHighPoly and modelPart.id in modelPane.highPolyIds:
+				modelPane.showHighPoly.set( True )
+
 		self.renderDobj( [modelPart], True )
 
 	def renderNextDobj( self, event ):
+
+		""" Called by the 'next' arrow underneath the render window. 
+			Switches to the next or first DObj for rendering. """
+
 		modelPane = self.modelPropertiesPane.interior
 		if modelPane.partIndex >= len( modelPane.displayObjects ) - 1:
 			modelPane.partIndex = 0
@@ -1441,6 +1461,14 @@ class TexturesEditorTab( ttk.Frame ):
 			modelPane.partIndex += 1
 		
 		modelPart = modelPane.displayObjects[modelPane.partIndex]
+
+		# Toggle the showHighPoly option if it would otherwise hide the part
+		if isinstance( self.file, CharCostumeFile ):
+			showHighPoly = modelPane.showHighPoly.get()
+			if showHighPoly and modelPart.id in modelPane.lowPolyIds:
+				modelPane.showHighPoly.set( False )
+			elif not showHighPoly and modelPart.id in modelPane.highPolyIds:
+				modelPane.showHighPoly.set( True )
 
 		self.renderDobj( [modelPart], True )
 
@@ -1460,11 +1488,19 @@ class TexturesEditorTab( ttk.Frame ):
 			modelPane.dobjStringVar.set( 'No Parts Selected' )
 			return
 
-		if isinstance( self.file, CharCostumeFile ):
-			if modelPane.showRelatedParts.get():
+		if modelParts[0].skeleton:
+			# Collect all DObjs in the file if we're to display everything
+			showAllParts = modelPane.showAllParts.get()
+			if showAllParts:
+				modelParts = []
+				for struct in self.file.structs.values():
+					if isinstance( struct, hsdStructures.DisplayObjDesc ):
+						modelParts.append( struct )
+
+			if not showAllParts and modelPane.showRelatedParts.get():
 				for modelPart in modelParts:
 					# Use the model's skeleton to find a few near-by parts
-					for partOffset in self.findRelatedParts( modelPart, modelPane.engine.skeleton ):
+					for partOffset in self.findRelatedParts( modelPart ):
 						part = self.file.getStruct( partOffset )
 						modelPane.engine.renderDisplayObj( part, includeSiblings=False )
 			else:
@@ -1474,9 +1510,10 @@ class TexturesEditorTab( ttk.Frame ):
 						continue
 
 					modelPane.engine.renderDisplayObj( modelPart, includeSiblings=False )
+
 		else:
 			# No skeleton to use when position various parts; fall back to basic joint transforms only
-			showRelated = modelPane.showRelatedParts.get()
+			showRelated = ( modelPane.showRelatedParts.get() or modelPane.showAllParts.get() )
 			for modelPart in modelParts:
 				primitives = modelPane.engine.renderDisplayObj( modelPart, includeSiblings=showRelated )
 
@@ -1510,7 +1547,7 @@ class TexturesEditorTab( ttk.Frame ):
 				else:
 					checkboxStates[dobj.offset].set( False )
 
-	def findRelatedParts( self, targetDObj, skeleton ):
+	def findRelatedParts( self, targetDObj ):
 
 		""" Searches a model skeleton to find a few model parts that 
 			are related to (close proximity to) the given DObj. Also 
@@ -1523,7 +1560,7 @@ class TexturesEditorTab( ttk.Frame ):
 
 		# Check what bones the given DObj is attached to or influenced by
 		targetJoints = set( targetDObj.getBoneAttachments() )
-		targetBones = set([ bone for bone in skeleton.values() if bone.joint.offset in targetJoints ])
+		targetBones = set([ bone for bone in targetDObj.skeleton.values() if bone.joint.offset in targetJoints ])
 
 		# Scan the skeleton for parts attached to or near the target bones
 		relatedParts = set()
@@ -1553,6 +1590,10 @@ class TexturesEditorTab( ttk.Frame ):
 
 		modelPane = self.modelPropertiesPane.interior
 		showHighPoly = modelPane.showHighPoly.get()
+
+		# Return False if unable to check or there are no high/low-poly variations
+		if not modelPane.highPolyIds:
+			return False
 
 		# Skip low-poly parts if they should be hidden
 		if showHighPoly and part.id in modelPane.lowPolyIds:
@@ -2613,39 +2654,59 @@ class ModelTabRenderOptionsWindow( BasicWindow ):
 
 		ttk.Separator( self.window, orient='horizontal' ).grid( column=0, row=2, columnspan=2, sticky='ew', padx=42, pady=(6, 12) )
 
-		tangentBtn = ttk.Checkbutton( self.window, text='Show related parts (DObj siblings)', variable=self.modelPane.showRelatedParts, command=self.checkboxClicked )
-		tangentBtn.grid( column=0, row=3, columnspan=2, padx=20 )
+		showAllBtn = ttk.Checkbutton( self.window, text='Show all model parts', variable=self.modelPane.showAllParts, command=self.showAllCheckboxClicked )
+		showAllBtn.grid( column=0, row=3, columnspan=2, padx=20 )
+
+		self.showRelatedBtn = ttk.Checkbutton( self.window, text='Show related parts (DObj siblings)', variable=self.modelPane.showRelatedParts, command=self.checkboxClicked )
+		self.showRelatedBtn.grid( column=0, row=4, columnspan=2, padx=20 )
+		self.updateRelatedBtn()
 
 		self.showHighPolyBtn = ttk.Radiobutton( self.window, text='High-poly', variable=self.modelPane.showHighPoly, value=True, command=self.checkboxClicked, style='Red.TRadiobutton' )
-		self.showHighPolyBtn.grid( column=0, row=4, padx=8, sticky='e' )
+		self.showHighPolyBtn.grid( column=0, row=5, padx=8, sticky='e' )
 		self.showLowPolyBtn = ttk.Radiobutton( self.window, text='Low-poly', variable=self.modelPane.showHighPoly, value=False, command=self.checkboxClicked, style='Blue.TRadiobutton' )
-		self.showLowPolyBtn.grid( column=1, row=4, padx=8, sticky='w' )
-		self.updatePolyBtn()
+		self.showLowPolyBtn.grid( column=1, row=5, padx=8, sticky='w' )
+		self.updatePolyBtns()
 
 		showBonesBtn = ttk.Checkbutton( self.window, text='Show model bones', variable=self.modelPane.showBones, command=self.toggleBonesVisibility )
-		showBonesBtn.grid( column=0, row=5, columnspan=2, padx=20 )
+		showBonesBtn.grid( column=0, row=6, columnspan=2, padx=20 )
 
 		cameraBtn = ttk.Checkbutton( self.window, text='Auto-update camera', variable=self.modelPane.autoCameraUpdates )
-		cameraBtn.grid( column=0, row=6, columnspan=2, padx=20 )
+		cameraBtn.grid( column=0, row=7, columnspan=2, padx=20 )
 
 		# Select/deselect all buttons
 		lowerButtonsFrame = ttk.Frame( self.window )
 		ttk.Button( lowerButtonsFrame, text='Select all', command=self.selectAll ).pack( side='left', padx=5 )
 		ttk.Button( lowerButtonsFrame, text='Deselect all', command=self.deselectAll ).pack( side='left', padx=5 )
-		lowerButtonsFrame.grid( column=0, row=7, columnspan=2, pady=12 )
+		lowerButtonsFrame.grid( column=0, row=8, columnspan=2, pady=12 )
 
 		# Configure resize behavior (only the VSF should change size)
 		self.window.columnconfigure( 'all', weight=1 )
-		self.window.rowconfigure( 0, weight=0 )
+		self.window.rowconfigure( 'all', weight=0 )
+		#self.window.rowconfigure( 0, weight=0 )
 		self.window.rowconfigure( 1, weight=1 )
-		self.window.rowconfigure( 2, weight=0 )
-		self.window.rowconfigure( 3, weight=0 )
-		self.window.rowconfigure( 4, weight=0 )
-		self.window.rowconfigure( 5, weight=0 )
-		self.window.rowconfigure( 6, weight=0 )
-		self.window.rowconfigure( 7, weight=0 )
+		# self.window.rowconfigure( 2, weight=0 )
+		# self.window.rowconfigure( 3, weight=0 )
+		# self.window.rowconfigure( 4, weight=0 )
+		# self.window.rowconfigure( 5, weight=0 )
+		# self.window.rowconfigure( 6, weight=0 )
+		# self.window.rowconfigure( 7, weight=0 )
+		# self.window.rowconfigure( 8, weight=0 )
 
-	def updatePolyBtn( self ):
+	def updateRelatedBtn( self ):
+		
+		""" Updates appearance of the 'Show related' checkbox/option, 
+			which is overridden by the 'Show all' option. """
+
+		if self.modelPane.showAllParts.get():
+			self.showRelatedBtn.config( state='disabled' )
+		else:
+			self.showRelatedBtn.config( state='enabled' )
+
+	def updatePolyBtns( self ):
+		
+		""" Updates appearance of the 'Show high/low poly' radio buttons/option, 
+			which isn't used if this isn't for a character costume file. """
+
 		if isinstance( self.editorTab.file, CharCostumeFile ):
 			self.showHighPolyBtn.config( state='enabled' )
 			self.showLowPolyBtn.config( state='enabled' )
@@ -2684,14 +2745,19 @@ class ModelTabRenderOptionsWindow( BasicWindow ):
 		
 		self.partCheckboxesFrame.clear()
 		self.populate()
-		self.updatePolyBtn()
+		self.updateRelatedBtn()
+		self.updatePolyBtns()
 		self.window.geometry( '' ) # Updates the window size
+
+	def showAllCheckboxClicked( self ):
+		self.updateRelatedBtn()
+		self.checkboxClicked()
 
 	def checkboxClicked( self ):
 
 		""" Updates the render when one of the checkboxes is clicked on. """
 
-		engine = self.modelPane.engine
+		# engine = self.modelPane.engine
 		# showRelatedParts = self.modelPane.showRelatedParts.get()
 		# allowCameraUpdate = self.modelPane.autoCameraUpdates.get()
 
@@ -2701,10 +2767,10 @@ class ModelTabRenderOptionsWindow( BasicWindow ):
 		# 	renderedStructs.update( object.tags )
 
 		# Check what parts need to be shown/rendered or hidden
-		partsToShow = []
+		# partsToShow = []
 		# partsToHide = []
 		enabledObjects = []
-		singleSelectedDobj = -1
+		#singleSelectedDobj = -1
 		for dobjIndex, dobj in enumerate( self.modelPane.displayObjects ):
 			#dobjSiblings = dobj.getSiblings()[:] # Making a copy, since we might edit it
 
@@ -2721,7 +2787,7 @@ class ModelTabRenderOptionsWindow( BasicWindow ):
 
 				# Remember some details to update the title below the render window
 				enabledObjects.append( dobj )
-				singleSelectedDobj = dobjIndex
+				#singleSelectedDobj = dobjIndex
 			# else:
 			# 	partsToHide.extend( dobjSiblings )
 
@@ -2768,23 +2834,6 @@ class ModelTabRenderOptionsWindow( BasicWindow ):
 		# 	self.modelPane.dobjStringVar.set( title )
 		# else:
 		# 	self.modelPane.dobjStringVar.set( 'Multiple Selected' )
-
-	# def _renderPart( self, dobjOffset, applyTransformations=False ):
-
-	# 	""" Adds a display object to the render window. """
-
-	# 	# Part not yet added; render it now
-	# 	engine = self.modelPane.engine
-	# 	dobj = self.file.structs[dobjOffset]
-	# 	primitives = engine.renderDisplayObj( dobj, includeSiblings=False )
-
-	# 	if applyTransformations:
-	# 		# Update relative position based on parent joint coordinates
-	# 		parentJointOffset = next(iter( dobj.getParents() ))
-	# 		parentJoint = self.file.initSpecificStruct( hsdStructures.JointObjDesc, parentJointOffset )
-	# 		engine.applyJointTransformations( primitives, parentJoint )
-
-	# 	self.transformedRenders[dobjOffset] = applyTransformations
 
 	def selectAll( self ):
 		[ boolVar.set(True) for boolVar in self.checkboxStates.values() ]

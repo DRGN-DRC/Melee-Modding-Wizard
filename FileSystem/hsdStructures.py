@@ -1265,13 +1265,13 @@ class DisplayListBlock( DataBlock ):
 				elif name == 11: # GX_VA_CLR0
 					color = self.decodeColor( compType, values )
 					vl.vertexColors[1].extend( color )
-				elif name == 12: # GX_VA_CLR1
-					print( 'Encountered secondary color (GX_VA_CLR1)' )
+				# elif name == 12: # GX_VA_CLR1
+				# 	print( 'Encountered secondary color (GX_VA_CLR1)' )
 				elif name == 13: # GX_VA_TEX0
 					vl.texCoords[1].extend( values )
-				elif name > 13:
-					enumName = VertexAttributesArray.enums['Attribute_Name'][name]
-					print( 'Encountered {} in {}'.format(enumName, self.name) )
+				# elif name > 13:
+					# enumName = VertexAttributesArray.enums['Attribute_Name'][name]
+					# print( 'Encountered {} in {}'.format(enumName, self.name) )
 
 		vl.finalize()
 
@@ -1400,6 +1400,13 @@ class JointObjDesc( StructBase ): # A.k.a Bone Structure
 		self._dobj = None
 
 	@property
+	def flags( self ):
+		if self.values:
+			return self.values[1]
+		else:
+			return self.getValues( 'Joint_Flags' )
+
+	@property
 	def DObj( self ):
 		if not self._dobj:
 			pointer = self.getValues( 'Display_Object_Pointer' )
@@ -1409,7 +1416,7 @@ class JointObjDesc( StructBase ): # A.k.a Bone Structure
 
 	@property
 	def isBone( self ):
-		flags = self.getValues( 'Joint_Flags' )
+		flags = self.flags
 
 		# Check for the SKELETON and SKELETON_ROOT flags
 		if flags & 1 or flags & 2:
@@ -1479,6 +1486,7 @@ class DisplayObjDesc( StructBase ):
 		self.childClassIdentities = { 1: 'DisplayObjDesc', 2: 'MaterialObjDesc', 3: 'PolygonObjDesc' }
 		self._pobj = None
 		self.id = -1
+		self.skeleton = {} # The same skeleton in to self.dat.skeletons[]
 
 	def validated( self, deducedStructLength=-1 ):
 		if not super( DisplayObjDesc, self ).validated( False, deducedStructLength ): 
