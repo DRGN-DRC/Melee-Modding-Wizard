@@ -632,6 +632,7 @@ class DatFile( FileBase ):
 		self.orphanStructures = set()	# These are not attached to the rest of the file heirarchy/tree in the usual manner (i.e. no parents)
 		self.structs = {}				# key = structOffset, value = HSD structure object
 		self.deepDiveStats = {}			# After parsing the data section, this will contain pairs of key=structClassName, value=instanceCount
+		self.skeletons = {}				# key = joint offset of a root bone, value = dictionary of bones
 
 		self.headerNeedsRebuilding = False
 		self.rtNeedsRebuilding = False

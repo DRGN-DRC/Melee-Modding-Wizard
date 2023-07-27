@@ -103,7 +103,6 @@ class RenderEngine( Tk.Frame ):
 			print( 'Rendering with OpenGL version {}'.format(openGlVersion) )
 
 		self.edges = []
-		self.skeleton = {}
 		self.clearRenderings()
 		self.resetView()
 		#self.defineFrustum()
@@ -133,9 +132,6 @@ class RenderEngine( Tk.Frame ):
 
 	def clearRenderings( self, preserveBones=True ):
 
-		# for obj in self.getObjects():
-		# 	obj.delete()
-
 		if preserveBones:
 			bones = []
 			for edge in self.edges:
@@ -144,7 +140,6 @@ class RenderEngine( Tk.Frame ):
 			self.edges = bones
 		else:
 			self.edges = []
-			self.skeleton = {}
 
 		self.vertices = []
 		self.triangles = []
@@ -405,24 +400,38 @@ class RenderEngine( Tk.Frame ):
 		""" Initialize joints used for bones in the model, create bone objects for them, 
 			and calculate model tranformations for all bone vertices, which will be used for their meshes. """
 
-		self.skeleton = {}
+		# Create a new skeleton to add to the dat file (or empty an existing one)
+		rootJoint.dat.skeletons[rootJoint.offset] = {}
+		skeleton = rootJoint.dat.skeletons[rootJoint.offset]
 		Bone.count = 0
+
 		dobjClass = globalData.fileStructureClasses.get( 'DisplayObjDesc' )
 		dobjClass.count = 0
 
 		child = rootJoint.initChild( 'JointObjDesc', 2 )
 
 		# Give IDs to the primary Display Objects (useful for determining high/low-model parts)
-		self._enumerateDObjs( rootJoint )
+		self._enumerateDObjs( rootJoint, skeleton )
 
 		modelMatrix = rootJoint.buildLocalMatrix()
-		self._addBone( rootJoint, child, modelMatrix, showBones )
+		
+		# Recursively add bones for this joint's child and the child's siblings
+		for siblingOffset in child.getSiblings():
+			if siblingOffset in skeleton:
+				continue
 
-		#print( 'Added these bones: ' + str([hex(o+0x20) for o in self.skeleton]) )
+			sibling = rootJoint.dat.getStruct( siblingOffset )
+
+			if not sibling.isBone:
+				print( 'Non-bone added to skeleton: ' + hex(0x20+sibling.offset) )
+
+			self._addBone( rootJoint, sibling, modelMatrix, showBones, skeleton )
+
+		#print( 'Added these bones: ' + str([hex(o+0x20) for o in self.skeleton]) + ' to skeleton dict ' + str(rootJoint.offset) )
 
 		self.window.updateRequired = True
 
-	def _addBone( self, parentJoint, thisJoint, modelMatrix, showBones ):
+	def _addBone( self, parentJoint, thisJoint, modelMatrix, showBones, skeleton ):
 
 		""" Recursive helper function to loadSkeleton(); creates a bone for the given joints, 
 			adds it to the model skeleton dictionary, and repeats for this bone's children. """
@@ -430,16 +439,16 @@ class RenderEngine( Tk.Frame ):
 		# Add this bone to the renderer and skeleton dictionary
 		bone = Bone( parentJoint, thisJoint, modelMatrix, showBones )
 		self.edges.append( bone )
-		self.skeleton[thisJoint.offset] = bone
+		skeleton[thisJoint.offset] = bone
 
 		# Give IDs to the Display Objects (useful for determining high/low-model parts)
-		self._enumerateDObjs( thisJoint )
+		self._enumerateDObjs( thisJoint, skeleton )
 
 		# Check for children to add
 		childJoint = thisJoint.initChild( 'JointObjDesc', 2 )
 		if childJoint:
 			for siblingOffset in childJoint.getSiblings():
-				if siblingOffset in self.skeleton:
+				if siblingOffset in skeleton:
 					continue
 
 				sibling = childJoint.dat.getStruct( siblingOffset )
@@ -447,10 +456,10 @@ class RenderEngine( Tk.Frame ):
 				if not sibling.isBone:
 					print( 'Non-bone added to skeleton: ' + hex(0x20+sibling.offset) )
 
-				self._addBone( thisJoint, sibling, bone.modelMatrix, showBones )
+				self._addBone( thisJoint, sibling, bone.modelMatrix, showBones, skeleton )
 				bone.children.append( sibling.offset )
 
-	def _enumerateDObjs( self, joint ):
+	def _enumerateDObjs( self, joint, skeleton ):
 
 		""" Enumerates Display Objects (model parts) as they're encountered across the skeleton. 
 			These enumerations are useful for determining high/low-model parts within the model. """
@@ -468,6 +477,24 @@ class RenderEngine( Tk.Frame ):
 			if sibling:
 				sibling.id = dobjClass.count
 				dobjClass.count += 1
+				sibling.skeleton = skeleton
+
+	def loadStageSkeletons( self, stageFile, showBones=True ):
+
+		""" Goes through the Game Objects Array of a stage file 
+			and loads each root skeleton among the root joints. """
+
+		gobjsArray = stageFile.getGObjs()
+	
+		for _, entryValues in gobjsArray.iterateEntries():
+			joint = stageFile.getStruct( entryValues[0] )
+			if not joint:
+				continue
+
+			# Check if this is a skeleton root joint
+			if joint.flags & 2:
+				#print( '{} is skeleton root'.format(joint.name) )
+				self.loadSkeleton( joint, showBones )
 
 	def renderJoint( self, joint, parent=None, showBones=False ):
 
@@ -576,8 +603,8 @@ class RenderEngine( Tk.Frame ):
 					pobjPrimitives = pobj.decodeGeometry()
 
 					# If this is something attached to a skeleton, update part coordinates to model space
-					if self.skeleton:
-						pobj.moveToModelSpace( pobjPrimitives, self.skeleton )
+					if dobj.skeleton:
+						pobj.moveToModelSpace( pobjPrimitives, dobj.skeleton )
 
 					self.addVertexLists( pobjPrimitives, textureGroup, dobjOffset, pobjOffset )
 					primitives.extend( pobjPrimitives )
@@ -1539,9 +1566,10 @@ class HSD_Texture( TextureGroup ):
 		# Use the first texture in the textures list by default
 		self.index = 0
 		self.textures = textures # A list of texture objects (file structs)
-		self._setTexProperties()
 		self.texture = self._convertTexObject( textures[0] )
 		self.pygletConversions = { textures[0].offset: self.texture }
+
+		self._setTexProperties()
 
 	def _setTexProperties( self ):
 
@@ -1598,13 +1626,13 @@ class HSD_Texture( TextureGroup ):
 		textureObj = self.textures[index]
 		pygletTexture = self.pygletConversions.get( textureObj.offset )
 
-		self.texture = pygletTexture
-		self._setTexProperties()
-
 		# Check if this has already been decoded/converted
 		if not pygletTexture:
 			pygletTexture = self._convertTexObject( textureObj )
 			self.pygletConversions[textureObj.offset] = pygletTexture
+
+		self.texture = pygletTexture
+		self._setTexProperties()
 
 	def reloadTexture( self, imageDataOffset ):
 
