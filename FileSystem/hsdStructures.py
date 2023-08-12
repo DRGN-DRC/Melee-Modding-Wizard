@@ -1496,6 +1496,7 @@ class DisplayObjDesc( StructBase ):
 					)
 		self.length = 0x10
 		self.childClassIdentities = { 1: 'DisplayObjDesc', 2: 'MaterialObjDesc', 3: 'PolygonObjDesc' }
+		self._mobj = None
 		self._pobj = None
 		self.id = -1
 		self.skeleton = {} # The same skeleton in to self.dat.skeletons[]
@@ -1518,10 +1519,16 @@ class DisplayObjDesc( StructBase ):
 		return True
 
 	@property
+	def MObj( self ):
+		if not self._mobj:
+			pointer = self.getValues( 'Material_Object_Pointer' )
+			self._mobj = self.dat.initSpecificStruct( MaterialObjDesc, pointer, self.offset )
+		return self._mobj
+
+	@property
 	def PObj( self ):
 		if not self._pobj:
 			pointer = self.getValues( 'Polygon_Object_Pointer' )
-			if pointer == 0: return None
 			self._pobj = self.dat.initSpecificStruct( PolygonObjDesc, pointer, self.offset )
 		return self._pobj
 	
@@ -1725,10 +1732,9 @@ class InverseMatrixObjDesc( StructBase ):
 class MaterialObjDesc( StructBase ):
 
 	flags = { 'Rendering_Flags': OrderedDict([
-				( '0<<0',  'RENDER_DIFFUSE_MAT0' ),
-				( '1<<0',  'RENDER_DIFFUSE_MAT' ),
-				( '2<<0',  'RENDER_DIFFUSE_VTX' ),
-				( '3<<0',  'RENDER_DIFFUSE_BOTH' ),
+				( '1<<0',  'USE_CONSTANT_SHADING' ),
+				( '2<<0',  'USE_VERTEX_COLORS' ),
+				( '3<<0',  'USE_CONSTANT_AND_VERTEX' ),	# Ever used?
 				( '1<<2',  'RENDER_DIFFUSE' ),
 				( '1<<3',  'RENDER_SPECULAR' ),
 				( '1<<4',  'RENDER_TEX0' ),
@@ -1748,7 +1754,7 @@ class MaterialObjDesc( StructBase ):
 				( '1<<27', 'RENDER_ZMODE_ALWAYS' ),
 				( '1<<28', 'RENDER_DF_NONE' ),
 				( '1<<29', 'RENDER_NO_ZUPDATE' ),		# Sends object to the back (no Z order calculation)
-				( '1<<30', 'RENDER_XLU' ),				# Enables transparency application via color struct
+				( '1<<30', 'RENDER_XLU' ),				# Enables transparency application via color struct (eXtreme Level of Detail?)
 				( '1<<31', 'RENDER_USER' )
 			]) }
 
@@ -1761,12 +1767,19 @@ class MaterialObjDesc( StructBase ):
 						'Rendering_Flags',				# 0x4
 						'Texture_Object_Pointer',		# 0x8
 						'Material_Colors_Pointer',		# 0xC
-						'Render_Struct_Pointer',		# 0x10
+						'Render_Struct_Pointer',		# 0x10 (Not used?)
 						'Pixel_Proc._Pointer' 			# 0x14
 					)
 		self.length = 0x18
 		self.childClassIdentities = { 2: 'TextureObjDesc', 3: 'MaterialColorObjDesc', 5: 'PixelProcObjDesc' }
 		self._siblingsChecked = True
+
+	@property
+	def flags( self ):
+		if self.values:
+			return self.values[1]
+		else:
+			return self.getValues( 'Rendering_Flags' )
 
 	def validated( self, deducedStructLength=-1 ):
 		prelimCheck = super( MaterialObjDesc, self ).validated( False, deducedStructLength )
@@ -2112,8 +2125,8 @@ class VertexAttributesArray( TableStruct ):
 	
 	def determineFormat( self, name, compType ):
 
-		""" Determines the value formatting for an attribute, based on enumerations 
-			for the kind of attribute (Attribute_Name) and component type. """
+		""" Determines the value formatting (data size) for an attribute, based on the 
+			enumerations for the kind of attribute (Attribute_Name) and component type. """
 		
 		# if name == 10 or name == 25: # GX_VA_NRM or GX_VA_NBT
 		# 	if compType == 0: # sint8
@@ -2357,10 +2370,10 @@ class TextureObjDesc( StructBase ):
 				( '4<<0', 'COORD_TOON' ),
 				( '5<<0', 'COORD_GRADATION' ),
 				( '1<<4', 'LIGHTMAP_DIFFUSE' ),
-				( '1<<5', 'LIGHTMAP_SPECULAR' ),
-				( '1<<6', 'LIGHTMAP_AMBIENT' ),
-				( '1<<7', 'LIGHTMAP_EXT' ),
-				( '1<<8', 'LIGHTMAP_SHADOW' ),
+				( '2<<4', 'LIGHTMAP_SPECULAR' ),
+				( '4<<4', 'LIGHTMAP_AMBIENT' ),
+				( '8<<4', 'LIGHTMAP_EXT' ),
+				( '16<<4', 'LIGHTMAP_SHADOW' ),
 				( '0<<16', 'COLORMAP_NONE' ),
 				( '1<<16', 'COLORMAP_ALPHA_MASK' ),
 				( '2<<16', 'COLORMAP_RGB_MASK' ),
@@ -2388,7 +2401,7 @@ class TextureObjDesc( StructBase ):
 		self.formatting = '>IIIIfffffffffIIBBHIfIIIII'
 		self.fields = ( 'Name_Pointer',
 						'Next_Sibling_Pointer',
-						'GXTexMapID',
+						'GXTexMapID',		# i.e. Animation ID
 						'GXTexGenSrc', 		# Coord Gen Source Args
 						'Rotation_X',
 						'Rotation_Y',
@@ -2414,6 +2427,13 @@ class TextureObjDesc( StructBase ):
 					)
 		self.length = 0x5C
 		self.childClassIdentities = { 1: 'TextureObjDesc', 21: 'ImageObjDesc', 22: 'PaletteObjDesc', 23: 'LodObjDes', 24: 'TevObjDesc' }
+
+	@property
+	def flags( self ):
+		if self.values:
+			return self.values[18]
+		else:
+			return self.getValues()[18]
 
 	def validated( self, deducedStructLength=-1 ):
 		prelimCheck = super( TextureObjDesc, self ).validated( False, deducedStructLength )
@@ -2442,27 +2462,43 @@ class MaterialColorObjDesc( StructBase ):
 
 		self.name = 'Material Colors ' + uHex( 0x20 + args[1] )
 		self.formatting = '>IIIff'
-		self.fields = (	'RGBA_Diffusion',
-						'RGBA_Ambience',
+		self.fields = (	'RGBA_Ambience',
+						'RGBA_Diffusion',
 						'RGBA_Specular_Highlights',
-						'Transparency_Control',
+						'Transparency',
 						'Shininess'
 					)
 		self.length = 0x14
 		self._siblingsChecked = True
 		self._childrenChecked = True
 
+	@property
+	def ambience( self ): # Normalize to 0-1.0 range
+		return [ channel / 255.0 for channel in self.data[:4] ]
+	@property
+	def diffusion( self ): # Normalize to 0-1.0 range
+		return [ channel / 255.0 for channel in self.data[4:8] ]
+	@property
+	def specular( self ): # Normalize to 0-1.0 range
+		return [ channel / 255.0 for channel in self.data[8:0xC] ]
+	@property
+	def transparency( self ):
+		return self.getValues()[-2]
+	@property
+	def shininess( self ):
+		return self.getValues()[-1]
+
 
 class PixelProcObjDesc( StructBase ): # Pixel Processor Struct (PEDesc)
 														# [ Internal GX Notes ]
 	flags = { 'Pixel Proc. Flags': OrderedDict([
-				( '1<<0', 'Enable Color Updates' ),			# update_enable
-				( '1<<1', 'Enable Alpha Updates' ),			# update_enable
-				( '1<<2', 'Enable Destination Alpha' ),		# enable
-				( '1<<3', 'Z-Buff Before Texturing' ),		# before_tex
-				( '1<<4', 'Enable Z Comparisons' ),			# compare_enable
-				( '1<<5', 'Enable Z Updates' ),				# update_enable
-				( '1<<6', 'Enable Dithering' )				# dither
+				( '1<<0', 'Enable Color Updates' ),			# update_enable [GXSetColorUpdate]
+				( '1<<1', 'Enable Alpha Updates' ),			# update_enable [GXSetAlphaUpdate]
+				( '1<<2', 'Enable Destination Alpha' ),		# enable [GXSetDstAlpha] (constant alpha)
+				( '1<<3', 'Z-Buff Before Texturing' ),		# before_tex [GXSetZCompLoc]
+				( '1<<4', 'Enable Z Comparisons' ),			# compare_enable [GXSetZMode]
+				( '1<<5', 'Enable Z Updates' ),				# update_enable [GXSetZMode]
+				( '1<<6', 'Enable Dithering' )				# dither [GXSetDither]
 			]) }
 
 	enums = { 'Blend Mode Type': OrderedDict([			# GXBlendMode:
@@ -2497,23 +2533,30 @@ class PixelProcObjDesc( StructBase ): # Pixel Processor Struct (PEDesc)
 		StructBase.__init__( self, *args, **kwargs )
 
 		self.name = 'Pixel Proc. Struct ' + uHex( 0x20 + args[1] )
-		self.formatting = '>BBBBBBBBBBBB'
-		self.fields = (	'Pixel Proc. Flags',		#			(bitflags)
-						'Reference Value 0',		#			(ref0)
-						'Reference Value 1',		#			(ref1)
-						'Destination Alpha',		#			(alpha)
-						'Blend Mode Type',			# 0x4		(type)
-						'Source Factor',			#			(src_factor )
-						'Destination Factor',		#			(dst_factor )
-						'Blend Operation',			#			(op)
-						'Z Compare Function',		# 0x8		(func)
-						'Alpha Compare 0',			#			(comp0)
-						'Alpha Operation',			#			(op)
-						'Alpha Compare 1'			#			(comp1)
+		self.formatting = '>BBBBBBBBBBBB'							# [Original GX function name from SDK]
+		self.fields = (	'Pixel Proc. Flags',		#			bitflags 
+						'Reference Value 0',		#			ref0 [GXSetAlphaCompare]
+						'Reference Value 1',		#			ref1 [GXSetAlphaCompare]
+						'Destination Alpha',		#			alpha [GXSetDstAlpha]
+						'Blend Mode Type',			# 0x4		type [GXSetBlendMode]
+						'Source Factor',			#			src_factor [GXSetBlendMode]
+						'Destination Factor',		#			dst_factor [GXSetBlendMode]
+						'Pixel Logic Operation',	#			op [GXSetBlendMode]
+						'Z Compare Function',		# 0x8		func [GXSetZMode]
+						'Alpha Compare 0',			#			comp0 [GXSetAlphaCompare]
+						'Alpha Operation',			#			op [GXSetAlphaCompare]
+						'Alpha Compare 1'			#			comp1 [GXSetAlphaCompare]
 					)
 		self.length = 0xC
 		self._siblingsChecked = True
 		self._childrenChecked = True
+
+	@property
+	def flags( self ):
+		if self.values:
+			return self.values[0]
+		else:
+			return self.getValues()[0]
 
 
 class ImageObjDesc( StructBase ):
@@ -2613,7 +2656,7 @@ class PaletteObjDesc( StructBase ):
 		return True
 
 
-class LodObjDes( StructBase ):	# Level Of Detail
+class LodObjDes( StructBase ): # Level Of Detail
 
 	def __init__( self, *args, **kwargs ):
 		StructBase.__init__( self, *args, **kwargs )
@@ -2631,15 +2674,14 @@ class LodObjDes( StructBase ):	# Level Of Detail
 		self._siblingsChecked = True
 		self._childrenChecked = True
 
-	""" A few restrictions on the values of this structure
-		(although probably won't bother to validate this):
+	""" A few restrictions on the values of this structure:
 			LOD Bias - should be between -4.0 to 3.99
 			Edge LOD must be enabled for Max Anisotrophy
 			Max Anisotrophy can be 0, 1, 2, or 4 
 			(latter two values require trilinear filtering) """
 
 
-class TevObjDesc( StructBase ):
+class TevObjDesc( StructBase ): # Texture Environment struct
 
 	def __init__( self, *args, **kwargs ):
 		StructBase.__init__( self, *args, **kwargs )
