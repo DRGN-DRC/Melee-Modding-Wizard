@@ -2971,8 +2971,6 @@ class StagePropertyEditor( ttk.Frame ):
 		self.engine.grid( column=2, row=1, sticky='nsew', padx=(0, 15) )
 		self.engine.zNear = 10; self.engine.zFar = 4000
 
-		self.engine.loadStageSkeletons( self.file, True )
-
 		# Model parts controls
 		modelPartsControls = ttk.Frame( self )
 		self.showBones = Tk.BooleanVar( value=False )
@@ -3021,20 +3019,27 @@ class StagePropertyEditor( ttk.Frame ):
 			return
 
 		# Clear current rendered objects
-		self.engine.clearRenderings()
+		self.engine.clearRenderings( False )
 
 		# Check if the first group is selected
+		showBones = self.showBones.get()
 		if iidSelectionsTuple[0] == self.modelPartsTree.get_children()[0]:
 			# Turn on bone rendering if it's disabled (the first group is only bones)
-			if not self.showBones.get():
+			if not showBones:
 				self.showBones.set( True )
+				showBones = True
 
 		# Get the selected joint object(s)
 		for iid in iidSelectionsTuple:
 			joint = self.file.getStruct( int(iid) )
-			#tic = time.clock()
-			self.engine.renderJoint( joint, showBones=self.showBones.get() )
-			#print( 'render time: ' + str(time.clock()-tic))
+			
+			# Check if this is a skeleton root joint
+			if joint.flags & 2:
+				skeleton = self.engine.loadSkeleton( joint, showBones )
+			else:
+				skeleton = None # Use rudimentary transforms for joints in renderJoint()
+
+			self.engine.renderJoint( joint, showBones=showBones, skeleton=skeleton )
 
 	def toggleBones( self ):
 		self.engine.showPart( 'bones', self.showBones.get() )
