@@ -298,13 +298,21 @@ class TexturesEditorTab( ttk.Frame ):
 		modelPane.textureStructs = [] # Direct model attachments
 		modelPane.headerArrayStructs = [] # Used for animations
 		modelPane.unexpectedStructs = []
-		modelPane.materialStructs = []
+		#modelPane.materialStructs = [] # no longer needed?
 		modelPane.displayObjects = []
+		modelPane.currentRenders = []
+
+		# Widgets for model part modifications (hidden state/transparency/colors)
 		modelPane.hideJointChkBtn = None
 		modelPane.polyDisableChkBtn = None
 		modelPane.opacityEntry = None
 		modelPane.opacityBtn = None
 		modelPane.opacityScale = None
+		modelPane.diffusionEntry = None
+		modelPane.ambienceEntry = None
+		modelPane.highlightsEntry = None
+		modelPane.shininessEntry = None
+
 		modelPane.engine = None
 		modelPane.renderOptionsBtn = None
 		modelPane.partIndex = -1
@@ -327,6 +335,19 @@ class TexturesEditorTab( ttk.Frame ):
 		self.imageManipTabs.bind( '<<NotebookTabChanged>>', self.imageManipTabChanged )
 
 		secondRow.pack( fill='both', expand=1 )
+
+	def imageManipTabChanged( self, event ):
+
+		""" Called when the sub-tabs within this tab ('Image', 'Palette', etc.) are changed. """
+
+		currentTab = globalData.gui.root.nametowidget( event.widget.select() )
+		currentTab.focus() # Don't want keyboard/widget focus at any particular place yet
+		tabState = self.imageManipTabs.tab( currentTab, 'state' )
+
+		if currentTab == self.modelPropertiesPane and tabState != 'disabled':
+			self.populateModelTab()
+		elif currentTab == self.texturePropertiesPane and tabState != 'disabled':
+			self.populateTexPropertiesTab()
 
 	def openNewFile( self, event=None, path='', newTab=False ):
 
@@ -758,7 +779,8 @@ class TexturesEditorTab( ttk.Frame ):
 
 	def onTextureTreeSelect( self, event, iid=None ):
 
-		""" Called when a texture is selected in the treeview. """
+		""" Called when a texture is selected in the treeview in 
+			order to update tabs on the right side of the GUI. """
 
 		# Ensure there is an iid, or do nothing
 		if not iid:
@@ -817,17 +839,16 @@ class TexturesEditorTab( ttk.Frame ):
 		# 	# lackOfUsefulStructsDescription += ' with an E2E header at 0x{:X}.'.format( 0x20+e2eHeaderOffset )
 
 		elif not texture: # Make sure an image data struct exists to check if this might be something like a DOL texture
-			lackOfUsefulStructsDescription = (  'There are no image data headers or other structures associated '
-												'with this texture. These are stored end-to-end in this file with '
-												'other similar textures.' )
+			lackOfUsefulStructsDescription = (  'This texture does not use the usual image data headers and other associated '
+												'structures (TObj/MObj/etc.). These are instead stored end-to-end in this file '
+												'with other similar textures.' )
 
-		if not lackOfUsefulStructsDescription:
-			imageDataHeaderOffsets = texture.getParents()
-			if not imageDataHeaderOffsets:
-				lackOfUsefulStructsDescription = 'This file has no known image data headers or other structures to modify.'
-
-		self.texturePropertiesPane.clear()
-		self.texturePropertiesPane.flagWidgets = [] # Useful for the Flag Decoder to more easily find widgets that need updating
+		# See if we can get parent structures for this texture
+		if not lackOfUsefulStructsDescription and not texture.getParents():
+			lackOfUsefulStructsDescription = 'This file has no known image data headers or other structures to modify.'
+		
+		# Clear collected structures for this texture (will be collected once needed)
+		self.modelPropertiesPane.interior.imageDataHeaders = []
 
 		# If the following string has something, there isn't much customization to be done for this texture
 		if lackOfUsefulStructsDescription:
@@ -840,17 +861,16 @@ class TexturesEditorTab( ttk.Frame ):
 			self.imageManipTabs.tab( self.texturePropertiesPane, state='normal' )
 			ttk.Label( self.texturePropertiesPane.interior, text=lackOfUsefulStructsDescription, wraplength=wraplength ).pack( pady=30 )
 
-			return # Nothing more to say about this texture
+		else:
+			# Enable and update the Model tab
+			self.imageManipTabs.tab( self.modelPropertiesPane, state='normal' )
+			if currentTab == self.modelPropertiesPane:
+				self.populateModelTab( [iid] )
 
-		# Enable and update the Model tab
-		self.imageManipTabs.tab( self.modelPropertiesPane, state='normal' )
-		#self.populateModelTab( imageDataHeaderOffsets, wraplength )
-		if currentTab == self.modelPropertiesPane:
-			self.populateModelTab()
-
-		# Enable and update the Properties tab
-		self.imageManipTabs.tab( self.texturePropertiesPane, state='normal' )
-		self.populateTexPropertiesTab( wraplength, texture )
+			# Enable and update the Properties tab
+			self.imageManipTabs.tab( self.texturePropertiesPane, state='normal' )
+			if currentTab == self.texturePropertiesPane:
+				self.populateTexPropertiesTab( [iid] )
 
 	def drawTextureToMainDisplay( self, imageDataOffset ):
 
@@ -1031,40 +1051,29 @@ class TexturesEditorTab( ttk.Frame ):
 			maxColors = maxColorsBySpace
 
 		return maxColors
+	
+	def collectStructs( self, iid ):
 
-	def populateModelTab( self, iid=None ):
+		""" Collects texture-related structures for use in the Model and Properties tabs. 
+			This info is only collected if one of those tabs is selected in order to 
+			prevent unnecessary processing and widget creation, and improve performance. """
 
-		# Ensure there is an iid, or do nothing
-		if not iid:
-			iid = self.datTextureTree.selection()
-			if not iid: return
-		iid = iid[-1] # Selects the lowest position item selected in the treeview if multiple items are selected.
-
+		# If there are image data headers populated, then this function has already been run for this texture
+		modelPane = self.modelPropertiesPane.interior
+		if modelPane.imageDataHeaders:
+			return
+		
 		# Get the texture struct and its parents
 		imageDataOffset = int( iid )
 		texture = self.file.structs[imageDataOffset]
-		imageDataHeaderOffsets = texture.getParents()
 
-		modelPane = self.modelPropertiesPane.interior
-		wraplength = modelPane.winfo_width() - 20
-		vertPadding = 8
-
-		# Clear the current contents
-		for childWidget in modelPane.winfo_children():
-			if not isinstance( childWidget, RenderEngine ):
-				childWidget.destroy()
-
-		# Reset the scrollbar (if there is one displayed) to the top.
-		self.modelPropertiesPane.canvas.yview_moveto( 0 )
-
-		modelPane.imageDataHeaders = []
 		modelPane.nonImageDataHeaders = [] # Not expected
 		modelPane.textureStructs = [] # Direct model attachments
 		modelPane.headerArrayStructs = [] # Used for animations
 		modelPane.unexpectedStructs = []
 
 		# Double-check that all of the parents are actually image data headers, and get grandparent structs
-		for imageHeaderOffset in imageDataHeaderOffsets: # This should exclude any root/reference node parents (such as a label)
+		for imageHeaderOffset in texture.getParents(): # This should exclude any root/reference node parents (such as a label)
 			headerStruct = self.file.initSpecificStruct( hsdStructures.ImageObjDesc, imageHeaderOffset )
 
 			if headerStruct:
@@ -1091,14 +1100,14 @@ class TexturesEditorTab( ttk.Frame ):
 				modelPane.nonImageDataHeaders.append( self.file.getStruct(imageHeaderOffset) )
 
 		# Get the associated material structs and display objects
-		modelPane.materialStructs = []
+		#modelPane.materialStructs = []
 		modelPane.displayObjects = []
 		for texStruct in modelPane.textureStructs:
 			for materialStructOffset in texStruct.getParents():
 				materialStruct = self.file.initSpecificStruct( hsdStructures.MaterialObjDesc, materialStructOffset )
 
 				if materialStruct:
-					modelPane.materialStructs.append( materialStruct )
+					#modelPane.materialStructs.append( materialStruct )
 
 					for displayObjOffset in materialStruct.getParents():
 						displayObject = self.file.initSpecificStruct( hsdStructures.DisplayObjDesc, displayObjOffset )
@@ -1106,8 +1115,30 @@ class TexturesEditorTab( ttk.Frame ):
 						if displayObject:
 							modelPane.displayObjects.append( displayObject )
 
-		# print( 'material structs: ' + str([hex(0x20+obj.offset) for obj in modelPane.materialStructs]) )
-		# print( 'displayObj structs: ' + str([hex(0x20+obj.offset) for obj in modelPane.displayObjects]) )
+		#print( 'material structs: ' + str([hex(0x20+obj.offset) for obj in modelPane.materialStructs]) )
+		print( 'displayObj structs: ' + str([hex(0x20+obj.offset) for obj in modelPane.displayObjects]) )
+
+	def populateModelTab( self, iid=None ):
+
+		# Ensure there is an iid, or do nothing
+		if not iid:
+			iid = self.datTextureTree.selection()
+			if not iid: return
+		iid = iid[-1] # Selects the lowest position item selected in the treeview if multiple items are selected.
+
+		modelPane = self.modelPropertiesPane.interior
+		wraplength = modelPane.winfo_width() - 20
+		vertPadding = 8
+
+		# Clear the current contents
+		for childWidget in modelPane.winfo_children():
+			if not isinstance( childWidget, RenderEngine ):
+				childWidget.destroy()
+
+		# Reset the scrollbar (if there is one displayed) to the top.
+		self.modelPropertiesPane.canvas.yview_moveto( 0 )
+
+		self.collectStructs( iid )
 
 		# Create a render canvas if any model parts were detected
 		if modelPane.displayObjects:
@@ -1142,9 +1173,9 @@ class TexturesEditorTab( ttk.Frame ):
 				nextDobjBtn.pack( side='left' )
 				dobjSelectionControls.pack( pady=(vertPadding, 4) )
 
-			self.renderDobj( [modelPart] )
-
 		else: # No model parts detected; fall back to text descriptions of what was found
+			modelPart = None
+			modelPane.currentRenders = []
 			if modelPane.engine:
 				modelPane.engine.pack_forget()
 			if modelPane.renderOptionsBtn:
@@ -1187,19 +1218,37 @@ class TexturesEditorTab( ttk.Frame ):
 				
 			ttk.Separator( modelPane, orient='horizontal' ).pack( fill='x', padx=24, pady=(vertPadding*2, vertPadding) )
 
-		# Display controls to adjust this texture's model transparency
-		# Set up the transparency control panel and initialize the control variables
+		self.populateMaterialProperties()
+
+		if modelPart:
+			self.renderDobj( [modelPart] )
+
+	def populateMaterialProperties( self ):
+
+		""" Adds controls to edit DObj/MObj properties to the Model tab. 
+			This includes everything below the render window except the 
+			'Display Object _' label and associated buttons; i.e. model 
+			render checkboxes, transparency control and material colors. """
+		
+		modelPane = self.modelPropertiesPane.interior
+		vertPadding = 8
+
+		# Create checkboxes to edit model part visibility
 		transparencyPane = ttk.Frame( modelPane )
 		jointHidden = Tk.BooleanVar()
 		displayListDisabled = Tk.BooleanVar() # Whether or not display list length has been set to 0
 
-		modelPane.hideJointChkBtn = ttk.Checkbutton( transparencyPane, text='Disable Part Rendering', variable=jointHidden, command=self.toggleHideJoint )
+		modelPane.hideJointChkBtn = ttk.Checkbutton( transparencyPane, text='Disable Part Rendering (Hide Joint)', variable=jointHidden, command=self.toggleHideJoint )
 		modelPane.hideJointChkBtn.var = jointHidden
 		modelPane.hideJointChkBtn.grid( column=0, row=0, sticky='w', columnspan=3 )
+
 		modelPane.polyDisableChkBtn = ttk.Checkbutton( transparencyPane, text='Disable Polygon (Display List) Rendering', variable=displayListDisabled, command=self.toggleDisplayListRendering )
 		modelPane.polyDisableChkBtn.var = displayListDisabled
 		modelPane.polyDisableChkBtn.grid( column=0, row=1, sticky='w', columnspan=3 )
-		ttk.Label( transparencyPane, text='Transparency Control:' ).grid( column=0, row=2, sticky='w', columnspan=3, padx=15, pady=(3, 4) )
+
+		# Create widgets to update Transparency (the material colors struct's alpha property).
+		# Note that the Entry and Scale widgets do not update the value; only the Set button can set it.
+		ttk.Label( transparencyPane, text='Transparency Control:' ).grid( column=0, row=2, sticky='w', columnspan=3, padx=15, pady=(vertPadding, 4) )
 		opacityValidationRegistration = globalData.gui.root.register( self.opacityEntryUpdated )
 		modelPane.opacityEntry = ttk.Entry( transparencyPane, width=7, justify='center', validate='key', validatecommand=(opacityValidationRegistration, '%P') )
 		modelPane.opacityEntry.grid( column=0, row=3 )
@@ -1233,39 +1282,53 @@ class TexturesEditorTab( ttk.Frame ):
 		helpBtn.bind( '<1>', lambda e, message=helpText: msg(message, 'Disabling Rendering and Transparency') )
 
 		# Add widgets for Material Color editing
-		ttk.Separator( modelPane, orient='horizontal' ).pack( fill='x', padx=24, pady=(vertPadding*2, vertPadding) )
 		ttk.Label( modelPane, text='Material Colors:' ).pack( pady=(vertPadding, 0) )
 
 		colorsPane = ttk.Frame( modelPane )
 
 		# Row 1; Diffusion and Ambience
-		ttk.Label( colorsPane, text='Diffusion:' ).grid( column=0, row=0, sticky='e', padx=(20, 0) )
-		diffusionEntry = HexEditEntry( colorsPane, self.file, -1, 4, 'I', 'Diffusion' ) # Data offset (the -1) will be updated below
-		diffusionEntry.grid( column=1, row=0, padx=6 )
-		ttk.Label( colorsPane, text='Ambience:' ).grid( column=3, row=0, sticky='e', padx=(20, 0) )
-		ambienceEntry = HexEditEntry( colorsPane, self.file, -1, 4, 'I', 'Ambience' ) # Data offset (the -1) will be updated below
-		ambienceEntry.grid( column=4, row=0, padx=6 )
+		ttk.Label( colorsPane, text='Diffusion:' ).grid( column=0, row=0, sticky='e', padx=(24, 0) )
+		modelPane.diffusionEntry = HexEditEntry( colorsPane, self.file, -1, 4, 'I', 'Diffusion' ) # Data offset (the -1) will be updated below
+		modelPane.diffusionEntry.grid( column=1, row=0, padx=6 )
+		ttk.Label( colorsPane, text='Ambience:' ).grid( column=3, row=0, sticky='e', padx=(24, 0) )
+		modelPane.ambienceEntry = HexEditEntry( colorsPane, self.file, -1, 4, 'I', 'Ambience' ) # Data offset (the -1) will be updated below
+		modelPane.ambienceEntry.grid( column=4, row=0, padx=6 )
 
 		# Row 2; Specular Highlights and Shininess
-		ttk.Label( colorsPane, text='Highlights:' ).grid( column=0, row=1, sticky='e', padx=(20, 0) )
-		highlightsEntry = HexEditEntry( colorsPane, self.file, -1, 4, 'I', 'Specular Highlights' ) # Data offset (the -1) will be updated below
-		highlightsEntry.grid( column=1, row=1, padx=6 )
-		ttk.Label( colorsPane, text='Shininess:' ).grid( column=3, row=1, sticky='e', padx=(20, 0) )
-		shininessEntry = HexEditEntry( colorsPane, self.file, -1, 4, 'f', 'Shininess', valueEntry=True ) # Data offset (the -1) will be updated below
-		shininessEntry.grid( column=4, row=1, padx=6 )
+		ttk.Label( colorsPane, text='Highlights:' ).grid( column=0, row=1, sticky='e', padx=(24, 0) )
+		modelPane.highlightsEntry = HexEditEntry( colorsPane, self.file, -1, 4, 'I', 'Specular Highlights' ) # Data offset (the -1) will be updated below
+		modelPane.highlightsEntry.grid( column=1, row=1, padx=6 )
+		ttk.Label( colorsPane, text='Shininess:' ).grid( column=3, row=1, sticky='e', padx=(24, 0) )
+		modelPane.shininessEntry = HexEditEntry( colorsPane, self.file, -1, 4, 'f', 'Shininess', valueEntry=True ) # Data offset (the -1) will be updated below
+		modelPane.shininessEntry.grid( column=4, row=1, padx=6 )
 
-		colorsPane.pack( pady=(vertPadding, 0), expand=True, fill='x', padx=20 )
+		# Add a callback to the above entry widgets, so they update the model render when changed
+		modelPane.diffusionEntry.callback = self.refreshRender
+		modelPane.ambienceEntry.callback = self.refreshRender
+		modelPane.highlightsEntry.callback = self.refreshRender
+		modelPane.shininessEntry.callback = self.refreshRender
+
+		colorsPane.pack( pady=(vertPadding, 0), padx=20 )
+
+	def connectMaterialColorControls( self ):
+
+		""" Hooks up the Transparency and color control widgets (ambience, diffusion, etc)
+			with to the currently selected model parts (DObjs); sets their target offsets 
+			and currently displayed values/colors. """
+
+		modelPane = self.modelPropertiesPane.interior
+		wraplength = modelPane.winfo_width() - 20
 
 		# Set initial values for the transparency controls and material colors above, or disable them
-		if modelPane.displayObjects:
-			firstDisplayObj = modelPane.displayObjects[0]
+		if modelPane.currentRenders:
+			firstDisplayObj = modelPane.currentRenders[0]
 
 			# Get a parent Joint Object, and see if its hidden flag is set
 			for structureOffset in firstDisplayObj.getParents():
 				jointStruct = self.file.initSpecificStruct( hsdStructures.JointObjDesc, structureOffset )
 				if jointStruct:
 					jointFlags = jointStruct.getValues( specificValue='Joint_Flags' )
-					jointHidden.set( jointFlags & 0b10000 ) # Checking bit 4
+					modelPane.hideJointChkBtn.var.set( jointFlags & 0b10000 ) # Checking bit 4
 					break
 			else: # The loop above didn't break; no joint struct parent found
 				modelPane.hideJointChkBtn.configure( state='disabled' )
@@ -1277,23 +1340,27 @@ class TexturesEditorTab( ttk.Frame ):
 
 			if polygonObj:
 				displayListBlocks = polygonObj.getValues( 'Display_List_Length' )
-				displayListDisabled.set( not bool(displayListBlocks) ) # Resolves to True if the value is 0, False for anything else
+				modelPane.polyDisableChkBtn.var.set( not bool(displayListBlocks) ) # Resolves to True if the value is 0, False for anything else
 			else:
-				displayListDisabled.set( False )
+				modelPane.polyDisableChkBtn.var.set( False )
 				modelPane.polyDisableChkBtn.configure( state='disabled' )
 
-			# If we found display objects, we must have also found material structs; get its values
-			materialStruct = modelPane.materialStructs[0]
+			# Get the associated material structs
+			matStructs = [ dobj.MObj for dobj in modelPane.currentRenders ]
+
+			# If we found display objects, we must have also found material structs; get default values
+			#materialStruct = modelPane.materialStructs[modelPane.partIndex]
+			materialStruct = matStructs[0]
 			matColorsOffset = materialStruct.getValues()[3]
 			matColorsStruct = self.file.initSpecificStruct( hsdStructures.MaterialColorObjDesc, matColorsOffset, materialStruct.offset )
 			diffusion, ambience, specularHighlights, transparency, shininess = matColorsStruct.getValues()
 
-			# Get all of the offsets that would be required to update the material color values
+			# Get all of the offsets that would be required to update material color values for the selected parts
 			diffusionHexOffsets = []
 			ambienceHexOffsets = []
 			highlightsHexOffsets = []
 			shininessHexOffsets = []
-			for materialStruct in modelPane.materialStructs:
+			for materialStruct in matStructs:
 				matColorsStructOffset = materialStruct.getValues( 'Material_Colors_Pointer' )
 				diffusionHexOffsets.append( matColorsStructOffset )
 				ambienceHexOffsets.append( matColorsStructOffset + 4 )
@@ -1312,23 +1379,63 @@ class TexturesEditorTab( ttk.Frame ):
 			ambienceHexString = '{0:0{1}X}'.format( ambience, 8 ) # Avoids the '0x' and 'L' appendages brought on by the hex() function. pads to 8 characters
 			highlightsHexString = '{0:0{1}X}'.format( specularHighlights, 8 ) # Avoids the '0x' and 'L' appendages brought on by the hex() function. pads to 8 characters
 
-			diffusionEntry.insert( 0, diffusionHexString )
-			diffusionEntry.offsets = diffusionHexOffsets
-			diffusionEntry.colorSwatchWidget = ColorSwatch( colorsPane, diffusionHexString, diffusionEntry )
-			diffusionEntry.colorSwatchWidget.grid( column=2, row=0, padx=(0,2) )
-			
-			ambienceEntry.insert( 0, ambienceHexString )
-			ambienceEntry.offsets = ambienceHexOffsets
-			ambienceEntry.colorSwatchWidget = ColorSwatch( colorsPane, ambienceHexString, ambienceEntry )
-			ambienceEntry.colorSwatchWidget.grid( column=5, row=0, padx=(0,2) )
-			
-			highlightsEntry.insert( 0, highlightsHexString )
-			highlightsEntry.offsets = highlightsHexOffsets
-			highlightsEntry.colorSwatchWidget = ColorSwatch( colorsPane, highlightsHexString, highlightsEntry )
-			highlightsEntry.colorSwatchWidget.grid( column=2, row=1, padx=(0,2) )
-			
-			shininessEntry.insert( 0, shininess )
-			shininessEntry.offsets = shininessHexOffsets
+			# Clear any current values
+			modelPane.diffusionEntry
+
+			# Update the hex entry widgets
+			modelPane.diffusionEntry.set( diffusionHexString )
+			modelPane.diffusionEntry.offsets = diffusionHexOffsets
+			modelPane.ambienceEntry.set( ambienceHexString )
+			modelPane.ambienceEntry.offsets = ambienceHexOffsets
+			modelPane.highlightsEntry.set( highlightsHexString )
+			modelPane.highlightsEntry.offsets = highlightsHexOffsets
+			modelPane.shininessEntry.set( shininess )
+			modelPane.shininessEntry.offsets = shininessHexOffsets
+
+			# print( modelPane.shininessEntry['highlightbackground'] )
+			# print( modelPane.shininessEntry['highlightthickness'] )
+
+			# Set or clear borders
+			if len( diffusionHexOffsets ) > 1:
+				modelPane.diffusionEntry['highlightbackground'] = 'orange'
+				#modelPane.diffusionEntry['highlightthickness'] = 1
+				modelPane.ambienceEntry['highlightbackground'] = 'orange'
+				#modelPane.ambienceEntry['highlightthickness'] = 1
+				modelPane.highlightsEntry['highlightbackground'] = 'orange'
+				#modelPane.highlightsEntry['highlightthickness'] = 1
+				modelPane.shininessEntry['highlightbackground'] = 'orange'
+				#modelPane.shininessEntry['highlightthickness'] = 1
+			else:
+				# modelPane.diffusionEntry['highlightthickness'] = 0
+				# modelPane.ambienceEntry['highlightthickness'] = 0
+				# modelPane.highlightsEntry['highlightthickness'] = 0
+				# modelPane.shininessEntry['highlightthickness'] = 0
+				modelPane.diffusionEntry['highlightbackground'] = '#b7becc'
+				modelPane.ambienceEntry['highlightbackground'] = '#b7becc'
+				modelPane.highlightsEntry['highlightbackground'] = '#b7becc'
+				modelPane.shininessEntry['highlightbackground'] = '#b7becc'
+
+			# Update existing color swatches, if already present
+			if modelPane.diffusionEntry.colorSwatchWidget:
+				if modelPane.diffusionEntry.colorSwatchWidget['state'] == 'disabled':
+					modelPane.diffusionEntry.colorSwatchWidget.enable()
+					modelPane.ambienceEntry.colorSwatchWidget.enable()
+					modelPane.highlightsEntry.colorSwatchWidget.enable()
+				modelPane.diffusionEntry.colorSwatchWidget.renderCircle( diffusionHexString )
+				modelPane.ambienceEntry.colorSwatchWidget.renderCircle( ambienceHexString )
+				modelPane.highlightsEntry.colorSwatchWidget.renderCircle( highlightsHexString )
+			else:
+				# Color swatches haven't been created yet
+				colorsPane = modelPane.diffusionEntry.master
+
+				modelPane.diffusionEntry.colorSwatchWidget = ColorSwatch( colorsPane, diffusionHexString, modelPane.diffusionEntry )
+				modelPane.diffusionEntry.colorSwatchWidget.grid( column=2, row=0, padx=(0,2) )
+				
+				modelPane.ambienceEntry.colorSwatchWidget = ColorSwatch( colorsPane, ambienceHexString, modelPane.ambienceEntry )
+				modelPane.ambienceEntry.colorSwatchWidget.grid( column=5, row=0, padx=(0,2) )
+				
+				modelPane.highlightsEntry.colorSwatchWidget = ColorSwatch( colorsPane, highlightsHexString, modelPane.highlightsEntry )
+				modelPane.highlightsEntry.colorSwatchWidget.grid( column=2, row=1, padx=(0,2) )
 
 		else:
 			# Disable the render checkbuttons and transparency controls
@@ -1338,15 +1445,21 @@ class TexturesEditorTab( ttk.Frame ):
 			modelPane.opacityBtn.configure( state='disabled' )
 
 			# Disable the Material Color inputs
-			diffusionEntry.configure( state='disabled' )
-			ambienceEntry.configure( state='disabled' )
-			highlightsEntry.configure( state='disabled' )
-			shininessEntry.configure( state='disabled' )
+			modelPane.diffusionEntry.configure( state='disabled' )
+			modelPane.ambienceEntry.configure( state='disabled' )
+			modelPane.highlightsEntry.configure( state='disabled' )
+			modelPane.shininessEntry.configure( state='disabled' )
+
+			# Disable color swatches
+			if modelPane.diffusionEntry.colorSwatchWidget:
+				modelPane.diffusionEntry.colorSwatchWidget.disable()
+				modelPane.ambienceEntry.colorSwatchWidget.disable()
+				modelPane.highlightsEntry.colorSwatchWidget.disable()
 
 			# Add a label explaining why these are disabled
-			disabledControlsText = ('These controls are disabled because no Display Objects or Material Structs are directly associated with this texture. '
-									'If this is part of a texture animation, find the default/starting texture for it and edit the structs for that instead.' )
-			ttk.Label( modelPane, text=disabledControlsText, wraplength=wraplength ).pack( pady=(vertPadding, 0) )
+			disabledControlsText = ( 'These controls are disabled because no Display Objects or Material Structs are currently selected.' )
+									#'If this is part of a texture animation, find the default/starting texture for it and edit the structs for that instead.' )
+			ttk.Label( modelPane, text=disabledControlsText, wraplength=wraplength ).pack( pady=(8, 0) )
 
 	def initializeRenderEngine( self ):
 
@@ -1472,7 +1585,7 @@ class TexturesEditorTab( ttk.Frame ):
 
 		self.renderDobj( [modelPart], True )
 
-	def renderDobj( self, modelParts, updateOptionsWindow=False ):
+	def renderDobj( self, modelParts, updateOptionsWindow=False, updateCamera=True ):
 		
 		""" Sets one or more model parts to render in the Model tab for the currently 
 			selected texture. The model parts given to this function should be DObjs 
@@ -1486,6 +1599,8 @@ class TexturesEditorTab( ttk.Frame ):
 
 		if not modelParts:
 			modelPane.dobjStringVar.set( 'No Parts Selected' )
+			self.connectMaterialColorControls()
+			self.populateTexPropertiesTab()
 			return
 
 		if modelParts[0].skeleton:
@@ -1510,9 +1625,8 @@ class TexturesEditorTab( ttk.Frame ):
 						continue
 
 					modelPane.engine.renderDisplayObj( modelPart, includeSiblings=False )
-
 		else:
-			# No skeleton to use when position various parts; fall back to basic joint transforms only
+			# No skeleton to use when positioning various parts; fall back to basic joint transforms only
 			showRelated = ( modelPane.showRelatedParts.get() or modelPane.showAllParts.get() )
 			for modelPart in modelParts:
 				primitives = modelPane.engine.renderDisplayObj( modelPart, includeSiblings=showRelated )
@@ -1522,8 +1636,11 @@ class TexturesEditorTab( ttk.Frame ):
 				parentJoint = self.file.initSpecificStruct( hsdStructures.JointObjDesc, parentJointOffset )
 				modelPane.engine.applyJointTransformations( primitives, parentJoint )
 
+		# Remember what parts were last selected to render
+		modelPane.currentRenders = modelParts # Excludes "related" parts
+
 		# Align the camera to the object(s)
-		if modelPane.autoCameraUpdates.get():
+		if updateCamera and modelPane.autoCameraUpdates.get():
 			modelPane.engine.focusCamera( primitive='vertexList' )
 
 		# Update the title string under the render window
@@ -1536,7 +1653,12 @@ class TexturesEditorTab( ttk.Frame ):
 			else:
 				modelPane.dobjStringVar.set( 'Multiple Parts Selected' )
 		else: # Multiple DObjs available, but only one is selected
-			modelPane.dobjStringVar.set( '{}  ({} of {})'.format(modelParts[0].name, modelPane.partIndex+1, len(modelPane.displayObjects)) )
+			selectedPart = modelPane.displayObjects[modelPane.partIndex]
+			modelPane.dobjStringVar.set( '{}  ({} of {})'.format(selectedPart.name, modelPane.partIndex+1, len(modelPane.displayObjects)) )
+
+		# Update displayed properties and connections for color input widgets and the Properties tab
+		self.connectMaterialColorControls()
+		self.populateTexPropertiesTab()
 
 		# Check the box for the appropriate DObj in the render options window if it's open
 		if updateOptionsWindow and self.renderOptionsWindowIsOpen():
@@ -1546,6 +1668,27 @@ class TexturesEditorTab( ttk.Frame ):
 					checkboxStates[dobj.offset].set( True )
 				else:
 					checkboxStates[dobj.offset].set( False )
+
+	def refreshRender( self, event=None ):
+
+		""" Reload the currently rendered objects to reflect updates to structure properties. """
+		
+		modelPane = self.modelPropertiesPane.interior
+		#renderEngine = modelPane.engine
+
+		# Get all tags (includes both DObj/PObj offsets)
+		# vertexListTags = set()
+		# for vertexList in renderEngine.getObjects( 'vertexList' ):
+		# 	vertexListTags.update( vertexList.tags )
+
+		# # Get a list of the display objects currently rendered
+		# displayedParts = []
+		# for part in modelPane.displayObjects:
+		# 	if part.offset in vertexListTags:
+		# 		displayedParts.append( part )
+
+		# Redraw the parts collected above
+		self.renderDobj( modelPane.currentRenders, updateCamera=False )
 
 	def findRelatedParts( self, targetDObj ):
 
@@ -1631,15 +1774,16 @@ class TexturesEditorTab( ttk.Frame ):
 
 	def toggleHideJoint( self ):
 
-		""" Toggles the bit flag for 'Hidden' for each parent Joint Struct of the texture currently selected 
-			in the DAT Texture Tree tab (last item in the selection if multiple items are selected). """
+		""" Toggles the bit flag for 'Hidden' for each parent Joint Struct 
+			of the model parts currently selected for rendering. """
 
-		# Get the bool determining whether to hide the joint from the GUI
-		hideJoint = self.modelPropertiesPane.interior.hideJointChkBtn.var.get()
+		# Check the GUI for the bool determining whether to hide the joint
+		modelPane = self.modelPropertiesPane.interior
+		hideJoint = modelPane.hideJointChkBtn.var.get()
 		modifiedJoints = [] # Tracks which joint flags we've already updated, to reduce redundancy
 
 		# Iterate over the display objects of this texture, get their parent joint objects, and modify their flag
-		for displayObj in self.modelPropertiesPane.interior.displayObjects:
+		for displayObj in modelPane.currentRenders:
 			parentJointOffsets = displayObj.getParents()
 
 			for parentStructOffset in parentJointOffsets:
@@ -1657,14 +1801,14 @@ class TexturesEditorTab( ttk.Frame ):
 
 	def toggleDisplayListRendering( self ):
 
-		""" Toggles the defined length of the display lists associated with the texture currently selected 
-			in the DAT Texture Tree tab (last item in the selection if multiple items are selected). """
+		""" Toggles the defined length of the display lists associated 
+			with the model parts currently selected for rendering. """
 
 		# Get the bool determining whether to clear the DObj render lists from the GUI
 		clearDisplayList = self.modelPropertiesPane.interior.polyDisableChkBtn.var.get()
 		structsUpdated = 0
 
-		for displayObj in self.modelPropertiesPane.interior.displayObjects:
+		for displayObj in self.modelPropertiesPane.interior.currentRenders:
 			# Get the polygon object of this display object, as well as its siblings
 			polygonObjOffset = displayObj.getValues( 'Polygon_Object_Pointer' )
 			polygonObj = self.file.initSpecificStruct( hsdStructures.PolygonObjDesc, polygonObjOffset, displayObj.offset )
@@ -1717,19 +1861,45 @@ class TexturesEditorTab( ttk.Frame ):
 
 		return True
 
+	def opacityScaleUpdated( self, newValue ):
+
+		""" Handles events from the transparency Slider widget, when its value is changed. 
+			The slider value ranges between 0 and 10, (so that it's intervals when clicking 
+			in the trough jump a decent amount). The purpose of this function is just to update 
+			the value in the Entry widget. 'newValue' will initially be a string of a float. """
+
+		newValue = round( float(newValue), 2 )
+		modelPane = self.modelPropertiesPane.interior
+
+		# If this is not the Entry widget causing a change in the value, update it too
+		if globalData.gui.root.focus_get() != modelPane.opacityEntry:
+			# Set the entry widget to the current value (temporarily disable the validation function, so it's not called)
+			modelPane.opacityEntry.configure( validate='none')
+			modelPane.opacityEntry.delete( 0, 'end' )
+			modelPane.opacityEntry.insert( 0, str(newValue*10) + '%' )
+			modelPane.opacityEntry.configure( validate='key' )
+
 	def setModelTransparencyLevel( self ):
 
-		""" Calling function of the "Set" button under the Model tab's Transparency Control. """
+		""" Called by the "Set" button under the Model tab's Transparency Control interface. 
+			This will update the transparency for all parts currently selected for rendering. """
 
-		opacityValue = self.modelPropertiesPane.interior.opacityScale.get() / 10
+		# Get the opacity currently set in the GUI
+		modelPane = self.modelPropertiesPane.interior
+		opacityValue = modelPane.opacityScale.get() / 10
 
 		# Update the transparency value, and set required flags for this in the Material Struct
 		matStructsModified = 0
-		for materialStruct in self.modelPropertiesPane.interior.materialStructs:
+		for dobj in modelPane.currentRenders:
+			materialStruct = dobj.MObj
+			if not materialStruct:
+				continue
+
+			# Initialize the material color struct
 			matColorsOffset = materialStruct.getValues( 'Material_Colors_Pointer' )
 			matColorsStruct = self.file.initSpecificStruct( hsdStructures.MaterialColorObjDesc, matColorsOffset, materialStruct.offset )
 
-			if matColorsStruct: # If the Material Struct doesn't have its colors struct, we probably don't need to worry about modifying it
+			if matColorsStruct: # If the Material Struct doesn't have its colors struct, we don't need to worry about modifying it
 				# Change the transparency value within the struct values and file data, and record that the change was made
 				self.file.updateStructValue( matColorsStruct, -2, opacityValue )
 
@@ -1742,10 +1912,10 @@ class TexturesEditorTab( ttk.Frame ):
 				# 	self.file.updateFlag( materialStruct, 1, 30, False )
 
 		if opacityValue < 1.0: # Set flags required for this in the Joint Struct(s)
-			modifiedJoints = [] # Tracks which joint flags we've already updated, to reduce redundancy
+			modifiedJoints = [] # Tracks which joint flags we've already updated, to avoid redundancy
 
 			# Iterate over the display objects of this texture, get their parent joint objects, and modify their flag
-			for displayObj in self.modelPropertiesPane.interior.displayObjects:
+			for displayObj in modelPane.currentRenders:
 				parentJointOffsets = displayObj.getParents()
 
 				for parentStructOffset in parentJointOffsets:
@@ -1760,31 +1930,35 @@ class TexturesEditorTab( ttk.Frame ):
 		
 		printStatus( 'Transparency flags updated across {} material struct(s) and {} joint struct(s)'.format(matStructsModified, len(modifiedJoints)) )
 
-	def opacityScaleUpdated( self, newValue ):
+		# Update the current model render to show the new opacity
+		self.refreshRender()
 
-		""" Handles events from the transparency Slider widget, when its value is changed. 
-			The slider value ranges between 0 and 10, (so that it's intervals when clicking 
-			in the trough jump a decent amount). The purpose of this function is just to update 
-			the value in the Entry widget. 'newValue' will initially be a string of a float. """
-
-		newValue = round( float(newValue), 2 )
-
-		# If this is not the Entry widget causing a change in the value, update it too
-		if globalData.gui.root.focus_get() != self.modelPropertiesPane.interior.opacityEntry:
-			# Set the entry widget to the current value (temporarily disable the validation function, so it's not called)
-			self.modelPropertiesPane.interior.opacityEntry.configure( validate='none')
-			self.modelPropertiesPane.interior.opacityEntry.delete( 0, 'end' )
-			self.modelPropertiesPane.interior.opacityEntry.insert( 0, str(newValue*10) + '%' )
-			self.modelPropertiesPane.interior.opacityEntry.configure( validate='key' )
-
-	def populateTexPropertiesTab( self, wraplength, texture ):
+	def populateTexPropertiesTab( self, iid=None ):
 
 		""" Populates the Properties tab of the DAT Texture Tree interface. At this point, the pane has already been cleared. """
 
+		# Check if already populated
 		propertiesPane = self.texturePropertiesPane.interior
+		# if propertiesPane.winfo_children():
+		# 	return
+		
+		# Clear current contents
+		self.texturePropertiesPane.clear()
+		self.texturePropertiesPane.flagWidgets = [] # Useful for the Flag Decoder to more easily find widgets that need updating
+
+		# Ensure there is an iid, or return (failsafe; there should be one)
+		if not iid:
+			iid = self.datTextureTree.selection()
+			if not iid: return
+		iid = iid[-1] # Selects the lowest position item selected in the treeview if multiple items are selected.
+
+		self.collectStructs( iid )
+
 		texStructs = self.modelPropertiesPane.interior.textureStructs
-		matStructs = self.modelPropertiesPane.interior.materialStructs
+		#matStructs = self.modelPropertiesPane.interior.materialStructs
+		matStructs = [ tobj.MObj for tobj in self.modelPropertiesPane.interior.currentRenders ]
 		pixStructs = [] # Pixel Processing structures
+		wraplength = propertiesPane.winfo_width() - 20
 		vertPadding = 10
 
 		# Make sure there are Texture Structs to edit
@@ -1884,8 +2058,8 @@ class TexturesEditorTab( ttk.Frame ):
 			ttk.Label( flagsFrame, text='Pixel Processing is not used on this texture.', wraplength=wraplength ).grid( column=0, row=0, columnspan=3, pady=(0, vertPadding) )
 
 		# Add widgets for the Render Mode Flags label, hex edit Entry, and Flags 'Decode' button
-		ttk.Label( flagsFrame, text='Render Mode Flags:' ).grid( column=0, row=2, sticky='e' )
-		hexEntry = HexEditEntry( flagsFrame, self.file, matFlagOffsets, 4, 'I', 'Render Mode Flags' )
+		ttk.Label( flagsFrame, text='Material Flags:' ).grid( column=0, row=2, sticky='e' )
+		hexEntry = HexEditEntry( flagsFrame, self.file, matFlagOffsets, 4, 'I', 'Material Flags' )
 		hexEntry.grid( column=1, row=2, padx=7, pady=1 )
 		self.texturePropertiesPane.flagWidgets.append( hexEntry )
 		if len( matFlagsData ) == 0:
@@ -1978,6 +2152,10 @@ class TexturesEditorTab( ttk.Frame ):
 			differingDataLabel = ttk.Label( propertiesPane, text=differingDataLabelText, wraplength=wraplength )
 			differingDataLabel.pack( pady=(vertPadding*2, 0) )
 
+		# Get the texture struct
+		imageDataOffset = int( iid )
+		texture = self.file.structs[imageDataOffset]
+
 		# Add alternative texture sizes
 		ttk.Separator( propertiesPane, orient='horizontal' ).pack( fill='x', padx=24, pady=(vertPadding*2, 0) )
 		ttk.Label( propertiesPane, text='Alternative Texture Sizes:' ).pack( pady=(vertPadding*2, 0) )
@@ -2053,19 +2231,6 @@ class TexturesEditorTab( ttk.Frame ):
 
 		if saveChange: # Update the current selection in the settings file
 			globalData.saveProgramSettings()
-
-	def imageManipTabChanged( self, event ):
-
-		""" Called when the sub-tabs within this tab ('Image', 'Palette', etc.) are changed.
-			Main purpose is simply to prevent the first widget from gaining immediate focus. """
-
-		currentTab = globalData.gui.root.nametowidget( event.widget.select() )
-		currentTab.focus() # Don't want keyboard/widget focus at any particular place yet
-
-		state = self.imageManipTabs.tab( self.modelPropertiesPane, 'state' )
-
-		if currentTab == self.modelPropertiesPane and state != 'disabled':
-			self.populateModelTab()
 
 	def cyclePaletteCanvasColor( self, event ):
 
@@ -2771,6 +2936,7 @@ class ModelTabRenderOptionsWindow( BasicWindow ):
 		# partsToHide = []
 		enabledObjects = []
 		#singleSelectedDobj = -1
+		indexUpdated = False
 		for dobjIndex, dobj in enumerate( self.modelPane.displayObjects ):
 			#dobjSiblings = dobj.getSiblings()[:] # Making a copy, since we might edit it
 
@@ -2790,6 +2956,11 @@ class ModelTabRenderOptionsWindow( BasicWindow ):
 				#singleSelectedDobj = dobjIndex
 			# else:
 			# 	partsToHide.extend( dobjSiblings )
+
+			# Set the DObj index to the first selected part
+			if not indexUpdated:
+				self.modelPane.partIndex = dobjIndex
+				indexUpdated = True
 
 		self.editorTab.renderDobj( enabledObjects )
 

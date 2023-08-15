@@ -1468,7 +1468,7 @@ class DatFile( FileBase ):
 		structure.setValue( valueIndex, newValue )
 		
 		# Update the file's data with that of the modified structure
-		structure.data = struct.pack( structure.formatting, *structure.values )
+		structure.data = bytearray( struct.pack(structure.formatting, *structure.values) )
 		self.setData( structure.offset, structure.data )
 		
 		# Record these changes
@@ -1504,7 +1504,7 @@ class DatFile( FileBase ):
 			structure.clearFlag( valueIndex, bitNumber )
 
 		# Update the file's data with that of the modified structure
-		structure.data = struct.pack( structure.formatting, *structure.values )
+		structure.data = bytearray( struct.pack(structure.formatting, *structure.values) )
 		self.setData( structure.offset, structure.data )
 
 		# Record these changes

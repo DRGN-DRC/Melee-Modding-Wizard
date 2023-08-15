@@ -1458,15 +1458,16 @@ class DataEntryWidgetBase( object ):
 			descriptionOfChange = self.updateName + ' modified in ' + self.fileObj.filename
 			self.fileObj.updateData( self.offsets, newData, descriptionOfChange )
 
-	def updateHex( self, newHex ):
+	def updateFileHex( self, newHex ):
 
 		""" Validates widget input, checks if it's new/different from what's in the file, 
-			and updates the data in the file if it differs. Also triggers updating of any paired widgets. """
+			and updates the data in the file if it differs. Also triggers updating of any paired widgets. 
+			Returns False if there was an error or problem with the update. """
 
 		# Validate the input
 		if not validHex( newHex ):
 			msg( 'The entered text is not valid hexadecimal!' )
-			return
+			return False
 
 		# Confirm whether updating is necessary by checking if this is actually new data for any of the offset locations
 		if type( self.offsets ) == list:
@@ -1475,18 +1476,18 @@ class DataEntryWidgetBase( object ):
 				if currentFileHex != newHex: # Found a difference
 					break
 			else: # The loop above didn't break; no change found
-				return # No change to be updated
+				return True # No change to be updated
 		else: # The offsets attribute is just a single value (the usual case)
 			currentFileHex = hexlify( self.fileObj.getData(self.offsets, self.byteLength) ).upper()
 			if currentFileHex == newHex:
-				return # No change to be updated
+				return True # No change to be updated
 
 		# Get the data as a bytearray, and check for other GUI components that may need to be updated
 		newData = bytearray.fromhex( newHex )
 
 		if len( newData ) != self.byteLength: # Due to the zfill above, this should only happen if the hex entry is too long
 			msg( 'The new value must be {} characters ({} bytes) long.'.format(self.byteLength*2, self.byteLength) )
-			return
+			return False
 
 		elif self.valueEntryWidget and self.formatting:
 			# Check that the appropriate value can be decoded from this hex (if formatting is available)
@@ -1503,7 +1504,7 @@ class DataEntryWidgetBase( object ):
 				else: # I tried
 					msg( 'The entered value is invalid.' )
 				print( 'Error encountered unpacking hex entry data; {}'.format(err) )
-				return
+				return False
 
 			# Update the data shown in the neighboring, decoded value widget
 			self.valueEntryWidget.set( decodedValue )
@@ -1524,17 +1525,20 @@ class DataEntryWidgetBase( object ):
 
 		globalData.gui.updateProgramStatus( self.updateName + ' updated' )
 
-	def updateValue( self, event=None ):
+		return True
+
+	def updateFileValue( self, newValue ):
 
 		""" Validates widget input, checks if it's new/different from what's in the file, 
-			and updates the data in the file if it differs. Also triggers updating of any paired widgets. """
+			and updates the data in the file if it differs. Also triggers updating of any paired widgets. 
+			Returns False if there was an error or problem with the update. """
 
 		# Validate the entered value by making sure it can be correctly encoded
 		try:
 			if self.formatting == 'f':
-				newHex = hexlify( struct.pack( '>f', float(self.get()) ) ).upper()
+				newHex = hexlify( struct.pack( '>f', float(newValue) ) ).upper()
 			else:
-				newHex = hexlify( struct.pack( '>' + self.formatting, int(self.get()) ) ).upper()
+				newHex = hexlify( struct.pack( '>' + self.formatting, int(newValue) ) ).upper()
 		except Exception as err:
 			# Construct and display an error message for the user
 			dataTypes = { 	'?': 'a boolean', 'b': 'a signed character', 'B': 'an unsigned character', 	# 1-byte
@@ -1545,7 +1549,7 @@ class DataEntryWidgetBase( object ):
 			else: # I tried
 				msg( 'The entered value is invalid.' )
 			print( 'Error encountered packing value entry data; {}'.format(err) )
-			return
+			return False
 
 		# Confirm whether updating is necessary by checking if this is actually new data for any of the offset locations
 		if type( self.offsets ) == list:
@@ -1554,11 +1558,11 @@ class DataEntryWidgetBase( object ):
 				if currentFileHex != newHex: # Found a difference
 					break
 			else: # The loop above didn't break; no change found
-				return # No change to be updated
+				return True # No change to be updated
 		else: # The offsets attribute is just a single value (the usual case)
 			currentFileHex = hexlify( self.fileObj.getData(self.offsets, self.byteLength) ).upper()
 			if currentFileHex == newHex:
-				return # No change to be updated
+				return True # No change to be updated
 
 		# Change the background color of the widget, to show that changes have been made to it and are pending saving.
 		if self.__class__ == HexEditDropdown:
@@ -1577,6 +1581,8 @@ class DataEntryWidgetBase( object ):
 		self.updateDataInFile( newData )
 
 		globalData.gui.updateProgramStatus( self.updateName + ' updated' )
+
+		return True
 
 
 class HexEditEntry( Tk.Entry, DataEntryWidgetBase ):
@@ -1645,17 +1651,22 @@ class HexEditEntry( Tk.Entry, DataEntryWidgetBase ):
 		self.delete( 0, 'end' )
 		self.insert( 0, value )
 
-	def updateValue( self, event ):
-		super( HexEditEntry, self ).updateValue( event )
+	def updateValue( self, event=None, value=None ):
+		if value is None:
+			value = self.get()
+		completedSuccessfully = self.updateFileValue( value )
 
-		if self.callback:
+		# Run the callback if there were no problems above
+		if self.callback and completedSuccessfully:
 			self.callback( event )
 
-	def updateHexData( self, event ):
-		newHex = self.get().zfill( self.byteLength * 2 ).upper() # Pads the string with zeroes to the left if not enough characters
-		self.updateHex( newHex )
+	def updateHexData( self, event=None, hexData=None ):
+		if not hexData:
+			hexData = self.get().zfill( self.byteLength * 2 ).upper() # Pads the string with zeroes to the left if not enough characters
+		completedSuccessfully = self.updateFileHex( hexData )
 
-		if self.callback:
+		# Run the callback if there were no problems above
+		if self.callback and completedSuccessfully:
 			self.callback( event )
 
 
@@ -1722,6 +1733,11 @@ class ColorSwatch( ttk.Label, DataEntryWidgetBase ):
 		self.bind( '<1>', self.editColor )
 
 	def renderCircle( self, hexColor ):
+
+		""" Creates a colored image for this widget (a colored circle icon).
+			Can also be used to update the displayed color for this widget 
+			programmatically. Does not update the associated hexEntryWidget. """
+
 		# Convert the hex string provided to an RGBA values list
 		fillColor = hex2rgb( hexColor )
 
@@ -1739,10 +1755,16 @@ class ColorSwatch( ttk.Label, DataEntryWidgetBase ):
 		# Overlay the highlight/shadow mask on top of the above color (for a depth effect)
 		swatchImage.paste( self.colorMask, (0, 0), self.colorMask )
 
+		# Store the image to prevent from being garbage collected, and set it as the current image
 		self.swatchImage = ImageTk.PhotoImage( swatchImage )
 		self.configure( image=self.swatchImage )
 
 	def editColor( self, event ):
+
+		""" Called when the user clicks on the widget to edit the current color. 
+			Presents the user with a color chooser window, and then updates this 
+			widget as well as an associated hexEntryWidget. """
+
 		nibbleLength = self.hexEntryWidget.byteLength * 2
 
 		# Create a window where the user can choose a new color
@@ -1756,7 +1778,17 @@ class ColorSwatch( ttk.Label, DataEntryWidgetBase ):
 			else:
 				# Update the data in the file with the entry's data, and redraw the color swatch
 				newHex = colorPicker.currentHexColor.zfill( nibbleLength ).upper() # Pads the string with zeroes to the left if not enough characters
-				self.hexEntryWidget.updateHex( newHex )
+				self.hexEntryWidget.updateHexData( hexData=newHex )
+
+	def disable( self ):
+		self['state'] = 'disabled'
+		self['cursor'] = ''
+		self.unbind( '<1>' )
+		
+	def enable( self ):
+		self['state'] = 'normal'
+		self['cursor'] = 'hand2'
+		self.bind( '<1>', self.editColor )
 
 
 class SliderAndEntry( ttk.Frame ):
@@ -1809,6 +1841,11 @@ class HexEditDropdown( ttk.OptionMenu, DataEntryWidgetBase ):
 		self.hexEntryWidget = None			# Used by HexEditEntry widgets for hex data
 		self.valueEntryWidget = None		# Used by HexEditEntry widgets for values
 		self.colorSwatchWidget = None
+
+	def updateValue( self, event=None, value=None ):
+		if value is None:
+			value = self.get()
+		self.updateFileValue( value )
 
 	def get( self ): # Overriding the original get method, which would get the string, not the associated value
 		return self.options[self.selectedString.get()]
