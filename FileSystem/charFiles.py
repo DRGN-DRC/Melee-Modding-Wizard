@@ -460,7 +460,7 @@ class CostumeVisibilityTable( TableStruct ):
 	def __init__( self, *args, **kwargs ):
 		StructBase.__init__( self, *args, **kwargs )
 
-		self.name = 'Part Visibility Table' + uHex( 0x20 + self.offset )
+		self.name = 'Part Visibility Table ' + uHex( 0x20 + self.offset )
 		self.formatting = '>IIII'
 		self.fields = ( 'High_Poly_Group_Pointer',
 						'Low_Poly_Group_Pointer',
@@ -486,13 +486,12 @@ class CostumeVisibilityTable( TableStruct ):
 			for a particular costume index. However, entries for some costumes 
 			may be null, in which case we fall back to the default (first) entry. """
 
-		costumeEntry = self.getEntryValues( costumeIndex ) # Tuple of 4 pointers
+		# Try to get a lookup group for this costume
+		arrayGroup = self.initChild( GroupLookupArray, costumeIndex, arrayGroupIndex )
 
-		# Try to get a lookup group for this costume, or default to the first set
-		arrayGroup = self.dat.getStruct( costumeEntry[arrayGroupIndex] )
+		# If the above failed (invalid pointer in that group), default to the first table entry (neutral costume slot)
 		if not arrayGroup and costumeIndex != 0:
-			costumeEntry = self.getEntryValues( 0 ) # Try again with first costume index
-			arrayGroup = self.dat.getStruct( costumeEntry[arrayGroupIndex] )
+			arrayGroup = self.initChild( GroupLookupArray, 0, arrayGroupIndex )
 
 		return arrayGroup
 
@@ -518,7 +517,7 @@ class GroupLookupArray( TableStruct ):
 	def __init__( self, *args, **kwargs ):
 		StructBase.__init__( self, *args, **kwargs )
 
-		self.name = 'Group Lookup Array' + uHex( 0x20 + self.offset )
+		self.name = 'Group Lookup Array ' + uHex( 0x20 + self.offset )
 		self.formatting = '>II'
 		self.fields = ( 'SubArray_Count', 'SubGroup_Pointer' )
 		self.length = 8
@@ -572,7 +571,7 @@ class SubGroupLookupArray( TableStruct ):
 	def __init__( self, *args, **kwargs ):
 		StructBase.__init__( self, *args, **kwargs )
 
-		self.name = 'SubGroup Lookup Array' + uHex( 0x20 + self.offset )
+		self.name = 'SubGroup Lookup Array ' + uHex( 0x20 + self.offset )
 		self.formatting = '>II'
 		self.fields = ( 'Lookup_Entry_Count', 'Lookup_Pointer' )
 		self.length = 8

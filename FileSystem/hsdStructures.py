@@ -537,7 +537,7 @@ class StructBase( object ):
 
 		if isinstance( structClass, str ):
 			structClass = globalData.fileStructureClasses.get( structClass )
-		
+
 		# Ensure we have a value index
 		if valueIndex == -1:
 			if valueName not in self.fields:
@@ -545,7 +545,7 @@ class StructBase( object ):
 				return None
 			
 			valueIndex = self.fields.index( valueName )
-		
+
 		# Get the pointer offset and ensure there's a valid pointer there
 		pointerOffset = self.valueIndexToOffset( valueIndex )
 		if pointerOffset not in self.dat.pointerOffsets:
@@ -887,6 +887,30 @@ class TableStruct( StructBase ):
 	def entryIndexToOffset( self, index ):
 
 		return self.offset + ( struct.calcsize(self.entryFormatting) * index )
+
+	def initChild( self, structClass, entryIndex=-1, valueIndex=-1, valueName='' ):
+
+		""" Initializes a child structure of the given class and returns it. 
+			The given class may be the actual class object, or a string of it. 
+			The value to use as the child pointer may be given by valueIndex, 
+			OR by the valueName (the value's field name). """
+		
+		assert valueIndex != -1 or valueName != '', 'Invalid call to TableStruct.initChild(); no valueIndex or valueName provided.'
+
+		# Ensure we have a value index
+		if valueIndex == -1:
+			if valueName not in self.fields:
+				print( 'Unable to initialize child struct; field name "{}" not found.'.format(valueName) )
+				return None
+			
+			valueIndex = self.fields.index( valueName )
+		
+		# Calculate a new index if targeting a table entry beyond the first
+		if entryIndex > 0:
+			valueIndex += entryIndex * self.entryValueCount
+
+		# Call the parent method with the updated value index
+		return super( TableStruct, self ).initChild( structClass, valueIndex )
 
 
 class DataBlock( StructBase ):
