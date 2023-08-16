@@ -1412,7 +1412,7 @@ class ModModule( Tk.Frame, object ):
 											'and is therefore enabled by default. You can easily disable this behavior by opening the '
 											'"settings.py" file in a text editor and setting the option "alwaysEnableCrashReports" '
 											'to False, or by removing the "Enable OSReport Print on Crash" code from your library '
-											"(or comment it out so it's not picked up by MCM).\n\nAre you sure you'd like to disable this mod?" ):
+											"(or comment it out so it's not found during loading).\n\nAre you sure you'd like to disable this mod?" ):
 					return # Return if the user hit "No" (they don't want to disable the mod)
 
 		if self.mod.state == 'pendingEnable': state = 'disabled'

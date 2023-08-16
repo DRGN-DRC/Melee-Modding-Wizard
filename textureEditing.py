@@ -111,16 +111,24 @@ class TexturesEditor( ttk.Notebook ):
 
 		mainGui = globalData.gui
 		currentTab = mainGui.root.nametowidget( self.select() )
+
+		# Close any windows the tab might have open
+		if currentTab.renderOptionsWindowIsOpen():
+			currentTab.renderOptionsWindow.close()
+		try: currentTab.filtersWindow.close()
+		except: pass
+
+		# Close the tab itself
 		currentTab.destroy()
 
+		# Remove this entire interface (notebook) from the GUI if there are no more tabs
 		if not self.tabs():
-			# Remove this tab from the main tab interface
+			# Remove this notebook tab from the main tab interface
 			self.destroy()
 			mainGui.texturesTab = None
 
-			# Most likely the Disc File Tree was last used, so let's go back to that
-			if mainGui.discTab:
-				mainGui.mainTabFrame.select( mainGui.discTab )
+			# Go back to the last-used tab
+			mainGui.mainTabFrame.select( mainGui.lastSelectedTab )
 
 
 class TexturesEditorTab( ttk.Frame ):
@@ -141,6 +149,7 @@ class TexturesEditorTab( ttk.Frame ):
 			'imageTypeFilter': ( '=', '' ),
 			'offsetFilter': ( '=', '' ),
 		}
+		self.filtersWindow = None
 		
 		# Top header row | Filepath field and close button
 		topRow = ttk.Frame( self, padding="12 12 12 0" ) # Left, Top, Right, Bottom
@@ -2182,7 +2191,7 @@ class TexturesEditorTab( ttk.Frame ):
 		contextMenu.post( event.x_root, event.y_root )
 
 	def adjustTextureFilters( self, event ):
-		TextureFiltersWindow( self )
+		self.filtersWindow = TextureFiltersWindow( self )
 
 	def updateCanvasGrid( self, saveChange=True ):
 
