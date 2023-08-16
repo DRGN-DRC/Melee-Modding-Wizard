@@ -808,7 +808,9 @@ class Disc( object ):
 	def concatUnsavedChanges( self, unsavedFiles=None, basicSummary=True ):
 
 		""" Concatenates changes throughout the disc into a message to be displayed to the user. 
-			Returns a list of text lines. """
+			Returns a list of text lines. If basicSummary is False, more information will be 
+			given (including specific changes from each unsaved file) and there will always be
+			returned lines, even if only reporting that there are no changes. """
 
 		if unsavedFiles == None:
 			# Build a list of files that have unsaved changes

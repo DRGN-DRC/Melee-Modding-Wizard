@@ -80,7 +80,7 @@ class FileMenu( Tk.Menu, object ):
 		#self.add_command( label='Save DAT As...', underline=9, command=globalData.gui.saveDatAs )									# A
 		# self.add_command( label='Save Banner As...', underline=5, command=saveBannerAs )											# B
 		self.add_command( label='Run in Emulator  (CTRL-R)', underline=0, command=self.runInEmulator )								# R
-		self.add_command( label='Save Disc As...', underline=10, command=self.saveAs )											# A
+		self.add_command( label='Save Disc As...', underline=10, command=self.saveAs )												# A
 		self.add_command( label='Close', underline=0, command=self.closeProgram )													# C
 
 	@staticmethod
@@ -155,19 +155,19 @@ class FileMenu( Tk.Menu, object ):
 		mainGui.mainTabFrame.select( mainGui.codeManagerTab )
 
 	def save( self ):			globalData.gui.save()
-	def saveAs( self ):		globalData.gui.saveAs()
+	def saveAs( self ):			globalData.gui.saveAs()
 	def closeProgram( self ):	globalData.gui.onProgramClose()
 	def runInEmulator( self ):	globalData.gui.runInEmulator()
 
 	def showUnsavedChanges( self ):
+
+		""" Displays a pop-up message to the user, showing unsaved changes awaiting a save. """
+
 		if not globalData.disc:
 			msg( 'No disc has been loaded!' )
 			return
 
 		changes = globalData.gui.concatAllUnsavedChanges( basicSummary=False )
-		# if not changes:
-		# 	msg( 'There are no changes to be saved.', 'No Unsaved Changes' )
-		# else:
 		msg( '\n'.join(changes), 'Unsaved Changes' )
 
 
@@ -1617,6 +1617,7 @@ class MainGui( Tk.Frame, object ):
 		self.audioManagerTab = None		# ttk.Frame
 		self.charModTab = None			# ttk.Notebook
 		self.texturesTab = None			# ttk.Notebook
+		self.currentTab = None
 
 		self.mainTabFrame.grid( column=0, row=0, sticky='nsew' )
 		self.mainTabFrame.bind( '<<NotebookTabChanged>>', self.onMainTabChanged )
@@ -1665,6 +1666,7 @@ class MainGui( Tk.Frame, object ):
 		self.root.update_idletasks()
 		mainMenuWidth = canvasFrame.winfo_width()
 		mainMenuHeight = canvasFrame.winfo_height()
+		self.lastSelectedTab = canvasFrame
 
 		# Initialize and add the Main Menu
 		self.mainMenu = MainMenuCanvas( self, canvasFrame, mainMenuWidth, mainMenuHeight )
@@ -1876,17 +1878,18 @@ class MainGui( Tk.Frame, object ):
 			If an attempt is made to switch to a tab that is already the current tab, this function will not be called. """
 
 		# Get the widget of the currently selected tab (a ttk.Frame or ttk.Notebook)
-		currentTab = self.root.nametowidget( self.mainTabFrame.select() )
-		currentTab.focus() # Don't want keyboard/widget focus at any particular place yet
+		self.lastSelectedTab = self.currentTab
+		self.currentTab = self.root.nametowidget( self.mainTabFrame.select() )
+		self.currentTab.focus() # Don't want keyboard/widget focus at any particular place yet
 
-		if currentTab == self.codeManagerTab:
+		if self.currentTab == self.codeManagerTab:
 			# Need to populate the initial tab and align the control panel
 			self.codeManagerTab.onTabChange()
 		elif self.codeManagerTab: # Not selected, but it exists
 			self.codeManagerTab.emptyModsPanels() # For improved GUI performance
 
 		# Update the height for entries in Treeview widgets, which can't be specified per-widget-instance
-		if currentTab == self.texturesTab:
+		if self.currentTab == self.texturesTab:
 			self.style.configure( 'Treeview', rowheight=76 )
 
 			# if globalDatFile and not self.datTextureTree.get_children():
@@ -1896,7 +1899,7 @@ class MainGui( Tk.Frame, object ):
 		else:
 			self.style.configure( 'Treeview', rowheight=20 )
 
-			# if globalDatFile and currentTab == self.savTab and not self.fileStructureTree.get_children():
+			# if globalDatFile and self.currentTab == self.savTab and not self.fileStructureTree.get_children():
 			# 	# SAV tab hasn't been populated yet. Perform analysis.
 			# 	analyzeDatStructure()
 
@@ -2345,20 +2348,23 @@ class MainGui( Tk.Frame, object ):
 		return returnCode
 
 	def concatAllUnsavedChanges( self, basicSummary ):
+
+		""" Creates and returns a list of unsaved changes throughout the program that are pending a save operation. """
 		
 		changes = []
-		unsavedFiles = globalData.disc.getUnsavedChangedFiles()
 
 		# Check for disc changes
-		if unsavedFiles or globalData.disc.unsavedChanges or globalData.disc.rebuildReason or not basicSummary:
-			changes.extend( globalData.disc.concatUnsavedChanges(unsavedFiles, basicSummary) )
+		disc = globalData.disc
+		unsavedFiles = disc.getUnsavedChangedFiles()
+		if unsavedFiles or disc.unsavedChanges or disc.rebuildReason or not basicSummary:
+			changes.extend( disc.concatUnsavedChanges(unsavedFiles, basicSummary) )
 
 		# Scan for code-related changes
-		if globalData.gui.codeManagerTab:
-			pendingCodeChanges = globalData.gui.codeManagerTab.summarizeChanges()
+		if self.codeManagerTab:
+			pendingCodeChanges = self.codeManagerTab.summarizeChanges()
 			if len( pendingCodeChanges ) > 1:
 				if changes:
-					changes.append( '' )
+					changes.append( '' ) # Results in extra line breaks in the finished report after .join()
 				changes.extend( pendingCodeChanges )
 
 		# Check the Character Modding tab if it's open
@@ -2366,7 +2372,7 @@ class MainGui( Tk.Frame, object ):
 			charsModified = self.charModTab.hasUnsavedChanges()
 			if charsModified:
 				if changes:
-					changes.append( '' )
+					changes.append( '' ) # Results in extra line breaks in the finished report after .join()
 				if len( charsModified ) == 1:
 					changes.append( charsModified[0] + ' has unsaved subAction changes in the Character Modding tab.' )
 				elif len( charsModified ) < 5:
@@ -2381,8 +2387,8 @@ class MainGui( Tk.Frame, object ):
 	def changesNeedSaving( self, disc, programClosing=False ):
 
 		""" Asks the user if they would like to forget any unsaved disc changes. 
-			Used in order to close the program or load a new file. Returns a 
-			list of files that have unsaved changes. """
+			Used in order to close the program or load a new file. Returns True 
+			if the user has unsaved changes pending a save operation. """
 
 		if not disc:
 			return False
@@ -3186,9 +3192,10 @@ if __name__ == '__main__':
 		# Load the program settings and initialize the GUI
 		globalData.gui = gui = MainGui()
 		gui.audioEngine = AudioEngine()
+
+		# For testing...
 		# print('gui load time: ' + str(time.clock()-toc))
 		# print('program load time: ' + str(time.clock()-tic))
-
 		#gui.fileHandler( [r"D:\Tex\SSBM ISO\vanilla test iso\Super Smash Bros. Melee (v1.02).iso"] )
 		#gui.fileMenu.browseCodeLibrary()
 
