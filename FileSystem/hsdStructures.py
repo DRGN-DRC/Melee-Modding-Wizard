@@ -1859,6 +1859,7 @@ class PolygonObjDesc( StructBase ): # A.k.a. Meshes
 
 			if flagsValue & 0x1000: # Uses ShapeAnims (SHAPEANIM flag set), for vertex/mesh animations
 				self.fields = mostFields + ( 'Shape_Set_Pointer', )
+				print( self.name + ' found a Shape_Set!' )
 				self.childClassIdentities[6] = 'ShapeSetDesc'
 				self.isShapeSet = True
 
