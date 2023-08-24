@@ -376,35 +376,35 @@ class RenderEngine( Tk.Frame ):
 			self.translation_Z = -10
 			return
 
-		# Calculate new camera X/Y coords
+		# Calculate the centerpoint of all of the scanned objects
 		maxX = max( xCoords )
 		maxY = max( yCoords )
 		maxZ = max( zCoords )
+		minZ = min( zCoords )
 		x = ( maxX + min(xCoords) ) / 2.0
 		y = ( maxY + min(yCoords) ) / 2.0
-		z = ( maxZ + min(zCoords) ) / 2.0
+		z = ( maxZ + minZ ) / 2.0
 
 		# Determine depth (zoom level); try to get the entire model part/group in the frame
 		xSpan = maxX - x
 		ySpan = maxY - y
-		zSpan = maxZ - z
-		if xSpan > ySpan:
+		if xSpan > ySpan * self.aspectRatio:
 			# Use x-axis to determine zoom level
-			if zSpan > xSpan:
-				zOffset = zSpan * 1.6
-			else:
-				zOffset = xSpan * 1.5
+			zOffset = xSpan * 1.5
 		else:
-			# Use y-axis to determine zoom level
-			if zSpan > ySpan:
-				zOffset = zSpan * 1.6
-			else:
-				zOffset = ySpan * 1.7
+			# Use y-axis to determine zoom level (and also zoom out a little further)
+			zOffset = ySpan * 1.5 * self.aspectRatio
+		zOffset = abs( zOffset )
 
 		# Set the new camera position
 		self.translation_X = -x
 		self.translation_Y = -y
-		self.translation_Z = -z - abs( zOffset )
+		self.translation_Z = -z - zOffset
+
+		# Ensure the camera doesn't clip into the object
+		if abs( minZ - self.zNear - self.translation_Z ) < self.zNear:
+			# Too close; back up based on minZ
+			self.translation_Z = abs( minZ - self.zNear ) * -2.5
 
 	def resizeViewport( self, event ):
 
@@ -751,10 +751,13 @@ class RenderEngine( Tk.Frame ):
 				# Check for textures (usually just one, but there can be more)
 				textures = self.collectTextures( dobj )
 				if textures:
-					materialGroup = self._addTextureGroup( textures )
+					#materialGroup = self._addTextureGroup( textures )
+					materialGroup = TexturedMaterial( self, textures )
 				else:
 					materialGroup = Material( self, mobj )
 					#print( 'No textures for {}'.format(dobj.name) )
+
+				materialGroup.renderState = getattr( dobj, 'renderState', 'normal' )
 
 				# Iterate over this PObj and its siblings
 				for pobjOffset in pobj.getSiblings():
@@ -880,7 +883,7 @@ class RenderEngine( Tk.Frame ):
 
 		# Use the first texture data offset as an ID
 		firstTextureOffset = textures[0].offset
-		
+
 		textureGroup = self.textures.get( firstTextureOffset )
 
 		if not textureGroup:
@@ -1738,15 +1741,15 @@ class VertexList( Primitive ):
 
 		""" Translates a primitive type/enumeration value into an OpenGL primitive type. """
 
-		if primType == 0xB8: primitiveType = gl.GL_POINTS
-		elif primType == 0xA8: primitiveType = gl.GL_LINES
-		elif primType == 0xB0: primitiveType = gl.GL_LINE_STRIP
-		elif primType == 0x90: primitiveType = gl.GL_TRIANGLES
-		elif primType == 0x98: primitiveType = gl.GL_TRIANGLE_STRIP
-		elif primType == 0xA0: primitiveType = gl.GL_TRIANGLE_FAN
-		elif primType == 0x80: primitiveType = gl.GL_QUADS
+		if primType == 0xB8: primitiveType = gl.GL_POINTS				# 0
+		elif primType == 0xA8: primitiveType = gl.GL_LINES				# 1
+		elif primType == 0xB0: primitiveType = gl.GL_LINE_STRIP			# 3
+		elif primType == 0x90: primitiveType = gl.GL_TRIANGLES			# 4
+		elif primType == 0x98: primitiveType = gl.GL_TRIANGLE_STRIP		# 5
+		elif primType == 0xA0: primitiveType = gl.GL_TRIANGLE_FAN		# 6
+		elif primType == 0x80: primitiveType = gl.GL_QUADS				# 7
 		else: # Failsafe
-			print( 'Warning! Invalid primitive type: 0x{:X}'.format(primType) )
+			print( 'Warning! Invalid primitive type detected: 0x{:X}'.format(primType) )
 			primitiveType = gl.GL_POINTS
 
 		return primitiveType
@@ -1860,6 +1863,7 @@ class Material( Group ):
 		self.parent = None # Required for recursive Group set_state/unset_state calls
 		self.enableTextures = True
 		self.useVertexColors = True
+		self.renderState = 'normal'
 
 		self._setMatProperties()
 
@@ -1946,11 +1950,16 @@ class Material( Group ):
 
 	def set_state( self ):
 
-		""" Sets rendering context (OpenGL state) for primitives using this group. """
+		""" Sets rendering context (OpenGL state) for primitives using this group,
+			and sets values in the shader if it is being used. """
 
-		# Set material lighting properties
+		# Set values in the shader if it's in use
 		if self.renderEngine.fragmentShader:
 			self.renderEngine.setShaderInt( 'useVertexColors', self.useVertexColors )
+			if self.renderState == 'normal':
+				self.renderEngine.setShaderInt( 'renderState', 0 )
+			else: # dim
+				self.renderEngine.setShaderInt( 'renderState', 1 )
 
 			#if not self.useVertexColors:
 			# Use material colors instead
@@ -2048,6 +2057,7 @@ class Material( Group ):
 		if self.renderEngine.fragmentShader:
 			self.renderEngine.setShaderInt( 'alphaOp', -1 )
 			self.renderEngine.setShaderInt( 'useVertexColors', True )
+			self.renderEngine.setShaderInt( 'renderState', 0 )
 
 		#gl.glDisable( gl.GL_COLOR_MATERIAL )
 
