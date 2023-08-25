@@ -65,7 +65,7 @@ class StructBase( object ):
 		self._parentsChecked = False
 		self._siblingsChecked = False
 		self._childrenChecked = False
-		self._branchInitialized = False
+		# self._branchInitialized = False
 
 		# Determine the structure's file depth (x, y) tuple, if possible.
 		#		x = how "deep" into the file (the file header is first, at 0. Root Nodes Table is next, at 1)
@@ -348,6 +348,23 @@ class StructBase( object ):
 		else: # Remove references to the Root/Ref Node tables (returns new set; will not update original parents set)
 			return self.parents.difference( [self.dat.headerInfo['rtEnd'], self.dat.headerInfo['rootNodesEnd']] )
 
+	def getParticularParent( self, structClass, printWarnings=False ):
+
+		""" Returns a parent of only a particular class. 
+			Needed in cases where multiple parents exist. """
+		
+		parent = None
+
+		for parentOffset in self.getParents():
+			parent = self.dat.initSpecificStruct( structClass, parentOffset, self.offset, printWarnings=printWarnings )
+			if parent:
+				break
+
+		if not parent and printWarnings:
+			print( 'Unable to find a {} parent to {}'.format(structClass.__name__, self.name) )
+
+		return parent
+
 	def isSibling( self, structOffset ):
 
 		""" Checks if the given structure is a parent/sibling to this structure. This is only designed 
@@ -380,23 +397,23 @@ class StructBase( object ):
 		else: # Loop above didn't break or return; no 'Next_' field
 			return False
 
-	def getFirstSibling( self ):
+	# def getFirstSibling( self ): # no longer needed/useful?
 
-		""" Returns the offset of the first sibling in this structure's group (not the 'Next' struct to this one). 
-			Returns -1 if there are no siblings. """
+	# 	""" Returns the offset of the first sibling in this structure's group (not the 'Next' struct to this one). 
+	# 		Returns -1 if there are no siblings. """
 
-		if not self._siblingsChecked:
-			self.getSiblings()
+	# 	if not self._siblingsChecked:
+	# 		self.getSiblings()
 
-		if not self.siblings:
-			return -1
+	# 	if not self.siblings:
+	# 		return -1
 		
-		# Check if this structure is actually the first (structures in the siblings list doesn't include itself)
-		firstSiblingOffset = self.siblings[0].offset
-		if self.offset < firstSiblingOffset:
-			return self.offset
-		else:
-			return firstSiblingOffset
+	# 	# Check if this structure is actually the first (structures in the siblings list doesn't include itself)
+	# 	firstSiblingOffset = self.siblings[0].offset
+	# 	if self.offset < firstSiblingOffset:
+	# 		return self.offset
+	# 	else:
+	# 		return firstSiblingOffset
 
 	def getSiblings( self, nextOnly=False ):
 
@@ -604,35 +621,37 @@ class StructBase( object ):
 
 		return self.children
 
-	def getBranchDescendants( self, recursive=True ):
+	# def getBranchDescendants( self, recursive=True, classLimit=None ):
 
-		""" Recursively returns all children and sibling structs for this structure. """
+	# 	""" Recursively returns all children and sibling structs for this structure. """
 
-		allStructs = []
-		subBranches = self.getChildren( includeSiblings=True )
+	# 	allStructs = set()
+	# 	subBranches = self.getChildren( includeSiblings=True )
 
-		print( 'Descendants of ' + self.name )
-		print( 'direct:' + str([ hex( 0x20 + s) for s in subBranches]) )
+	# 	# print( 'Descendants of ' + self.name )
+	# 	# print( 'direct:' + str([ hex( 0x20 + s) for s in subBranches]) )
 
-		for offset in subBranches:
-			structure = self.dat.getStruct( offset )
-			allStructs.append( structure )
-			decendants = structure.getBranchDescendants()
-			#d2 = [ hex( 0x20 + d.offset) for d in decendants]
-			#print( '\t' + str(d2) )
-			allStructs.extend( decendants )
+	# 	for offset in subBranches:
+	# 		structure = self.dat.getStruct( offset )
+	# 		allStructs.add( structure )
+	# 		allStructs.update( structure.getBranchDescendants(classLimit=classLimit) )
 
-		print( 'all:' + str([ hex( 0x20 + s.offset) for s in allStructs]) )
+	# 	# print( 'all:' + str([ hex( 0x20 + s.offset) for s in allStructs]) )
 
-		return allStructs
+	# 	return allStructs
 
-	def initDescendants( self, override=False ):
+	def getDescendants( self, override=False, classLimit=None ):
 
 		""" Recursively initializes structures for an entire branch within the data section. """
 
+		structs = []
+
 		# Prevent redundant passes over this branch of the tree (can happen if multiple structures point to the same structure)
-		if self._branchInitialized and not override: # Checking self.dat.structs to see if this struct exists isn't enough
-			return
+		# if self._branchInitialized and not override: # Checking self.dat.structs to see if this struct exists isn't enough
+		# 	if self.__class__ == classLimit:
+		# 		return structs
+		# 	else:
+		# 		return self.getBranchDescendants(classLimit=classLimit)
 
 		# Initialize children
 		for childStructOffset in self.getChildren( includeSiblings=True ):
@@ -642,15 +661,29 @@ class StructBase( object ):
 			childStruct = self.dat.structs.get( childStructOffset, None )
 
 			if childStruct and not childStruct.__class__ == str:
-				# This struct/branch has already been created. So just update the target structure's parent structs list with this item.
+				# This struct/branch has already been initialized. So just update the child's parent structs set with this item.
 				childStruct.parents.add( self.offset )
 
 			else: # Create the new struct
 				childStruct = self.dat.getStruct( childStructOffset, self.offset )
 
-			childStruct.initDescendants()
+			# Prevent initialization of lower structures if using a class limit
+			if childStruct.__class__ == classLimit:
+				siblingOffsets = childStruct.getSiblings()
+				if siblingOffsets:
+					# This child will be included in its list of siblings
+					siblings = [ self.dat.getStruct(sib) for sib in siblingOffsets ]
+					structs.extend( siblings )
+				else:
+					structs.append( childStruct )
+				continue
 
-		self._branchInitialized = True
+			structs.append( childStruct )
+			structs.extend( childStruct.getDescendants(classLimit=classLimit) )
+
+		# self._branchInitialized = True
+
+		return structs
 
 	def getBranchSize( self ):
 
@@ -742,7 +775,7 @@ class StructBase( object ):
 				else:
 					self.structDepth = ( parentStruct.structDepth[0] + 1, 0 )
 
-					# Update the sibling ID portion of the struct depth by calling getSiblings
+					# Update the sibling ID portion of the struct depth
 					self.getSiblings()
 
 				break
@@ -923,13 +956,14 @@ class DataBlock( StructBase ):
 		self.name = 'Data Block ' + uHex( 0x20 + args[1] )
 		self._siblingsChecked = True
 		self._childrenChecked = True
-		self._branchInitialized = True
+		# self._branchInitialized = True
 
 	def validated( self, *args, **kwargs ): return True
 	def getSiblings( self, nextOnly=False ): return []
 	def isSibling( self, offset ): return False
 	def getChildren( self, includeSiblings=True ): return []
-	def initDescendants( self, override ): return
+	#def getBranchDescendants( self, recursive=True, classLimit=None ): return []
+	def getDescendants( self, override=False, classLimit=None ): return []
 	def getAttributes( self ): # Gets the properties of this block from a parent image/palette/other data header
 		aParentOffset = self.getAnyDataSectionParent()
 		return self.dat.getStruct( aParentOffset ).getValues()
@@ -1591,10 +1625,10 @@ class DisplayObjDesc( StructBase ):
 		return bones
 
 
-class InverseMatrixObjDesc( StructBase ):
+class InverseMatrixObjDesc( DataBlock ):
 
 	def __init__( self, *args, **kwargs ):
-		StructBase.__init__( self, *args, **kwargs )
+		DataBlock.__init__( self, *args, **kwargs )
 
 		self.name = 'Inverse Bind Matrix ' + uHex( 0x20 + args[1] )
 		self.formatting = '>ffffffffffff'
@@ -1603,8 +1637,6 @@ class InverseMatrixObjDesc( StructBase ):
 						'M20', 'M21', 'M22', 'M23',
 					)
 		self.length = 0x30
-		self._siblingsChecked = True
-		self._childrenChecked = True
 
 	# def invertMatrix( self, matrix ):
 	# 	# Get the number of rows and columns of the matrix

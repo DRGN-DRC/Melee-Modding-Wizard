@@ -10,6 +10,7 @@
 #		  -  - Melee Modding Wizard -  -  
 
 import os
+import time
 import struct
 
 from string import hexdigits
@@ -21,7 +22,7 @@ import hsdStructures
 import standaloneStructs
 
 from fileBases import DatFile
-from basicFunctions import toInt, msg, uHex, reverseDictLookup
+from basicFunctions import printStatus, toInt, msg, uHex, reverseDictLookup
 
 
 def findBytes( bytesRange, target ): # Searches a bytearray for a given (target) set of bytes, and returns the location (index)
@@ -1086,3 +1087,56 @@ class StageFile( DatFile ):
 			if it exists within the General Points Arrays. Returns None if it doesn't. """
 
 		return self.mapHead.getGeneralPoint( pointType )
+
+	def getDObjs( self ):
+
+		""" An optimization to the generic DAT method (searches just map_head model groups). 
+			Finds and returns all Display Objects in the file. """
+
+		self.initialize()
+		structs = []
+
+		try:
+			# tic = time.time()
+
+			# Get the map_head's GObj array
+			gobjArray = self.getGObjs()
+
+			# Iterate over the main/root joint for all model groups
+			for _, gobjEntryValues in gobjArray.iterateEntries():
+				modelGroupPointer = gobjEntryValues[0] # A root joint
+
+				# Get the target struct if it has already been initialized
+				joint = self.structs.get( modelGroupPointer, None )
+
+				if joint:
+					# Check if it's a hint
+					if joint.__class__ == str:
+						# Sanity check warning
+						if joint != 'JointObjDesc':
+							self.structs[modelGroupPointer] = None # Removes the hint
+							print( 'Incorrect class hint created for Struct 0x{:X}'.format(modelGroupPointer) )
+
+						# It's just a hint. Initialize an struct object
+						joint = self.initSpecificStruct( hsdStructures.JointObjDesc, modelGroupPointer, gobjArray.offset, (2, 0) )
+					else:
+						""" This struct/branch has already been created! Which likely means this is part of another structure 
+							branch, and this root or reference node association must just be a label for the structure.
+							So just update the target structure's parent structs list with this item. """
+						joint.parents.add( gobjArray.offset )
+
+				else: # Create the new struct
+					joint = self.initSpecificStruct( hsdStructures.JointObjDesc, modelGroupPointer, gobjArray.offset, (2, 0) )
+
+				descendants = joint.getDescendants( classLimit=hsdStructures.DisplayObjDesc )
+				structs.extend( descendants )
+
+			# toc = time.time()
+			# print( 'time to get {} DObjs: {}'.format(len(structs), toc-tic) )
+
+			# Filter the Display Objects and return them
+			return [ obj for obj in structs if isinstance(obj, hsdStructures.DisplayObjDesc) ]
+		
+		except Exception as errorMessage:
+			printStatus( 'Unable to parse DObjs from {}; {}'.format(self.printPath(), errorMessage), error=True )
+			return []

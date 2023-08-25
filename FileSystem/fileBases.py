@@ -863,6 +863,8 @@ class DatFile( FileBase ):
 			to the start of a hierarchical branch into the file, while others simply
 			serve as labels for parts of branches or for specific structures. """
 
+		self.initialize()
+
 		hI = self.headerInfo
 
 		try:
@@ -881,16 +883,63 @@ class DatFile( FileBase ):
 					childStruct.parents.add( parentOffset )
 
 				else: # Create the new struct
-					childStruct = self.getStruct( structOffset, parentOffset, (2, 0) ) # Using this rather than the factory so we can still process hints
-				
-				childStruct.initDescendants()
+					childStruct = self.getStruct( structOffset, parentOffset, (2, 0) ) # Used rather than the factory so we can still process hints
+
+				childStruct.getDescendants()
 
 			# Identify and group orphan structures. (Some orphans will be recognized/added by the struct initialization functions.)
 			dataSectionStructureOffsets = set( self.structureOffsets ).difference( (-0x20, hI['rtStart'], hI['rtEnd'], hI['rootNodesEnd'], hI['stringTableStart']) )
 			self.orphanStructures = dataSectionStructureOffsets.difference( self.structs.keys() )
-			
+
 		except Exception as errorMessage:
-			raise Exception( 'Unable to parse the DAT file data section of {}; {}'.format(self.printPath(), errorMessage) )
+			printStatus( 'Unable to parse the DAT file data section of {}; {}'.format(self.printPath(), errorMessage), error=True )
+
+	def getDObjs( self ):
+
+		""" Beginning with the root and reference nodes, this recursively parses the 
+			data section of the DAT file to find and return all Display Objects. """
+
+		self.initialize()
+
+		hI = self.headerInfo
+		structs = []
+
+		try:
+			# tic = time.time()
+
+			for i, ( structOffset, nodeName ) in enumerate( self.rootNodes + self.referenceNodes ):
+				# Skip animation based structs
+				if 'anim' in nodeName:
+					continue
+
+				# Determine the parent root/ref node table offset
+				if i < hI['rootNodeCount']: parentOffset = hI['rtEnd']
+				else: parentOffset = hI['rootNodesEnd']
+
+				# Get the target struct if it has already been initialized
+				childStruct = self.structs.get( structOffset, None )
+
+				if childStruct and not childStruct.__class__ == str:
+					""" This struct/branch has already been created! Which likely means this is part of another structure 
+						branch, and this root or reference node association must just be a label for the structure.
+						So just update the target structure's parent structs list with this item. """
+					childStruct.parents.add( parentOffset )
+
+				else: # Create the new struct
+					childStruct = self.getStruct( structOffset, parentOffset, (2, 0) ) # Using this rather than the factory so we can still process hints
+
+				descendants = childStruct.getDescendants( classLimit=hsdStructures.DisplayObjDesc )
+				structs.extend( descendants )
+
+			# toc = time.time()
+			# print( 'time to get {} DObjs: {}'.format(len(structs), toc-tic) )
+
+			# Filter the Display Objects and return them
+			return [ obj for obj in structs if isinstance(obj, hsdStructures.DisplayObjDesc) ]
+		
+		except Exception as errorMessage:
+			printStatus( 'Unable to parse DObjs from {}; {}'.format(self.printPath(), errorMessage), error=True )
+			return []
 
 	def hintRootClasses( self ):
 
@@ -1004,14 +1053,12 @@ class DatFile( FileBase ):
 
 			if not newStructClass: # Unable to find a structure by that name
 				print( 'Unable to find a structure class of "' + structure + '"' )
-				structure = None # We'll let the structure factory handle this
+				structure = None # We'll let the structure factory attempt this
 
 			elif issubclass( newStructClass, hsdStructures.DataBlock ):
-				#print 'creating new data block from', structure, 'hint for Struct', hex(0x20+structOffset)
 				structure = self.initDataBlock( newStructClass, structOffset, parentOffset, structDepth )
 
 			else:
-				#print 'Struct', hex(0x20+structOffset), 'insinuated to be', structure, 'attempting to init specifically'
 				structure = self.initSpecificStruct( newStructClass, structOffset, parentOffset, structDepth )
 
 		if not structure: # If there was a hint, it may have been bad (above initialization failed)
@@ -2378,7 +2425,7 @@ class DatFile( FileBase ):
 		# print( 'parent: ' + hex(0x20 + parentStruct.offset) )
 		structs = [ parentStruct ]
 
-		structs.extend( parentStruct.getBranchDescendants() )
+		structs.extend( parentStruct.getDescendants() )
 
 		# print( [hex(0x20+s.offset) for s in structs] )
 		# print( 'total size: ' + hex(parentStruct.getBranchSize()) )
