@@ -9,18 +9,20 @@
 #		╚═╝     ╚═╝ ╚═╝     ╚═╝  ╚══╝╚══╝ 			 ------                                                   ------
 #		  -  - Melee Modding Wizard -  -  
 
-from binascii import hexlify
 import json
+import time
 import struct
 import bitstring
 import globalData
 
+from binascii import hexlify
 from collections import OrderedDict
 
 from fileBases import FileBase
 from hsdFiles import DatFile
+from FileSystem import hsdStructures
 from hsdStructures import StructBase, TableStruct, DataBlock
-from basicFunctions import msg, reverseDictLookup, uHex, roundTo32
+from basicFunctions import msg, printStatus, reverseDictLookup, uHex, roundTo32
 
 
 class CharFileBase( object ):
@@ -1363,3 +1365,27 @@ class CharCostumeFile( CharFileBase, DatFile ):
 		# Get the skeleton struct (should be the joint/bone of the first root node)
 		jointClass = globalData.fileStructureClasses['JointObjDesc']
 		return self.initSpecificStruct( jointClass, firstNodeOffset )
+
+	def getDObjs( self ):
+
+		""" An optimization to the generic DAT method (searches just the first/main root node). 
+			Finds and returns all Display Objects in the file. """
+
+		self.initialize()
+
+		try:
+			# tic = time.time()
+
+			# Process structs from the main model joint
+			rootStruct = self.getSkeletonRoot()
+			descendants = rootStruct.getDescendants( classLimit=hsdStructures.DisplayObjDesc )
+
+			# toc = time.time()
+			# print( 'time to get {} structs: {}'.format(len(descendants), toc-tic) )
+
+			# Filter the Display Objects and return them
+			return [ obj for obj in descendants if isinstance(obj, hsdStructures.DisplayObjDesc) ]
+		
+		except Exception as errorMessage:
+			printStatus( 'Unable to parse DObjs from {}; {}'.format(self.printPath(), errorMessage), error=True )
+			return []

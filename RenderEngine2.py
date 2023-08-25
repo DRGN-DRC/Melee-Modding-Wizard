@@ -730,7 +730,7 @@ class RenderEngine( Tk.Frame ):
 
 		try:
 			# Iterate over this DObj (and its siblings, if enabled)
-			for dobjOffset in reversed( dobjOffsets ):
+			for dobjOffset in dobjOffsets:
 				dobj = parentDobj.dat.getStruct( dobjOffset )
 
 				# Prevent creating duplicate DObjs
@@ -814,8 +814,9 @@ class RenderEngine( Tk.Frame ):
 				break
 
 			# Attempt to initialize the parent object
-			parentJointOffset = next(iter( parents ))
-			parentJoint = parentJoint.dat.initSpecificStruct( jointClass, parentJointOffset )
+			# parentJointOffset = next(iter( parents ))
+			# parentJoint = parentJoint.dat.initSpecificStruct( jointClass, parentJointOffset )
+			parentJoint = parentJoint.getParticularParent( jointClass )
 		
 		# Apply the accumulated transforms
 		for primitive in primitives:

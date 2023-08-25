@@ -1635,61 +1635,75 @@ class TexturesEditorTab( ttk.Frame ):
 			self.populateTexPropertiesTab()
 			return
 
-		# Add a flag for the renderer to dim/obscure certain parts
 		obscureNonSelected = modelPane.obscureNonSelected.get()
-		allParts = []
-		for struct in self.file.structs.values():
-			if isinstance( struct, hsdStructures.DisplayObjDesc ):
-				allParts.append( struct )
-
-				if not obscureNonSelected or struct in modelParts:
-					struct.renderState = 'normal' # todo: make this an enum if more states are added
-				else:
-					struct.renderState = 'dim'
 
 		if modelParts[0].skeleton:
 			if modelPane.displayMode == DisplayMode.SelectedOnly:
-				# Show strictly the given parts
-				for modelPart in modelParts:
-					if self.hideBasedOnPoly( modelPart ):
-						continue
-
-					modelPane.engine.renderDisplayObj( modelPart, includeSiblings=False )
-				
 				modelPane.selectableObjects = modelPane.displayObjects
+				partsToRender = modelParts
 
 			elif modelPane.displayMode == DisplayMode.Related:
-				modelPane.selectableObjects = []
+				modelPane.selectableObjects = set()
 				for modelPart in modelParts:
 					# Use the model's skeleton to find a few near-by parts
 					for partOffset in self.findRelatedParts( modelPart ):
 						part = self.file.getStruct( partOffset )
-						modelPane.selectableObjects.append( part )
+						modelPane.selectableObjects.add( part )
 
-						if self.hideBasedOnPoly( part ):
-							continue
-
-						modelPane.engine.renderDisplayObj( part, includeSiblings=False )
+				modelPane.selectableObjects = list( modelPane.selectableObjects )
+				partsToRender = modelPane.selectableObjects
 
 			else: # All (display everything)
-				#modelParts = allParts
-				modelPane.selectableObjects = allParts
+				modelPane.selectableObjects = partsToRender = self.file.getDObjs()
 
-				for part in allParts:
-					if self.hideBasedOnPoly( part ):
-						continue
-					modelPane.engine.renderDisplayObj( part, includeSiblings=False )
+			# Render all parts that should be visible (and selectable in Render Options)
+			for part in partsToRender:
+				if self.hideBasedOnPoly( part ):
+					continue
+
+				# Set render state (normal or dim appearance)
+				if not obscureNonSelected or part in modelParts:
+					part.renderState = 'normal' # todo: make this an enum if more states are added
+				else:
+					part.renderState = 'dim'
+
+				modelPane.engine.renderDisplayObj( part, includeSiblings=False )
 
 		else:
+			if modelPane.displayMode == DisplayMode.SelectedOnly:
+				modelPane.selectableObjects = modelPane.displayObjects
+				partsToRender = modelParts
+				
+			elif modelPane.displayMode == DisplayMode.Related:
+				# Get a list of the given parts plus all of their siblings
+				modelPane.selectableObjects = set()
+				for modelPart in modelParts:
+					for partOffset in modelPart.getSiblings():
+						part = self.file.getStruct( partOffset )
+						modelPane.selectableObjects.add( part )
+
+				modelPane.selectableObjects = list( modelPane.selectableObjects )
+				partsToRender = modelPane.selectableObjects
+			else: # All
+				modelPane.selectableObjects = partsToRender = self.file.getDObjs()
+
 			# No skeleton to use when positioning various parts; fall back to basic joint transforms only
-			for modelPart in modelParts:
-				primitives = modelPane.engine.renderDisplayObj( modelPart, includeSiblings=modelPane.displayMode )
+			for part in partsToRender:
+				# Set render state (normal or dim appearance)
+				if not obscureNonSelected or part in modelParts:
+					part.renderState = 'normal' # todo: make this an enum if more states are added
+				else:
+					part.renderState = 'dim'
+
+				# Render the part
+				primitives = modelPane.engine.renderDisplayObj( part, includeSiblings=False )
+				modelPane.currentRenders.append( part )
 
 				# Update relative position based on parent joint coordinates
-				parentJointOffset = next(iter( modelPart.getParents() ))
-				parentJoint = self.file.initSpecificStruct( hsdStructures.JointObjDesc, parentJointOffset )
+				# parentJointOffset = next(iter( part.getParents() ))
+				# parentJoint = self.file.initSpecificStruct( hsdStructures.JointObjDesc, parentJointOffset )
+				parentJoint = part.getParticularParent( hsdStructures.JointObjDesc )
 				modelPane.engine.applyJointTransformations( primitives, parentJoint )
-			modelPane.selectableObjects = modelPane.displayObjects
 
 		# Remember what parts were last selected to render
 		modelPane.currentRenders = modelParts # Excludes "related" parts, or extra parts that are selectable
@@ -1720,15 +1734,6 @@ class TexturesEditorTab( ttk.Frame ):
 		# Check the box for the appropriate DObj in the render options window if it's open.
 		# This feature is only used when this method is called from the Next/Prev. buttons.
 		if updateOptionsWindow and self.renderOptionsWindowIsOpen():
-			# selectedObj = modelPane.displayObjects[modelPane.partIndex]
-			# checkboxStates = self.renderOptionsWindow.checkboxStates
-
-			# for dobjOffset, checkboxVar in checkboxStates.items():
-			# 	if dobjOffset == selectedObj.offset:
-			# 		checkboxVar.set( True )
-			# 	else:
-			# 		checkboxVar.set( False )
-			# if self.renderOptionsWindowIsOpen():
 			self.renderOptionsWindow.repopulate()
 
 	def refreshRender( self, event=None ):
@@ -2001,7 +2006,7 @@ class TexturesEditorTab( ttk.Frame ):
 
 		texStructs = self.modelPropertiesPane.interior.textureStructs
 		#matStructs = self.modelPropertiesPane.interior.materialStructs
-		matStructs = [ tobj.MObj for tobj in self.modelPropertiesPane.interior.currentRenders ]
+		matStructs = [ dobj.MObj for dobj in self.modelPropertiesPane.interior.currentRenders ]
 		pixStructs = [] # Pixel Processing structures
 		wraplength = propertiesPane.winfo_width() - 20
 		vertPadding = 10
@@ -2868,7 +2873,7 @@ class ModelTabRenderOptionsWindow( BasicWindow ):
 		# showAllBtn = ttk.Checkbutton( self.window, text='Show all model parts', variable=self.modelPane.showAllParts, command=self.showAllCheckboxClicked )
 		# showAllBtn.grid( column=0, row=3, columnspan=2, padx=20 )
 
-		# self.showRelatedBtn = ttk.Checkbutton( self.window, text='Show related parts (DObj siblings)', variable=self.modelPane.showRelatedParts, command=self.checkboxClicked )
+		# self.showRelatedBtn = ttk.Checkbutton( self.window, text='Show related parts (DObj siblings)', variable=self.modelPane.showRelatedParts, command=self.dobjCheckboxClicked )
 		# self.showRelatedBtn.grid( column=0, row=4, columnspan=2, padx=20 )
 		#self.updateRelatedBtn()
 
@@ -2919,37 +2924,30 @@ class ModelTabRenderOptionsWindow( BasicWindow ):
 		self.checkboxStates = {} # key=DObjOffset, value=BooleanVar (for whether this dobj should be visible)
 		self.transformedRenders = {} # key=DObjOffset, value=True/False (for whether it has joint transforms applied)
 
-		#selectedObj = self.modelPane.displayObjects[self.modelPane.partIndex]
-		#asteriskedParts = [ dobj.offset for dobj in self.modelPane.displayObjects ]
-
 		if self.modelPane.displayMode == DisplayMode.SelectedOnly:
 			self.infoText.set( 'The selected texture is used by\nthe model on these parts:' )
 
-			# modelParts = self.modelPane.displayObjects
-
 		elif self.modelPane.displayMode == DisplayMode.Related:
 			self.infoText.set( '* The selected texture is used by\nthe model on these parts.' )
-
-			# modelParts = self.editorTab.findRelatedParts( selectedObj )
-			# modelParts = [ self.editorTab.file.getStruct(offset) for offset in modelParts ]
 		
 		else: # All
 			self.infoText.set( '* The selected texture is used by\nthe model on these parts.' )
 
-			# Get a list of all of the DObjs in the file
-			# modelParts = []
-			# for struct in self.editorTab.file.structs.values():
-			# 	if isinstance( struct, hsdStructures.DisplayObjDesc ):
-			# 		modelParts.append( struct )
-
-		# Sort by DObj index, if available
+		# Ensure there are parts to populate with (failsafe; not expected)
 		modelParts = self.modelPane.selectableObjects
-		modelParts.sort( key=lambda part: part.id )
+		if not modelParts:
+			self.infoText.set( 'There are no selectable model parts!' )
+			return
+
+		# Sort by DObj index, if available (or else use file offset)
+		if modelParts[0].id != -1:
+			modelParts.sort( key=lambda part: part.id )
+		else:
+			modelParts.sort( key=lambda part: part.offset )
 
 		# Add checkboxes to the interface for each Display Object
 		row = 0
 		for dobj in modelParts:
-			#if dobj.offset == selectedObj.offset:
 			if dobj in self.modelPane.currentRenders:
 				boolVar = Tk.BooleanVar( value=True )
 			else:
@@ -2969,7 +2967,7 @@ class ModelTabRenderOptionsWindow( BasicWindow ):
 			else:
 				title = ' {}: {}'.format( dobj.id, dobj.name )
 
-			btn = ttk.Checkbutton( self.partCheckboxesFrame.interior, text=title, variable=boolVar, command=self.checkboxClicked, style=style )
+			btn = ttk.Checkbutton( self.partCheckboxesFrame.interior, text=title, variable=boolVar, command=self.dobjCheckboxClicked, style=style )
 			btn.grid( column=0, row=row, sticky='w', padx=(6, 0) )
 
 			# Add an asterisk if the current texture is attached to this model part
@@ -2992,7 +2990,7 @@ class ModelTabRenderOptionsWindow( BasicWindow ):
 
 	# def showAllCheckboxClicked( self ):
 	# 	#self.updateRelatedBtn()
-	# 	self.checkboxClicked()
+	# 	self.dobjCheckboxClicked()
 
 	def modeUpdated( self, widget, newValue ):
 
@@ -3056,7 +3054,7 @@ class ModelTabRenderOptionsWindow( BasicWindow ):
 			self.showHighPolyBtn.config( state='disabled' )
 			self.showLowPolyBtn.config( state='disabled' )
 
-	def checkboxClicked( self ):
+	def dobjCheckboxClicked( self ):
 
 		""" Updates the render when one of the checkboxes is clicked on. """
 
@@ -3162,7 +3160,7 @@ class ModelTabRenderOptionsWindow( BasicWindow ):
 			else:
 				checkboxVar.set( True )
 
-		self.checkboxClicked()
+		self.dobjCheckboxClicked()
 
 	def deselectAll( self ):
 
