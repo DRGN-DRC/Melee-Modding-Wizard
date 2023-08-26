@@ -1528,7 +1528,7 @@ class TexturesEditorTab( ttk.Frame ):
 		else:
 			modelPane.engine.zNear = 2.5; modelPane.engine.zFar = 1500
 
-	def determineDefaultPart( self ):
+	def determineDefaultPart( self, resetPartIndex=True ):
 
 		""" Attempts to intelligently determine a model part (DObj) to 
 			show by default in the Model tab when a texture is selected. 
@@ -1538,8 +1538,13 @@ class TexturesEditorTab( ttk.Frame ):
 
 		# Get the default part; i.e. the first part used by the selected texture
 		modelPane = self.modelPropertiesPane.interior
-		modelPane.partIndex = 0
-		defaultPart = modelPane.displayObjects[0]
+		if resetPartIndex:
+			modelPane.partIndex = 0
+		defaultPart = modelPane.displayObjects[modelPane.partIndex]
+
+		# Exit if not dealing with high/low poly parts
+		if not modelPane.highPolyIds and not modelPane.lowPolyIds:
+			return defaultPart
 
 		# Determine whether the user currently has high or low-poly parts selected for display
 		if modelPane.showHighPoly.get():
@@ -2854,7 +2859,7 @@ class ModelTabRenderOptionsWindow( BasicWindow ):
 		file = modelPane.displayObjects[0].dat
 		windowTitle = 'Render Options ({})'.format( file.filename )
 
-		if not BasicWindow.__init__( self, globalData.gui.root, windowTitle, resizable=True, unique=True ):
+		if not BasicWindow.__init__( self, globalData.gui.root, windowTitle, offsets=(180, 45), resizable=True, unique=True ):
 			return # Unique window already exists; bringing that back into view now instead of creating a new window
 
 		self.editorTab = editorTab
@@ -2865,28 +2870,21 @@ class ModelTabRenderOptionsWindow( BasicWindow ):
 
 		# Add selection for Display Objects
 		self.partCheckboxesFrame = VerticalScrolledFrame( self.window, maxHeight=400 )
-		self.partCheckboxesFrame.grid( column=0, row=1, columnspan=2, sticky='nsew', pady=6, padx=10 )
+		self.partCheckboxesFrame.grid( column=0, row=1, columnspan=2, sticky='nsew', pady=6, padx=15, ipadx=5 )
 		self.populate()
 
 		ttk.Separator( self.window, orient='horizontal' ).grid( column=0, row=2, columnspan=2, sticky='ew', padx=42, pady=(6, 12) )
-
-		# showAllBtn = ttk.Checkbutton( self.window, text='Show all model parts', variable=self.modelPane.showAllParts, command=self.showAllCheckboxClicked )
-		# showAllBtn.grid( column=0, row=3, columnspan=2, padx=20 )
-
-		# self.showRelatedBtn = ttk.Checkbutton( self.window, text='Show related parts (DObj siblings)', variable=self.modelPane.showRelatedParts, command=self.dobjCheckboxClicked )
-		# self.showRelatedBtn.grid( column=0, row=4, columnspan=2, padx=20 )
-		#self.updateRelatedBtn()
 
 		options = [ 'Show Selected Only', 'Show Related Parts', 'Show All' ]
 		self.modeDropdown = Dropdown( self.window, options, options[self.modelPane.displayMode], command=self.modeUpdated )
 		self.modeDropdown.grid( column=0, row=3, columnspan=2, padx=20 )
 
-		obscureBtn = ttk.Checkbutton( self.window, text='Obscure non-selected parts', variable=self.modelPane.obscureNonSelected, command=self.editorTab.refreshRender )
+		obscureBtn = ttk.Checkbutton( self.window, text='Obscure non-selected parts', variable=self.modelPane.obscureNonSelected, command=self.toggleObscurance )
 		obscureBtn.grid( column=0, row=4, columnspan=2, padx=20 )
 
-		self.showHighPolyBtn = ttk.Radiobutton( self.window, text='High-poly', variable=self.modelPane.showHighPoly, value=True, command=self.updatePolyRender, style='Red.TRadiobutton' )
+		self.showHighPolyBtn = ttk.Radiobutton( self.window, text='High-poly', variable=self.modelPane.showHighPoly, value=True, command=self.togglePolyRender, style='Red.TRadiobutton' )
 		self.showHighPolyBtn.grid( column=0, row=5, padx=8, sticky='e' )
-		self.showLowPolyBtn = ttk.Radiobutton( self.window, text='Low-poly', variable=self.modelPane.showHighPoly, value=False, command=self.updatePolyRender, style='Blue.TRadiobutton' )
+		self.showLowPolyBtn = ttk.Radiobutton( self.window, text='Low-poly', variable=self.modelPane.showHighPoly, value=False, command=self.togglePolyRender, style='Blue.TRadiobutton' )
 		self.showLowPolyBtn.grid( column=1, row=5, padx=8, sticky='w' )
 		self.updatePolyBtns()
 
@@ -2906,16 +2904,6 @@ class ModelTabRenderOptionsWindow( BasicWindow ):
 		self.window.columnconfigure( 'all', weight=1 )
 		self.window.rowconfigure( 'all', weight=0 )
 		self.window.rowconfigure( 1, weight=1 )
-
-	# def updateRelatedBtn( self ):
-		
-	# 	""" Updates appearance of the 'Show related' checkbox/option, 
-	# 		which is overridden by the 'Show all' option. """
-
-	# 	if self.modelPane.showAllParts.get():
-	# 		self.showRelatedBtn.config( state='disabled' )
-	# 	else:
-	# 		self.showRelatedBtn.config( state='enabled' )
 
 	def populate( self ):
 
@@ -2984,44 +2972,59 @@ class ModelTabRenderOptionsWindow( BasicWindow ):
 		
 		self.partCheckboxesFrame.clear()
 		self.populate()
-		#self.updateRelatedBtn()
 		self.updatePolyBtns()
 		self.window.geometry( '' ) # Updates the window size
-
-	# def showAllCheckboxClicked( self ):
-	# 	#self.updateRelatedBtn()
-	# 	self.dobjCheckboxClicked()
 
 	def modeUpdated( self, widget, newValue ):
 
 		""" Called when the display mode dropdown is changed. """
 
+		# Update the display mode based on the dropdown's selection
 		newModeIndex = widget.options.index( newValue )
 		self.modelPane.displayMode = newModeIndex
 
-		# Check if one of the 'current' DObjs (texture attached to it) is currently selected
-		# for dobjOffset, checkboxVar in self.checkboxStates.items():
-		# 	dobj = self.editorTab.file.getStruct( dobjOffset )
-		# 	if dobj in self.modelPane.displayObjects:
-		# 		defaultObj = dobj
-		# 		self.modelPane.partIndex = self.modelPane.displayObjects.index( dobj )
-		# 		break
-		# else: # The loop above didn't break; no default selected
-		# 	defaultObj = self.modelPane.displayObjects[0]
-		# 	self.modelPane.partIndex = 0
-
-		defaultObj = self.modelPane.displayObjects[self.modelPane.partIndex]
-
-		# if self.modelPane.displayMode == DisplayMode.SelectedOnly:
-		# 	self.editorTab.renderDobj( [defaultObj] )
-		# elif self.modelPane.displayMode == DisplayMode.Related:
-		# 	self.editorTab.renderDobj( [defaultObj] )
-		# else: # All
+		# Re-render using just the default part
+		defaultObj = self.editorTab.determineDefaultPart( resetPartIndex=False )
 		self.editorTab.renderDobj( [defaultObj] )
 
+		# Update the objects shown in this window
 		self.repopulate()
 
-	def updatePolyRender( self ):
+	def toggleObscurance( self ):
+
+		""" Called when the "Obscure non-selected parts" option is changed. 
+			Updates the render state of primitives based on whether the DObj 
+			they are attached to is currently selected. """
+
+		renderEngine = self.modelPane.engine
+
+		if self.modelPane.obscureNonSelected.get(): # Enable the feature and obscure non-selected parts
+			# Create a list of DObj offsets of the currently selected model parts
+			renderedObjects = [ dobj.offset for dobj in self.modelPane.currentRenders ]
+
+			# Iterate over the vertex lists and update their render groups
+			for vL in renderEngine.vertexLists:
+				if not vL.renderGroup:
+					continue
+				
+				# Check if this primitive has a DObj tag (offset) of one of the current renders
+				for tag in vL.tags:
+					if tag in renderedObjects:
+						# This primitive is currently selected
+						vL.renderGroup.renderState = 'normal'
+						break
+				else: # The above loop didn't break; the primitive is not among the list of selected parts
+					vL.renderGroup.renderState = 'dim'
+
+		else:
+			# Disable the feature; set all render states to normal
+			for vL in renderEngine.vertexLists:
+				vL.renderGroup.renderState = 'normal'
+
+		# Update the display
+		renderEngine.refresh()
+
+	def togglePolyRender( self ):
 		
 		""" Called when the 'Show high/low poly' radio buttons/option are updated. 
 			Selects model parts that use the currently selected texture and match 
@@ -3029,6 +3032,7 @@ class ModelTabRenderOptionsWindow( BasicWindow ):
 
 		partsToSelect = []
 
+		# Update each checkbox in this GUI and then re-render
 		for dobjOffset, checkboxVar in self.checkboxStates.items():
 			dobj = self.editorTab.file.getStruct( dobjOffset )
 
@@ -3045,7 +3049,7 @@ class ModelTabRenderOptionsWindow( BasicWindow ):
 	def updatePolyBtns( self ):
 		
 		""" Updates appearance of the 'Show high/low poly' radio buttons/option, 
-			which isn't used if this isn't for a character costume file. """
+			which aren't used if this isn't for a character costume file. """
 
 		if isinstance( self.editorTab.file, CharCostumeFile ):
 			self.showHighPolyBtn.config( state='enabled' )

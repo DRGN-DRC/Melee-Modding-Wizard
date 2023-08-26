@@ -2,6 +2,9 @@
 //#version 330 core
 
 // Define constants
+#define RENDER_NORMAL 0
+#define RENDER_DIM 1
+
 // GXAlphaOp
 #define ALPHA_OP_AND 0
 #define ALPHA_OP_OR 1
@@ -19,6 +22,12 @@
 #define COMP_ALWAYS 7
 
 // Texture flags
+#define COORD_UV 0
+#define COORD_REFLECTION 1
+#define COORD_HIGHLIGHT 2
+#define COORD_SHADOW 3
+#define COORD_TOON 4
+#define COORD_GRADATION 5
 #define LIGHTMAP_DIFFUSE 1
 #define LIGHTMAP_SPECULAR 2
 #define LIGHTMAP_AMBIENT 4
@@ -43,12 +52,14 @@
 #define ALPHAMAP_SUB 7
 
 // Temp hardcoded lighting values (todo: get from light objects)
-vec3 finalAmbiLight = vec3(0.5);
-vec3 finalDiffLight = vec3(0.7);
+vec3 finalAmbiLight = vec3(0.6);
+vec3 finalDiffLight = vec3(0.6);
 vec3 finalSpecLight = vec3(0.7);
 //vec3 finalSpecLight = vec3(0.8, 0.8, 0.8);
 
 // Define inputs from the program
+uniform int renderState;
+
 // Texture input variables
 uniform bool enableTextures;
 uniform sampler2D texture0;
@@ -72,6 +83,44 @@ uniform float alphaRef1;
 
 varying vec4 gl_Color; // Vertex color
 out vec4 fragColor; // Final output color
+
+// Generate and return texture coordinates 
+// based on the coordinate type and texGenSrc (todo).
+// vec2 getTextureCoords()
+// {
+// 	vec2 coords;
+// 	int texCoordType = (textureFlags & 5); // Mask out first 5 bits
+
+// 	switch(texCoordType)
+// 	{
+// 		case COORD_UV: // The usual case
+// 			coords = gl_TexCoord[0].st;
+// 			break;
+
+// 		case COORD_REFLECTION:
+// 			vec3 viewNormal = mat3(sphereMatrix) * normal;
+// 			coords = viewNormal.xy * 0.5 + 0.5;
+// 			coords.y = 1 - coords.y;
+// 			break;
+
+// 		case COORD_TOON:
+// 			vec3 V = normalize(vertPosition - cameraPos);
+// 			float lambert = clamp(dot(normal, V) + 0.4, 0, 1);
+// 			coords = vec2(lambert, lambert);
+// 			break;
+
+// 		// todo; missing the following:
+// 		// COORD_HIGHLIGHT
+// 		// COORD_SHADOW
+// 		// COORD_GRADATION
+
+// 		default: // Failsafe
+// 			coords = vec2(0, 0);
+// 			break;
+// 	}
+
+// 	return coords;
+// }
 
 // Combines texture color and alpha with material color
 // (passColor, which may be diffuse/ambient/etc.).
@@ -163,6 +212,7 @@ vec4 applyTexture()
 {
 	// Get the initial texture color
 	vec2 coords = gl_TexCoord[0].st;
+	//vec2 coords = getTextureCoords();
 	vec4 textureColor = texture2D(texture0, coords).rgba;
 	
 	// Skip influence of material colors if using vertex colors
@@ -249,7 +299,9 @@ bool alphaIsGood(int comp, float ref, float fragmentAlpha)
 	);
 }
 
-// Returns true if the fragment fails the test and should be discarded
+// Returns true if the fragment fails the test and should be discarded.
+// This is used when pixel-processing is enabled; bounds and comparison
+// methods for this test are taken from the PE struct.
 bool failsAlphaTest(float fragmentAlpha)
 {
 	// Sanity check
@@ -326,10 +378,17 @@ void main()
 	// 	return;
 	// }
 
+	// Discard fragments which fail the pixel-processing alpha test
 	if (failsAlphaTest(fragColor.a))
 		discard;
 		// fragColor = vec4(1.0, 0, 0, 0.5); // red
 
+	// Reduce saturation and brightness for model parts that should be obscured
+	if (renderState == RENDER_DIM)
+	{
+		fragColor.rgb = adjustSaturation(fragColor.rgb, .3);
+		fragColor *= vec4(.45, .45, .45, 1.0);
+	}
 	
 	// if (alphaOp == -1)
 	// 	fragColor = vec4(1.0, 0, 0, 0.5); // red
