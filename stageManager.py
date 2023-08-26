@@ -2966,6 +2966,9 @@ class StagePropertyEditor( ttk.Frame ):
 			self.modelPartsTree.insert( '', 'end', str(entryValues[0]), text=gobjName, values=gobjValues )
 			#offset += 0x34
 
+		# Set the program status. This may be overridden with any warnings from render engine or shader initialization below
+		printStatus( 'Ready' )
+
 		# Model display panel
 		self.engine = RenderEngine( self, (100, 100), True, background=globalData.gui.defaultSystemBgColor, borderwidth=0, relief='groove' )
 		self.engine.grid( column=2, row=1, sticky='nsew', padx=(0, 15) )
@@ -3001,13 +3004,18 @@ class StagePropertyEditor( ttk.Frame ):
 		if not self.file.filename.startswith( 'GrT' ):
 			targetsButton.config( state='disabled' )
 
-		self.columnconfigure( 0, weight=1 )
-		self.columnconfigure( 1, weight=1 )
+		# self.columnconfigure( 0, weight=1 )
+		# self.columnconfigure( 1, weight=1 )
+		# self.columnconfigure( 2, weight=2 )
+		# self.rowconfigure( 0, weight=0 )
+		# self.rowconfigure( 1, weight=1 )
+		# self.rowconfigure( 2, weight=1 )
+		# self.rowconfigure( 3, weight=1 )
+
+		self.columnconfigure( 'all', weight=1 )
 		self.columnconfigure( 2, weight=2 )
+		self.rowconfigure( 'all', weight=1 )
 		self.rowconfigure( 0, weight=0 )
-		self.rowconfigure( 1, weight=1 )
-		self.rowconfigure( 2, weight=1 )
-		self.rowconfigure( 3, weight=1 )
 
 	def onModelPartSelect( self, event ):
 
