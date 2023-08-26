@@ -430,7 +430,7 @@ class RenderEngine( Tk.Frame ):
 
 		self.window.updateRequired = True
 
-	def refresh( self, event ):
+	def refresh( self, event=None ):
 
 		""" Tells the render engine to update/redraw the display canvas at its next opportunity. 
 			This is bound to the <Expose> Tkinter event, which will occur whenever at least 

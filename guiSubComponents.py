@@ -602,6 +602,7 @@ class BasicWindow( object ):
 			topOffset = rootDistanceFromScreenTop + 180
 			leftOffset = rootDistanceFromScreenLeft + 180
 		else:
+			assert len( offsets ) == 2, 'Invalid "offsets" argument; should be "auto" or a tuple of (leftOffset, topOffset).'
 			leftOffset, topOffset = offsets
 			topOffset += rootDistanceFromScreenTop
 			leftOffset += rootDistanceFromScreenLeft
@@ -610,6 +611,7 @@ class BasicWindow( object ):
 		if dimensions == 'auto':
 			self.window.geometry( '+{}+{}'.format(leftOffset, topOffset) )
 		else:
+			assert len( dimensions ) == 2, 'Invalid "dimensions" argument; should be "auto" or a tuple of (width, height).'
 			width, height = dimensions
 			self.window.geometry( '{}x{}+{}+{}'.format(width, height, leftOffset, topOffset) )
 		self.window.focus()
