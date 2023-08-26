@@ -231,7 +231,7 @@ class RenderEngine( Tk.Frame ):
 		# gl.glLightfv( gl.GL_LIGHT0, gl.GL_AMBIENT, (gl.GLfloat * 4)(1.0, 1.0, 1.0, 1.0) )
 		# gl.glLightfv( gl.GL_LIGHT0, gl.GL_SPECULAR, (gl.GLfloat * 4)(1.0, 1.0, 1.0, 1.0) )
 		# gl.glEnable( gl.GL_LIGHT0 )
-		
+
 		#gl.glCullFace( gl.GL_BACK )
 		gl.glDisable( gl.GL_CULL_FACE ) # Enabled by default
 		#gl.glPolygonMode( gl.GL_FRONT_AND_BACK, gl.GL_LINE ) # Enable for wireframe mode (need to reset line widths)
@@ -877,22 +877,22 @@ class RenderEngine( Tk.Frame ):
 
 		return textures
 
-	def _addTextureGroup( self, textures ):
+	# def _addTextureGroup( self, textures ):
 
-		""" Converts the given texture objects (file structures) to 
-			textures for pyglet and stores them into texture groups. """
+	# 	""" Converts the given texture objects (file structures) to 
+	# 		textures for pyglet and stores them into texture groups. """
 
-		# Use the first texture data offset as an ID
-		firstTextureOffset = textures[0].offset
+	# 	# Use the first texture data offset as an ID
+	# 	firstTextureOffset = textures[0].offset
 
-		textureGroup = self.textures.get( firstTextureOffset )
+	# 	textureGroup = self.textures.get( firstTextureOffset )
 
-		if not textureGroup:
-			# Create a pyglet TextureGroup object and store it
-			textureGroup = TexturedMaterial( self, textures )
-			self.textures[firstTextureOffset] = textureGroup
+	# 	if not textureGroup:
+	# 		# Create a pyglet TextureGroup object and store it
+	# 		textureGroup = TexturedMaterial( self, textures )
+	# 		self.textures[firstTextureOffset] = textureGroup
 		
-		return textureGroup
+	# 	return textureGroup
 	
 	def reloadTexture( self, offset ):
 
@@ -1040,7 +1040,7 @@ class RenderEngine( Tk.Frame ):
 			gl.glDeleteShader( shader )
 
 		except Exception as err:
-			printStatus( 'There was an error during shader initialization', warning=True )
+			printStatus( 'Unable to initialize {} shader. Switching to fixed-function pipeline'.format(filename), warning=True )
 			print( err )
 			return None
 		

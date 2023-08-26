@@ -1,4 +1,5 @@
-#version 400 core
+#version 130
+//#version 400 core
 //#version 330 core
 
 // Define constants
@@ -81,7 +82,8 @@ uniform int alphaComp1;
 uniform float alphaRef0;
 uniform float alphaRef1;
 
-varying vec4 gl_Color; // Vertex color
+in vec4 gl_Color; // Vertex color
+//in vec2 gl_TexCoord; // Texture coordinate
 out vec4 fragColor; // Final output color
 
 // Generate and return texture coordinates 
@@ -233,14 +235,14 @@ vec4 applyTexture()
 
 	// Apply material lighting for enabled aspects
 	vec4 texAmbience;
-	if (lightingFlags & LIGHTMAP_AMBIENT) {
+	if (bool(lightingFlags & LIGHTMAP_AMBIENT)) {
 		texAmbience = applyTextureOperations(ambientColor, textureColor);
 	} else {
 		texAmbience = ambientColor;
 	}
 	vec4 diffusedColor = vec4(diffuseColor.rgb, materialAlpha * diffuseColor.a);
 	vec4 texDiffuse;
-	if (lightingFlags & LIGHTMAP_DIFFUSE) {
+	if (bool(lightingFlags & LIGHTMAP_DIFFUSE)) {
 		texDiffuse = applyTextureOperations(diffusedColor, textureColor);
 	} else {
 		texDiffuse = diffusedColor;
