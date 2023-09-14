@@ -14,14 +14,22 @@
     >=- Overview
     >==----------
 
-	Most of the command-line functionality is organized into a few "operation groups", which
-	must be specified to access features within them. For example:
+	Most of the command-line functionality is organized into a few "operation groups", 
+	which must be specified to access features within them. For examples...
+
+
+	To get information on a disc:
 
 		"MMW.exe" disc --discPath [filePath] --info
 
-	In this case, "disc" is the operation group name. Here is a short description of each group 
-	and the operations/arguments within them. Other switches that are specific to one of these 
-	features are not included here. See the sections below for more detail on a specifc operation.
+	To export a file from a disc:
+
+		"MMW.exe" disc --discPath [filePath] --export "Start.dol"
+	
+
+	In these cases, "disc" is the operation group name. Below is a brief description of each group 
+	and the operations available within them. Additional switches that are specific to one of these 
+	features are not included here. For more detail on a specifc operation, see the sections below.
 	Details for specific op groups can also be viewed using the command "MMW.exe [opGroup] -h".
 
 	You may use the full argument name, e.g. "--build", or a shorthand version of it, shown in
@@ -43,7 +51,7 @@
 		--library		Specify the library to install from (if not using default)
 
 
-	These arguments do not require an operation group:
+	There are a few extra arguments which do not require an operation group:
 
 		--help (-h)		Show the program's help message and exit
 		--version (-v)		Show program's version number and exit

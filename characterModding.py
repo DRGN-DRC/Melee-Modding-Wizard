@@ -22,7 +22,9 @@ from basicFunctions import reverseDictLookup, msg, printStatus
 # Internal Dependencies
 import globalData
 from FileSystem.charFiles import ActionTable, CharDataFile, SubAction, SubActionEvent
-from guiSubComponents import AnimationChooser, BasicWindow, ClickText, ColoredLabelButton, DDList, FlagDecoder, HexEditEntry, LabelButton, ToggleButton, ToolTip, VerticalScrolledFrame, getNewNameFromUser, getWindowGeometry
+from guiSubComponents import (
+	AnimationChooser, BasicWindow, ColoredLabelButton, DDList, FlagDecoder, HexEditEntry, 
+	LabelButton, ToggleButton, ToolTip, VerticalScrolledFrame, getNewNameFromUser )
 
 
 class CharModding( ttk.Notebook ):

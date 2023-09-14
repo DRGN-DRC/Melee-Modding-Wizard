@@ -1138,13 +1138,13 @@ class GeneralHelpWindow( BasicWindow ):
 		1: ( "Did you know that you can drag-and-drop files directly onto "
 			"the program icon (the .exe file) or the GUI to open them?" ),
 
-		2: ( "For CSPs (Character Select Portraits), if you're trying to mimic "
-			"the game's original CSP shadows, they are 10px down and 10px to the left." ),
+		2: ( "For CSPs (Character Select Portraits), if you're making them manually and trying "
+			"to mimic the game's original CSP shadows, they are 10px down and 10px to the left." ),
 
 		3: ( "When working in GIMP and opting to use a palette, it's important that you delete "
 			"ALL hidden and unused layers BEFORE generating a palette for your texture. "
-			"This is because if other layers are present, even if not visible, GIMP "
-			"will take their colors into consideration to generate the palette. (If you have a lot of "
+			"This is because if other layers are present, even if not visible, GIMP will take "
+			"their colors into consideration to generate the palette. (If you have a lot of "
 			"layers, a simple option is to create a 'New from Visible' layer, and then copy it "
 			"to a new, blank image before creating the palette.)" ),
 
@@ -1156,10 +1156,10 @@ class GeneralHelpWindow( BasicWindow ):
 		5: ( "Use the boost to chase!" ),
 
 		6: ( "You don't have to close this program in order to run your disc in Dolphin (the disc file will not "
-			'be write-locked). Tthough you do need to stop emulation if you want to save changes to the disc.' ),
+			'be write-locked). Though you do need to stop emulation if you want to save changes to the disc.' ),
 
-		7: ( "Have you ever noticed those dotted lines at the top of the 'Open Recent' "
-			"and 'Tools' menus? Try clicking on one sometime! It will turn the menu into a window for fast-access." ),
+		7: ( "Have you ever noticed those dotted lines at the top of the 'Open Recent' and 'Tools' menus? "
+			"Try clicking on one sometime! It will turn the menu into a persistent window for fast-access." ),
 
 		8: ( "If you click on one of the 'Disc Shortcuts' before loading a disc, the program will load the "
 			"last disc that you've used, and then jump to the appropriate section. They're two shortcuts in one!" ),
@@ -1176,9 +1176,23 @@ class GeneralHelpWindow( BasicWindow ):
 			'replace/import larger files without having to rebuild the disc.' ),
 
 		12: ( "This program has a lot of lesser-known but very useful features, some of which aren't easily found "
-			"by browsing the GUI. Check out the Program Usage.txt to find them all." )
+			'by browsing the GUI. Check out the "MMW Manual" file for an overview of main features.' ),
 
-		# 15: ( "Did you notice the cheese in the toilet? It's in every level." ),
+		13: ( 'This program has quite a few features that can be used from command-line, so you can write '
+			'scripts to automate common tasks. Or you can integrate features of this program into another '
+			'one. See the "Command-Line Usage" file for available commands, syntax, and examples.' ),
+
+		14: ( "The code installation and management features offered by this program's Code Manager "
+			'are quite powerful, and can provide a number of benefits over traditional Gecko Codes. '
+			'See the "Code Library Manual" file for details and feature info.' ),
+
+		15: ( "Did you notice the cheese in the toilet? It's in every level." ),
+
+		16: ( "Creators of code-based mods can add 'Configuration options', which give users the ability to "
+			'modify the behavior or parameters of a code right from within the GUI in this program. They can '
+			'use sliders, enter numbers, or choose from drop-downs rather than needing to understand how to '
+			'read and modify the hex or source code of the mod. Look for the "Configurations" section in the '
+			'"Code Library Manual" to learn about these options and how to implement them.' )
 
 		# 2: ( "There are multiple useful behaviors you can call upon when importing textures:"
 		# 	"\n- When viewing the contents of a disc on the 'Disc File Tree' tab. The imported "
