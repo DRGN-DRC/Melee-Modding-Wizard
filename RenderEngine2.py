@@ -157,6 +157,35 @@ GXBlendFactor = [
 ]
 
 
+def cross_product( vector_a, vector_b ):
+
+	""" Calculates a vector product between two given vectors 
+		and returns a new vector, perpendicular to these. """
+
+	Ax, Ay, Az = vector_a
+	Bx, By, Bz = vector_b
+
+	Cx = (Ay * Bz) - (Az * By)
+	Cy = (Az * Bx) - (Ax * Bz)
+	Cz = (Ax * By) - (Ay * Bx)
+
+	return (Cx, Cy, Cz)
+
+# def normalizeRadians( angle_radians ):
+
+# 	""" Takes an angle in radians and ensures it stays within one full revolution 
+# 		(0 to 2π radians or 0 to 360 degrees) while preserving its direction. """
+
+# 	# Ensure angle_radians is within the range [0, 2π)
+# 	normalized_angle = angle_radians % (2 * math.pi)
+
+# 	# Ensure the result is non-negative
+# 	if normalized_angle < 0:
+# 		normalized_angle += 2 * math.pi
+
+# 	return normalized_angle
+
+
 class RenderEngine( Tk.Frame ):
 
 	""" This module creates a pyglet rendering environment (a window), and embeds
@@ -185,9 +214,9 @@ class RenderEngine( Tk.Frame ):
 		screen = display.get_default_screen()
 		config = screen.get_matching_configs( gl.Config(double_buffer=True, depth_size=8, alpha_size=8, samples=4) )[0]
 		self.window = pygletWindow( display=display, config=config, width=self.width, height=self.height, resizable=resizable, visible=False )
-		self.fov = 60; self.zNear = 5; self.zFar = 3500
+		self.camera = Camera( self )
 		self.aspectRatio = self.width / float( self.height )
-		self.window.projection = Projection3D( self.fov, self.zNear, self.zFar ) # todo: need custom class to replace glFrustum & friends; http://www.manpagez.com/man/3/glFrustum/
+		self.window.projection = Projection3D( self.camera.fov, self.camera.zNear, self.camera.zFar ) # todo: need custom class to replace glFrustum & friends; http://www.manpagez.com/man/3/glFrustum/
 		self.window.on_draw = self.on_draw
 		self.bind( '<Expose>', self.refresh )
 		openGlVersion = self.window.context._info.get_version().split()[0]
@@ -203,7 +232,7 @@ class RenderEngine( Tk.Frame ):
 
 		self.fragmentShader = self.compileShader( gl.GL_FRAGMENT_SHADER, 'fragment' )
 		
-		# Set up a default render mode in the shader for basic primitives
+		# Set up a default render mode in the shader to allow for basic primitives
 		if self.fragmentShader:
 			self.setShaderInt( 'enableTextures', False )
 			self.setShaderInt( 'useVertexColors', True )
@@ -224,7 +253,7 @@ class RenderEngine( Tk.Frame ):
 		gl.glDepthFunc( gl.GL_LEQUAL ) # The type of depth testing to do
 
 		# gl.glEnable( gl.GL_LIGHTING )
-		# halfHeight = math.tan( self.fov / 2 ) * self.zNear
+		# halfHeight = math.tan( self.camera.fov / 2 ) * self.camera.zNear
 		# lightPosition = ( -halfHeight, -halfHeight, -4000, 1.0 )
 		# gl.glLightfv( gl.GL_LIGHT0, gl.GL_POSITION, (gl.GLfloat * 4)(*lightPosition) )
 		# gl.glLightfv( gl.GL_LIGHT0, gl.GL_DIFFUSE, (gl.GLfloat * 4)(1.0, 1.0, 1.0, 1.0) )
@@ -252,15 +281,15 @@ class RenderEngine( Tk.Frame ):
 		self.edges = []
 		self.clearRenderings()
 		self.resetView()
-		#self.defineFrustum()
+		#self.camera.defineFrustum()
 
 		# Set up event handling for controls
 		#self.window._enable_event_queue = True
-		self.window.on_mouse_drag = self.on_mouse_drag
 		#self.window.on_key_press = self.on_key_press
-		#self.window.on_mouse_scroll = self.on_mouse_scroll2 	# doesn't work!?
-		self.window.on_mouse_scroll = self.on_mouse_scroll
-		self.master.bind( "<MouseWheel>", self.on_mouse_scroll )
+		self.window.on_mouse_drag = self.camera.on_mouse_drag
+		self.window.on_mouse_scroll = self.camera.on_mouse_scroll
+		self.window.on_mouse_release = self.camera.on_mouse_release
+		self.master.bind( "<MouseWheel>", self.camera.on_mouse_scroll )
 		self.master.bind( '<KeyPress>', self.on_key_press2 )
 		#self.master.bind( "<1>", self.window.activate() ) # Move focus to the parent when clicked on
 
@@ -269,7 +298,6 @@ class RenderEngine( Tk.Frame ):
 			self.bind( "<Configure>", self.resizeViewport )
 
 		# Start the render event loop using Tkinter's main event loop
-		#self.window.updateRequired = True
 		if not pyglet.app.event_loop.is_running:
 			pyglet.app.event_loop = CustomEventLoop( self.winfo_toplevel() )
 			pyglet.app.event_loop.run()
@@ -305,106 +333,10 @@ class RenderEngine( Tk.Frame ):
 		self.rotation_X = 0
 		self.rotation_Y = 0
 
-		self.translation_X = 0.0
-		self.translation_Y = 0.0
-		self.translation_Z = 0.0
+		self.camera.resetPosition()
+		self.camera.rotationPoint = ( 0.0, 0.0, 0.0 )
 
 		self.window.updateRequired = True
-
-	def defineFrustum( self ):
-
-		""" Defines the viewable area of the render environment, which is 
-			composed of 6 sides and shaped like the cross-section of a pyramid. 
-			The result of this function is a list of the planes (sides) enclosing this area. """
-
-		# Create vectors for the plane corners (points on the near plane, and vectors to the far plane)
-		halfHeight = math.tan( self.fov / 2 ) * self.zNear
-		halfWidth = halfHeight * self.aspectRatio
-		topLeft = ( -halfWidth, halfHeight, -self.zNear )
-		topRight = ( halfWidth, halfHeight, -self.zNear )
-		bottomLeft = ( -halfWidth, -halfHeight, -self.zNear )
-		bottomRight = ( halfWidth, -halfHeight, -self.zNear )
-
-		self.frustum = (
-			Plane( (0,0,0)+bottomLeft+topLeft ), 		# Left
-			Plane( (0,0,0)+topLeft+topRight ), 			# Top
-			Plane( (0,0,0)+topRight+bottomRight ), 		# Right
-			Plane( (0,0,0)+bottomRight+bottomLeft ), 	# Bottom
-			Plane( bottomLeft+topLeft+topRight ),		# Near
-			Plane()	# Far
-		)
-
-	def focusCamera( self, tags=None, primitive=None, skipRotationReset=False ):
-
-		""" Resets the camera and centers it on the object with the given tag. 
-			The tag and primitive arguments may be given to filter to targets. """
-
-		if not skipRotationReset:
-			self.resetView()
-
-		xCoords = []
-		yCoords = []
-		zCoords = []
-
-		# Check if tags is an iterable or a single item
-		if tags:
-			if hasattr( tags, '__iter__' ):
-				tags = set( tags )
-			else: # Is not an iterable
-				tags = set( [tags] )
-
-		# Find all of the x/y/z coordinates of the target object(s)
-		for obj in self.getObjects( primitive ):
-			if not tags or tags & set( obj.tags ):
-				if obj.__class__ == Vertex:
-					xCoords.append( obj.x )
-					yCoords.append( obj.y )
-					zCoords.append( obj.z )
-				else:
-					# Iterate over the vertices by individual coordinates
-					coordsIter = iter( obj.vertices[1] )
-					coordsList = [ coordsIter ] * 3
-					for x, y, z in zip( *coordsList ):
-						xCoords.append( x )
-						yCoords.append( y )
-						zCoords.append( z )
-
-		# Set defaults and exit if no coordinates could be collected
-		if not xCoords:
-			self.translation_X = 0
-			self.translation_Y = 0
-			self.translation_Z = -10
-			return
-
-		# Calculate the centerpoint of all of the scanned objects
-		maxX = max( xCoords )
-		maxY = max( yCoords )
-		maxZ = max( zCoords )
-		minZ = min( zCoords )
-		x = ( maxX + min(xCoords) ) / 2.0
-		y = ( maxY + min(yCoords) ) / 2.0
-		z = ( maxZ + minZ ) / 2.0
-
-		# Determine depth (zoom level); try to get the entire model part/group in the frame
-		xSpan = maxX - x
-		ySpan = maxY - y
-		if xSpan > ySpan * self.aspectRatio:
-			# Use x-axis to determine zoom level
-			zOffset = xSpan * 1.5
-		else:
-			# Use y-axis to determine zoom level (and also zoom out a little further)
-			zOffset = ySpan * 1.5 * self.aspectRatio
-		zOffset = abs( zOffset )
-
-		# Set the new camera position
-		self.translation_X = -x
-		self.translation_Y = -y
-		self.translation_Z = -z - zOffset
-
-		# Ensure the camera doesn't clip into the object
-		if abs( minZ - self.zNear - self.translation_Z ) < self.zNear:
-			# Too close; back up based on minZ
-			self.translation_Z = abs( minZ - self.zNear ) * -2.5
 
 	def resizeViewport( self, event ):
 
@@ -426,7 +358,7 @@ class RenderEngine( Tk.Frame ):
 		newAspectRatio = float(self.width) / self.height
 		if self.aspectRatio != newAspectRatio:
 			self.aspectRatio = newAspectRatio
-			#self.defineFrustum()
+			#self.camera.defineFrustum()
 
 		self.window.updateRequired = True
 
@@ -693,12 +625,12 @@ class RenderEngine( Tk.Frame ):
 			primitives.append( self.addVertex( xyzCoords, (255, 0, 0, 255), ('bones',), showBones ) )
 
 		# Track the largest +/- x values to adjust the camera zoom
-		xCoordAbs = -abs( xyzCoords[0] ) * 1.4
-		if xCoordAbs < self.translation_Z and xCoordAbs > -self.zFar:
-			self.translation_Z = xCoordAbs
-
-			if self.translation_Z < -800:
-				self.translation_Z = -800
+		# xCoordAbs = -abs( xyzCoords[0] ) * 1.4
+		# if xCoordAbs < self.camera.rotationPoint[2] and xCoordAbs > -self.camera.zFar:
+		# 	if xCoordAbs < -800:
+		# 		self.camera.rotationPoint = ( self.camera.rotationPoint[0], self.camera.rotationPoint[1], -800 )
+		# 	else:
+		# 		self.camera.rotationPoint = ( self.camera.rotationPoint[0], self.camera.rotationPoint[1], xCoordAbs )
 
 		# Connect a line between the current joint and its parent joint
 		if parent and not skeleton:
@@ -939,50 +871,6 @@ class RenderEngine( Tk.Frame ):
 
 		self.window.updateRequired = True
 
-	def on_mouse_scroll( self, event ):
-
-		""" Move the camera in and out (toward/away) from the rendered model. """
-
-		if event.delta > 0: # zoom in
-			self.translation_Z *= .95
-		elif event.delta < 0: # zoom out
-			self.translation_Z *= 1.05
-
-		self.window.updateRequired = True
-
-	# def on_mouse_scroll2( self, *args ):
-
-	# 	print('zoom2' )
-	# 	print(args)
-
-	def on_mouse_drag( self, *args ):
-
-		""" Handles mouse input for rotation and panning of the scene. 
-			buttons = Bitwise combination of the mouse buttons currently pressed. 
-			modifiers = Bitwise combination of any keyboard modifiers currently active. """
-
-		# Grab the event arguments (excluding x and y coords)
-		#print('dragged')
-		if not args:
-			return
-		dx, dy, buttons, modifiers = args[2:]
-
-		if buttons == 1: # Left-click button held
-			self.rotation_X += dx / 2.0
-			self.rotation_Y -= dy / 2.0
-			# https://en.wikipedia.org/wiki/Transformation_matrix#Examples_in_3D_computer_graphics 		#todo
-			# http://n64devkit.square7.ch/tutorial/graphics/6/6_4.htm
-		elif buttons == 4: # Right-click button held
-			# Translate as a function of zoom level
-			# self.translation_X += dx / 2.0
-			# self.translation_Y += dy / 2.0
-			self.translation_X += self.translation_Z * 0.004 * -dx
-			self.translation_Y += self.translation_Z * 0.004 * -dy
-		# else: Multiple buttons held; do nothing and 
-		# wait 'til the user gets their act together. :P
-
-		self.window.updateRequired = True
-
 	def compileShader( self, shaderType, filename ):
 
 		""" Compiles the fragment shader and links it to the rendering program. """
@@ -1066,29 +954,34 @@ class RenderEngine( Tk.Frame ):
 		try:
 			# Clear the screen
 			gl.glClear( gl.GL_COLOR_BUFFER_BIT | gl.GL_DEPTH_BUFFER_BIT )
-				
-			#halfHeight = math.tan( self.fov / 2 ) * self.zNear
+
+			#halfHeight = math.tan( self.camera.fov / 2 ) * self.zNear
 			# lightPosition = ( 100, 100, 200, 1.0 )
 			# gl.glLightfv( gl.GL_LIGHT0, gl.GL_POSITION, (gl.GLfloat * 4)(*lightPosition) )
-			#gl.glLightfv( gl.GL_LIGHT0, gl.GL_POSITION, (gl.GLfloat * 4)(self.translation_X, self.translation_Y, -self.translation_Z, 1.0) )
+			#gl.glLightfv( gl.GL_LIGHT0, gl.GL_POSITION, (gl.GLfloat * 4)(self.camera.rotationPoint[0], self.camera.rotationPoint[1], self.camera.rotationPoint[2], 1.0) )
 
 			# Set the projection matrix to a perspective projection and apply translation (camera pan)
+			# tic = time.time()
 			gl.glMatrixMode( gl.GL_PROJECTION )
 			gl.glLoadIdentity()
-			gl.gluPerspective( self.fov, self.aspectRatio, self.zNear, self.zFar )
-			gl.glTranslatef( self.translation_X, self.translation_Y, self.translation_Z )
+			gl.gluPerspective( self.camera.fov, self.aspectRatio, self.camera.zNear, self.camera.zFar )
+			#print( 'current cam:', self.cam_X, self.cam_Y, self.cam_Z )
+			gl.glTranslatef( self.camera.x, self.camera.y, self.camera.z )
+			# gl.glRotatef( self.rotation_X, 1, 0, 0 )
+			# gl.glRotatef( self.rotation_Y, 0, 1, 0 )
 
 			# Set up the modelview matrix and apply mouse rotation input transformations
 			gl.glMatrixMode( gl.GL_MODELVIEW )
 			gl.glLoadIdentity()
-			gl.glRotatef( self.rotation_Y, 1, 0, 0 )
-			gl.glRotatef( self.rotation_X, 0, 1, 0 )
+			#print( 'current rotation point:', self.camera.rotationPoint )
+			gl.glTranslatef( self.camera.rotationPoint[0], self.camera.rotationPoint[1], self.camera.rotationPoint[2] )
+			gl.glRotatef( self.rotation_X, 1, 0, 0 )
+			gl.glRotatef( self.rotation_Y, 0, 1, 0 )
+			gl.glTranslatef( -self.camera.rotationPoint[0], -self.camera.rotationPoint[1], -self.camera.rotationPoint[2] )
+			# toc = time.time()
+			# print( 'matrix calculations: ' + str(toc-tic) )
 
 			# Render a batch for each set of objects that have been added
-			# if self.fragmentShader:
-			# 	self.setShaderInt( 'enableTextures', False )
-			# 	self.setShaderInt( 'useVertexColors', True )
-			# 	self.setShaderInt( 'alphaOp', -1 )
 			if self.vertices:
 				batch = pyglet.graphics.Batch()
 				for vertex in self.vertices:
@@ -1109,13 +1002,7 @@ class RenderEngine( Tk.Frame ):
 				for quad in self.quads:
 					quad.render( batch )
 				batch.draw()
-
 			if self.vertexLists:
-				# if self.fragmentShader:
-				# 	self.setShaderInt( 'enableTextures', True )
-				# 	self.setShaderInt( 'useVertexColors', False )
-				# 	self.setShaderInt( 'alphaOp', -1 )
-
 				#for vList in self.vertexLists:
 				batch = pyglet.graphics.Batch()
 				for prim in self.vertexLists:
@@ -1307,6 +1194,277 @@ class RenderEngine( Tk.Frame ):
 		self.window.has_exit = True
 
 
+class Camera( object ):
+
+	def __init__( self, renderEngine ):
+		self.fov = 45
+		self.zNear = 5
+		self.zFar = 3500
+		self.engine = renderEngine
+		self.stepSize = 5
+		self.camVector = None		# Unit vector for the camera's facing direction
+
+		self.resetPosition()
+		self.rotationPoint = ( 0.0, 0.0, 0.0 )
+
+	def resetPosition( self ):
+		self.x = 0.0
+		self.y = 0.0
+		self.z = 0.0
+
+		self.origX = 0.0
+		self.origY = 0.0
+		self.origZ = 0.0
+
+	def defineFrustum( self ):
+
+		""" Defines the viewable area of the render environment, which is composed 
+			of 6 sides and shaped like the cross-section of a pyramid. The result 
+			of this function is a list of the planes (sides) enclosing this area. """
+
+		# Create vectors for the plane corners (points on the near plane, and vectors to the far plane)
+		fovRads = math.radians( self.fov )
+		halfHeight = math.tan( fovRads / 2 ) * self.zNear
+		halfWidth = halfHeight * self.engine.aspectRatio
+
+		topLeft = ( -halfWidth, halfHeight, -self.zNear )
+		topRight = ( halfWidth, halfHeight, -self.zNear )
+		bottomLeft = ( -halfWidth, -halfHeight, -self.zNear )
+		bottomRight = ( halfWidth, -halfHeight, -self.zNear )
+
+		self.frustum = (
+			Plane( (0,0,0)+bottomLeft+topLeft ), 		# Left
+			Plane( (0,0,0)+topLeft+topRight ), 			# Top
+			Plane( (0,0,0)+topRight+bottomRight ), 		# Right
+			Plane( (0,0,0)+bottomRight+bottomLeft ), 	# Bottom
+			Plane( bottomLeft+topLeft+topRight ),		# Near
+			Plane()	# Far
+		)
+
+	def setRotationPoint( self, tags=None, primitive=None, skipRotationReset=False ):
+
+		""" Sets the focal or rotation point for the current scene (or set of objects
+			with the given tag).
+		Resets the camera and centers it on the object(s) with the given tag. 
+			The tag and primitive arguments may be given to filter umong targets. """
+
+		if not skipRotationReset:
+			self.engine.resetView()
+
+		xCoords = []; yCoords = []; zCoords = []
+
+		# Check if tags is an iterable or a single item
+		if tags:
+			if hasattr( tags, '__iter__' ):
+				tags = set( tags )
+			else: # Is not an iterable
+				tags = set( [tags] )
+
+		# Find all of the x/y/z coordinates of the target object(s)
+		for obj in self.engine.getObjects( primitive ):
+			if not tags or tags & set( obj.tags ):
+				if obj.__class__ == Vertex:
+					xCoords.append( obj.x )
+					yCoords.append( obj.y )
+					zCoords.append( obj.z )
+				else:
+					objCoordsX = []; objCoordsY = []; objCoordsZ = []
+
+					# Iterate over the vertices by individual coordinates
+					coordsIter = iter( obj.vertices[1] )
+					coordsList = [ coordsIter ] * 3
+					for x, y, z in zip( *coordsList ):
+						# xCoords.append( x )
+						# yCoords.append( y )
+						# zCoords.append( z )
+						objCoordsX.append( x )
+						objCoordsY.append( y )
+						objCoordsZ.append( z )
+
+					minX = min( objCoordsX )
+					minY = min( objCoordsY )
+					minZ = min( objCoordsZ )
+					maxX = max( objCoordsX )
+					maxY = max( objCoordsY )
+					maxZ = max( objCoordsZ )
+
+					# Ignore very large structures (like skyboxes)
+					if maxX - minX > 500 or maxY - minY > 500 or maxZ - minZ > 500:
+						continue
+
+					xCoords.extend( objCoordsX )
+					yCoords.extend( objCoordsY )
+					zCoords.extend( objCoordsZ )
+
+		# Set defaults and exit if no coordinates could be collected
+		if not xCoords:
+			self.resetPosition()
+			self.rotationPoint = ( 0.0, 0.0, 0.0 )
+			return
+
+		# Calculate the centerpoint of all of the scanned objects
+		maxX = max( xCoords )
+		maxY = max( yCoords )
+		maxZ = max( zCoords )
+		minX = min( xCoords )
+		minY = min( yCoords )
+		minZ = min( zCoords )
+		x = ( maxX + min(xCoords) ) / 2.0
+		y = ( maxY + min(yCoords) ) / 2.0
+		z = ( maxZ + minZ ) / 2.0
+
+		# Determine depth (zoom level); try to get the entire model part/group in the frame
+		objectWidth = maxX - minX
+		objectHeight = maxY - minY
+		if objectWidth > objectHeight * self.engine.aspectRatio:
+			# Use x-axis to determine zoom level
+			zOffset = objectWidth * 1.4
+		else:
+			# Use y-axis to determine zoom level (and also zoom out a little further)
+			zOffset = objectHeight * 1.4 * self.engine.aspectRatio
+		zOffset = abs( zOffset )
+
+		if zOffset > 800:
+			zOffset = 800
+
+		# Set the new rotation position
+		self.rotationPoint = ( x, y, z )
+
+		self.x = -x
+		self.y = -y
+		self.z = -z - zOffset
+
+		# Ensure the camera doesn't clip into the object
+		if minZ < self.z + self.zNear:
+			# Too close; back up based on minZ
+			self.z = abs( minZ - self.zNear ) * -1.4
+
+		self.stepSize = objectWidth / 10.0
+
+	def on_mouse_scroll( self, event ):
+
+		""" Zoom in/out by moving the camera forward or back from its current facing direction. """
+
+		if event.delta > 0: # zoom in
+			self.z += self.stepSize
+		elif event.delta < 0: # zoom out
+			self.z -= self.stepSize
+
+		self.engine.window.updateRequired = True
+
+	def on_mouse_drag( self, *args ):
+
+		""" Handles mouse input for rotation and panning of the scene. 
+			buttons = Bitwise combination of the mouse buttons currently pressed. 
+			modifiers = Bitwise combination of any keyboard modifiers currently active. """
+
+		# Grab the event arguments (excluding x and y coords)
+		if not args:
+			return
+		dx, dy, buttons, modifiers = args[2:]
+
+		if buttons == 1: # Left-click button held; rotate the model
+			self.engine.rotation_Y += dx / 2.0
+			self.engine.rotation_X -= dy / 2.0
+			# https://en.wikipedia.org/wiki/Transformation_matrix#Examples_in_3D_computer_graphics 		#todo
+			# http://n64devkit.square7.ch/tutorial/graphics/6/6_4.htm
+
+		elif buttons == 4: # Right-click button held; translate the camera
+			# If the camera vector is available, the button is still held from a previous call
+			if not self.camVector:
+				# Remember original coords before the drag was started
+				self.origX = self.x
+				self.origY = self.y
+				self.origZ = self.z
+
+				# Calculate a vector between the camera position and target object
+				camVector = ( self.rotationPoint[0] - self.x, self.rotationPoint[1] - self.y, self.rotationPoint[2] - self.z )
+
+				# Normalize the vector to make a unit vector
+				magnitude = math.sqrt( camVector[0]**2 + camVector[1]**2 + camVector[2]**2 )
+				self.camVector = ( camVector[0]/magnitude, camVector[1]/magnitude, camVector[2]/magnitude )
+
+			# Calculate a vector perpendicular to the camera facing direction using the delta x/y coords
+			perpendicularVector = cross_product( self.camVector, (dy/7.0*self.stepSize, -dx/7.0*self.stepSize, 0) )
+
+			self.x += perpendicularVector[0]
+			self.y += perpendicularVector[1]
+			self.z += perpendicularVector[2]
+			# print( 'camVector:', self.camVector )
+
+			# newX = self.rotationPoint[0] + perpendicularVector[0]
+			# newY = self.rotationPoint[1] + perpendicularVector[1]
+			# newZ = self.rotationPoint[2] + perpendicularVector[2]
+
+			# self.rotationPoint = ( newX, newY, newZ )
+
+			#self.rotationPoint = ( self.x, self.y, self.z - zOffset )
+			# self.rotationPoint = ( 0.0, 0.0, 0.0 )
+
+		self.engine.window.updateRequired = True
+
+	def on_mouse_release( self, x, y, button, modifiers ):
+
+		# Only operate on right-click release
+		if button != 4:
+			return
+
+		self.camVector = None
+
+		# self.rotationPoint = ( self.rotationPoint[0] + self.x, self.rotationPoint[1] + self.y, self.rotationPoint[2] + self.z )
+
+		# self.engine.window.updateRequired = True
+
+		# z = ( self.zNear + self.zFar ) / 2
+
+		# zOffset = self.z - self.rotationPoint[2]
+		# fovRads = math.radians( self.fov )
+		# halfHeight = math.tan( self.fov / 2 ) * self.zNear
+		# halfWidth = halfHeight * self.engine.aspectRatio
+
+		# self.rotationPoint = ( self.x, self.y, self.z - zOffset )
+
+
+		# print( 'old point:', self.origX, self.origY, self.origZ )
+		# print( 'new point:', self.x, self.y, self.z )
+
+		# newX, newY, newZ = self.toWorldSpace( self.x, self.y, self.z )
+		# oldX, oldY, oldZ = self.toWorldSpace( self.origX, self.origY, self.origZ )
+
+		# diffX = newX - oldX
+		# diffY = newY - oldY
+		# diffZ = newZ - oldZ
+
+		# self.rotationPoint = ( self.rotationPoint[0]+diffX, self.rotationPoint[1]+diffY, self.rotationPoint[2]+diffZ )
+
+
+		# newX, newY, newZ = self.toWorldSpace( self.x, self.y, self.z )
+		# self.rotationPoint = ( self.x, self.y, self.z+40 )
+
+		# self.engine.addEdge( [self.rotationPoint[0]-2,self.rotationPoint[1],self.rotationPoint[2], self.rotationPoint[0]+2,self.rotationPoint[1],self.rotationPoint[2]], (255, 0, 0, 255), tags=('originMarker',), thickness=2 )
+		# self.engine.addEdge( [self.rotationPoint[0],self.rotationPoint[1]-2,self.rotationPoint[2], self.rotationPoint[0],self.rotationPoint[1]+2,self.rotationPoint[2]], (0, 255, 0, 255), tags=('originMarker',), thickness=2 )
+		# self.engine.addEdge( [self.rotationPoint[0],self.rotationPoint[1],self.rotationPoint[2]-2, self.rotationPoint[0],self.rotationPoint[1],self.rotationPoint[2]+2], (0, 0, 255, 255), tags=('originMarker',), thickness=2 )
+
+		#self.engine.window.updateRequired = True
+
+	def toWorldSpace( self, x, y, z ):
+
+		theta_x = math.radians( self.engine.rotation_X )  # Angle for rotation around the x-axis (45 degrees)
+		theta_y = math.radians( self.engine.rotation_Y )
+
+		# Rotation around the x-axis
+		new_x = x
+		new_y = y * math.cos(theta_x) - z * math.sin(theta_x)
+		new_z = y * math.sin(theta_x) + z * math.cos(theta_x)
+
+		# Rotation around the y-axis
+		final_x = new_x * math.cos(theta_y) + new_z * math.sin(theta_y)
+		final_y = new_y
+		final_z = -new_x * math.sin(theta_y) + new_z * math.cos(theta_y)
+
+		return final_x, final_y, final_z
+
+
 class CustomEventLoop( EventLoop ):
 
 	""" We can't use pyglet's native event loop without interfering with Tkinter's. 
@@ -1351,10 +1509,6 @@ class CustomEventLoop( EventLoop ):
 			# Skip redraws if there haven't been any changes
 			if not window.updateRequired:
 				continue
-
-			# Skip this window if the user isn't interacting with it
-			# if not window._mouse_in_window:
-			# 	continue
 
 			# Set keyboard focus to this window if the mouse is over it
 			# if window._mouse_in_window:
@@ -1428,16 +1582,12 @@ class Plane:
 		a, b, c = self.normal
 
 		return a * ( x - x0 ) + b * ( y - y0 ) + c ( z - z0 )
-
-	def pointOnPlane( self, point ):
+	
+	def contains( self, point ):
 
 		""" Returns True if the given point is on this plane. """
 
 		return self.equation( point ) == 0
-	
-	def contains( self, point ):
-		x, y, z = point
-		return 
 
 
 class Primitive( object ):
