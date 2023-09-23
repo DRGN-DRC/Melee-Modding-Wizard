@@ -1717,7 +1717,7 @@ class TexturesEditorTab( ttk.Frame ):
 
 		# Align the camera to the object(s)
 		if updateCamera and modelPane.autoCameraUpdates.get():
-			modelPane.engine.focusCamera( primitive='vertexList' )
+			modelPane.engine.camera.setRotationPoint( primitive='vertexList' )
 
 		# Update the title string under the render window
 		if len( modelPane.displayObjects ) == 1:
@@ -3137,7 +3137,7 @@ class ModelTabRenderOptionsWindow( BasicWindow ):
 
 		# Adjust the camera, based on whether there is just one object or multiple to focus on
 		# if allowCameraUpdate:
-		# 	engine.focusCamera( tags=partsToShow, primitive='vertexList', skipRotationReset=False )
+		# 	engine.camera.setRotationPoint( tags=partsToShow, primitive='vertexList', skipRotationReset=False )
 
 		# Update the title string under the render window
 		# if len( enabledObjects ) == 0:

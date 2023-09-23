@@ -86,12 +86,13 @@
 
 	    Mods may be stored in one of four different formats:
 
-		* MCM format: This is most common format that mods come in with both this 
-			program and its predecessor, MCM (the Melee Code Manager). This is 
-			where it gets its name, though it had already existed in a simpler 
+		* MCM format: 
+			This is most common format that mods come in for both this program 
+			and its predecessor, MCM (the Melee Code Manager). This is where 
+			the format gets its name, though it had already existed in a simpler 
 			form. This format is convenient because of its simplicity, and the 
 			fact that it supports almost all features, besides code caches. 
-			For advanced or complex codes, the AMFS format may be a better 
+			For some advanced or complex codes, the AMFS format may be a better 
 			choice.
 
 		* Gecko Code:
@@ -102,10 +103,11 @@
 			Conversion is supported for Gecko code types 00/02/04/06 and C2. 
 
 		* Minimal:
-			This is the simplest format, consisting of just a single file. 
-			The file name is the name of the mod, and the contents consist 
-			of a header which includes the author and target offset, as well 
-			as the custom code. This format also supports the code cache.
+			This is the simplest format, consisting of just a single file with
+			one code change. The file name is the name of the mod, and the 
+			contents consist of a header which includes the author and target 
+			offset, followed by the custom code. This format also supports the 
+			code cache feature.
 
 		* AMFS (ASM Mod Folder Structure):
 			This format stores everything for one mod in a folder, with each 
@@ -131,8 +133,9 @@
 		Web Links		│ x │   │   │ x │
 		Standalone Functions	│ x │   │   │ x │
 		Configurations		│ x │   │   │ x │
-		Code Cache		│   │   │ x │ x │
 		Multiple Mods per-File	│ x │ x │   │   │
+		Code Changes per-File   │   │   │   │ x │
+		Code Cache		│   │   │ x │ x │
 					└───┴───┴───┴───┘
 
 

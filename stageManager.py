@@ -3029,6 +3029,12 @@ class StagePropertyEditor( ttk.Frame ):
 		# Clear current rendered objects
 		self.engine.clearRenderings( False )
 
+		# Set a default camera position
+		self.engine.camera.y = -10
+		self.engine.camera.z = -320
+		self.engine.camera.stepSize = 25.0
+		self.engine.rotation_X = 13
+
 		# Check if the first group is selected
 		showBones = self.showBones.get()
 		if iidSelectionsTuple[0] == self.modelPartsTree.get_children()[0]:
