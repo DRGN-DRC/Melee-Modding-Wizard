@@ -1719,6 +1719,8 @@ class TexturesEditorTab( ttk.Frame ):
 		if updateCamera and modelPane.autoCameraUpdates.get():
 			modelPane.engine.camera.setRotationPoint( primitive='vertexList' )
 
+		modelPane.engine.separateBatches()
+
 		# Update the title string under the render window
 		if len( modelPane.displayObjects ) == 1:
 			modelPane.dobjStringVar.set( modelParts[0].name )
@@ -3006,7 +3008,7 @@ class ModelTabRenderOptionsWindow( BasicWindow ):
 			for vL in renderEngine.vertexLists:
 				if not vL.renderGroup:
 					continue
-				
+
 				# Check if this primitive has a DObj tag (offset) of one of the current renders
 				for tag in vL.tags:
 					if tag in renderedObjects:
