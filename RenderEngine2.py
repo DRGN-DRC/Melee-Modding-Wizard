@@ -24,8 +24,14 @@ from collections import OrderedDict
 
 from basicFunctions import printStatus
 
+""" If the following is True, a few debug features will be enabled.
+	And all calls to OpenGL functions are checked afterwards for
+	errors using ``glGetError``.  This will severely impact performance,
+	but provides useful exceptions at the point of failure. """
+DEBUGMODE = False
+
 # Disable a few options for increased performance
-pyglet.options['debug_gl'] = True
+pyglet.options['debug_gl'] = DEBUGMODE
 pyglet.options['audio'] = ( 'silent', )
 #pyglet.options['shadow_window'] = False
 pyglet.options['search_local_libs'] = False
@@ -219,8 +225,9 @@ class RenderEngine( Tk.Frame ):
 		self.window.projection = Projection3D( self.camera.fov, self.camera.zNear, self.camera.zFar ) # todo: need custom class to replace glFrustum & friends; http://www.manpagez.com/man/3/glFrustum/
 		self.window.on_draw = self.on_draw
 		self.bind( '<Expose>', self.refresh )
-		openGlVersion = self.window.context._info.get_version().split()[0]
-		print( 'Rendering with OpenGL version {}'.format(openGlVersion) )
+		if DEBUGMODE:
+			openGlVersion = self.window.context._info.get_version().split()[0]
+			print( 'Rendering with OpenGL version {}'.format(openGlVersion) )
 
 		# Set the pyglet parent window to be the tkinter canvas
 		GWLP_HWNDPARENT = -8
@@ -320,12 +327,14 @@ class RenderEngine( Tk.Frame ):
 		self.triangles = []
 		self.quads = []
 		self.vertexLists = []
+		self.batches = []
 		self.textures = {}
 
 		# Add a marker to show the origin point
-		# self.addEdge( [-2,0,0, 2,0,0], (255, 0, 0, 255), tags=('originMarker',), thickness=3 )
-		# self.addEdge( [0,-2,0, 0,2,0], (0, 255, 0, 255), tags=('originMarker',), thickness=3 )
-		# self.addEdge( [0,0,-2, 0,0,2], (0, 0, 255, 255), tags=('originMarker',), thickness=3 )
+		if DEBUGMODE:
+			self.addEdge( [-2,0,0, 2,0,0], (255, 0, 0, 255), tags=('originMarker',), thickness=3 )
+			self.addEdge( [0,-2,0, 0,2,0], (0, 255, 0, 255), tags=('originMarker',), thickness=3 )
+			self.addEdge( [0,0,-2, 0,0,2], (0, 0, 255, 255), tags=('originMarker',), thickness=3 )
 
 		self.window.updateRequired = True
 
@@ -428,7 +437,7 @@ class RenderEngine( Tk.Frame ):
 		self.window.updateRequired = True
 
 		return quad
-	
+
 	def addVertexLists( self, vertexLists, renderGroup=None, dobj='', pobj='' ):
 
 		""" Adds one or more entries of a display list. Each display list entry contains 
@@ -689,6 +698,7 @@ class RenderEngine( Tk.Frame ):
 					materialGroup = Material( self, mobj )
 					#print( 'No textures for {}'.format(dobj.name) )
 
+				# Update the render group's renderState from the DObj (if the DObj has the property)
 				materialGroup.renderState = getattr( dobj, 'renderState', 'normal' )
 
 				# Iterate over this PObj and its siblings
@@ -755,7 +765,25 @@ class RenderEngine( Tk.Frame ):
 			primitive.rotate( *rotation )
 			primitive.scale( *scale )
 			primitive.translate( *translation )
-	
+
+	def separateBatches( self ):
+
+		""" Sorts vertex lists (primitives) into separate rendering batches, 
+			so that partially transparent model parts will be rendered last. """
+
+		opaqueParts = []
+		transparentParts = []
+
+		for primitive in self.vertexLists:
+			if primitive.renderGroup.transparency < 1.0:
+				transparentParts.append( primitive )
+			else:
+				opaqueParts.append( primitive )
+
+		self.batches = [ opaqueParts, transparentParts ]
+
+		self.window.updateRequired = True
+
 	def collectTextures( self, dobj ):
 
 		""" Collects all textures attached to the given Display Object (DObj), 
@@ -1002,17 +1030,24 @@ class RenderEngine( Tk.Frame ):
 				for quad in self.quads:
 					quad.render( batch )
 				batch.draw()
-			if self.vertexLists:
-				#for vList in self.vertexLists:
+			if len( self.batches ) > 1:
+				for vertexLists in self.batches:
+					batch = pyglet.graphics.Batch()
+					for prim in vertexLists:
+						prim.render( batch )
+					batch.draw()
+			elif self.vertexLists:
 				batch = pyglet.graphics.Batch()
 				for prim in self.vertexLists:
 					prim.render( batch )
 				batch.draw()
 			
 			# Check for any general errors
-			error_code = gl.glGetError()
-			if error_code != gl.GL_NO_ERROR:
-				raise Exception( 'Found an error during rendering: {}'.format(gl.gluErrorString(error_code)) )
+			if DEBUGMODE:
+				# The option "pyglet.options['debug_gl']" must be True for the following to work
+				error_code = gl.glGetError()
+				if error_code != gl.GL_NO_ERROR:
+					raise Exception( 'Found an error during rendering: {}'.format(gl.gluErrorString(error_code)) )
 
 		except Exception as err:
 			# Do not raise an exception here, or the render loop will end.
@@ -1052,7 +1087,7 @@ class RenderEngine( Tk.Frame ):
 			and primitive among vertexLists being rendered. 
 			Returns a dict of key=primType, value=[groupCount, primCount] """
 		
-		totals = OrderedDict( [ 
+		totals = OrderedDict( [
 			('Vertices', [0, 0]), ('Lines', [0, 0]), ('Line Strips', [0, 0]), 
 			('Triangles', [0, 0]), ('Triangle Strips', [0, 0]), ('Triangle Fans', [0, 0]), 
 			('Quads', [0, 0])
@@ -1160,6 +1195,9 @@ class RenderEngine( Tk.Frame ):
 					newObjList.append( obj )
 			self.vertexLists = newObjList
 
+			# Re-separate batches
+			self.separateBatches()
+
 		else:
 			if primitive:
 				print( 'Warning; unrecognized primitive: ' + str(primitive) )
@@ -1183,6 +1221,9 @@ class RenderEngine( Tk.Frame ):
 						self.quads.append( obj )
 					elif isinstance( obj, VertexList ):
 						self.vertexLists.append( obj )
+
+			# Re-separate batches
+			self.separateBatches()
 
 		self.window.updateRequired = True
 

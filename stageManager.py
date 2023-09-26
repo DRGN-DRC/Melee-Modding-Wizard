@@ -3055,6 +3055,8 @@ class StagePropertyEditor( ttk.Frame ):
 
 			self.engine.renderJoint( joint, showBones=showBones, skeleton=skeleton )
 
+		self.engine.separateBatches()
+
 	def toggleBones( self ):
 		self.engine.showPart( 'bones', self.showBones.get() )
 
