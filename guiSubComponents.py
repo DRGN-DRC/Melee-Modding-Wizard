@@ -2494,23 +2494,29 @@ class LabelButton( ttk.Label ):
 class ToggleButton( ttk.Label ):
 
 	""" Similar to a LabelButton, but toggles between states on click (indicated by images). 
-		Expects RGBA images named '[name]State1.png' and '[name]State2.png' (if the default image 
-		variation doesn't exist, the Gray variation will be used for both default and hover). 
-		The latter is used for the default visible state, and the former is used on mouse hover.
-		Example uses of this class are for a mod's edit/config buttons and web links. """
+		Expects RGBA images named '[name]State1.png' and '[name]State2.png'. """
 
-	def __init__( self, parent, imageName, callback, hovertext='', *args, **kwargs ):
+	def __init__( self, parent, imageName, callback, hovertext='', boolVar=None, *args, **kwargs ):
 		# Get the images needed
 		self.imageState1 = globalData.gui.imageBank( imageName + 'State1', showWarnings=False )
-		self.imageState2 = globalData.gui.imageBank( imageName + 'State2', showWarnings=False )
+		self.imageState2 = globalData.gui.imageBank( imageName + 'State2', showWarnings=False ) # The 'enabled' state
 		assert self.imageState1, 'Unable to get the {}State1 button image.'.format( imageName )
 		assert self.imageState2, 'Unable to get the {}State2 button image.'.format( imageName )
 		self.callback = callback
 		self.toolTip = None
-		self.enabled = False
+		self.boolVar = boolVar
+
+		# If a BooleanVar was provided, use that to determine the default state
+		if boolVar:
+			self.enabled = boolVar.get()
+		else:
+			self.enabled = False
 
 		# Initialize the label with one of the above images
-		ttk.Label.__init__( self, parent, image=self.imageState1, cursor='hand2', *args, **kwargs )
+		if self.enabled:
+			ttk.Label.__init__( self, parent, image=self.imageState2, cursor='hand2', *args, **kwargs )
+		else:
+			ttk.Label.__init__( self, parent, image=self.imageState1, cursor='hand2', *args, **kwargs )
 
 		# Bind click event
 		self.bind( '<1>', self.toggle )
@@ -2526,7 +2532,9 @@ class ToggleButton( ttk.Label ):
 			self.configure( image=self.imageState2 )
 			self.enabled = True
 
-		#self.enabled = not self.enabled
+		if self.boolVar:
+			self.boolVar.set( self.enabled )
+
 		self.callback()
 
 	def updateHovertext( self, newText ):
@@ -2600,7 +2608,7 @@ class ColoredLabelButton( LabelButton ):
 
 		if newHoverText:
 			self.updateHovertext( newHoverText )
-			
+
 		self.disabled = True
 
 	def enable( self ):
@@ -2616,7 +2624,7 @@ class ColoredLabelButton( LabelButton ):
 			self['image'] = self.defaultImage
 
 		self.updateHovertext( self.origHovertext )
-		
+
 		self.disabled = False
 
 
