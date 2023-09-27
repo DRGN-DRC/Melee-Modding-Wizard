@@ -119,6 +119,7 @@ def init( programArgs ):
 		'showCanvasGrid': '1',
 		'showTextureBoundary': '0',
 		'useDolphinNaming': '0',
+		'obscureNonSelected': '1',
 	}
 
 	settings = ConfigParser.SafeConfigParser()

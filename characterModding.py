@@ -932,7 +932,7 @@ class ActionEditor( ttk.Frame, object ):
 		window = EventChooser( self.charFile, index )
 		if not window.event: # User canceled
 			return
-		
+
 		# Create a GUI module for the event
 		item = self.displayPane.create_item()
 		helpMessage = self.charFile.getEventNotes( window.event.id )
@@ -1147,7 +1147,7 @@ class EventModule( ttk.Frame, object ):
 		else:
 			self.frameStyle = None
 			self.labelStyle = None
-		
+
 		super( EventModule, self ).__init__( parentItem, style=self.frameStyle )
 
 		self.name = event.name
@@ -1160,7 +1160,7 @@ class EventModule( ttk.Frame, object ):
 		headerRow = ttk.Frame( self, style=self.frameStyle )
 		label = ttk.Label( headerRow, text=self.name, font=('Palatino Linotype', 11, 'bold'), style=self.labelStyle )
 		label.pack( side='left', padx=(12,0), pady=(4,0) )
-		
+
 		# Add the button to expand this subAction if there are any non-padding fields
 		for field in self.event.fields:
 			if field != 'Padding':
@@ -1179,7 +1179,7 @@ class EventModule( ttk.Frame, object ):
 			self.bind( '<Double-Button-1>', self.expandBtn.toggle )
 			label.bind( '<Double-Button-1>', self.expandBtn.toggle )
 			headerRow.bind( '<Double-Button-1>', self.expandBtn.toggle )
-		
+
 	def toggleState( self, tkEvent=None ):
 		if self.expanded:
 			self.collapse()

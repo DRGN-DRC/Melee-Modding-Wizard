@@ -27,7 +27,7 @@ from tplCodec import TplDecoder
 from FileSystem import hsdStructures, DatFile, CharCostumeFile, StageFile
 from RenderEngine2 import RenderEngine
 from basicFunctions import isNaN, validHex, humansize, grammarfyList, msg, copyToClipboard, printStatus, uHex, constructTextureFilename
-from guiSubComponents import ( ColoredLabelButton, Dropdown, LabelButton, exportMultipleTextures, getColoredShape, importSingleTexture, 
+from guiSubComponents import ( ColoredLabelButton, Dropdown, LabelButton, ToggleButton, exportMultipleTextures, getColoredShape, importSingleTexture, 
 		BasicWindow, HexEditEntry, EnumOptionMenu, HexEditDropdown, ColorSwatch, 
 		MeleeColorPicker, FlagDecoder, ToolTip, VerticalScrolledFrame, ClickText )
 
@@ -330,12 +330,13 @@ class TexturesEditorTab( ttk.Frame ):
 
 		modelPane.engine = None
 		modelPane.renderOptionsBtn = None
+		modelPane.obscuranceBtn = None
 		modelPane.partIndex = -1
 		modelPane.dobjStringVar = Tk.StringVar()
 		# modelPane.showRelatedParts = Tk.BooleanVar( value=True )
 		# modelPane.showAllParts = Tk.BooleanVar( value=False )
 		modelPane.displayMode = DisplayMode.Related
-		modelPane.obscureNonSelected = Tk.BooleanVar( value=True )
+		modelPane.obscureNonSelected = globalData.boolSettings['obscureNonSelected']
 		modelPane.autoCameraUpdates = Tk.BooleanVar( value=True )
 		modelPane.showBones = Tk.BooleanVar( value=False )
 		modelPane.showHighPoly = Tk.BooleanVar( value=True )
@@ -1176,8 +1177,10 @@ class TexturesEditorTab( ttk.Frame ):
 			# Add a button to access the render options, and repopulate the window if it's open
 			modelPane.renderOptionsBtn = ColoredLabelButton( modelPane, 'gear', self.showDisplayOptions, 'Display Options' )
 			modelPane.renderOptionsBtn.place( anchor='ne', relx=1.0, x=-6, y=6 )
-			# if self.renderOptionsWindowIsOpen():
-			# 	self.renderOptionsWindow.repopulate()
+
+			# Add the obscurance toggle button
+			modelPane.obscuranceBtn = ToggleButton( modelPane, 'mesh', self.toggleObscurance, 'Toggle Obscurance', modelPane.obscureNonSelected )
+			modelPane.obscuranceBtn.place( anchor='ne', relx=1.0, x=-6, y=36 )
 
 			if len( modelPane.displayObjects ) == 1:
 				# Add a label below the rendering showing the Display Object's name
@@ -1813,6 +1816,50 @@ class TexturesEditorTab( ttk.Frame ):
 		modelPane = self.modelPropertiesPane.interior
 		self.renderOptionsWindow = ModelTabRenderOptionsWindow( self, modelPane )
 
+	def toggleObscurance( self, event=None ):
+
+		""" Called when the obscurance button is clicked. 
+			Updates the render state of primitives based on whether the DObj 
+			they are attached to is currently selected. """
+
+		modelPane = self.modelPropertiesPane.interior
+		renderEngine = modelPane.engine
+
+		if modelPane.obscureNonSelected.get(): # Enable the feature and obscure non-selected parts
+			# Create a list of DObj offsets of the currently selected model parts
+			renderedObjects = [ dobj.offset for dobj in modelPane.currentRenders ]
+
+			# Iterate over the vertex lists and update their render groups
+			for vL in renderEngine.vertexLists:
+				if not vL.renderGroup:
+					continue
+
+				# Check if this primitive has a DObj tag (offset) of one of the current renders
+				for tag in vL.tags:
+					if tag in renderedObjects:
+						# This primitive is currently selected
+						vL.renderGroup.renderState = 'normal'
+						break
+				else: # The above loop didn't break; the primitive is not among the list of selected parts
+					vL.renderGroup.renderState = 'dim'
+
+			# Update the button text
+			modelPane.obscuranceBtn.updateHovertext( 'Do not obscure model parts' )
+
+		else:
+			# Disable the feature; set all render states to normal
+			for vL in renderEngine.vertexLists:
+				vL.renderGroup.renderState = 'normal'
+
+			# Update the button text
+			modelPane.obscuranceBtn.updateHovertext( 'Obscure non-selected model parts' )
+
+		# Save change to the obscurance setting
+		globalData.saveProgramSettings()
+
+		# Update the display
+		renderEngine.refresh()
+
 	def renderOptionsWindowIsOpen( self ):
 
 		""" If self.renderOptionsWindow is None, the window hasn't 
@@ -2273,7 +2320,7 @@ class TexturesEditorTab( ttk.Frame ):
 
 		if saveChange: # Update the current selection in the settings file
 			globalData.saveProgramSettings()
-			
+
 	def updateCanvasTextureBoundary( self, saveChange=True ):
 		
 		""" Shows or hides the border around textures. """
@@ -2885,26 +2932,23 @@ class ModelTabRenderOptionsWindow( BasicWindow ):
 		self.modeDropdown = Dropdown( self.window, options, options[self.modelPane.displayMode], command=self.modeUpdated )
 		self.modeDropdown.grid( column=0, row=3, columnspan=2, padx=20 )
 
-		obscureBtn = ttk.Checkbutton( self.window, text='Obscure non-selected parts', variable=self.modelPane.obscureNonSelected, command=self.toggleObscurance )
-		obscureBtn.grid( column=0, row=4, columnspan=2, padx=20 )
-
 		self.showHighPolyBtn = ttk.Radiobutton( self.window, text='High-poly', variable=self.modelPane.showHighPoly, value=True, command=self.togglePolyRender, style='Red.TRadiobutton' )
-		self.showHighPolyBtn.grid( column=0, row=5, padx=8, sticky='e' )
+		self.showHighPolyBtn.grid( column=0, row=4, padx=8, sticky='e' )
 		self.showLowPolyBtn = ttk.Radiobutton( self.window, text='Low-poly', variable=self.modelPane.showHighPoly, value=False, command=self.togglePolyRender, style='Blue.TRadiobutton' )
-		self.showLowPolyBtn.grid( column=1, row=5, padx=8, sticky='w' )
+		self.showLowPolyBtn.grid( column=1, row=4, padx=8, sticky='w' )
 		self.updatePolyBtns()
 
 		showBonesBtn = ttk.Checkbutton( self.window, text='Show model bones', variable=self.modelPane.showBones, command=self.toggleBonesVisibility )
-		showBonesBtn.grid( column=0, row=6, columnspan=2, padx=20 )
+		showBonesBtn.grid( column=0, row=5, columnspan=2, padx=20 )
 
 		cameraBtn = ttk.Checkbutton( self.window, text='Auto-update camera', variable=self.modelPane.autoCameraUpdates )
-		cameraBtn.grid( column=0, row=7, columnspan=2, padx=20 )
+		cameraBtn.grid( column=0, row=6, columnspan=2, padx=20 )
 
 		# Select/deselect all buttons
 		lowerButtonsFrame = ttk.Frame( self.window )
 		ttk.Button( lowerButtonsFrame, text='Select all', command=self.selectAll ).pack( side='left', padx=5 )
 		ttk.Button( lowerButtonsFrame, text='Deselect all', command=self.deselectAll ).pack( side='left', padx=5 )
-		lowerButtonsFrame.grid( column=0, row=8, columnspan=2, pady=12 )
+		lowerButtonsFrame.grid( column=0, row=7, columnspan=2, pady=12 )
 
 		# Configure resize behavior (only the VSF should change size)
 		self.window.columnconfigure( 'all', weight=1 )
@@ -2995,40 +3039,6 @@ class ModelTabRenderOptionsWindow( BasicWindow ):
 
 		# Update the objects shown in this window
 		self.repopulate()
-
-	def toggleObscurance( self ):
-
-		""" Called when the "Obscure non-selected parts" option is changed. 
-			Updates the render state of primitives based on whether the DObj 
-			they are attached to is currently selected. """
-
-		renderEngine = self.modelPane.engine
-
-		if self.modelPane.obscureNonSelected.get(): # Enable the feature and obscure non-selected parts
-			# Create a list of DObj offsets of the currently selected model parts
-			renderedObjects = [ dobj.offset for dobj in self.modelPane.currentRenders ]
-
-			# Iterate over the vertex lists and update their render groups
-			for vL in renderEngine.vertexLists:
-				if not vL.renderGroup:
-					continue
-
-				# Check if this primitive has a DObj tag (offset) of one of the current renders
-				for tag in vL.tags:
-					if tag in renderedObjects:
-						# This primitive is currently selected
-						vL.renderGroup.renderState = 'normal'
-						break
-				else: # The above loop didn't break; the primitive is not among the list of selected parts
-					vL.renderGroup.renderState = 'dim'
-
-		else:
-			# Disable the feature; set all render states to normal
-			for vL in renderEngine.vertexLists:
-				vL.renderGroup.renderState = 'normal'
-
-		# Update the display
-		renderEngine.refresh()
 
 	def togglePolyRender( self ):
 		
