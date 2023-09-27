@@ -258,7 +258,8 @@ class StructBase( object ):
 
 	def getAnyDataSectionParent( self ):
 
-		""" Only looks for one arbitrary parent (non-sibling) offset, so this can be faster than getParents(). """
+		""" Only looks for one arbitrary parent (non-sibling) offset, 
+			so this can be faster than getParent() or getParents(). """
 
 		if self.parents:
 			# Remove references of the root or reference node tables, and get an arbitrary item from the set
@@ -297,12 +298,27 @@ class StructBase( object ):
 					parents.add( parentOffset )
 
 				break
-		
+
 		# Remove references of the root or reference node tables, and get an arbitrary item from the set
 		dataSectionSectionParents = parents.difference( [self.dat.headerInfo['rtEnd'], self.dat.headerInfo['rootNodesEnd']] )
 		assert dataSectionSectionParents, 'The only parent(s) found for {} were root/ref nodes: {}'.format( self.name, [hex(0x20+o) for o in parents] )
 
 		return next( iter(dataSectionSectionParents) )
+
+	def getParent( self, targetClass, printWarnings=False ):
+
+		""" Checks among all parents this structure is attached to and returns one of a target class. """
+
+		parent = None
+
+		for parentOffset in self.getParents():
+			parent = self.dat.initSpecificStruct( targetClass, parentOffset, self.offset, printWarnings=printWarnings )
+			if parent: break
+
+		if not parent and printWarnings:
+			print( 'Unable to find a {} parent to {}'.format(targetClass.__name__, self.name) )
+
+		return parent
 
 	def getParents( self, includeNodeTables=False ):
 
@@ -347,23 +363,6 @@ class StructBase( object ):
 
 		else: # Remove references to the Root/Ref Node tables (returns new set; will not update original parents set)
 			return self.parents.difference( [self.dat.headerInfo['rtEnd'], self.dat.headerInfo['rootNodesEnd']] )
-
-	def getParticularParent( self, structClass, printWarnings=False ):
-
-		""" Returns a parent of only a particular class. 
-			Needed in cases where multiple parents exist. """
-		
-		parent = None
-
-		for parentOffset in self.getParents():
-			parent = self.dat.initSpecificStruct( structClass, parentOffset, self.offset, printWarnings=printWarnings )
-			if parent:
-				break
-
-		if not parent and printWarnings:
-			print( 'Unable to find a {} parent to {}'.format(structClass.__name__, self.name) )
-
-		return parent
 
 	def isSibling( self, structOffset ):
 
@@ -1970,10 +1969,7 @@ class PolygonObjDesc( StructBase ): # A.k.a. Meshes
 
 		else:
 			# Get the parent DObj this mesh is attached to
-			dobj = None
-			for parentOffset in self.getParents():
-				dobj = self.dat.initSpecificStruct( DisplayObjDesc, parentOffset )
-				if dobj: break
+			dobj = self.getParent( DisplayObjDesc )
 
 			# Unable to continue without a parent DObj!
 			if not dobj:
@@ -1981,10 +1977,7 @@ class PolygonObjDesc( StructBase ): # A.k.a. Meshes
 				return
 
 			# Get the parent JObj this DObj is attached to
-			joint = None
-			for parentOffset in dobj.getParents():
-				joint = self.dat.initSpecificStruct( JointObjDesc, parentOffset )
-				if joint: break
+			joint = dobj.getParent( JointObjDesc )
 
 		# Unable to continue without a JObj!
 		if not joint:

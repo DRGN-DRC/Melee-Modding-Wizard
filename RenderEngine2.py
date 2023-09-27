@@ -659,6 +659,14 @@ class RenderEngine( Tk.Frame ):
 
 		primitives = []
 
+		# Modify appearance of hidden joints
+		jointClass = globalData.fileStructureClasses['JointObjDesc']
+		parentJObj = parentDobj.getParent( jointClass )
+		if parentJObj.flags & 1<<4: # Checking the HIDDEN flag
+			alphaAdjustment = .25
+		else:
+			alphaAdjustment = 1.0
+
 		if includeSiblings:
 			dobjOffsets = parentDobj.getSiblings()
 		else:
@@ -697,6 +705,7 @@ class RenderEngine( Tk.Frame ):
 				else:
 					materialGroup = Material( self, mobj )
 					#print( 'No textures for {}'.format(dobj.name) )
+				materialGroup.transparency *= alphaAdjustment
 
 				# Update the render group's renderState from the DObj (if the DObj has the property)
 				materialGroup.renderState = getattr( dobj, 'renderState', 'normal' )
@@ -758,7 +767,7 @@ class RenderEngine( Tk.Frame ):
 			# Attempt to initialize the parent object
 			# parentJointOffset = next(iter( parents ))
 			# parentJoint = parentJoint.dat.initSpecificStruct( jointClass, parentJointOffset )
-			parentJoint = parentJoint.getParticularParent( jointClass )
+			parentJoint = parentJoint.getParent( jointClass )
 		
 		# Apply the accumulated transforms
 		for primitive in primitives:

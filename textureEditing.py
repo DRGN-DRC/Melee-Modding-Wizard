@@ -1707,7 +1707,7 @@ class TexturesEditorTab( ttk.Frame ):
 				# Update relative position based on parent joint coordinates
 				# parentJointOffset = next(iter( part.getParents() ))
 				# parentJoint = self.file.initSpecificStruct( hsdStructures.JointObjDesc, parentJointOffset )
-				parentJoint = part.getParticularParent( hsdStructures.JointObjDesc )
+				parentJoint = part.getParent( hsdStructures.JointObjDesc )
 				modelPane.engine.applyJointTransformations( primitives, parentJoint )
 
 		# Remember what parts were last selected to render
@@ -1851,6 +1851,8 @@ class TexturesEditorTab( ttk.Frame ):
 					
 					modifiedJoints.append( parentStructOffset )
 
+		self.refreshRender()
+
 		if hideJoint:
 			printStatus( 'Set the "Hidden" flag on {} Joint objects'.format(len(modifiedJoints)) )
 		else:
@@ -1889,7 +1891,9 @@ class TexturesEditorTab( ttk.Frame ):
 				else:
 					self.file.updateStructValue( polygonStruct, 4, determinedListLength )
 				structsUpdated += 1
-		
+
+		self.refreshRender()
+
 		if clearDisplayList:
 			printStatus( 'The display lists of {} Polygon structs have been cleared'.format(structsUpdated) )
 		else:
