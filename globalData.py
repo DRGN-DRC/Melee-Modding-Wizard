@@ -496,14 +496,14 @@ def rememberFile( filepath, updateDefaultDirectory=True ):
 
 	 # Normalize input (collapse redundant separators, and ensure consistent slash direction)
 	filepath = os.path.normpath( filepath )
-	
+	extension = os.path.splitext( filepath )[1].lower()
+
 	# Remove the oldest file entry if the max number of files to remember has already been reached
 	if settings.has_section( 'Recent Files' ):
 		# Get the current lists of recent ISOs and recent DAT (or other) files
 		ISOs, DATs = getRecentFilesLists()
 
 		# For the current filetype, arrange the list so that the oldest file is first, and then remove it from the settings file.
-		extension = os.path.splitext( filepath )[1].lower()
 		if extension == '.iso' or extension == '.gcm' or isExtractedDirectory( filepath, showError=False ): targetList = ISOs
 		else: targetList = DATs
 		targetList.sort( key=lambda recentInfo: recentInfo[1] )
@@ -513,7 +513,7 @@ def rememberFile( filepath, updateDefaultDirectory=True ):
 			settings.remove_option( 'Recent Files', targetList[0][0] )
 			targetList.pop( 0 )
 	else:
-		settings.add_section('Recent Files')
+		settings.add_section( 'Recent Files' )
 
 	# Update the default search directory.
 	if updateDefaultDirectory:

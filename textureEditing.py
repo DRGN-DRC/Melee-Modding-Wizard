@@ -537,23 +537,11 @@ class TexturesEditorTab( ttk.Frame ):
 				filteredTexturesInfo.append( (imageDataOffset, width, height, imageType, imageDataLength, maxLOD, 0) )
 				totalTextureSpace += texture.length # Length of the struct (includes all mipmap levels)
 
-				# Highlight any textures that need to stand out
-				# tags = []
-				# #if width > 1024 or width % 2 != 0 or height > 1024 or height % 2 != 0: tags.append( 'warn' )
-				# if width % 2 != 0 or height % 2 != 0: tags.append( 'warn' )
-				# if maxLOD > 0: tags.append( 'mipmap' )
-
 				# Add this texture to the DAT Texture Tree tab, using the thumbnail generated above
 				try:
-					self.datTextureTree.insert( '', 'end', 									# '' = parent/root, 'end' = insert position
+					self.datTextureTree.insert( '', 'end', # '' = parent/root, 'end' = insert position
 						iid=str( imageDataOffset ),
 						image=loadingImage
-						# values=(
-						# 	uHex(0x20 + imageDataOffset) + '\n('+uHex(imageDataLength)+')', 	# offset to image data, and data length
-						# 	str(width)+' x '+str(height), 										# width and height
-						# 	'_'+str(imageType)+' ('+imageFormats[imageType]+')' 				# the image type and format
-						# ),
-						# tags=tags
 					)
 				except TclError:
 					print( hex(imageDataOffset) + ' already exists!' )
@@ -574,15 +562,9 @@ class TexturesEditorTab( ttk.Frame ):
 						self.file.initTexture( imageDataOffset, imageHeaderOffset, paletteDataOffset, paletteHeaderOffset, width, height, imageType, maxLOD, i+1 )
 
 						# Add this texture to the DAT Texture Tree tab, using the thumbnail generated above
-						self.datTextureTree.insert( parent, 'end', 									# 'end' = insertion position
+						self.datTextureTree.insert( parent, 'end', # 'end' = insertion position
 							iid=str( imageDataOffset ),
 							image=loadingImage
-							# values=(
-							# 	uHex(0x20 + imageDataOffset) + '\n('+uHex(imageDataLength)+')', 	# offset to image data, and data length
-							# 	(str(width)+' x '+str(height)), 									# width and height
-							# 	'_'+str(imageType)+' ('+imageFormats[imageType]+')' 				# the image type and format
-							# ),
-							# tags=tags
 						)
 						filteredTexturesInfo.append( (imageDataOffset, width, height, imageType, imageDataLength, maxLOD, i+1) )
 
@@ -590,9 +572,6 @@ class TexturesEditorTab( ttk.Frame ):
 			if priorityTargets:
 				for textureInfo in filteredTexturesInfo:
 					if textureInfo[0] not in priorityTargets: continue
-
-					#imageDataOffset, _, _, _, width, height, imageType, _, maxLOD = textureInfo
-					#dataBlockStruct = self.file.getStruct( imageDataOffset )
 
 					self.renderTextureData( *textureInfo, useCache=useCache )
 
@@ -2615,7 +2594,7 @@ class TexturesEditorTab( ttk.Frame ):
 		
 			# Save the image data to the disc file
 			successCount += self._replaceTextures( selectedTextureObjects, newImage, completedEncodings, imageDataOffsets[0] )
-			
+
 		# Update the program's status bar
 		if len( imageDataOffsets ) == successCount:
 			printStatus( 'All selected textures replaced successfully', success=True )
