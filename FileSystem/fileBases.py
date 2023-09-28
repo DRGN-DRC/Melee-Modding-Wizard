@@ -602,10 +602,6 @@ class DatFile( FileBase ):
 
 	""" Subclass for .dat and .usd files. """
 
-	# def __init__( self, disc, offset, size, isoPath, description='', extPath='', source='disc' ):
-	# 	#super( DatFile, self ).__init__( self, disc, offset, size, isoPath, description=description, extPath=extPath, source=source )
-	# 	FileBase.__init__( self, disc, offset, size, isoPath, description, extPath, source )
-		
 	def __init__( self, *args, **kwargs ):
 		FileBase.__init__( self, *args, **kwargs )
 
@@ -633,6 +629,7 @@ class DatFile( FileBase ):
 		self.structs = {}				# key = structOffset, value = HSD structure object
 		self.deepDiveStats = {}			# After parsing the data section, this will contain pairs of key=structClassName, value=instanceCount
 		self.skeletons = {}				# key = joint offset of a root bone, value = dictionary of bones
+		self.textureCache = {}
 
 		self.headerNeedsRebuilding = False
 		self.rtNeedsRebuilding = False
@@ -2048,6 +2045,25 @@ class DatFile( FileBase ):
 			Width/height/imageType/imageDataLength can be provided to improve performance. 
 			getAsPilImage can be set to True if the user would like to get the PIL image instead. """
 
+		# Check if the texture is available in the cache
+		cachedTexture = self.textureCache.get( imageDataOffset )
+		if cachedTexture:
+			# Check if we need the PIL image or ImageTk conversion
+			if getAsPilImage:
+				# The PIL image should always be available if the texture has been successfully decoded
+				return cachedTexture[0].copy() # Return a copy to prevent manipulations from modifying the original
+			elif cachedTexture[1]:
+				# Need the ImageTk conversion, which has already been converted
+				return cachedTexture[1]
+			else:
+				# Need the ImageTk conversion, which has not yet been converted
+				tkImage = ImageTk.PhotoImage( cachedTexture[0] )
+
+				# Save in the cache for improved performance (prevent re-decoding)
+				self.textureCache[imageDataOffset][1] = tkImage
+
+				return tkImage
+
 		# Make sure file data has been initialized
 		self.initialize()
 
@@ -2080,15 +2096,22 @@ class DatFile( FileBase ):
 			textureImage = Image.new( 'RGBA', (width, height) )
 			textureImage.putdata( newImg.rgbaPixelArray )
 
+			# Save in the cache for improved performance (prevent re-decoding)
+			self.textureCache[imageDataOffset] = [ textureImage, None ]
+
 		except Exception as errMessage:
 			print( 'Unable to make out a texture for data at ' + hex(0x20+imageDataOffset) )
 			print( errMessage )
 			return None
 
 		if getAsPilImage:
-			return textureImage
+			return textureImage.copy() # Return a copy to prevent manipulations from modifying the original
 		else:
-			return ImageTk.PhotoImage( textureImage )
+			# Save in the cache for improved performance (prevent re-decoding)
+			tkImage = ImageTk.PhotoImage( textureImage )
+			self.textureCache[imageDataOffset][1] = tkImage
+
+			return tkImage
 
 	def setTexture( self, imageDataOffset, pilImage=None, texture=None, imagePath='', textureName='', paletteQuality=3 ):
 
@@ -2104,6 +2127,10 @@ class DatFile( FileBase ):
 				2: The new image data is too large 					( 2, origImageDataLength, newImageDataLength )
 				3: The new palette data is too large 				( 3, maxPaletteColorCount, newPaletteColorCount )
 		"""
+
+		# Clear this texture from the cache, if present
+		try: del self.textureCache[imageDataOffset]
+		except: pass
 
 		self.initialize()
 

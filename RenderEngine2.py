@@ -328,7 +328,7 @@ class RenderEngine( Tk.Frame ):
 		self.quads = []
 		self.vertexLists = []
 		self.batches = []
-		self.textures = {}
+		self.textureCache = {}
 
 		# Add a marker to show the origin point
 		if DEBUGMODE:
@@ -700,7 +700,6 @@ class RenderEngine( Tk.Frame ):
 				# Check for textures (usually just one, but there can be more)
 				textures = self.collectTextures( dobj )
 				if textures:
-					#materialGroup = self._addTextureGroup( textures )
 					materialGroup = TexturedMaterial( self, textures )
 				else:
 					materialGroup = Material( self, mobj )
@@ -845,34 +844,27 @@ class RenderEngine( Tk.Frame ):
 				print( 'Unable to get a texture from {}; {}'.format(dobj.name, err) )
 
 		return textures
-
-	# def _addTextureGroup( self, textures ):
-
-	# 	""" Converts the given texture objects (file structures) to 
-	# 		textures for pyglet and stores them into texture groups. """
-
-	# 	# Use the first texture data offset as an ID
-	# 	firstTextureOffset = textures[0].offset
-
-	# 	textureGroup = self.textures.get( firstTextureOffset )
-
-	# 	if not textureGroup:
-	# 		# Create a pyglet TextureGroup object and store it
-	# 		textureGroup = TexturedMaterial( self, textures )
-	# 		self.textures[firstTextureOffset] = textureGroup
-		
-	# 	return textureGroup
 	
 	def reloadTexture( self, offset ):
 
-		""" Forces the texture to be be reinitialized and re-decoded from 
-			data in the dat file. Typically in cases it has been replaced. """
+		""" Deletes cached pyglet textures and converts a new instance from the texture 
+			object. Useful in cases where the original texture is updated or replaced. """
 
-		# Seek out and update the respective texture group
-		for group in self.textures.values():
-			if offset in [ texture.offset for texture in group.textures ]:
-				group.reloadTexture( offset )
-				break
+		# Delete any stored converted instance of the texture
+		if offset in self.textureCache:
+			del self.textureCache[offset]
+
+		# Seek out and update texture groups currently using the texture
+		for primitive in self.vertexLists:
+			renderGroup = primitive.renderGroup
+
+			if isinstance( renderGroup, TexturedMaterial ):
+				# Get the texture object currently used by the render group
+				textureObj = renderGroup.textures[renderGroup.index]
+
+				if textureObj.offset == offset:
+					# Convert the texture anew (replacing old texture cache)
+					renderGroup.texture = renderGroup._convertTexObject( textureObj )
 
 		self.window.updateRequired = True
 
@@ -2282,11 +2274,10 @@ class TexturedMaterial( Material ):
 	def __init__( self, renderEngine, textures, index=0 ):
 		self.renderEngine = renderEngine
 		initialTexture = textures[index]
-		
+
 		self.index = index
 		self.textures = textures # A list of texture file structure objects
-		self.texture = self._convertTexObject( initialTexture ) # Creates a pyglet texture object
-		self.pygletConversions = { initialTexture.offset: self.texture }
+		self.texture = self.getPygletTexture( initialTexture )
 
 		# Perform material initialization and set material properties
 		super( TexturedMaterial, self ).__init__( renderEngine, initialTexture.mobj )
@@ -2322,19 +2313,37 @@ class TexturedMaterial( Material ):
 		# Check for a TEV struct
 		#tevObjClass = globalData.fileStructureClasses['TevObjDesc']
 		#tevStruct = self.dat.initSpecificStruct( tevObjClass, tobjValues[24], tobj.offset, printWarnings=False )
-		
+
+	def getPygletTexture( self, textureObj ):
+
+		""" Checks for a texture that has already been converted to a Pyglet image 
+			in the render engine's cache and returns it if found. If not available, 
+			the texture is converted and saved into the cache. """
+
+		# Check if this one is available in the cache
+		texture = self.renderEngine.textureCache.get( textureObj.offset )
+
+		# Convert the texture and save it in the cache if not already available
+		if not texture:
+			texture = self._convertTexObject( textureObj )
+
+		return texture
+
 	def _convertTexObject( self, textureObj ):
 
-		""" Decodes the given texture (struct) object from the game's 
+		""" Gets the given texture (struct) object from the game's 
 			native texture format and converts it to a pyglet image. """
 
 		# Decode the texture
 		width, height = textureObj.width, textureObj.height
 		pilImage = textureObj.dat.getTexture( textureObj.offset, width, height, textureObj.imageType, textureObj.imageDataLength, getAsPilImage=True )
-		
+
 		# Convert it for use with pyglet
 		pygletImage = pyglet.image.ImageData( width, height, 'RGBA', pilImage.tobytes() )
 		texture = pygletImage.get_texture()
+
+		# Save in the cache for future lookup
+		self.renderEngine.textureCache[textureObj.offset] = texture
 
 		return texture
 	
@@ -2345,36 +2354,13 @@ class TexturedMaterial( Material ):
 
 		assert index >= 0 and index < len( self.textures ), 'Texture group index out of range! {}'.format( index )
 
+		# Get the current texture object in use by this group
 		self.index = index
 		textureObj = self.textures[index]
-		pygletTexture = self.pygletConversions.get( textureObj.offset )
 
-		# Check if this one has already been decoded/converted
-		if not pygletTexture:
-			pygletTexture = self._convertTexObject( textureObj )
-			self.pygletConversions[textureObj.offset] = pygletTexture
-
-		self.texture = pygletTexture
+		# Set the image (convert to pyglet texture if needed) and update texture properties
+		self.texture = self.getPygletTexture( textureObj )
 		self._setTexProperties()
-
-	def reloadTexture( self, imageDataOffset ):
-
-		""" Deletes textures converted for use as pyglet textures, and 
-			converts a new instance from the texture object. Useful in 
-			case the original texture is updated or replaced. """
-
-		# Delete any stored converted instance of the texture
-		if imageDataOffset in self.pygletConversions:
-			del self.pygletConversions[imageDataOffset]
-
-		# Check if this is the 'current' texture, and re-convert it now if it is
-		for i, textureObj in enumerate( self.textures ):
-			if i == self.index and textureObj.offset == imageDataOffset:
-				# Re-convert a new texture object
-				pygletTexture = self._convertTexObject( textureObj )
-				self.pygletConversions[imageDataOffset] = pygletTexture
-				self.texture = pygletTexture
-				break
 
 	def set_state( self ):
 
