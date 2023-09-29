@@ -1661,7 +1661,7 @@ class CharacterColorConverter( BasicWindow ):
 		fileSelectionRows = Tk.Frame( self.window )
 
 		ttk.Label( fileSelectionRows, text="Step 1 | Choose the source file you'd like to convert.\n\n(If selecting from the " \
-			"Disc File Tree, you may right-click \non the file and select 'Set as CCC Source File'.)", wraplength=350 ).grid( column=0, row=0, padx=15, pady=25 )
+			"Disc File Tree, right-click \non the file and select 'Set as CCC Source File'.)", wraplength=350 ).grid( column=0, row=0, padx=15, pady=25 )
 		
 		row1RightCell = Tk.Frame( fileSelectionRows )
 
@@ -1743,8 +1743,13 @@ class CharacterColorConverter( BasicWindow ):
 
 		# If a disc is loaded, load the Disc File Tree tab and switch to it
 		if globalData.disc:
-			mainGui.loadDiscManagement()
+			# Restore if minimized
 			mainGui.root.deiconify()
+
+			# Load the Disc tab if it's not present
+			if not mainGui.discTab:
+				mainGui.loadDiscManagement()
+
 			mainGui.discTab.scrollToSection( 'Characters' )
 		
 	def selectStandaloneSource( self ):
