@@ -1204,16 +1204,17 @@ class CodeManagerTab( ttk.Frame ):
 		if modUninstallCount > 0:
 			if modUninstallCount == 1: statusMsg = '1 code mod uninstalled'
 			else: statusMsg = '{} code mods uninstalled'.format( modUninstallCount )
+			globalData.gui.updateProgramStatus( statusMsg )
 		if modInstallCount > 0:
 			if statusMsg: statusMsg += '. '
 			if modInstallCount == 1: statusMsg += '1 code mod installed'
 			else: statusMsg += '{} code mods installed'.format( modInstallCount )
+			globalData.gui.updateProgramStatus( statusMsg )
 		if modsNotUninstalled or modsNotInstalled:
 			if statusMsg: statusMsg += '. '
 			statusMsg += '{} mod change(s) failed'.format( len(modsNotUninstalled + modsNotInstalled) )
 			returnCode = 2
-		if statusMsg:
-			globalData.gui.updateProgramStatus( statusMsg )
+			globalData.gui.updateProgramStatus( statusMsg, error=True )
 
 		return returnCode
 
@@ -1233,14 +1234,14 @@ class CodeManagerTab( ttk.Frame ):
 												'be zeroed-out when saving. This process does not preserve a copy of the current DOL, '
 												'and any current changes will be lost.\n\nAre you sure you want to do this?' )
 		if not restoreConfirmed:
-			globalData.gui.updateProgramStatus( 'Restoration canceled' )
+			globalData.gui.updateProgramStatus( 'Restoration canceled', warning=True )
 			return
 
 		# Restore the DOL and re-scan for installed codes
 		if globalData.disc.restoreDol():
 			globalData.disc.dol.checkForEnabledCodes( globalData.codeMods )
 
-			globalData.gui.updateProgramStatus( 'Restoration Successful' )
+			globalData.gui.updateProgramStatus( 'Restoration Successful', success=True )
 			globalData.gui.playSound( 'menuChange' )
 
 			self.scanCodeLibrary( False )

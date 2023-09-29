@@ -502,6 +502,8 @@ class ActionEditor( ttk.Frame, object ):
 		ttk.Button( animBox, text='Change Animation', command=self.changeAnimation ).pack( ipadx=12, pady=4 )
 		animBox.pack( fill='x', expand=True )
 
+		# ttk.Button( infoPane, text='Test Character', command=self.testCharacter ).pack( pady=(42, 0), ipadx=12 )
+
 		infoPane.grid( column=3, row=1, rowspan=2, sticky='ew', padx=20, pady=0 )
 
 		# Configure row/column stretch and resize behavior
@@ -1131,6 +1133,17 @@ class ActionEditor( ttk.Frame, object ):
 		actionName = self.getActionName( namePointer, index, useParenthesis=True )[1]
 
 		FlagDecoder( self.actionTable, 4, index, actionName )
+
+	# def testCharacter( self ):
+
+	# 	""" Initialize a Micro Melee build, add the selected character to it 
+	# 		(and necessary codes), and boot it up in Dolphin. """
+
+	# 	# Get the micro melee disc object
+	# 	microMelee = globalData.getMicroMelee()
+	# 	if not microMelee: return # User may have canceled the vanilla melee disc prompt
+
+	# 	microMelee.testCharacter( self.charFile, supplementaryFiles )
 
 
 class EventModule( ttk.Frame, object ):

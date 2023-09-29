@@ -27,6 +27,8 @@ import codeRegionSettings
 
 from dol import Dol
 from . import fileFactory
+from FileSystem.charFiles import CharCostumeFile
+from FileSystem.hsdFiles import StageFile
 from audioFiles import MusicFile
 from stageManager import StageSwapTable
 from fileBases import FileBase, BootBin
@@ -2750,7 +2752,7 @@ class Disc( object ):
 			to prevent deepcopy from also copying the entire disc! 
 			
 			The newDisc argument if provided will be the disc for the new file. """
-		
+
 		fileObj.disc = None
 
 		fileCopy = copy.deepcopy( fileObj )
@@ -2995,22 +2997,21 @@ class MicroMelee( Disc ):
 	# 		printStatus( 'Unable to find the Asset Test mod in the Core Codes library!', warning=True )
 	# 		return -1
 
-	def testStage( self, stageObj ):
+	def testStage( self, origStageObj ):
 		
 		""" Method to set up the Micro Melee disc to boot directly to the given stage file. """
 
-		# Replace Temple with the given stage
-		# templeFile = self.files[self.gameId + '/GrSh.dat']
-		# self.replaceFile( templeFile, stageObj )
-
-		# Get the internal stage ID and disc filename
-		externalStageId = stageObj.externalId
+		# Get the internal stage ID and original disc filename
+		externalStageId = origStageObj.externalId
 		internalStageId = self.dol.getIntStageIdFromExt( externalStageId )
 		stageFilename = self.dol.getStageFileName( internalStageId )[1]
 
-		# Replace the file in the disc
-		stageObj = copy.deepcopy( stageObj ) # Don't modify the original file!
+		# Create a new copy of the file to prevent modifying the original
 		isoPath = self.gameId + '/' + stageFilename
+		stageObj = StageFile( None, -1, -1, isoPath )
+		stageObj.data = origStageObj.getData()
+
+		# Replace the file in the disc
 		if isoPath in self.files:
 			fileToReplace = self.files[isoPath]
 			self.replaceFile( fileToReplace, stageObj )
@@ -3067,13 +3068,16 @@ class MicroMelee( Disc ):
 		# Engage emulation
 		globalData.dolphinController.start( self )
 
-	def testCharacter( self, charObj ):
+	def testCharacter( self, origCharObj ):
 		
 		""" Method to set up the Micro Melee disc to boot directly to a match with the given character file. """
-		
+
+		# Create a new copy of the file to prevent modifying the original
+		isoPath = self.gameId + '/' + origCharObj.buildDiscFileName()
+		charObj = CharCostumeFile( None, -1, -1, isoPath )
+		charObj.data = origCharObj.getData()
+
 		# Replace the appropriate character file
-		charObj = copy.deepcopy( charObj ) # Don't modify the original file!
-		isoPath = self.gameId + '/' + charObj.buildDiscFileName()
 		fileToReplace = self.files.get( isoPath )
 		if not fileToReplace:
 			msg( 'Unable to find the character file in the disc to replace.' )
