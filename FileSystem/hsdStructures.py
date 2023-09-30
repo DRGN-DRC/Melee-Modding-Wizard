@@ -1207,12 +1207,11 @@ class DisplayListBlock( DataBlock ):
 
 	def parse( self, length, attributesInfo ):
 
-		""" Parses the all entries in this display list, combines it with the vertex 
-			attributes (provided in attributesInfo), and initializes a list of primitives 
-			with the decoded vertex data. The attributesInfo argument is expected to be a list 
-			of tuples of the form ( name, attrType, compType, vertexDescriptor, indexStride, vertexStream ). """
-		
-		debugging = False
+		""" Parses all entries in this display list, combines it with the vertex attributes data 
+			(provided in attributesInfo), and initializes a list of primitives with the 
+			decoded vertex data. The attributesInfo argument is expected to be a list of tuples 
+			of the form ( name, attrType, compType, vertexDescriptor, indexStride, vertexStream ). """
+
 
 		# Determine the data length and formatting for one vertex of one entry in the display list
 		baseLength = 0
@@ -1326,9 +1325,10 @@ class DisplayListBlock( DataBlock ):
 				# 	print( 'Encountered secondary color (GX_VA_CLR1)' )
 				elif name == 13: # GX_VA_TEX0
 					vl.texCoords[1].extend( values )
-				# elif name > 13:
-					# enumName = VertexAttributesArray.enums['Attribute_Name'][name]
-					# print( 'Encountered {} in {}'.format(enumName, self.name) )
+					#print( self.name, values )
+				elif name > 13:
+					enumName = VertexAttributesArray.enums['Attribute_Name'][name]
+					print( 'Encountered {} in {}'.format(enumName, self.name) )
 
 		vl.finalize()
 
@@ -1497,17 +1497,18 @@ class JointObjDesc( StructBase ): # A.k.a Bone Structure
 
 		""" Constructs a flattened 4x4 transformation matrix from this 
 			bone's rotation, scale, and translation x/y/z values. This 
-			matrix is therefore relative to the parent joint. """
-		
+			matrix is therefore relative to the parent joint's vector. """
+
+		# Collect local rotation, scale, and translation values
+		rx, ry, rz, sx, sy, sz, tx, ty, tz = self.getValues()[5:14]
+
+		# Create the initial matrix, with translation included
 		matrix = [
 			0, 0, 0, 0,
 			0, 0, 0, 0,
 			0, 0, 0, 0,
-			0, 0, 0, 1.0,
+			tx, ty, tz, 1.0,
 		]
-
-		# Collect local rotation, scale, and translation values
-		rx, ry, rz, sx, sy, sz, tx, ty, tz = self.getValues()[5:14]
 
 		# Compute sin and cos values to build a rotation matrix
 		cos_x, sin_x = math.cos( rx ), math.sin( rx )
@@ -1524,11 +1525,6 @@ class JointObjDesc( StructBase ): # A.k.a Bone Structure
 		matrix[8] = sz * cos_z * cos_x * sin_y + sin_x * sin_z 	# M31
 		matrix[9] = sz * sin_z * cos_x * sin_y - sin_x * cos_z 	# M32
 		matrix[10] = sz * cos_x * cos_y 	# M33
-
-		# Translation
-		matrix[12] += tx
-		matrix[13] += ty
-		matrix[14] += tz
 
 		return matrix
 
@@ -1637,6 +1633,21 @@ class InverseMatrixObjDesc( DataBlock ):
 					)
 		self.length = 0x30
 
+	def build4x4( self ):
+
+		""" Builds out the matrix from a 4x3 column-major format into a flattened 4x4 matrix. """
+
+		v = self.getValues()
+
+		matrix = ( 
+			v[0], v[4], v[8],  0.0, 
+			v[1], v[5], v[9],  0.0, 
+			v[2], v[6], v[10], 0.0, 
+			v[3], v[7], v[11], 1.0, 
+		)
+
+		return matrix
+
 	# def invertMatrix( self, matrix ):
 	# 	# Get the number of rows and columns of the matrix
 	# 	rows = len(matrix)
@@ -1666,6 +1677,7 @@ class InverseMatrixObjDesc( DataBlock ):
 	# 	inverted_matrix = [row[cols:] for row in augmented]
 
 	# 	return inverted_matrix
+
 	def getMatrixMinor( self, m,i,j ):
 		return [row[:j] + row[j+1:] for row in (m[:i]+m[i+1:])]
 	
@@ -1751,21 +1763,6 @@ class InverseMatrixObjDesc( DataBlock ):
 		inverted_matrix_flattened = [element for row in ret for element in row]
 
 		return inverted_matrix_flattened
-
-	def build4x4( self ):
-
-		""" Builds out the matrix from a 4x3 column-major format into a flattened 4x4 matrix. """
-
-		v = self.getValues()
-
-		matrix = ( 
-			v[0], v[4], v[8],  0.0, 
-			v[1], v[5], v[9],  0.0, 
-			v[2], v[6], v[10], 0.0, 
-			v[3], v[7], v[11], 1.0, 
-		)
-
-		return matrix
 
 
 # class ReferenceObjDesc( StructBase ):
@@ -2392,20 +2389,27 @@ class EnvelopeObjDesc( TableStruct ):
 
 class ShapeSetDesc( StructBase ):
 
+	flags = { 'Shape_Flags': OrderedDict([
+				( '1<<0', 'SHAPESET_AVERAGE' ),
+				( '1<<1', 'SHAPESET_ADDITIVE' )
+			]) }
+
 	def __init__( self, *args, **kwargs ):
 		StructBase.__init__( self, *args, **kwargs )
 
 		self.name = 'Shape Set Object ' + uHex( 0x20 + args[1] )
-		self.formatting = '>HHIIIIII'
-		self.fields = ( 'Shape Flags',
-						'Number of Shapes',
-						'Number of Vertex Indices',
-						'Vertex_Desc._Array_Pointer',
+		self.formatting = '>HHIIIIIIII'
+		self.fields = ( 'Shape_Flags',
+						'Number_of_Shapes',
+						'Number_of_Vertex_Indices',
+						'Vertex_Desc_Array_Pointer',
 						'Vertex_Index_Array_Pointer',
-						'Number of Normal Indices',
-						'Vertex_Desc._Array_Pointer',
-						'Normal_Index_Array_Pointer' )
-		self.length = 0x1C
+						'Number_of_Normal_Indices',
+						'Normal_Desc_Array_Pointer',
+						'Normal_Index_Array_Pointer',
+						'Blend_Floats_Array_Pointer', # Array of floats of size (nb_shape * sizeof(float))
+						'Blend_Value' )
+		self.length = 0x24
 		self._siblingsChecked = True
 		self.childClassIdentities = { 3: 'VertexAttributesArray', 6: 'VertexAttributesArray' }
 
