@@ -59,6 +59,8 @@ from newTkDnD.tkDnD import TkDnD
 # toc = time.clock()
 # print('internal module load time: ' + str(toc-tic))
 
+DEBUGMODE = False
+
 
 class FileMenu( Tk.Menu, object ):
 
@@ -835,7 +837,7 @@ class MainMenuCanvas( Tk.Canvas ):
 		def noScroll( arg1, arg2 ): return
 		self.yview_scroll = noScroll
 
-		self.debugMode = False
+		self.debugMode = DEBUGMODE
 		self.testSet = '' # For testing. Set to 'ABGxx' to test a specific character image, or to '' for no testing
 
 		self.mainMenuFolder = os.path.join( globalData.paths['imagesFolder'], 'Main Menu' )
@@ -2429,6 +2431,7 @@ class MainGui( Tk.Frame, object ):
 		# Add/initialize the Disc File Tree tab
 		if not self.discTab:
 			self.discTab = DiscTab( self.mainTabFrame, self )
+			self.discTab.debugMode = DEBUGMODE
 		self.discTab.loadDisc( switchTab=True )
 
 		# self.root.update() # Flush pending hover events that will try to change the program status
@@ -3198,6 +3201,11 @@ if __name__ == '__main__':
 		# print('program load time: ' + str(time.clock()-tic))
 		#gui.fileHandler( [r"D:\Tex\SSBM ISO\vanilla test iso\Super Smash Bros. Melee (v1.02).iso"] )
 		#gui.fileMenu.browseCodeLibrary()
+
+		# gui.fileHandler( ["C:\\Users\\drcappex\\Downloads\\Super Smash Bros. Melee (USA) (En,Ja) (v1.02).iso"])
+		# gui.loadDiscManagement()
+		# gui.loadStageEditor()
+		#gui.discTab.scrollToSection( 'GALE01/PlClNr.dat' )
 
 		# Start the GUI's mainloop (blocks until the GUI is taken down by .destroy or .quit)
 		gui.root.mainloop()
