@@ -3199,13 +3199,11 @@ if __name__ == '__main__':
 		# For testing...
 		# print('gui load time: ' + str(time.clock()-toc))
 		# print('program load time: ' + str(time.clock()-tic))
-		#gui.fileHandler( [r"D:\Tex\SSBM ISO\vanilla test iso\Super Smash Bros. Melee (v1.02).iso"] )
-		#gui.fileMenu.browseCodeLibrary()
-
-		# gui.fileHandler( ["C:\\Users\\drcappex\\Downloads\\Super Smash Bros. Melee (USA) (En,Ja) (v1.02).iso"])
-		# gui.loadDiscManagement()
+		# gui.fileHandler( [r"D:\Tex\SSBM ISO\vanilla test iso\Super Smash Bros. Melee (v1.02).iso"] )
+		# gui.fileMenu.browseCodeLibrary()
 		# gui.loadStageEditor()
-		#gui.discTab.scrollToSection( 'GALE01/PlClNr.dat' )
+		# gui.loadDiscManagement()
+		# gui.discTab.scrollToSection( 'GALE01/PlClNr.dat' )
 
 		# Start the GUI's mainloop (blocks until the GUI is taken down by .destroy or .quit)
 		gui.root.mainloop()

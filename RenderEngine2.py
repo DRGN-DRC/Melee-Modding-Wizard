@@ -163,20 +163,6 @@ GXBlendFactor = [
 ]
 
 
-def cross_product( vector_a, vector_b ):
-
-	""" Calculates a vector product between two given vectors 
-		and returns a new vector, perpendicular to these. """
-
-	Ax, Ay, Az = vector_a
-	Bx, By, Bz = vector_b
-
-	Cx = (Ay * Bz) - (Az * By)
-	Cy = (Az * Bx) - (Ax * Bz)
-	Cz = (Ax * By) - (Ay * Bx)
-
-	return (Cx, Cy, Cz)
-
 # def normalizeRadians( angle_radians ):
 
 # 	""" Takes an angle in radians and ensures it stays within one full revolution 
@@ -287,8 +273,6 @@ class RenderEngine( Tk.Frame ):
 
 		self.edges = []
 		self.clearRenderings()
-		self.frame = 0
-		#self.camera.defineFrustum()
 
 		# Set up event handling for controls
 		#self.window._enable_event_queue = True
@@ -474,7 +458,7 @@ class RenderEngine( Tk.Frame ):
 				unknownObjects.append( prim )
 
 		if unknownObjects:
-			print( 'Unable to add unknown, non-primitive objects!:'.format(unknownObjects) )
+			print( 'Unable to add unknown, non-primitive objects!: {}'.format(unknownObjects) )
 
 		self.window.updateRequired = True
 
@@ -990,11 +974,6 @@ class RenderEngine( Tk.Frame ):
 			gl.gluPerspective( self.camera.fov, self.aspectRatio, self.camera.zNear, self.camera.zFar )
 
 			# Set the camera position, facing direction, and orientation
-			print( 'frame:', self.frame )
-			self.frame += 1
-			print( 'right:', self.camera.rightVector.x, self.camera.rightVector.y, self.camera.rightVector.z )
-			print( 'up:', self.camera.upVector.x, self.camera.upVector.y, self.camera.upVector.z )
-			print( 'forward:', self.camera.forwardVector.x, self.camera.forwardVector.y, self.camera.forwardVector.z )
 			gl.gluLookAt( self.camera.position.x, self.camera.position.y, self.camera.position.z, 
 				self.camera.rotationPoint[0], self.camera.rotationPoint[1], self.camera.rotationPoint[2], 
 				self.camera.upVector.x, self.camera.upVector.y, self.camera.upVector.z )
@@ -1037,7 +1016,7 @@ class RenderEngine( Tk.Frame ):
 				for prim in self.vertexLists:
 					prim.render( batch )
 				batch.draw()
-			
+
 			# Check for any general errors
 			if DEBUGMODE:
 				# The option "pyglet.options['debug_gl']" must be True for the following to work
@@ -1076,9 +1055,9 @@ class RenderEngine( Tk.Frame ):
 			# 	objects.extend( vList )
 
 		return objects
-	
+
 	def getPrimitiveTotals( self ):
-		
+
 		""" Collects totals for the number of each type of vertexList 
 			and primitive among vertexLists being rendered. 
 			Returns a dict of key=primType, value=[groupCount, primCount] """
@@ -1088,7 +1067,7 @@ class RenderEngine( Tk.Frame ):
 			('Triangles', [0, 0]), ('Triangle Strips', [0, 0]), ('Triangle Fans', [0, 0]), 
 			('Quads', [0, 0])
 		] )
-		
+
 		for primitive in self.vertexLists:
 			if primitive.type == gl.GL_POINTS:
 				totals['Vertices'][0] += 1
@@ -1280,8 +1259,8 @@ class Camera( object ):
 
 		""" Resets camera position, orientation (facing direction), and rotation-focus point. """
 
-		self.rotationX = 90 # Rotation angle around the X-axis
-		self.rotationY = 90 # Rotation angle around the Y-axis
+		self.rotationX = 90 # Rotation angle around the X-axis, in degrees
+		self.rotationY = 90 # Rotation angle around the Y-axis, in degrees
 		
 		self.position = Vector()
 		self.rotationPoint = ( 0.0, 0.0, 0.0 )
@@ -1416,7 +1395,8 @@ class Camera( object ):
 	def updatePosition( self ):
 
 		""" Updates the position of the camera, based on the centerpoint for 
-			rotation, distance from that point, and current rotation values. """
+			rotation, distance from that point, and current rotation values. 
+			This translates sphere coordinates to the world space coordinates. """
 
 		radsX = math.radians( self.rotationX ) # Latitude
 		radsY = math.radians( self.rotationY ) # Longitude
@@ -1543,9 +1523,9 @@ class Camera( object ):
 
 		elif buttons == 4: # Right-click button held; translate the camera
 			# Calculate translation to move the camera perpendicular to its forward direction
-			translateX = self.rightVector.x * -dx/7.0*self.stepSize + self.upVector.x * -dy/7.0*self.stepSize
-			translateY = self.rightVector.y * -dx/7.0*self.stepSize + self.upVector.y * -dy/7.0*self.stepSize
-			translateZ = self.rightVector.z * -dx/7.0*self.stepSize + self.upVector.z * -dy/7.0*self.stepSize
+			translateX = self.rightVector.x * -dx/6.0*self.stepSize + self.upVector.x * -dy/6.0*self.stepSize
+			translateY = self.rightVector.y * -dx/6.0*self.stepSize + self.upVector.y * -dy/6.0*self.stepSize
+			translateZ = self.rightVector.z * -dx/6.0*self.stepSize + self.upVector.z * -dy/6.0*self.stepSize
 
 			# Update the camera position
 			self.position.x += translateX
@@ -1686,7 +1666,7 @@ class CustomEventLoop( EventLoop ):
 	def __init__( self, root ):
 		super( CustomEventLoop, self ).__init__()
 		self.root = root
-	
+
 	def run( self ):
 
 		""" Begin processing events, scheduled functions and window updates.
@@ -2112,6 +2092,7 @@ class VertexList( Primitive ):
 		elif primType == 0x98: primitiveType = gl.GL_TRIANGLE_STRIP		# 5
 		elif primType == 0xA0: primitiveType = gl.GL_TRIANGLE_FAN		# 6
 		elif primType == 0x80: primitiveType = gl.GL_QUADS				# 7
+		#elif primType == 0x88: primitiveType = gl.GL_QUADS				# 7
 		else: # Failsafe
 			print( 'Warning! Invalid primitive type detected: 0x{:X}'.format(primType) )
 			primitiveType = gl.GL_POINTS
@@ -2147,7 +2128,7 @@ class VertexList( Primitive ):
 		self.vertices[1].insert( 0, self.vertices[1][2] )
 		self.vertices[1].insert( 0, self.vertices[1][2] )
 		self.vertices[1].insert( 0, self.vertices[1][2] )
-		
+
 		# Repeat the last three coordinates at the end
 		self.vertices[1].extend( self.vertices[1][-3:] )
 
@@ -2158,7 +2139,7 @@ class VertexList( Primitive ):
 		self.vertexColors[1].insert( 0, self.vertexColors[1][3] )
 		self.vertexColors[1].insert( 0, self.vertexColors[1][3] )
 		self.vertexColors[1].insert( 0, self.vertexColors[1][3] )
-		
+
 		# Repeat the last color at the end
 		self.vertexColors[1].extend( self.vertexColors[1][-4:] )
 
@@ -2178,17 +2159,11 @@ class VertexList( Primitive ):
 
 		""" Links a render group to this primitive and adjusts texture coordinates 
 			for textures that should be repeated or mirrored across a surface. """
-		
+
 		self.renderGroup = renderGroup
-		
+
 		if isinstance( renderGroup, TexturedMaterial ):
-			# Extend discrete space texture coordinates (0-1 range) beyond the 1.0 range for repeating textures
-			if renderGroup.repeatS != 1:
-				newCoords = [ coord * renderGroup.repeatS if i % 2 == 0 else coord for i, coord in enumerate(self.texCoords[1]) ]
-				self.texCoords = ( self.texCoords[0], newCoords )
-			if renderGroup.repeatT != 1:
-				newCoords = [ coord * renderGroup.repeatT if i % 2 == 1 else coord for i, coord in enumerate(self.texCoords[1]) ]
-				self.texCoords = ( self.texCoords[0], newCoords )
+			self.texCoords = renderGroup.updateTexCoords( self.texCoords )
 
 	def render( self, batch ):
 		if self.show:
@@ -2532,6 +2507,45 @@ class TexturedMaterial( Material ):
 		# Set the image (convert to pyglet texture if needed) and update texture properties
 		self.texture = self.getPygletTexture( textureObj )
 		self._setTexProperties()
+
+	def updateTexCoords( self, texCoords ):
+
+		""" Updates/fixes texture coordinates for particular cases. Specifically:
+		
+				- Textures with dimensions that are not a power of 2 will have padding 
+				  added by OpenGL when loaded, which will need to be taken into account.
+				- Textures which repeat will need to have their coordinates expanded out
+				  of the usual -1.0 to 1.0 coordinate range.
+		"""
+
+		textureObj = self.textures[self.index]
+		width, height = textureObj.width, textureObj.height
+
+		# Check texture width/height for non-power of 2 dimensions
+		if width & ( width - 1 ) != 0:
+			# Not a power of 2; coordinates need adjusting
+			nextPow2 = 1 << ( width - 1 ).bit_length()
+			xAdjustment = float( width ) / nextPow2 * self.repeatS
+		else:
+			# Width is a power of 2
+			xAdjustment = self.repeatS
+		if height & ( height - 1 ) != 0:
+			# Not a power of 2; coordinates need adjusting
+			nextPow2 = 1 << ( height - 1 ).bit_length()
+			yAdjustment = float( height ) / nextPow2 * self.repeatT
+		else:
+			# Height is a power of 2
+			yAdjustment = self.repeatT
+
+		# Adjust x/y texture coordinates, if needed
+		if xAdjustment != 1:
+			newCoords = [ coord * xAdjustment if i % 2 == 0 else coord for i, coord in enumerate(texCoords[1]) ]
+			texCoords = ( texCoords[0], newCoords )
+		if yAdjustment != 1:
+			newCoords = [ coord * yAdjustment if i % 2 == 1 else coord for i, coord in enumerate(texCoords[1]) ]
+			texCoords = ( texCoords[0], newCoords )
+
+		return texCoords
 
 	def set_state( self ):
 
