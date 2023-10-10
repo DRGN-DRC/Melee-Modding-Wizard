@@ -12,9 +12,7 @@
 # DTW's Structural Analysis tab or the following thread/post are useful for more details on structures:
 # 		https://smashboards.com/threads/melee-dat-format.292603/post-21913374
 
-#import sys
 import struct
-#import inspect
 import time, math
 
 from itertools import izip
@@ -1212,6 +1210,7 @@ class DisplayListBlock( DataBlock ):
 			decoded vertex data. The attributesInfo argument is expected to be a list of tuples 
 			of the form ( name, attrType, compType, vertexDescriptor, indexStride, vertexStream ). """
 
+		debugging = True
 
 		# Determine the data length and formatting for one vertex of one entry in the display list
 		baseLength = 0
@@ -1427,8 +1426,8 @@ class JointObjDesc( StructBase ): # A.k.a Bone Structure
 				( '1<<15', 'FLIP_IK' ),
 				( '1<<16', 'SPECULAR' ),
 				( '1<<17', 'USE_QUATERNION' ),
-				( '1<<18', 'OPA' ),
-				( '1<<19', 'XLU' ),
+				( '1<<18', 'OPA' ),		# Opaque
+				( '1<<19', 'XLU' ),		# Transparent
 				( '1<<20', 'TEXEDGE' ),
 				( '0<<21', 'NULL' ),
 				( '1<<21', 'JOINT1' ),
@@ -3805,6 +3804,9 @@ AnimationStructureClasses = ( JointAnimationDesc, MatAnimJointDesc )
 # Ensure that structure classes are set up properly; the number of 
 # fields should be the same as the number of format identifiers
 # if __name__ == '__main__':
+
+#	import sys
+#	import inspect
 
 # 	for module in sys.modules[__name__]:
 # 		print module

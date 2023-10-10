@@ -1478,6 +1478,7 @@ class TexturesEditorTab( ttk.Frame ):
 		
 		modelPane = self.modelPropertiesPane.interior
 		modelPane.engine = RenderEngine( modelPane, (440, 300), False, background=globalData.gui.defaultSystemBgColor, borderwidth=0, relief='groove' )
+		modelPane.engine.camera.defaultToAltZoom = True
 
 		# If this is a character file, initialize the model's skeleton and check model part high/low-poly aspects
 		if isinstance( self.file, CharCostumeFile ):

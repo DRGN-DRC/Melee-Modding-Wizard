@@ -56,6 +56,8 @@ class DiscTab( ttk.Frame ):
 
 	def __init__( self, parent, mainGui ):
 
+		self.debugMode = False
+
 		ttk.Frame.__init__( self, parent ) #, padding="11 0 0 11" ) # Padding order: Left, Top, Right, Bottom.
 		
 		# Add this tab to the main GUI, and add drag-and-drop functionality
@@ -225,7 +227,7 @@ class DiscTab( ttk.Frame ):
 		canvas = targetTab.bannerCanvas
 
 		# Remove the current banner image
-		if currentlySelectedTab == targetTab and canvas.bannerGCstorage:
+		if currentlySelectedTab == targetTab and canvas.bannerGCstorage and not self.debugMode:
 			# Remove the banner on the current disc tab using a vertical fade
 			width, height = canvas.pilImage.size
 			pixels = canvas.pilImage.load()
@@ -269,7 +271,7 @@ class DiscTab( ttk.Frame ):
 		canvas.bannerGCstorage = ImageTk.PhotoImage( bannerImage )
 
 		# Add the new banner image to the canvas
-		if currentlySelectedTab == targetTab:
+		if currentlySelectedTab == targetTab and not self.debugMode:
 			# Add the banner on the current tab using a dissolve fade.
 			# First, create a blank image on the canvas
 			width, height = 96, 32

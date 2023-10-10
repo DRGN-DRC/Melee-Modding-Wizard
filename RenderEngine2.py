@@ -24,10 +24,10 @@ from collections import OrderedDict
 
 from basicFunctions import printStatus
 
-""" If the following is True, a few debug features will be enabled.
-	And all calls to OpenGL functions are checked afterwards for
-	errors using ``glGetError``.  This will severely impact performance,
-	but provides useful exceptions at the point of failure. """
+""" If the following is True, several debug features will be enabled.
+	Rendering calls to OpenGL functions will be checked afterwards for
+	errors using 'glGetError'. This will severely impact performance,
+	but provide useful exceptions in case of those points of failure. """
 DEBUGMODE = False
 
 # Disable a few options for increased performance
@@ -287,7 +287,7 @@ class RenderEngine( Tk.Frame ):
 
 		self.edges = []
 		self.clearRenderings()
-		self.resetView()
+		self.frame = 0
 		#self.camera.defineFrustum()
 
 		# Set up event handling for controls
@@ -339,12 +339,7 @@ class RenderEngine( Tk.Frame ):
 		self.window.updateRequired = True
 
 	def resetView( self ):
-		self.rotation_X = 0
-		self.rotation_Y = 0
-
-		self.camera.resetPosition()
-		self.camera.rotationPoint = ( 0.0, 0.0, 0.0 )
-
+		self.camera.reset()
 		self.window.updateRequired = True
 
 	def resizeViewport( self, event ):
@@ -978,7 +973,7 @@ class RenderEngine( Tk.Frame ):
 
 	def on_draw( self ):
 
-		""" Renders all primitives to the display. """
+		""" Places the camera and renders all primitives to the display. """
 
 		try:
 			# Clear the screen
@@ -989,26 +984,26 @@ class RenderEngine( Tk.Frame ):
 			# gl.glLightfv( gl.GL_LIGHT0, gl.GL_POSITION, (gl.GLfloat * 4)(*lightPosition) )
 			#gl.glLightfv( gl.GL_LIGHT0, gl.GL_POSITION, (gl.GLfloat * 4)(self.camera.rotationPoint[0], self.camera.rotationPoint[1], self.camera.rotationPoint[2], 1.0) )
 
-			# Set the projection matrix to a perspective projection and apply translation (camera pan)
-			# tic = time.time()
+			# Set the projection matrix to a perspective projection
 			gl.glMatrixMode( gl.GL_PROJECTION )
 			gl.glLoadIdentity()
 			gl.gluPerspective( self.camera.fov, self.aspectRatio, self.camera.zNear, self.camera.zFar )
-			#print( 'current cam:', self.cam_X, self.cam_Y, self.cam_Z )
-			gl.glTranslatef( self.camera.x, self.camera.y, self.camera.z )
-			# gl.glRotatef( self.rotation_X, 1, 0, 0 )
-			# gl.glRotatef( self.rotation_Y, 0, 1, 0 )
 
-			# Set up the modelview matrix and apply mouse rotation input transformations
-			gl.glMatrixMode( gl.GL_MODELVIEW )
-			gl.glLoadIdentity()
-			#print( 'current rotation point:', self.camera.rotationPoint )
-			gl.glTranslatef( self.camera.rotationPoint[0], self.camera.rotationPoint[1], self.camera.rotationPoint[2] )
-			gl.glRotatef( self.rotation_X, 1, 0, 0 )
-			gl.glRotatef( self.rotation_Y, 0, 1, 0 )
-			gl.glTranslatef( -self.camera.rotationPoint[0], -self.camera.rotationPoint[1], -self.camera.rotationPoint[2] )
-			# toc = time.time()
-			# print( 'matrix calculations: ' + str(toc-tic) )
+			# Set the camera position, facing direction, and orientation
+			print( 'frame:', self.frame )
+			self.frame += 1
+			print( 'right:', self.camera.rightVector.x, self.camera.rightVector.y, self.camera.rightVector.z )
+			print( 'up:', self.camera.upVector.x, self.camera.upVector.y, self.camera.upVector.z )
+			print( 'forward:', self.camera.forwardVector.x, self.camera.forwardVector.y, self.camera.forwardVector.z )
+			gl.gluLookAt( self.camera.position.x, self.camera.position.y, self.camera.position.z, 
+				self.camera.rotationPoint[0], self.camera.rotationPoint[1], self.camera.rotationPoint[2], 
+				self.camera.upVector.x, self.camera.upVector.y, self.camera.upVector.z )
+
+			# vm = self.camera.buildMatrix()
+			# print(vm)
+			# view_matrix_array = (ctypes.c_float * len(vm))(*vm)
+			# # gl.glMultMatrixf(sum(self.camera.buildMatrix(), []))  # Flatten the matrix and apply
+			# gl.glMultMatrixf( view_matrix_array )
 
 			# Render a batch for each set of objects that have been added
 			if self.vertices:
@@ -1239,24 +1234,61 @@ class RenderEngine( Tk.Frame ):
 class Camera( object ):
 
 	def __init__( self, renderEngine ):
+		self.engine = renderEngine
+
+		# These should be updated for context of different scene/model sizes
 		self.fov = 45
 		self.zNear = 5
 		self.zFar = 3500
-		self.engine = renderEngine
-		self.stepSize = 5
-		self.camVector = None		# Unit vector for the camera's facing direction
+		self.stepSize = 1
+		self.focalDistance = 10
+		self.defaultToAltZoom = False
 
-		self.resetPosition()
+		# self.matrix = [
+		# 	1.0, 0.0, 0.0, -self.position.x,
+		# 	0.0, 1.0, 0.0, -self.position.y,
+		# 	0.0, 0.0, 1.0, -self.position.z,
+		# 	0.0, 0.0, 0.0, 1.0
+		# ]
+
+		self.reset()
+
+	# def buildMatrix( self ):
+	# 	#u = Vector()
+	# 	#def create_view_matrix(camera_position, look_at_point, up_vector):
+
+	# 	forward = Vector( *self.direction.subtract( self.position ) )
+	# 	forward.normalize()
+
+	# 	#right = normalize_vector(cross_product(up_vector, forward))
+	# 	#right = self.upVector.crossProduct( forward )
+	# 	# right = cross_product( self.upVector, forward )
+	# 	# new_up = cross_product(forward, right)
+	# 	right = self.upVector.crossProduct( forward )
+	# 	new_up = forward.crossProduct( right )
+
+	# 	view_matrix = [
+	# 		right.x, new_up.y, -forward.x, 0,
+	# 		right.y, new_up.y, -forward.y, 0,
+	# 		right.z, new_up.z, -forward.z, 0,
+	# 		-self.position.x, -self.position.y, -self.position.z, 1
+	# 	]
+
+	# 	return view_matrix
+
+	def reset( self ):
+
+		""" Resets camera position, orientation (facing direction), and rotation-focus point. """
+
+		self.rotationX = 90 # Rotation angle around the X-axis
+		self.rotationY = 90 # Rotation angle around the Y-axis
+		
+		self.position = Vector()
 		self.rotationPoint = ( 0.0, 0.0, 0.0 )
 
-	def resetPosition( self ):
-		self.x = 0.0
-		self.y = 0.0
-		self.z = 0.0
-
-		self.origX = 0.0
-		self.origY = 0.0
-		self.origZ = 0.0
+		self.rightVector = Vector( x=1.0 )
+		self.upVector = Vector( y=1.0 )
+		self.forwardVector = Vector( z=1.0 )
 
 	def defineFrustum( self ):
 
@@ -1285,21 +1317,23 @@ class Camera( object ):
 
 	def setRotationPoint( self, tags=None, primitive=None, skipRotationReset=False ):
 
-		""" Sets the focal or rotation point for the current scene (or set of objects
-			with the given tag).
-		Resets the camera and centers it on the object(s) with the given tag. 
-			The tag and primitive arguments may be given to filter umong targets. """
+		""" Resets the camera and centers it on the object(s) with the given tag. 
+			This is done by setting a new rotation point and camera coordinates.
+			The tags and primitive arguments may be used to filter among targets. """
 
-		if not skipRotationReset:
-			self.engine.resetView()
+		# if not skipRotationReset:
+		# 	self.engine.resetView()
+
+		self.reset()
 
 		xCoords = []; yCoords = []; zCoords = []
 
-		# Check if tags is an iterable or a single item
+		# Check if tags is an iterable or a single item, and make it a set
 		if tags:
 			if hasattr( tags, '__iter__' ):
 				tags = set( tags )
-			else: # Is not an iterable
+			else:
+				# Is not an iterable; make it into one
 				tags = set( [tags] )
 
 		# Find all of the x/y/z coordinates of the target object(s)
@@ -1316,9 +1350,6 @@ class Camera( object ):
 					coordsIter = iter( obj.vertices[1] )
 					coordsList = [ coordsIter ] * 3
 					for x, y, z in zip( *coordsList ):
-						# xCoords.append( x )
-						# yCoords.append( y )
-						# zCoords.append( z )
 						objCoordsX.append( x )
 						objCoordsY.append( y )
 						objCoordsZ.append( z )
@@ -1340,8 +1371,6 @@ class Camera( object ):
 
 		# Set defaults and exit if no coordinates could be collected
 		if not xCoords:
-			self.resetPosition()
-			self.rotationPoint = ( 0.0, 0.0, 0.0 )
 			return
 
 		# Calculate the centerpoint of all of the scanned objects
@@ -1364,33 +1393,111 @@ class Camera( object ):
 		else:
 			# Use y-axis to determine zoom level (and also zoom out a little further)
 			zOffset = objectHeight * 1.4 * self.engine.aspectRatio
-		zOffset = abs( zOffset )
 
 		if zOffset > 800:
 			zOffset = 800
 
-		# Set the new rotation position
+		# Set the new rotation point
 		self.rotationPoint = ( x, y, z )
 
-		self.x = -x
-		self.y = -y
-		self.z = -z - zOffset
+		# Set the camera position
+		self.position.x = x
+		self.position.y = y
+		self.position.z = z + zOffset
 
 		# Ensure the camera doesn't clip into the object
-		if minZ < self.z + self.zNear:
+		if maxZ > self.position.z - self.zNear:
 			# Too close; back up based on minZ
-			self.z = abs( minZ - self.zNear ) * -1.4
+			self.position.z = abs( maxZ - self.zNear ) * 1.4
 
+		self.focalDistance = abs( z - self.position.z )
 		self.stepSize = objectWidth / 10.0
+
+	def updatePosition( self ):
+
+		""" Updates the position of the camera, based on the centerpoint for 
+			rotation, distance from that point, and current rotation values. """
+
+		radsX = math.radians( self.rotationX ) # Latitude
+		radsY = math.radians( self.rotationY ) # Longitude
+		self.position.x = self.rotationPoint[0] + self.focalDistance * math.sin( radsX ) * math.cos( radsY )
+		self.position.y = self.rotationPoint[1] + self.focalDistance * math.cos( radsX )
+		self.position.z = self.rotationPoint[2] + self.focalDistance * math.sin( radsX ) * math.sin( radsY )
+
+	def updateOrientation( self, invert=False ):
+		
+		""" Updates the vectors tracking forward/right/up orientations. 
+			Should be called any time either rotation value is changed. """
+
+		# Create a vector between the camera position and target object
+		self.forwardVector = Vector( self.position.x - self.rotationPoint[0], 
+									 self.position.y - self.rotationPoint[1], 
+									 self.position.z - self.rotationPoint[2] )
+		self.forwardVector.normalize()
+
+		# Calculate the right vector (perpendicular to the plane formed by forward and strait up)
+		self.rightVector = Vector( y=1.0 ).crossProduct( self.forwardVector )
+		self.rightVector.normalize()
+		if invert:
+			self.rightVector.x *= -1.0
+
+		# Calculate the up vector (perpendicular to the plane of forward and right)
+		self.upVector = self.forwardVector.crossProduct( self.rightVector )
+		self.upVector.normalize()
+		if invert:
+			self.upVector.y *= -1.0
 
 	def on_mouse_scroll( self, event ):
 
-		""" Zoom in/out by moving the camera forward or back from its current facing direction. """
+		""" Zoom in or out by moving the camera and rotation point forward or back, relative to
+			the camera's facing direction. If right-click is held, then only the focal distance 
+			will be updated, which will move the camera closer/further from the rotation point. 
+			If defaultToAltZoom = True, methods for right-click behavior will be reversed. """
 
-		if event.delta > 0: # zoom in
-			self.z += self.stepSize
-		elif event.delta < 0: # zoom out
-			self.z -= self.stepSize
+		rightClickHeld = event.state & 1024
+
+		if self.defaultToAltZoom:
+			# Invert the determination to change which method is used
+			rightClickHeld = not rightClickHeld
+
+		# Update focal distance (distance from the camera to the rotation point)
+		if rightClickHeld:
+			# Zoom in/out by adjusting focal point only
+			if event.delta > 0:
+				# Zoom in
+				self.focalDistance *= .95
+				if self.focalDistance < 2:
+					self.focalDistance = 2
+			elif event.delta < 0:
+				# Zoom out
+				self.focalDistance *= 1.05
+
+			# Update position with the new focal distance (sphere radius)
+			self.updatePosition()
+		else:
+			# Right-click is not held. Move camera and rotation point forward/back in space
+			if event.delta > 0:
+				# Zoom in
+				movementAmount = self.stepSize / -2.0
+			elif event.delta < 0:
+				# Zoom out
+				movementAmount = self.stepSize / 2.0
+
+			# Calculate translation to move the camera in line with its forward direction
+			translateX = self.forwardVector.x * movementAmount
+			translateY = self.forwardVector.y * movementAmount
+			translateZ = self.forwardVector.z * movementAmount
+
+			# Update the camera position
+			self.position.x += translateX
+			self.position.y += translateY
+			self.position.z += translateZ
+
+			# Update the rotation point coordinates (moving it with camera position)
+			newX = self.rotationPoint[0] + translateX
+			newY = self.rotationPoint[1] + translateY
+			newZ = self.rotationPoint[2] + translateZ
+			self.rotationPoint = ( newX, newY, newZ )
 
 		self.engine.window.updateRequired = True
 
@@ -1406,42 +1513,50 @@ class Camera( object ):
 		dx, dy, buttons, modifiers = args[2:]
 
 		if buttons == 1: # Left-click button held; rotate the model
-			self.engine.rotation_Y += dx / 2.0
-			self.engine.rotation_X -= dy / 2.0
+			self.rotationX += dy
+			self.rotationY += dx
 			# https://en.wikipedia.org/wiki/Transformation_matrix#Examples_in_3D_computer_graphics 		#todo
 			# http://n64devkit.square7.ch/tutorial/graphics/6/6_4.htm
 
+			# Constrain input
+			self.rotationX = self.rotationX % 360
+			self.rotationY = self.rotationY % 360
+			if self.rotationX == 0: # Model will disappear at this angle
+				self.rotationX = 0.1
+
+			# Allow the camera to flip upside down to follow the model rotation
+			if self.rotationX > 180:
+				invert = True
+			else:
+				invert = False
+
+			self.updatePosition()
+			self.updateOrientation( invert )
+
+			# Allow the camera to flip upside down to follow the model rotation
+			if self.rotationX > 180:
+				if self.upVector.y > 0:
+					self.upVector.y = -1.0 * self.upVector.y
+			elif self.upVector.y < 0:
+				# Less than 180 degrees and camera is upside down. Make the y value positive again
+				self.upVector.y = -1.0 * self.upVector.y
+
 		elif buttons == 4: # Right-click button held; translate the camera
-			# If the camera vector is available, the button is still held from a previous call
-			if not self.camVector:
-				# Remember original coords before the drag was started
-				self.origX = self.x
-				self.origY = self.y
-				self.origZ = self.z
+			# Calculate translation to move the camera perpendicular to its forward direction
+			translateX = self.rightVector.x * -dx/7.0*self.stepSize + self.upVector.x * -dy/7.0*self.stepSize
+			translateY = self.rightVector.y * -dx/7.0*self.stepSize + self.upVector.y * -dy/7.0*self.stepSize
+			translateZ = self.rightVector.z * -dx/7.0*self.stepSize + self.upVector.z * -dy/7.0*self.stepSize
 
-				# Calculate a vector between the camera position and target object
-				camVector = ( self.rotationPoint[0] - self.x, self.rotationPoint[1] - self.y, self.rotationPoint[2] - self.z )
+			# Update the camera position
+			self.position.x += translateX
+			self.position.y += translateY
+			self.position.z += translateZ
 
-				# Normalize the vector to make a unit vector
-				magnitude = math.sqrt( camVector[0]**2 + camVector[1]**2 + camVector[2]**2 )
-				self.camVector = ( camVector[0]/magnitude, camVector[1]/magnitude, camVector[2]/magnitude )
-
-			# Calculate a vector perpendicular to the camera facing direction using the delta x/y coords
-			perpendicularVector = cross_product( self.camVector, (dy/7.0*self.stepSize, -dx/7.0*self.stepSize, 0) )
-
-			self.x += perpendicularVector[0]
-			self.y += perpendicularVector[1]
-			self.z += perpendicularVector[2]
-			# print( 'camVector:', self.camVector )
-
-			# newX = self.rotationPoint[0] + perpendicularVector[0]
-			# newY = self.rotationPoint[1] + perpendicularVector[1]
-			# newZ = self.rotationPoint[2] + perpendicularVector[2]
-
-			# self.rotationPoint = ( newX, newY, newZ )
-
-			#self.rotationPoint = ( self.x, self.y, self.z - zOffset )
-			# self.rotationPoint = ( 0.0, 0.0, 0.0 )
+			# Update the rotation point coordinates (moving it parallel to camera position)
+			newX = self.rotationPoint[0] + translateX
+			newY = self.rotationPoint[1] + translateY
+			newZ = self.rotationPoint[2] + translateZ
+			self.rotationPoint = ( newX, newY, newZ )
 
 		self.engine.window.updateRequired = True
 
@@ -1450,61 +1565,117 @@ class Camera( object ):
 		# Only operate on right-click release
 		if button != 4:
 			return
+		elif not DEBUGMODE:
+			return
 
-		self.camVector = None
+		# Show the new position of the rotation point
+		self.engine.addEdge( [self.rotationPoint[0]-2,self.rotationPoint[1],self.rotationPoint[2], self.rotationPoint[0]+2,self.rotationPoint[1],self.rotationPoint[2]], (255, 0, 0, 255), tags=('originMarker',), thickness=2 )
+		self.engine.addEdge( [self.rotationPoint[0],self.rotationPoint[1]-2,self.rotationPoint[2], self.rotationPoint[0],self.rotationPoint[1]+2,self.rotationPoint[2]], (0, 255, 0, 255), tags=('originMarker',), thickness=2 )
+		self.engine.addEdge( [self.rotationPoint[0],self.rotationPoint[1],self.rotationPoint[2]-2, self.rotationPoint[0],self.rotationPoint[1],self.rotationPoint[2]+2], (0, 0, 255, 255), tags=('originMarker',), thickness=2 )
 
-		# self.rotationPoint = ( self.rotationPoint[0] + self.x, self.rotationPoint[1] + self.y, self.rotationPoint[2] + self.z )
+	# def toWorldSpace( self, x, y, z ):
 
-		# self.engine.window.updateRequired = True
+	# 	theta_x = math.radians( self.engine.rotation_X )  # Angle for rotation around the x-axis (45 degrees)
+	# 	theta_y = math.radians( self.engine.rotation_Y )
 
-		# z = ( self.zNear + self.zFar ) / 2
+	# 	# Rotation around the x-axis
+	# 	new_x = x
+	# 	new_y = y * math.cos(theta_x) - z * math.sin(theta_x)
+	# 	new_z = y * math.sin(theta_x) + z * math.cos(theta_x)
 
-		# zOffset = self.z - self.rotationPoint[2]
-		# fovRads = math.radians( self.fov )
-		# halfHeight = math.tan( self.fov / 2 ) * self.zNear
-		# halfWidth = halfHeight * self.engine.aspectRatio
+	# 	# Rotation around the y-axis
+	# 	final_x = new_x * math.cos(theta_y) + new_z * math.sin(theta_y)
+	# 	final_y = new_y
+	# 	final_z = -new_x * math.sin(theta_y) + new_z * math.cos(theta_y)
 
-		# self.rotationPoint = ( self.x, self.y, self.z - zOffset )
-
-
-		# print( 'old point:', self.origX, self.origY, self.origZ )
-		# print( 'new point:', self.x, self.y, self.z )
-
-		# newX, newY, newZ = self.toWorldSpace( self.x, self.y, self.z )
-		# oldX, oldY, oldZ = self.toWorldSpace( self.origX, self.origY, self.origZ )
-
-		# diffX = newX - oldX
-		# diffY = newY - oldY
-		# diffZ = newZ - oldZ
-
-		# self.rotationPoint = ( self.rotationPoint[0]+diffX, self.rotationPoint[1]+diffY, self.rotationPoint[2]+diffZ )
+	# 	return final_x, final_y, final_z
 
 
-		# newX, newY, newZ = self.toWorldSpace( self.x, self.y, self.z )
-		# self.rotationPoint = ( self.x, self.y, self.z+40 )
+class Vector( object ):
 
-		# self.engine.addEdge( [self.rotationPoint[0]-2,self.rotationPoint[1],self.rotationPoint[2], self.rotationPoint[0]+2,self.rotationPoint[1],self.rotationPoint[2]], (255, 0, 0, 255), tags=('originMarker',), thickness=2 )
-		# self.engine.addEdge( [self.rotationPoint[0],self.rotationPoint[1]-2,self.rotationPoint[2], self.rotationPoint[0],self.rotationPoint[1]+2,self.rotationPoint[2]], (0, 255, 0, 255), tags=('originMarker',), thickness=2 )
-		# self.engine.addEdge( [self.rotationPoint[0],self.rotationPoint[1],self.rotationPoint[2]-2, self.rotationPoint[0],self.rotationPoint[1],self.rotationPoint[2]+2], (0, 0, 255, 255), tags=('originMarker',), thickness=2 )
+	def __init__( self, x=0, y=0, z=0 ):
+		self.x = x
+		self.y = y
+		self.z = z
 
-		#self.engine.window.updateRequired = True
+	def __iter__( self ):
 
-	def toWorldSpace( self, x, y, z ):
+		""" Allows this object's properties to be expanded using the * operator. """
 
-		theta_x = math.radians( self.engine.rotation_X )  # Angle for rotation around the x-axis (45 degrees)
-		theta_y = math.radians( self.engine.rotation_Y )
+		return iter( (self.x, self.y, self.z) )
 
-		# Rotation around the x-axis
-		new_x = x
-		new_y = y * math.cos(theta_x) - z * math.sin(theta_x)
-		new_z = y * math.sin(theta_x) + z * math.cos(theta_x)
+	def normalize( self ):
 
-		# Rotation around the y-axis
-		final_x = new_x * math.cos(theta_y) + new_z * math.sin(theta_y)
-		final_y = new_y
-		final_z = -new_x * math.sin(theta_y) + new_z * math.cos(theta_y)
+		""" Normalize into a unit vector. """
 
-		return final_x, final_y, final_z
+		magnitude = math.sqrt( self.x**2 + self.y**2 + self.z**2 )
+
+		self.x = self.x / magnitude
+		self.y = self.y / magnitude
+		self.z = self.z / magnitude
+
+	def subtract( self, vectorB ):
+		return [ self.x - vectorB.x, self.y - vectorB.y, self.z - vectorB.z ]
+
+	def crossProduct( self, vectorB ):
+		
+		""" Calculates a vector product between this vector and another given vector,
+			and returns a new vector perpendicular to these. """
+
+		Ax, Ay, Az = self.x, self.y, self.z
+		Bx, By, Bz = vectorB.x, vectorB.y, vectorB.z
+
+		Cx = (Ay * Bz) - (Az * By)
+		Cy = (Az * Bx) - (Ax * Bz)
+		Cz = (Ax * By) - (Ay * Bx)
+		# Cx = (Az * By) - (Ay * Bz)
+		# Cy = (Ax * Bz) - (Az * Bx)
+		# Cz = (Ay * Bx) - (Ax * By)
+
+		return Vector( Cx, Cy, Cz )
+	
+	def rotate( self, x=0, y=0, z=0 ):
+
+		""" The x, y, and z arguments define which axis to rotate around, 
+			and by how many degrees. """
+		
+		if z: # Yaw
+			theta_z = math.radians( z )
+
+			self.x = self.x * math.cos(theta_z) - self.y * math.sin(theta_z)
+			self.y = self.x * math.sin(theta_z) + self.y * math.cos(theta_z)
+
+		if x: # Pitch
+			theta_x = math.radians( x )
+			
+			self.y = self.y * math.cos(theta_x) - self.z * math.sin(theta_x)
+			self.z = self.y * math.sin(theta_x) + self.z * math.cos(theta_x)
+
+		if y: # Roll
+			theta_y = math.radians( y )
+
+			self.x = self.x * math.cos(theta_y) + self.z * math.sin(theta_y)
+			self.z = -self.x * math.sin(theta_y) + self.z * math.cos(theta_y)
+
+	def getAngle( self, vectorB ):
+
+		""" Calculates and returns the angle (in degrees) between this 
+			vector and another given vector. """
+
+		dot_product = sum( a * b for a, b in zip(self, vectorB) )
+		magnitude1 = math.sqrt( sum(a**2 for a in self) )
+		magnitude2 = math.sqrt( sum(b**2 for b in vectorB) )
+		
+		cos_theta = dot_product / ( magnitude1 * magnitude2 )
+		
+		# Ensure cos_theta is within the valid range [-1, 1]
+		cos_theta = max( min(cos_theta, 1.0), -1.0 )
+		
+		# Calculate the angle in radians and convert to degrees
+		angle_radians = math.acos( cos_theta )
+		angle_degrees = math.degrees( angle_radians )
+
+		return angle_degrees
 
 
 class CustomEventLoop( EventLoop ):

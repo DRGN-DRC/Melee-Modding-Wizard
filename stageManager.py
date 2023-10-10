@@ -2973,6 +2973,13 @@ class StagePropertyEditor( ttk.Frame ):
 		self.engine = RenderEngine( self, (100, 100), True, background=globalData.gui.defaultSystemBgColor, borderwidth=0, relief='groove' )
 		self.engine.grid( column=2, row=1, sticky='nsew', padx=(0, 15) )
 		self.engine.zNear = 10; self.engine.zFar = 4000
+		
+		# Set a default camera step size (for movement speed) and position
+		self.engine.camera.stepSize = 25.0
+		self.engine.camera.focalDistance = 200
+		self.engine.camera.rotationX = 80
+		self.engine.camera.updatePosition()
+		self.engine.camera.updateOrientation()
 
 		# Model parts controls
 		modelPartsControls = ttk.Frame( self )
@@ -3028,12 +3035,6 @@ class StagePropertyEditor( ttk.Frame ):
 
 		# Clear current rendered objects
 		self.engine.clearRenderings( False )
-
-		# Set a default camera position
-		self.engine.camera.y = -10
-		self.engine.camera.z = -320
-		self.engine.camera.stepSize = 25.0
-		self.engine.rotation_X = 13
 
 		# Check if the first group is selected
 		showBones = self.showBones.get()
