@@ -1276,7 +1276,7 @@ class DisplayListBlock( DataBlock ):
 				# Parse the display list for vertices and create a VertexList from them
 				vl = self.createVertexList( primitiveType, displayListValues, vertexCount, attributesInfo )
 				vertexLists.append( vl )
-				
+
 				offset += dataLength
 
 		except Exception as err:
@@ -2221,7 +2221,7 @@ class VertexAttributesArray( TableStruct ):
 
 		if self._attributeInfo:
 			return self._attributeInfo
-		
+
 		self._attributeInfo = []
 
 		for i, (name, attrType, count, compType, scale, _, stride, dataPointer) in self.iterateEntries():
@@ -2506,6 +2506,66 @@ class TextureObjDesc( StructBase ):
 			# Validation passed
 			self.provideChildHints()
 			return True
+
+	def buildLocalMatrix( self ):
+
+		""" Constructs a flattened 4x4 transformation matrix from this 
+			bone's rotation, scale, and translation x/y/z values. This 
+			matrix will be in column-major order. """
+
+		# Collect local rotation, scale, and translation values
+		rx, ry, rz, sx, sy, sz, tx, ty, tz = self.getValues()[4:13]
+
+		# Create the initial matrix, with translation included
+		matrix = [
+			0, 0, 0, 0,
+			0, 0, 0, 0,
+			0, 0, 0, 0,
+			tx, ty, tz, 1.0,
+		]
+
+		# Compute sin and cos values to build a rotation matrix
+		cos_x, sin_x = math.cos( rx ), math.sin( rx )
+		cos_y, sin_y = math.cos( ry ), math.sin( ry )
+		cos_z, sin_z = math.cos( rz ), math.sin( rz )
+
+		# Rotation and scale
+		matrix[0] = sx * cos_y * cos_z 	# M11
+		matrix[1] = sx * cos_y * sin_z 	# M12
+		matrix[2] = sx * -sin_y 		# M13
+		matrix[4] = sy * cos_z * sin_x * sin_y - cos_x * sin_z 	# M21
+		matrix[5] = sy * sin_z * sin_x * sin_y + cos_x * cos_z 	# M22
+		matrix[6] = sy * sin_x * cos_y 		# M23
+		matrix[8] = sz * cos_z * cos_x * sin_y + sin_x * sin_z 	# M31
+		matrix[9] = sz * sin_z * cos_x * sin_y - sin_x * cos_z 	# M32
+		matrix[10] = sz * cos_x * cos_y 	# M33
+
+		return matrix
+	
+		# For rotation matrix only? (from LiveTObj.cs)
+            # var sx = (float)Math.Sin(X);
+            # var cx = (float)Math.Cos(X);
+            # var sy = (float)Math.Sin(Y);
+            # var cy = (float)Math.Cos(Y);
+            # var sz = (float)Math.Sin(Z);
+            # var cz = (float)Math.Cos(Z);
+
+            # var M11 = cy * cz;
+            # var M12 = cy * sz;
+            # var M13 = -sy;
+            # var M21 = cz * sx * sy - cx * sz;
+            # var M22 = sz * sx * sy + cx * cz;
+            # var M23 = sx * cy;
+            # var M31 = cz * cx * sy + sx * sz;
+            # var M32 = sz * cx * sy - sx * cz;
+            # var M33 = cx * cy;
+
+            # return new Matrix4(
+            #     M11, M12, M13, 0,
+            #     M21, M22, M23, 0,
+            #     M31, M32, M33, 0,
+            #     0, 0, 0, 1
+            #     );
 
 
 class MaterialColorObjDesc( StructBase ):
