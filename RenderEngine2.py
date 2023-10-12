@@ -41,7 +41,7 @@ from pyglet.window import key, Projection3D
 from pyglet.window import Window as pygletWindow
 from pyglet.app.base import EventLoop
 from pyglet.graphics import Group, OrderedGroup, TextureGroup
-from pyglet.window.event import WindowEventLogger
+#from pyglet.window.event import WindowEventLogger
 
 import globalData
 
@@ -954,6 +954,10 @@ class RenderEngine( Tk.Frame ):
 	def setShaderVec4( self, variableName, values ):
 		location = gl.glGetUniformLocation( self.fragmentShader, variableName )
 		gl.glUniform4f( location, *values )
+
+	def setShaderMatrix( self, variableName, matrix ):
+		location = gl.glGetUniformLocation( self.fragmentShader, variableName )
+		gl.glext_arb.glUniformMatrix4fv( location, 1, False, (gl.GLfloat * 16)(*matrix) )
 
 	def on_draw( self ):
 
@@ -2439,7 +2443,8 @@ class TexturedMaterial( Material ):
 		tobjValues = tobj.getValues()
 		self.texFlags = tobj.flags
 
-		#self.texGenSrc = 
+		self.texGenSrc = tobjValues[3]
+		self.matrix = tobj.buildLocalMatrix()
 		self.wrapModeS = WrapMode[tobjValues[13]]
 		self.wrapModeT = WrapMode[tobjValues[14]]
 		self.repeatS = tobjValues[15]
@@ -2453,8 +2458,10 @@ class TexturedMaterial( Material ):
 		if lodStruct:
 			lodValues = lodStruct.getValues()
 			self.minFilter = GXTexFilter[lodValues[0]]
+			self.lodBias = lodValues[1] # Should be between -4.0 to 3.99 (validate?)
 		else:
 			self.minFilter = gl.GL_LINEAR_MIPMAP_LINEAR
+			self.lodBias = 0.0
 		
 		# Check for a TEV struct
 		#tevObjClass = globalData.fileStructureClasses['TevObjDesc']
@@ -2472,6 +2479,8 @@ class TexturedMaterial( Material ):
 		# Convert the texture and save it in the cache if not already available
 		if not texture:
 			texture = self._convertTexObject( textureObj )
+			print( textureObj.name )
+			print( textureObj.tobj.buildLocalMatrix() )
 
 		return texture
 
@@ -2513,7 +2522,8 @@ class TexturedMaterial( Material ):
 		""" Updates/fixes texture coordinates for particular cases. Specifically:
 		
 				- Textures with dimensions that are not a power of 2 will have padding 
-				  added by OpenGL when loaded, which will need to be taken into account.
+				  (blank texture space) added by OpenGL when loaded, which requires ST 
+				  texture coordinates to compensate for the new texture dimensions. 
 				- Textures which repeat will need to have their coordinates expanded out
 				  of the usual -1.0 to 1.0 coordinate range.
 		"""
@@ -2532,10 +2542,10 @@ class TexturedMaterial( Material ):
 		if height & ( height - 1 ) != 0:
 			# Not a power of 2; coordinates need adjusting
 			nextPow2 = 1 << ( height - 1 ).bit_length()
-			yAdjustment = float( height ) / nextPow2 * self.repeatT
+			yAdjustment = float( height ) / nextPow2 * self.repeatT# * 7.000007
 		else:
 			# Height is a power of 2
-			yAdjustment = self.repeatT
+			yAdjustment = self.repeatT# * 7.000007
 
 		# Adjust x/y texture coordinates, if needed
 		if xAdjustment != 1:
@@ -2564,14 +2574,17 @@ class TexturedMaterial( Material ):
 		gl.glEnable( self.texture.target ) # i.e. GL_TEXTURE_2D
 		gl.glBindTexture( self.texture.target, self.texture.id )
 		if self.renderEngine.fragmentShader:
+			self.renderEngine.setShaderInt( 'texGenSource', self.texGenSrc )
 			self.renderEngine.setShaderInt( 'enableTextures', True )
 			self.renderEngine.setShaderInt( 'textureFlags', self.texFlags )
 			self.renderEngine.setShaderFloat( 'textureBlending', self.blending )
+			self.renderEngine.setShaderMatrix( 'textureMatrix', self.matrix )
 
 		# Texture Filtering
 		gl.glTexParameteri( gl.GL_TEXTURE_2D, gl.GL_TEXTURE_MAG_FILTER, self.magFilter )
 		#gl.glTexParameteri( gl.GL_TEXTURE_2D, gl.GL_TEXTURE_MIN_FILTER, self.minFilter )
 		gl.glTexParameteri( gl.GL_TEXTURE_2D, gl.GL_TEXTURE_MIN_FILTER, gl.GL_LINEAR ) # todo; black textures without this specific filter?
+		gl.glTexParameterf( gl.GL_TEXTURE_2D, gl.GL_TEXTURE_LOD_BIAS, self.lodBias )
 
 		# Wrap Mode
 		gl.glTexParameteri( gl.GL_TEXTURE_2D, gl.GL_TEXTURE_WRAP_S, self.wrapModeS )

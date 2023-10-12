@@ -52,6 +52,29 @@
 #define ALPHAMAP_ADD 6
 #define ALPHAMAP_SUB 7
 
+// TexGenSource
+#define GX_TG_POS 0
+#define GX_TG_NRM 1
+#define GX_TG_BINRM 2
+#define GX_TG_TANGENT 3
+#define GX_TG_TEX0 4
+#define GX_TG_TEX1 5
+#define GX_TG_TEX2 6
+#define GX_TG_TEX3 7
+#define GX_TG_TEX4 8
+#define GX_TG_TEX5 9
+#define GX_TG_TEX6 10
+#define GX_TG_TEX7 11
+#define GX_TG_TEXCOORD0 12
+#define GX_TG_TEXCOORD1 13
+#define GX_TG_TEXCOORD2 14
+#define GX_TG_TEXCOORD3 15
+#define GX_TG_TEXCOORD4 16
+#define GX_TG_TEXCOORD5 17
+#define GX_TG_TEXCOORD6 18
+#define GX_TG_COLOR0 19
+#define GX_TG_COLOR1 20
+
 // Temp hardcoded lighting values (todo: get from light objects)
 vec3 finalAmbiLight = vec3(0.6);
 vec3 finalDiffLight = vec3(0.6);
@@ -62,10 +85,12 @@ vec3 finalSpecLight = vec3(0.7);
 uniform int renderState;
 
 // Texture input variables
+uniform int texGenSource;
 uniform bool enableTextures;
 uniform sampler2D texture0;
 uniform int textureFlags;
 uniform float textureBlending;
+uniform mat4 textureMatrix;
 
 // Set material colors
 uniform bool useVertexColors;
@@ -87,42 +112,53 @@ in vec4 gl_Color; // Vertex color
 out vec4 fragColor; // Final output color
 
 // Generate and return texture coordinates 
-// based on the coordinate type and texGenSrc (todo).
-// vec2 getTextureCoords()
-// {
-// 	vec2 coords;
-// 	int texCoordType = (textureFlags & 5); // Mask out first 5 bits
+// based on the coordinate type and source.
+vec2 getTextureCoords()
+{
+	vec2 coords;
+	int texCoordType = (textureFlags & 5); // Mask out first 5 bits
 
-// 	switch(texCoordType)
-// 	{
-// 		case COORD_UV: // The usual case
-// 			coords = gl_TexCoord[0].st;
-// 			break;
+	switch (texCoordType)
+	{
+		case COORD_UV: // The usual case
+			coords = gl_TexCoord[0].st;
+			break;
 
-// 		case COORD_REFLECTION:
-// 			vec3 viewNormal = mat3(sphereMatrix) * normal;
-// 			coords = viewNormal.xy * 0.5 + 0.5;
-// 			coords.y = 1 - coords.y;
-// 			break;
+		// case COORD_REFLECTION:
+		// 	// Return sphere coordinates
+		// 	vec3 viewNormal = mat3(sphereMatrix) * normal;
+		// 	coords = viewNormal.xy * 0.5 + 0.5;
+		// 	coords.y = 1 - coords.y;
+		// 	return coords;
+		// 	//break;
 
-// 		case COORD_TOON:
-// 			vec3 V = normalize(vertPosition - cameraPos);
-// 			float lambert = clamp(dot(normal, V) + 0.4, 0, 1);
-// 			coords = vec2(lambert, lambert);
-// 			break;
+		// case COORD_TOON:
+		// 	vec3 V = normalize(vertPosition - cameraPos);
+		// 	float lambert = clamp(dot(normal, V) + 0.4, 0, 1);
+		// 	return vec2(lambert, lambert);
+		// 	//break;
 
-// 		// todo; missing the following:
-// 		// COORD_HIGHLIGHT
-// 		// COORD_SHADOW
-// 		// COORD_GRADATION
+		// todo; missing the following:
+		// COORD_HIGHLIGHT
+		// COORD_SHADOW
+		// COORD_GRADATION
 
-// 		default: // Failsafe
-// 			coords = vec2(0, 0);
-// 			break;
-// 	}
+		default: // Failsafe
+			coords = vec2(0, 0);
+			break;
+	}
 
-// 	return coords;
-// }
+	// Check texture generation source
+	// switch (texGenSource)
+	// {
+
+	// }
+
+	// Apply transformations from the texture matrix (TObj values)
+	vec4 transformedCoords = textureMatrix * vec4(coords.s, coords.t, 0, 1);
+
+	return transformedCoords.st;
+}
 
 // Combines texture color and alpha with material color
 // (passColor, which may be diffuse/ambient/etc.).
@@ -213,9 +249,8 @@ vec4 applyTextureOperations(vec4 passColor, vec4 texColor)
 vec4 applyTexture()
 {
 	// Get the initial texture color
-	vec2 coords = gl_TexCoord[0].st;
-	//vec2 coords = getTextureCoords();
-	vec4 textureColor = texture2D(texture0, coords).rgba;
+	vec2 textureCoords = getTextureCoords();
+	vec4 textureColor = texture2D(texture0, textureCoords).rgba;
 	
 	// Skip influence of material colors if using vertex colors
 	if (useVertexColors) {
