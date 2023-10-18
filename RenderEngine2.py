@@ -2444,7 +2444,7 @@ class TexturedMaterial( Material ):
 		self.texFlags = tobj.flags
 
 		self.texGenSrc = tobjValues[3]
-		self.matrix = tobj.buildLocalMatrix()
+		self.matrix = tobj.buildLocalInverseMatrix()
 		self.wrapModeS = WrapMode[tobjValues[13]]
 		self.wrapModeT = WrapMode[tobjValues[14]]
 		self.repeatS = tobjValues[15]
@@ -2479,8 +2479,6 @@ class TexturedMaterial( Material ):
 		# Convert the texture and save it in the cache if not already available
 		if not texture:
 			texture = self._convertTexObject( textureObj )
-			print( textureObj.name )
-			print( textureObj.tobj.buildLocalMatrix() )
 
 		return texture
 
@@ -2542,10 +2540,10 @@ class TexturedMaterial( Material ):
 		if height & ( height - 1 ) != 0:
 			# Not a power of 2; coordinates need adjusting
 			nextPow2 = 1 << ( height - 1 ).bit_length()
-			yAdjustment = float( height ) / nextPow2 * self.repeatT# * 7.000007
+			yAdjustment = float( height ) / nextPow2 * self.repeatT
 		else:
 			# Height is a power of 2
-			yAdjustment = self.repeatT# * 7.000007
+			yAdjustment = self.repeatT
 
 		# Adjust x/y texture coordinates, if needed
 		if xAdjustment != 1:
