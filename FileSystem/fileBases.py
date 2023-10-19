@@ -1077,7 +1077,7 @@ class DatFile( FileBase ):
 
 		# Validation; make sure a struct begins at the given offset
 		elif structOffset not in self.structureOffsets:
-			print( 'Unable to create a struct object; invalid offset given: ' + hex(0x20 + structOffset) )
+			print( 'Unable to create a struct object; invalid offset given: 0x{:X}'.format(0x20 + structOffset) )
 			return None
 
 		# Get parent struct offsets, to attempt to use them to determine this struct 
