@@ -321,7 +321,7 @@ class StructBase( object ):
 	def getParents( self, includeNodeTables=False ):
 
 		""" Finds the offsets of all [non-sibling] structures that point to this structure.
-			May include root and reference node table offsets. """
+			May include root and reference node table offsets. Returns a set. """
 
 		if not self._parentsChecked:
 			self.parents = set()
@@ -394,25 +394,20 @@ class StructBase( object ):
 		else: # Loop above didn't break or return; no 'Next_' field
 			return False
 
-	# def getFirstSibling( self ): # no longer needed/useful?
+	def getFirstSibling( self ):
 
-	# 	""" Returns the offset of the first sibling in this structure's group (not the 'Next' struct to this one). 
-	# 		Returns -1 if there are no siblings. """
+		""" Returns the first sibling structure in this structure's group (not the 'Next' struct to this one). 
+			Returns None if there are no siblings. """
 
-	# 	if not self._siblingsChecked:
-	# 		self.getSiblings()
+		if not self._siblingsChecked:
+			self.getSiblings()
 
-	# 	if not self.siblings:
-	# 		return -1
+		if not self.siblings:
+			return None
 		
-	# 	# Check if this structure is actually the first (structures in the siblings list doesn't include itself)
-	# 	firstSiblingOffset = self.siblings[0].offset
-	# 	if self.offset < firstSiblingOffset:
-	# 		return self.offset
-	# 	else:
-	# 		return firstSiblingOffset
+		return self.dat.initSpecificStruct( self.__class__, self.siblings[0] )
 
-	def getSiblings( self, nextOnly=False ):
+	def getSiblings( self, nextOnly=False, asStructs=False ):
 
 		""" Returns a list of all sibling structure offsets in this struct's group (from each "Next_" field).
 			If the struct has no Next fields, this returns an empty list. If it can have siblings but doesn't, 
@@ -421,7 +416,14 @@ class StructBase( object ):
 			This also initializes all sibling structs uncovered this way. """
 
 		if self._siblingsChecked:
-			return self.siblings
+			if self.siblings and asStructs:
+				# Get and return a list of struct objects instead of just offsets
+				structs = []
+				for offset in self.siblings:
+					structs.append( self.dat.structs[offset] ) # These are expected to have been initialized already
+				return structs
+			else:
+				return self.siblings
 
 		self.siblings = []
 		sibs = []
@@ -473,7 +475,11 @@ class StructBase( object ):
 				sibs.append( siblingOffset )
 
 				if nextOnly:
-					return sibs # No need to continue and update other structures
+					# No need to continue and update other structures
+					if asStructs:
+						return self.dat.initSpecificStruct( self.__class__, siblingOffset )
+					else:
+						return siblingOffset
 					
 				# Check for the next sibling's sibling (init a structure that's the same kind as the current struct)
 				nextStruct = self.dat.initSpecificStruct( self.__class__, siblingOffset, printWarnings=False )
@@ -507,8 +513,6 @@ class StructBase( object ):
 
 				# Now that the full set is known, share it to all of the sibling structs (so they don't need to make the same determination)
 				for siblingId, structure in enumerate( allSiblingStructs ):
-					# structure.siblings = list( sibs ) # Create a copy of the list, so we don't edit the original in the step below
-					# structure.siblings.remove( structure.offset ) # Removes the reference to a struct's own offset
 					structure.siblings = sibs
 					structure._siblingsChecked = True
 
@@ -517,7 +521,10 @@ class StructBase( object ):
 					else:
 						structure.structDepth = ( -1, siblingId )
 
-		return self.siblings
+		if asStructs:
+			return allSiblingStructs
+		else:
+			return self.siblings
 
 	def hasChildren( self ):
 
@@ -956,7 +963,7 @@ class DataBlock( StructBase ):
 		# self._branchInitialized = True
 
 	def validated( self, *args, **kwargs ): return True
-	def getSiblings( self, nextOnly=False ): return []
+	def getSiblings( self, nextOnly=False, asStructs=False ): return []
 	def isSibling( self, offset ): return False
 	def getChildren( self, includeSiblings=True ): return []
 	#def getBranchDescendants( self, recursive=True, classLimit=None ): return []
@@ -1254,10 +1261,12 @@ class DisplayListBlock( DataBlock ):
 				headerData = self.data[offset:offset+3]
 				if len( headerData ) < 3:
 					raise Exception( 'display list header data ended prematurely (i{} of {})'.format(i, length) )
+				offset += 3
+				if not any( headerData ): # NOP FIFO command
+					continue
 				primitiveFlags, vertexCount = struct.unpack( '>BH', headerData )
 				primitiveType = primitiveFlags & 0xF8
 				#vertexStreamIndex = primitiveFlags & 7
-				offset += 3
 
 				# End the list if encountering an unrecognized type
 				if primitiveType not in self.enums['Primitive_Type'].keys():

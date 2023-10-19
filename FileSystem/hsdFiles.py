@@ -1071,7 +1071,7 @@ class StageFile( DatFile ):
 		texturesInfo.sort()
 
 		return texturesInfo
-	
+
 	def getGObjs( self ):
 
 		""" Returns the stage's GObjs Array (Game Objects). """
@@ -1117,7 +1117,7 @@ class StageFile( DatFile ):
 							self.structs[modelGroupPointer] = None # Removes the hint
 							print( 'Incorrect class hint created for Struct 0x{:X}'.format(modelGroupPointer) )
 
-						# It's just a hint. Initialize an struct object
+						# It's just a hint. Initialize a struct object
 						joint = self.initSpecificStruct( hsdStructures.JointObjDesc, modelGroupPointer, gobjArray.offset, (2, 0) )
 					else:
 						""" This struct/branch has already been created! Which likely means this is part of another structure 
@@ -1136,7 +1136,42 @@ class StageFile( DatFile ):
 
 			# Filter the Display Objects and return them
 			return [ obj for obj in structs if isinstance(obj, hsdStructures.DisplayObjDesc) ]
-		
+
 		except Exception as errorMessage:
 			printStatus( 'Unable to parse DObjs from {}; {}'.format(self.printPath(), errorMessage), error=True )
 			return []
+
+	def getModelGroup( self, structOffset ):
+
+		""" Returns the model group (joint struct) that the given structure is a part of. """
+
+		# Get the model group joint offsets
+		gobjArray = self.getGObjs()
+		modelGroupJointPointers = set( gobjArray.getValues()[0::13] )
+
+		initialStructOffset = structOffset
+		jointsIntersect = None
+
+		# Search upwards in the file until we find a parent among the model group pointers
+		while not jointsIntersect:
+			# Get the structure for the given offset
+			structure = self.getStruct( structOffset )
+			if not structure:
+				return None
+
+			# Check if any parents are among the joint pointers
+			parents = structure.getParents()
+			if not parents:
+				return None
+
+			jointsIntersect = modelGroupJointPointers.intersection( parents )
+
+			# Prepare for the next iteration (likely doesn't matter which parent we use if there are multiple)
+			structOffset = next( iter(parents) )
+
+		if len( jointsIntersect ) > 1:
+			print( 'Found multiple model group parents for Struct 0x{:X}'.format(initialStructOffset) )
+
+		# Intersection found! Return the first model group
+		jointOffset = next( iter(jointsIntersect) )
+		return self.initSpecificStruct( hsdStructures.JointObjDesc, jointOffset, gobjArray.offset, (2, 0) )

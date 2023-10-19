@@ -42,7 +42,8 @@ userFriendlyFormatList = [	'_0 (I4)', '_1 (I8)',
 class DisplayMode( enum.IntEnum ):
 	SelectedOnly = 0
 	Related = 1
-	All = 2
+	MODELGROUP = 2
+	All = 3
 
 class TexturesEditor( ttk.Notebook ):
 
@@ -1605,6 +1606,39 @@ class TexturesEditorTab( ttk.Frame ):
 
 		self.renderDobj( [modelPart], True )
 
+	def getModelGroupDObjs( self, modelParts ):
+				
+		""" For each model part (DObj) given, this will get all model groups
+			(assuming it's a stage file) or root joints that contain those parts. 
+			Then, all DObjs within those model parts will be determined and returned. """
+
+		newPartsGroup = []
+
+		# Get all DObjs under a specific joint
+		if isinstance( self.file, StageFile ):
+			# Might be parts under several groups; get all of the relevant groups
+			modelGroupJoints = set([])
+			for part in modelParts:
+				modelGroupJoint = self.file.getModelGroup( part.offset )
+				if modelGroupJoint:
+					modelGroupJoints.add( modelGroupJoint )
+
+			# Iterate over the model groups and get all DObjs
+			for joint in modelGroupJoints:
+				# Get all DObj descendents of this joint
+				descendants = joint.getDescendants( classLimit=hsdStructures.DisplayObjDesc )
+				newPartsGroup.extend( [obj for obj in descendants if isinstance(obj, hsdStructures.DisplayObjDesc)] )
+
+		# Fallback method (in case above fails or it's not a stage file)
+		if not newPartsGroup:
+			# Get all Display objects under the current joint
+			newPartsGroup = set()
+			for modelPart in modelParts:
+				newPartsGroup.update( modelPart.getSiblings(asStructs=True) )
+			newPartsGroup = list( newPartsGroup )
+
+		return newPartsGroup
+
 	def renderDobj( self, modelParts, updateOptionsWindow=False, updateCamera=True ):
 		
 		""" Sets one or more model parts to render in the Model tab for the currently 
@@ -1641,6 +1675,9 @@ class TexturesEditorTab( ttk.Frame ):
 				modelPane.selectableObjects = list( modelPane.selectableObjects )
 				partsToRender = modelPane.selectableObjects
 
+			elif modelPane.displayMode == DisplayMode.MODELGROUP:
+				modelPane.selectableObjects = partsToRender = self.getModelGroupDObjs( modelParts )
+
 			else: # All (display everything)
 				modelPane.selectableObjects = partsToRender = self.file.getDObjs()
 
@@ -1666,12 +1703,14 @@ class TexturesEditorTab( ttk.Frame ):
 				# Get a list of the given parts plus all of their siblings
 				modelPane.selectableObjects = set()
 				for modelPart in modelParts:
-					for partOffset in modelPart.getSiblings():
-						part = self.file.getStruct( partOffset )
-						modelPane.selectableObjects.add( part )
+					modelPane.selectableObjects.update( modelPart.getSiblings(asStructs=True) )
 
 				modelPane.selectableObjects = list( modelPane.selectableObjects )
 				partsToRender = modelPane.selectableObjects
+
+			elif modelPane.displayMode == DisplayMode.MODELGROUP:
+				modelPane.selectableObjects = partsToRender = self.getModelGroupDObjs( modelParts )
+
 			else: # All
 				modelPane.selectableObjects = partsToRender = self.file.getDObjs()
 
@@ -1688,8 +1727,6 @@ class TexturesEditorTab( ttk.Frame ):
 				modelPane.currentRenders.append( part )
 
 				# Update relative position based on parent joint coordinates
-				# parentJointOffset = next(iter( part.getParents() ))
-				# parentJoint = self.file.initSpecificStruct( hsdStructures.JointObjDesc, parentJointOffset )
 				parentJoint = part.getParent( hsdStructures.JointObjDesc )
 				modelPane.engine.applyJointTransformations( primitives, parentJoint )
 
@@ -2908,7 +2945,7 @@ class ModelTabRenderOptionsWindow( BasicWindow ):
 
 		ttk.Separator( self.window, orient='horizontal' ).grid( column=0, row=2, columnspan=2, sticky='ew', padx=42, pady=(6, 12) )
 
-		options = [ 'Show Selected Only', 'Show Related Parts', 'Show All' ]
+		options = [ 'Show Selected Only', 'Show Related Parts', 'Show Whole Model Group', 'Show All in This File' ]
 		self.modeDropdown = Dropdown( self.window, options, options[self.modelPane.displayMode], command=self.modeUpdated )
 		self.modeDropdown.grid( column=0, row=3, columnspan=2, padx=20 )
 
@@ -2945,10 +2982,10 @@ class ModelTabRenderOptionsWindow( BasicWindow ):
 		if self.modelPane.displayMode == DisplayMode.SelectedOnly:
 			self.infoText.set( 'The selected texture is used by\nthe model on these parts:' )
 
-		elif self.modelPane.displayMode == DisplayMode.Related:
-			self.infoText.set( '* The selected texture is used by\nthe model on these parts.' )
+		# elif self.modelPane.displayMode == DisplayMode.Related:
+		# 	self.infoText.set( '* The selected texture is used by\nthe model on these parts.' )
 		
-		else: # All
+		else:
 			self.infoText.set( '* The selected texture is used by\nthe model on these parts.' )
 
 		# Ensure there are parts to populate with (failsafe; not expected)
