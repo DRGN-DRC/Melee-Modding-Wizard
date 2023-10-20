@@ -1251,22 +1251,23 @@ class DisplayListBlock( DataBlock ):
 				print( 'Invalid attribute type "{}"!'.format(attrType) )
 				return []
 
+		dataBlockLength = ( length << 5 ) - 3 # Data chunk count * 0x20 (-3 for next header)
 		vertexLists = []
 		offset = 0
 
 		# Iterate over all entries in this display list
 		try:
-			for i in range( length ):
+			while offset < dataBlockLength:
 				# Parse the header for this entry
 				headerData = self.data[offset:offset+3]
-				if len( headerData ) < 3:
-					raise Exception( 'display list header data ended prematurely (i{} of {})'.format(i, length) )
 				offset += 3
 				if not any( headerData ): # NOP FIFO command
 					continue
 				primitiveFlags, vertexCount = struct.unpack( '>BH', headerData )
 				primitiveType = primitiveFlags & 0xF8
-				#vertexStreamIndex = primitiveFlags & 7
+				# vertexStreamIndex = primitiveFlags & 7
+				# if vertexStreamIndex != 0:
+				# 	print( 'Found a non-0 vertex stream index: ' + str(vertexStreamIndex) )
 
 				# End the list if encountering an unrecognized type
 				if primitiveType not in self.enums['Primitive_Type'].keys():
@@ -1278,8 +1279,6 @@ class DisplayListBlock( DataBlock ):
 				dataLength = baseLength * vertexCount
 				dataFormat = '>' + ( baseFormat * vertexCount )
 				data = self.data[offset:offset+dataLength]
-				if len( data ) < dataLength:
-					raise Exception( 'display list data ended prematurely.' )
 				displayListValues = struct.unpack( dataFormat, data )
 
 				# Parse the display list for vertices and create a VertexList from them
