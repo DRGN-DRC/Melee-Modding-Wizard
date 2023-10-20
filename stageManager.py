@@ -3054,7 +3054,10 @@ class StagePropertyEditor( ttk.Frame ):
 			else:
 				skeleton = None # Use rudimentary transforms for joints in renderJoint()
 
+			# tic = time.clock()
 			self.engine.renderJoint( joint, showBones=showBones, skeleton=skeleton )
+			# toc = time.clock()
+			# print( 'Render time: ' + str(toc-tic) )
 
 		self.engine.separateBatches()
 
