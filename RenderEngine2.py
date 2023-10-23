@@ -1395,7 +1395,7 @@ class Camera( object ):
 
 		# Set the new rotation point and focal distance
 		self.rotationPoint = ( x, y, z )
-		self.focalDistance = abs( z - self.position.z )
+		self.focalDistance = zOffset
 
 		# Set the camera position
 		self.position.x = x
@@ -1468,10 +1468,10 @@ class Camera( object ):
 			# Right-click is not held. Move both the camera and rotation point forward/back in space
 			if event.delta > 0:
 				# Zoom in
-				movementAmount = self.stepSize * -1.0
+				movementAmount = self.stepSize * -3.0
 			elif event.delta < 0:
 				# Zoom out
-				movementAmount = self.stepSize
+				movementAmount = self.stepSize * 3.0
 
 			# Calculate translation to move the camera in line with its forward direction
 			translateX = self.forwardVector.x * movementAmount

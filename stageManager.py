@@ -2973,7 +2973,6 @@ class StagePropertyEditor( ttk.Frame ):
 		self.engine.camera.zNear = 10; self.engine.camera.zFar = 4000
 		
 		# Set a default camera step size (for movement speed) and position
-		self.engine.camera.stepSize = 25.0
 		self.engine.camera.focalDistance = 200
 		self.engine.camera.rotationX = 80
 		self.engine.camera.updatePosition()
