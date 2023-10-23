@@ -2955,7 +2955,6 @@ class StagePropertyEditor( ttk.Frame ):
 		gobjsArray = self.file.getGObjs()
 
 		# Populate the treeview
-		#offset = gobjsArray.offset
 		for i, entryValues in gobjsArray.iterateEntries():
 			# Skip the General Points entry
 			#if i == 0: continue
@@ -2964,7 +2963,6 @@ class StagePropertyEditor( ttk.Frame ):
 			gobjValues = [ uHex(0x20+entryValues[0]), i ] + list( entryValues )
 
 			self.modelPartsTree.insert( '', 'end', str(entryValues[0]), text=gobjName, values=gobjValues )
-			#offset += 0x34
 
 		# Set the program status. This may be overridden with any warnings from render engine or shader initialization below
 		printStatus( 'Ready' )
@@ -2972,7 +2970,7 @@ class StagePropertyEditor( ttk.Frame ):
 		# Model display panel
 		self.engine = RenderEngine( self, (100, 100), True, background=globalData.gui.defaultSystemBgColor, borderwidth=0, relief='groove' )
 		self.engine.grid( column=2, row=1, sticky='nsew', padx=(0, 15) )
-		self.engine.zNear = 10; self.engine.zFar = 4000
+		self.engine.camera.zNear = 10; self.engine.camera.zFar = 4000
 		
 		# Set a default camera step size (for movement speed) and position
 		self.engine.camera.stepSize = 25.0

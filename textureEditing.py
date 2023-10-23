@@ -1248,19 +1248,19 @@ class TexturesEditorTab( ttk.Frame ):
 		modelPane.hideJointChkBtn.var = jointHidden
 		modelPane.hideJointChkBtn.grid( column=0, row=0, sticky='w', columnspan=3 )
 
-		modelPane.polyDisableChkBtn = ttk.Checkbutton( transparencyPane, text='Disable Polygon (Display List) Rendering', variable=displayListDisabled, command=self.toggleDisplayListRendering )
+		modelPane.polyDisableChkBtn = ttk.Checkbutton( transparencyPane, text='Disable Polygon Rendering (Blank Display List)', variable=displayListDisabled, command=self.toggleDisplayListRendering )
 		modelPane.polyDisableChkBtn.var = displayListDisabled
 		modelPane.polyDisableChkBtn.grid( column=0, row=1, sticky='w', columnspan=3 )
 
 		# Add a help button to explain the controls here
-		helpText = ( 'All of these controls will affect all of the model parts (Display Objects) currently selected. Non-selected '
-					'parts will appear obscured by default (darkened and under-staturated), which can be toggled by the '
-					'"Obscure non-selected parts" option in the Render Options window. You can also open the Render Options window '
+		helpText = ( 'All of these controls will affect all of the model parts (Display Objects) currently selected. By default, '
+					'non-selected parts will appear obscured (darkened and under-staturated), which can be toggled by the '
+					'"Toggle Obscurance" button above. You can also open the Render Options window (via the Gear icon) '
 					'to see exactly what parts are selected. When the controls at the bottom of this tab appear with an orange border, '
-					'that too indicates that multiple model parts are selected and that the controls will edit each of those parts.'
+					'that indicates that multiple model parts are selected and that the controls will edit multiple parts.'
 					'\n\nDisabling Part Rendering will set the "Hidden" flag (bit 4) for all of the lowest-level Joint Structures '
 					"connected to the currently selected model parts (parents to this texture's Display Object(s)). That will be "
-					"just one particular Joint Struct in most cases, however that may be the parent for multiple parts of the model. "
+					"just one particular joint in most cases, however that may be the parent for multiple parts of the model. "
 					"To have finer control over which model parts are disabled, consider the Disable Polygon Rendering option."
 					"\n\nDisabling Polygon Rendering is achieved by setting the display list data stream size to 0 "
 					"""(i.e. each associated Polygon Objects' "Display List Length" value). This is done for """
@@ -1503,14 +1503,14 @@ class TexturesEditorTab( ttk.Frame ):
 				print( 'Unable to get model high/low-poly part IDs; {}'.format(err) )
 
 		# Set frustum limits (near/far rendering limits)
-			modelPane.engine.zNear = 1.0; modelPane.engine.zFar = 800
+			modelPane.engine.camera.zNear = 1.0; modelPane.engine.camera.zFar = 800
 		elif isinstance( self.file, StageFile ):
-			modelPane.engine.zNear = 10.0; modelPane.engine.zFar = 4000
+			modelPane.engine.camera.zNear = 10.0; modelPane.engine.camera.zFar = 4000
 
 			# Attempt to initialize any skeletons
 			modelPane.engine.loadStageSkeletons( self.file, modelPane.showBones.get() )
 		else:
-			modelPane.engine.zNear = 2.5; modelPane.engine.zFar = 1500
+			modelPane.engine.camera.zNear = 2.5; modelPane.engine.camera.zFar = 1500
 
 	def determineDefaultPart( self, resetPartIndex=True ):
 

@@ -1223,8 +1223,8 @@ class Camera( object ):
 		self.fov = 45
 		self.zNear = 5
 		self.zFar = 3500
-		self.stepSize = 1
-		self.focalDistance = 10
+		self.stepSize = 0.1
+		self._focalDistance = 10
 		self.defaultToAltZoom = False
 
 		# self.matrix = [
@@ -1235,6 +1235,15 @@ class Camera( object ):
 		# ]
 
 		self.reset()
+
+	@property
+	def focalDistance( self ):
+		return self._focalDistance
+
+	@focalDistance.setter
+	def focalDistance( self, value ):
+		self._focalDistance = value
+		self.stepSize = value * 0.01
 
 	# def buildMatrix( self ):
 	# 	#u = Vector()
@@ -1277,7 +1286,7 @@ class Camera( object ):
 
 		""" Defines the viewable area of the render environment, which is composed 
 			of 6 sides and shaped like the cross-section of a pyramid. The result 
-			of this function is a list of the planes (sides) enclosing this area. """
+			of this function is a tuple of the planes (sides) enclosing this area. """
 
 		# Create vectors for the plane corners (points on the near plane, and vectors to the far plane)
 		fovRads = math.radians( self.fov )
@@ -1363,50 +1372,47 @@ class Camera( object ):
 		minX = min( xCoords )
 		minY = min( yCoords )
 		minZ = min( zCoords )
-		x = ( maxX + min(xCoords) ) / 2.0
-		y = ( maxY + min(yCoords) ) / 2.0
+		x = ( maxX + minX ) / 2.0
+		y = ( maxY + minY ) / 2.0
 		z = ( maxZ + minZ ) / 2.0
 
 		# Determine depth (zoom level); try to get the entire model part/group in the frame
-		objectWidth = maxX - minX
-		objectHeight = maxY - minY
-		if objectWidth > objectHeight * self.engine.aspectRatio:
+		width = maxX - minX
+		height = maxY - minY
+		depth = maxZ - minZ
+		if width > ( height * self.engine.aspectRatio ):
 			# Use x-axis to determine zoom level
-			zOffset = objectWidth * 1.4
+			zOffset = width * 1.4
 		else:
 			# Use y-axis to determine zoom level (and also zoom out a little further)
-			zOffset = objectHeight * 1.4 * self.engine.aspectRatio
+			zOffset = height * self.engine.aspectRatio * 1.4
 
+		# Ensure the camera doesn't clip into the object and we're not too far away
+		if ( zOffset - self.zNear * 1.5 ) < ( depth / 2 ):
+			zOffset = ( depth / 2 * 1.4 ) + self.zNear
 		if zOffset > 800:
 			zOffset = 800
 
-		# Set the new rotation point
+		# Set the new rotation point and focal distance
 		self.rotationPoint = ( x, y, z )
+		self.focalDistance = abs( z - self.position.z )
 
 		# Set the camera position
 		self.position.x = x
 		self.position.y = y
 		self.position.z = z + zOffset
 
-		# Ensure the camera doesn't clip into the object
-		if maxZ > self.position.z - self.zNear:
-			# Too close; back up based on minZ
-			self.position.z = abs( maxZ - self.zNear ) * 1.4
-
-		self.focalDistance = abs( z - self.position.z )
-		self.stepSize = objectWidth / 10.0
-
 	def updatePosition( self ):
 
 		""" Updates the position of the camera, based on the centerpoint for 
 			rotation, distance from that point, and current rotation values. 
-			This translates sphere coordinates to the world space coordinates. """
+			This translates sphere coordinates into world space coordinates. """
 
 		radsX = math.radians( self.rotationX ) # Latitude
 		radsY = math.radians( self.rotationY ) # Longitude
-		self.position.x = self.rotationPoint[0] + self.focalDistance * math.sin( radsX ) * math.cos( radsY )
-		self.position.y = self.rotationPoint[1] + self.focalDistance * math.cos( radsX )
-		self.position.z = self.rotationPoint[2] + self.focalDistance * math.sin( radsX ) * math.sin( radsY )
+		self.position.x = self.rotationPoint[0] + self._focalDistance * math.sin( radsX ) * math.cos( radsY )
+		self.position.y = self.rotationPoint[1] + self._focalDistance * math.cos( radsX )
+		self.position.z = self.rotationPoint[2] + self._focalDistance * math.sin( radsX ) * math.sin( radsY )
 
 	def updateOrientation( self, invert=False ):
 		
@@ -1436,7 +1442,7 @@ class Camera( object ):
 		""" Zoom in or out by moving the camera and rotation point forward or back, relative to
 			the camera's facing direction. If right-click is held, then only the focal distance 
 			will be updated, which will move the camera closer/further from the rotation point. 
-			If defaultToAltZoom = True, methods for right-click behavior will be reversed. """
+			If self.defaultToAltZoom = True, methods for right-click behavior will be reversed. """
 
 		rightClickHeld = event.state & 1024
 
@@ -1450,7 +1456,7 @@ class Camera( object ):
 			if event.delta > 0:
 				# Zoom in
 				self.focalDistance *= .95
-				if self.focalDistance < 2:
+				if self._focalDistance < 2:
 					self.focalDistance = 2
 			elif event.delta < 0:
 				# Zoom out
@@ -1459,13 +1465,13 @@ class Camera( object ):
 			# Update position with the new focal distance (sphere radius)
 			self.updatePosition()
 		else:
-			# Right-click is not held. Move camera and rotation point forward/back in space
+			# Right-click is not held. Move both the camera and rotation point forward/back in space
 			if event.delta > 0:
 				# Zoom in
-				movementAmount = self.stepSize / -2.0
+				movementAmount = self.stepSize * -1.0
 			elif event.delta < 0:
 				# Zoom out
-				movementAmount = self.stepSize / 2.0
+				movementAmount = self.stepSize
 
 			# Calculate translation to move the camera in line with its forward direction
 			translateX = self.forwardVector.x * movementAmount
@@ -1527,9 +1533,9 @@ class Camera( object ):
 
 		elif buttons == 4: # Right-click button held; translate the camera
 			# Calculate translation to move the camera perpendicular to its forward direction
-			translateX = self.rightVector.x * -dx/6.0*self.stepSize + self.upVector.x * -dy/6.0*self.stepSize
-			translateY = self.rightVector.y * -dx/6.0*self.stepSize + self.upVector.y * -dy/6.0*self.stepSize
-			translateZ = self.rightVector.z * -dx/6.0*self.stepSize + self.upVector.z * -dy/6.0*self.stepSize
+			translateX = self.rightVector.x * -dx*self.stepSize/3.0 + self.upVector.x * -dy*self.stepSize/3.0
+			translateY = self.rightVector.y * -dx*self.stepSize/3.0 + self.upVector.y * -dy*self.stepSize/3.0
+			translateZ = self.rightVector.z * -dx*self.stepSize/3.0 + self.upVector.z * -dy*self.stepSize/3.0
 
 			# Update the camera position
 			self.position.x += translateX
