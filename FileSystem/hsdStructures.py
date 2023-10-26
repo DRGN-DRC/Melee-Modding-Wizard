@@ -21,7 +21,7 @@ from collections import OrderedDict
 import globalData
 
 from basicFunctions import uHex
-from RenderEngine2 import Vertex, VertexList
+from renderEngine import Vertex, VertexList
 
 showLogs = True
 

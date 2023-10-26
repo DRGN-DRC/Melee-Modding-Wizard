@@ -25,7 +25,7 @@ from collections import OrderedDict
 import globalData
 from tplCodec import TplDecoder
 from FileSystem import hsdStructures, DatFile, CharCostumeFile, StageFile
-from RenderEngine2 import RenderEngine
+from renderEngine import RenderEngine
 from basicFunctions import isNaN, validHex, humansize, grammarfyList, msg, copyToClipboard, printStatus, uHex, constructTextureFilename
 from guiSubComponents import ( ColoredLabelButton, Dropdown, LabelButton, ToggleButton, exportMultipleTextures, getColoredShape, importSingleTexture, 
 		BasicWindow, HexEditEntry, EnumOptionMenu, HexEditDropdown, ColorSwatch, 
