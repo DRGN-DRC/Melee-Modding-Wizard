@@ -26,7 +26,7 @@ from PIL import Image, ImageTk, ImageDraw, ImageFont
 # Internal dependencies
 import globalData
 
-from RenderEngine2 import RenderEngine
+from renderEngine import RenderEngine
 from FileSystem import StageFile
 from FileSystem.hsdStructures import MapMusicTable, MapPointTypesArray
 from basicFunctions import uHex, hex2rgb, humansize, msg, printStatus, reverseDictLookup
