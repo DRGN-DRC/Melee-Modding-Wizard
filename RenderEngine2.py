@@ -79,6 +79,13 @@ GXTexFilter = [
 	gl.GL_LINEAR_MIPMAP_LINEAR
 ]
 
+GXAnisotropy = [
+	1.0,
+	2.0,
+	4.0,
+	4.0 # Checked and updated upon initialization
+]
+
 # GXAlphaOp = [
 # 	gl.
 # ]
@@ -185,6 +192,8 @@ class RenderEngine( Tk.Frame ):
 		uses a custom render loop, allowing draw updates to be delegated by the 
 		main program's event loop instead of pyglet's normal application event loop. """
 
+	maxAnisotropy = None
+
 	def __init__( self, parent, dimensions=(640, 480), resizable=False, **kwargs ):
 
 		self.width = dimensions[0]
@@ -234,6 +243,17 @@ class RenderEngine( Tk.Frame ):
 		# Set up the OpenGL context
 		gl.glClearColor( *self.bgColor )
 		gl.glClearDepth( 1.0 ) # Depth buffer setup
+
+		gl.glEnable( gl.GL_TEXTURE_2D )
+		gl.glTexParameterf( gl.GL_TEXTURE_2D, gl.GL_TEXTURE_BASE_LEVEL, 0 )
+		gl.glTexParameterf( gl.GL_TEXTURE_2D, gl.GL_TEXTURE_MAX_LEVEL, 11 ) # Support for texture dimensions up to 1024
+
+		# Check maximum anisotropy level
+		if not self.maxAnisotropy:
+			maxAnisotropy = gl.GLfloat( 0.0 ) # Variable to store the result
+			gl.glGetFloatv( gl.glext_arb.GL_MAX_TEXTURE_MAX_ANISOTROPY_EXT, ctypes.byref(maxAnisotropy) )
+			self.maxAnisotropy = maxAnisotropy.value
+			GXAnisotropy[3] = self.maxAnisotropy
 
 		gl.glEnable( gl.GL_BLEND )
 		gl.glEnable( gl.GL_ALPHA_TEST )
@@ -791,7 +811,7 @@ class RenderEngine( Tk.Frame ):
 			while tobj:
 				# Get basic info on the texture
 				imgHeader = tobj.initChild( 'ImageObjDesc', 21 )
-				imageDataOffset, width, height, imageType, mipmapFlag, minLOD, maxLOD = imgHeader.getValues()
+				imageDataOffset, width, height, imageType, _, _, maxLOD = imgHeader.getValues()
 
 				# Check for palette info
 				paletteHeader = tobj.initChild( 'PaletteObjDesc', 22 )
@@ -830,8 +850,10 @@ class RenderEngine( Tk.Frame ):
 			object. Useful in cases where the original texture is updated or replaced. """
 
 		# Delete any stored converted instance of the texture
-		if offset in self.textureCache:
-			del self.textureCache[offset]
+		# if offset in self.textureCache:
+		# 	del self.textureCache[offset]
+
+		reconversionComplete = False
 
 		# Seek out and update texture groups currently using the texture
 		for primitive in self.vertexLists:
@@ -841,9 +863,14 @@ class RenderEngine( Tk.Frame ):
 				# Get the texture object currently used by the render group
 				textureObj = renderGroup.textures[renderGroup.index]
 
-				if textureObj.offset == offset:
-					# Convert the texture anew (replacing old texture cache)
-					renderGroup.texture = renderGroup._convertTexObject( textureObj )
+				if textureObj.offset == offset or offset in renderGroup.mipmaps:
+					if not reconversionComplete:
+						# Convert the texture anew (replacing old texture cache(s))
+						renderGroup.texture = renderGroup._convertTexObject( textureObj )
+						reconversionComplete = True
+
+					else: # Just need to update the currently selected texture
+						renderGroup.texture = renderGroup.getPygletTexture( textureObj )
 
 		self.window.updateRequired = True
 
@@ -2433,6 +2460,7 @@ class TexturedMaterial( Material ):
 
 		self.index = index
 		self.textures = textures # A list of texture file structure objects
+		self.mipmaps = []
 		self.texture = self.getPygletTexture( initialTexture )
 
 		# Perform material initialization and set material properties
@@ -2465,9 +2493,21 @@ class TexturedMaterial( Material ):
 			lodValues = lodStruct.getValues()
 			self.minFilter = GXTexFilter[lodValues[0]]
 			self.lodBias = lodValues[1] # Should be between -4.0 to 3.99 (validate?)
+			#self.lodBias, self.biasClamp, self.edgeLodEnable = lodValues[1:4] # LOD Bias should be between -4.0 to 3.99 (validate?) #todo
+			self.anisotrophy = GXAnisotropy[lodValues[5]]
+
+			# Check the image data header to get Min/Max LOD
+			imgHeaderClass = globalData.fileStructureClasses['ImageObjDesc']
+			imgHeader = tobj.dat.initSpecificStruct( imgHeaderClass, tobjValues[21], tobj.offset )
+			isMipmap, self.minLOD, self.maxLOD = imgHeader.getValues()[-3:]
+			if not isMipmap:
+				print( 'WAT' )
+				print( "{} references a LOD struct, but the image description claims it's not a mipmap texture!".format(tobj.name) )
 		else:
-			self.minFilter = gl.GL_LINEAR_MIPMAP_LINEAR
+			self.minFilter = gl.GL_LINEAR
 			self.lodBias = 0.0
+			self.anisotrophy = 0.0
+			self.minLOD, self.maxLOD = 0.0, 0.0
 		
 		# Check for a TEV struct
 		#tevObjClass = globalData.fileStructureClasses['TevObjDesc']
@@ -2495,16 +2535,44 @@ class TexturedMaterial( Material ):
 
 		# Decode the texture
 		width, height = textureObj.width, textureObj.height
-		pilImage = textureObj.dat.getTexture( textureObj.offset, width, height, textureObj.imageType, textureObj.imageDataLength, getAsPilImage=True )
+		imageDataOffset = textureObj.offset
+		imageDataLength = textureObj.imageDataLength
+		imageDataClass = globalData.fileStructureClasses['ImageDataBlock']
+		pilImage = textureObj.dat.getTexture( imageDataOffset, width, height, textureObj.imageType, imageDataLength, getAsPilImage=True )
 
-		# Convert it for use with pyglet
-		pygletImage = pyglet.image.ImageData( width, height, 'RGBA', pilImage.tobytes() )
-		texture = pygletImage.get_texture()
+		lodLevel = 0
+		self.mipmaps = []
+		level0Image = None
 
-		# Save in the cache for future lookup
-		self.renderEngine.textureCache[textureObj.offset] = texture
+		while pilImage:
+			# Convert it for use with pyglet
+			pygletImage = pyglet.image.ImageData( width, height, 'RGBA', pilImage.tobytes() )
+			texture = pygletImage.get_texture()
+			texture.data = pygletImage.get_data()
+			texture.level = lodLevel
 
-		return texture
+			# Save in the cache for future lookup
+			self.renderEngine.textureCache[imageDataOffset] = texture
+			if not level0Image:
+				assert lodLevel == 0, 'Unable to convert the root texture for {}!'.format( textureObj.name )
+				level0Image = texture
+
+			# Check for mipmap textures to convert
+			if lodLevel >= textureObj.maxLOD:
+				break
+			else:
+				# Calculate new info for the next image
+				imageDataOffset += imageDataLength # This is of the last image, not the current imageDataLength below
+				width = int( math.ceil(width / 2.0) )
+				height = int( math.ceil(height / 2.0) )
+				imageDataLength = imageDataClass.getDataLength( width, height, textureObj.imageType )
+
+				# Process the new image
+				pilImage = textureObj.dat.getTexture( imageDataOffset, width, height, textureObj.imageType, imageDataLength, getAsPilImage=True )
+				self.mipmaps.append( imageDataOffset )
+				lodLevel += 1
+
+		return level0Image
 	
 	def changeTextureIndex( self, index ):
 
@@ -2575,8 +2643,23 @@ class TexturedMaterial( Material ):
 			return
 
 		# Enable and bind operations for this texture
-		gl.glEnable( self.texture.target ) # i.e. GL_TEXTURE_2D
 		gl.glBindTexture( self.texture.target, self.texture.id )
+		if self.mipmaps:
+			# Add the base (level 0) texture (updates the currently bound texture)
+			gl.glTexImage2D( gl.GL_TEXTURE_2D, 0, gl.GL_RGBA, self.texture.width, self.texture.height, 0, gl.GL_RGBA, gl.GL_UNSIGNED_BYTE, self.texture.data )
+
+			# Add subsequent mipmap levels (updates the currently bound texture)
+			for offset in self.mipmaps:
+				texture = self.renderEngine.textureCache.get( offset )
+				gl.glTexImage2D( gl.GL_TEXTURE_2D, texture.level, gl.GL_RGBA, texture.width, texture.height, 0, gl.GL_RGBA, gl.GL_UNSIGNED_BYTE, texture.data )
+
+			# Set mipmap (LOD) parameters
+			gl.glTexParameterf( gl.GL_TEXTURE_2D, gl.GL_TEXTURE_MIN_LOD, self.minLOD )
+			gl.glTexParameterf( gl.GL_TEXTURE_2D, gl.GL_TEXTURE_MAX_LOD, self.maxLOD )
+			gl.glTexParameterf( gl.GL_TEXTURE_2D, gl.GL_TEXTURE_LOD_BIAS, self.lodBias )
+			gl.glTexParameterf( gl.GL_TEXTURE_2D, gl.glext_arb.GL_TEXTURE_MAX_ANISOTROPY_EXT, self.anisotrophy )
+
+		# Update the fragment shader
 		if self.renderEngine.fragmentShader:
 			self.renderEngine.setShaderInt( 'texGenSource', self.texGenSrc )
 			self.renderEngine.setShaderInt( 'enableTextures', True )
@@ -2584,13 +2667,11 @@ class TexturedMaterial( Material ):
 			self.renderEngine.setShaderFloat( 'textureBlending', self.blending )
 			self.renderEngine.setShaderMatrix( 'textureMatrix', self.matrix )
 
-		# Texture Filtering
+		# Texture filtering
+		gl.glTexParameteri( gl.GL_TEXTURE_2D, gl.GL_TEXTURE_MIN_FILTER, self.minFilter )
 		gl.glTexParameteri( gl.GL_TEXTURE_2D, gl.GL_TEXTURE_MAG_FILTER, self.magFilter )
-		#gl.glTexParameteri( gl.GL_TEXTURE_2D, gl.GL_TEXTURE_MIN_FILTER, self.minFilter )
-		gl.glTexParameteri( gl.GL_TEXTURE_2D, gl.GL_TEXTURE_MIN_FILTER, gl.GL_LINEAR ) # todo; black textures without this specific filter?
-		gl.glTexParameterf( gl.GL_TEXTURE_2D, gl.GL_TEXTURE_LOD_BIAS, self.lodBias )
 
-		# Wrap Mode
+		# Wrap mode
 		gl.glTexParameteri( gl.GL_TEXTURE_2D, gl.GL_TEXTURE_WRAP_S, self.wrapModeS )
 		gl.glTexParameteri( gl.GL_TEXTURE_2D, gl.GL_TEXTURE_WRAP_T, self.wrapModeT )
 
@@ -2604,7 +2685,7 @@ class TexturedMaterial( Material ):
 		
 		# Unset states for this texture
 		if self.enableTextures:
-			gl.glDisable( self.texture.target )
+			#gl.glDisable( self.texture.target )
 
 			# Disable texturing for other non-textured surfaces or primitives that might follow this
 			if self.renderEngine.fragmentShader:
