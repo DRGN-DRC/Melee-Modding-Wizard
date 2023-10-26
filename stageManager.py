@@ -3687,5 +3687,7 @@ class StageModelViewer( BasicWindow ):
 			coords = self.spotTable.values
 
 		maxCoord = max( [abs(value) for value in coords] )
+		zOffset = maxCoord * -1.4
 
-		self.engine.translation_Z = maxCoord * -1.4
+		self.engine.camera.position.z = zOffset
+		self.engine.camera.focalDistance = zOffset

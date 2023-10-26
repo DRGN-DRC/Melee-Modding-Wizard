@@ -492,7 +492,9 @@ class TexturesEditorTab( ttk.Frame ):
 		return True
 
 	def populateTexEditorTab( self, priorityTargets=(), useCache=False ):
-		
+
+		""" Scans the current file for textures, decodes them, and adds them to the texture treeview widget. """
+
 		self.scanningFile = True
 		# self.datTextureTreeBg.place_forget() # Removes the drag-and-drop image
 
@@ -781,6 +783,25 @@ class TexturesEditorTab( ttk.Frame ):
 		# Set the function call for the next (reversed) sort.
 		self.datTextureTree.heading( col, command=lambda: self.treeview_sort_column(col, not reverse) )
 
+	def getCurrentSelection( self, useMipmapRoot=False ):
+
+		""" Returns the iid (image data offset) of the currently selected texture. 
+			Selects the lowest position item selected in the treeview if multiple 
+			items are selected. If useMipmapRoot is True, and a mipmap texture is 
+			selected, the iid returned will be that of the parent (level 0 texture). """
+
+		# Ensure there is an iid, or do nothing
+		iid = self.datTextureTree.selection()
+		if not iid: return None
+		iid = iid[-1]
+
+		if useMipmapRoot:
+			# If this is a mipmap texture, get the base-level image
+			if self.getMipmapLevel( iid ) > 0:
+				iid = self.datTextureTree.parent( iid )
+
+		return iid
+
 	def onTextureTreeSelect( self, event, iid=None ):
 
 		""" Called when a texture is selected in the treeview in 
@@ -790,7 +811,7 @@ class TexturesEditorTab( ttk.Frame ):
 		if not iid:
 			iid = self.datTextureTree.selection()
 			if not iid: return
-		iid = iid[-1] # Selects the lowest position item selected in the treeview if multiple items are selected.
+		iid = iid[-1]
 
 		# Update the main display with the texture's stored image.
 		imageDataOffset = int( iid )
@@ -799,6 +820,11 @@ class TexturesEditorTab( ttk.Frame ):
 		# Stop here if this is not a typical DAT file
 		if not isinstance( self.file, DatFile ):
 			return
+
+		# If this is a mipmap texture, get the base-level image
+		if self.getMipmapLevel( iid ) > 0:
+			iid = self.datTextureTree.parent( iid )
+			imageDataOffset = int( iid )
 
 		# Get the texture struct
 		texture = self.file.structs[imageDataOffset]
@@ -842,13 +868,13 @@ class TexturesEditorTab( ttk.Frame ):
 		# 	# 	lackOfUsefulStructsDescription += ' This texture is grouped with {} other textures,'.format( textureCount )
 		# 	# lackOfUsefulStructsDescription += ' with an E2E header at 0x{:X}.'.format( 0x20+e2eHeaderOffset )
 
-		elif not texture: # Make sure an image data struct exists to check if this might be something like a DOL texture
-			lackOfUsefulStructsDescription = (  'This texture does not use the usual image data headers and other associated '
-												'structures (TObj/MObj/etc.). These are instead stored end-to-end in this file '
-												'with other similar textures.' )
+		# elif not texture: # Make sure an image data struct exists to check if this might be something like a DOL texture
+		# 	lackOfUsefulStructsDescription = (  'This texture does not use the usual image data headers and other associated '
+		# 										'structures (TObj/MObj/etc.). These are instead stored end-to-end in this file '
+		# 										'with other similar textures.' )
 
-		# See if we can get parent structures for this texture
-		if not lackOfUsefulStructsDescription and not texture.getParents():
+		# Check for parent structures of this texture
+		elif not texture.getParents():
 			lackOfUsefulStructsDescription = 'This file has no known image data headers or other structures to modify.'
 		
 		# Clear collected structures for this texture (will be collected once needed)
@@ -869,12 +895,12 @@ class TexturesEditorTab( ttk.Frame ):
 			# Enable and update the Model tab
 			self.imageManipTabs.tab( self.modelPropertiesPane, state='normal' )
 			if currentTab == self.modelPropertiesPane:
-				self.populateModelTab( [iid] )
+				self.populateModelTab( iid )
 
 			# Enable and update the Properties tab
 			self.imageManipTabs.tab( self.texturePropertiesPane, state='normal' )
 			if currentTab == self.texturePropertiesPane:
-				self.populateTexPropertiesTab( [iid] )
+				self.populateTexPropertiesTab( iid )
 
 	def drawTextureToMainDisplay( self, imageDataOffset ):
 
@@ -1126,9 +1152,8 @@ class TexturesEditorTab( ttk.Frame ):
 
 		# Ensure there is an iid, or do nothing
 		if not iid:
-			iid = self.datTextureTree.selection()
+			iid = self.getCurrentSelection( useMipmapRoot=True )
 			if not iid: return
-		iid = iid[-1] # Selects the lowest position item selected in the treeview if multiple items are selected.
 
 		modelPane = self.modelPropertiesPane.interior
 		wraplength = modelPane.winfo_width() - 20
@@ -2071,11 +2096,10 @@ class TexturesEditorTab( ttk.Frame ):
 		self.texturePropertiesPane.clear()
 		self.texturePropertiesPane.flagWidgets = [] # Useful for the Flag Decoder to more easily find widgets that need updating
 
-		# Ensure there is an iid, or return (failsafe; there should be one)
+		# Ensure there is an iid, or do nothing
 		if not iid:
-			iid = self.datTextureTree.selection()
+			iid = self.getCurrentSelection( useMipmapRoot=True )
 			if not iid: return
-		iid = iid[-1] # Selects the lowest position item selected in the treeview if multiple items are selected.
 
 		self.collectStructs( iid )
 
