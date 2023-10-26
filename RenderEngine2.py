@@ -301,7 +301,7 @@ class RenderEngine( Tk.Frame ):
 		self.window.on_mouse_scroll = self.camera.on_mouse_scroll
 		self.window.on_mouse_release = self.camera.on_mouse_release
 		self.master.bind( "<MouseWheel>", self.camera.on_mouse_scroll )
-		self.master.bind( '<KeyPress>', self.on_key_press2 )
+		#self.master.bind( '<KeyPress>', self.on_key_press2 )
 		#self.master.bind( "<1>", self.window.activate() ) # Move focus to the parent when clicked on
 
 		if resizable:
@@ -1472,6 +1472,7 @@ class Camera( object ):
 			If self.defaultToAltZoom = True, methods for right-click behavior will be reversed. """
 
 		rightClickHeld = event.state & 1024
+		shiftHeld = event.state & 1
 
 		if self.defaultToAltZoom:
 			# Invert the determination to change which method is used
@@ -1482,23 +1483,30 @@ class Camera( object ):
 			# Zoom in/out by adjusting focal point only
 			if event.delta > 0:
 				# Zoom in
-				self.focalDistance *= .95
+				if shiftHeld:
+					self.focalDistance *= .88
+				else:
+					self.focalDistance *= .94
 				if self._focalDistance < 2:
 					self.focalDistance = 2
 			elif event.delta < 0:
 				# Zoom out
-				self.focalDistance *= 1.05
+				if shiftHeld:
+					self.focalDistance *= 1.12
+				else:
+					self.focalDistance *= 1.06
 
 			# Update position with the new focal distance (sphere radius)
 			self.updatePosition()
 		else:
 			# Right-click is not held. Move both the camera and rotation point forward/back in space
+			speedMultiplier = ( shiftHeld * 2 ) + 1 # Results in 1 or 2
 			if event.delta > 0:
 				# Zoom in
-				movementAmount = self.stepSize * -3.0
+				movementAmount = self.stepSize * -3.5 * speedMultiplier
 			elif event.delta < 0:
 				# Zoom out
-				movementAmount = self.stepSize * 3.0
+				movementAmount = self.stepSize * 3.5 * speedMultiplier
 
 			# Calculate translation to move the camera in line with its forward direction
 			translateX = self.forwardVector.x * movementAmount
@@ -1559,10 +1567,17 @@ class Camera( object ):
 				self.upVector.y = -1.0 * self.upVector.y
 
 		elif buttons == 4: # Right-click button held; translate the camera
+			# Determine how far to move per step
+			shiftHeld = modifiers & 1
+			speedMultiplier = ( shiftHeld * 2 ) + 1 # Results in 1 or 2
+			stepSize = ( self.stepSize / 3.0 ) * speedMultiplier
+			amountRight = -dx * stepSize
+			amountUp = -dy * stepSize
+
 			# Calculate translation to move the camera perpendicular to its forward direction
-			translateX = self.rightVector.x * -dx*self.stepSize/3.0 + self.upVector.x * -dy*self.stepSize/3.0
-			translateY = self.rightVector.y * -dx*self.stepSize/3.0 + self.upVector.y * -dy*self.stepSize/3.0
-			translateZ = self.rightVector.z * -dx*self.stepSize/3.0 + self.upVector.z * -dy*self.stepSize/3.0
+			translateX = self.rightVector.x * amountRight + self.upVector.x * amountUp
+			translateY = self.rightVector.y * amountRight + self.upVector.y * amountUp
+			translateZ = self.rightVector.z * amountRight + self.upVector.z * amountUp
 
 			# Update the camera position
 			self.position.x += translateX
