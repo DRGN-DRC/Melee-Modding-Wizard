@@ -32,3 +32,6 @@ ruamel.yaml.clib==0.2.2
 
 # Used to compute Dolphin texture hashes
 xxhash==2.0.2
+
+# For general-purpose enumerations
+enum34==1.1.10
