@@ -1333,9 +1333,9 @@ class DisplayListBlock( DataBlock ):
 				elif name == 13: # GX_VA_TEX0
 					vl.texCoords[1].extend( values )
 					#print( self.name, values )
-				elif name > 13:
-					enumName = VertexAttributesArray.enums['Attribute_Name'][name]
-					print( 'Encountered {} in {}'.format(enumName, self.name) )
+				# elif name > 13:
+				# 	enumName = VertexAttributesArray.enums['Attribute_Name'][name]
+				# 	print( 'Encountered {} in {}'.format(enumName, self.name) )
 
 		vl.finalize()
 

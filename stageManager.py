@@ -2968,10 +2968,10 @@ class StagePropertyEditor( ttk.Frame ):
 		printStatus( 'Ready' )
 
 		# Model display panel
-		self.engine = RenderEngine( self, (100, 100), True, background=globalData.gui.defaultSystemBgColor, borderwidth=0, relief='groove' )
+		self.engine = RenderEngine( self, (440, 300), True, background=globalData.gui.defaultSystemBgColor, borderwidth=0, relief='groove' )
 		self.engine.grid( column=2, row=1, sticky='nsew', padx=(0, 15) )
-		self.engine.camera.zNear = 10; self.engine.camera.zFar = 4000
-		
+		self.engine.camera.updateFrustum( zNear=10, zFar=3000 )
+
 		# Set a default camera step size (for movement speed) and position
 		self.engine.camera.focalDistance = 200
 		self.engine.camera.rotationX = 80
