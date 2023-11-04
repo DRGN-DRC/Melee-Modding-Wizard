@@ -1525,17 +1525,17 @@ class TexturesEditorTab( ttk.Frame ):
 				modelPane.highPolyIds = visibilityTable.getHighPolyPartIds( costumeIndex )
 				modelPane.lowPolyIds = visibilityTable.getLowPolyPartIds( costumeIndex )
 			except Exception as err:
-				print( 'Unable to get model high/low-poly part IDs; {}'.format(err) )
+				printStatus( 'Unable to get model high/low-poly part IDs; {}'.format(err), warning=True )
 
 		# Set frustum limits (near/far rendering limits)
-			modelPane.engine.camera.zNear = 1.0; modelPane.engine.camera.zFar = 800
+			modelPane.engine.camera.updateFrustum( zNear=1, zFar=800 )
 		elif isinstance( self.file, StageFile ):
-			modelPane.engine.camera.zNear = 10.0; modelPane.engine.camera.zFar = 4000
+			modelPane.engine.camera.updateFrustum( zNear=10, zFar=4000 )
 
-			# Attempt to initialize any skeletons
+			# Attempt to initialize any animated joints
 			modelPane.engine.loadStageSkeletons( self.file, modelPane.showBones.get() )
 		else:
-			modelPane.engine.camera.zNear = 2.5; modelPane.engine.camera.zFar = 1500
+			modelPane.engine.camera.updateFrustum( zNear=2.5, zFar=1500 )
 
 	def determineDefaultPart( self, resetPartIndex=True ):
 

@@ -14,11 +14,13 @@ import io
 import time
 import math
 #import enum
+import array
 import pyglet
 import ctypes
 import win32api
 import Tkinter as Tk
 
+from ctypes import string_at
 from operator import add, mul
 from collections import OrderedDict
 
@@ -28,16 +30,17 @@ from basicFunctions import printStatus
 	Rendering calls to OpenGL functions will be checked afterwards for
 	errors using 'glGetError'. This will severely impact performance,
 	but provide useful exceptions in case of those points of failure. """
-DEBUGMODE = False
+DEBUGMODE = True
 
 # Disable a few options for increased performance
 pyglet.options['debug_gl'] = DEBUGMODE
+pyglet.options['debug_trace_depth'] = 5 # Default is 1
 pyglet.options['audio'] = ( 'silent', )
 #pyglet.options['shadow_window'] = False
 pyglet.options['search_local_libs'] = False
 
 from pyglet import gl
-from pyglet.window import key, Projection3D
+from pyglet.window import key, Projection
 from pyglet.window import Window as pygletWindow
 from pyglet.app.base import EventLoop
 from pyglet.graphics import Group, OrderedGroup, TextureGroup
@@ -185,6 +188,15 @@ GXBlendFactor = [
 # 	return normalized_angle
 
 
+class ProjectionOverride( Projection ):
+
+	""" A quick and simple override to Pyglet's default projection.set method. 
+		We don't need it to do anything! """
+
+	def set( self, window_width, window_height, viewport_width, viewport_height ):
+		pass
+
+
 class RenderEngine( Tk.Frame ):
 
 	""" This module creates a pyglet rendering environment (a window), and embeds
@@ -198,6 +210,7 @@ class RenderEngine( Tk.Frame ):
 
 		self.width = dimensions[0]
 		self.height = dimensions[1]
+		self.resizable = resizable
 
 		Tk.Frame.__init__( self, parent, **kwargs )
 
@@ -213,40 +226,41 @@ class RenderEngine( Tk.Frame ):
 		# Create an invisible Pyglet window (cannot create a Pyglet canvas without a window)
 		display = pyglet.canvas.get_display()
 		screen = display.get_default_screen()
-		config = screen.get_matching_configs( gl.Config(double_buffer=True, depth_size=8, alpha_size=8, samples=4) )[0]
+		configTemplate = gl.Config( double_buffer=True, depth_size=8, alpha_size=8, samples=4 )
+		config = screen.get_matching_configs( configTemplate )[0]
 		self.window = pygletWindow( display=display, config=config, width=self.width, height=self.height, resizable=resizable, visible=False )
-		self.camera = Camera( self )
 		self.aspectRatio = self.width / float( self.height )
-		self.window.projection = Projection3D( self.camera.fov, self.camera.zNear, self.camera.zFar ) # todo: need custom class to replace glFrustum & friends; http://www.manpagez.com/man/3/glFrustum/
+		self.camera = Camera( self )
+		self.window.projection = ProjectionOverride()
 		self.window.on_draw = self.on_draw
 		self.bind( '<Expose>', self.refresh )
 		if DEBUGMODE:
 			openGlVersion = self.window.context._info.get_version().split()[0]
-			print( 'Rendering with OpenGL version {}'.format(openGlVersion) )
+			print( 'OpenGL version: {}'.format(openGlVersion) )
+
+			# Check GLSL version supported by the current OpenGL context
+			glsl_version = gl.glGetString( gl.GL_SHADING_LANGUAGE_VERSION )
+			glsl_version = string_at( glsl_version )
+			print( "GLSL version:   " + glsl_version )
 
 		# Set the pyglet parent window to be the tkinter canvas
 		GWLP_HWNDPARENT = -8
 		pyglet_handle = self.window.canvas.hwnd
 		win32api.SetWindowLong( pyglet_handle, GWLP_HWNDPARENT, self.canvas.winfo_id() )
 
+		# Compile and link the shaders
+		self.shaders = self.compileShader( gl.GL_VERTEX_SHADER, 'vertex' )
+		if self.shaders:
+			self.shaders = self.compileShader( gl.GL_FRAGMENT_SHADER, 'fragment', self.shaders )
+
 		# Ensure this window is targeted for operations that should affect it
 		self.window.switch_to()
 
-		self.fragmentShader = self.compileShader( gl.GL_FRAGMENT_SHADER, 'fragment' )
-		
 		# Set up a default render mode in the shader to allow for basic primitives
-		if self.fragmentShader:
+		if self.shaders:
 			self.setShaderInt( 'enableTextures', False )
 			self.setShaderInt( 'useVertexColors', True )
 			self.setShaderInt( 'alphaOp', -1 )
-
-		# Set up the OpenGL context
-		gl.glClearColor( *self.bgColor )
-		gl.glClearDepth( 1.0 ) # Depth buffer setup
-
-		gl.glEnable( gl.GL_TEXTURE_2D )
-		gl.glTexParameterf( gl.GL_TEXTURE_2D, gl.GL_TEXTURE_BASE_LEVEL, 0 )
-		gl.glTexParameterf( gl.GL_TEXTURE_2D, gl.GL_TEXTURE_MAX_LEVEL, 11 ) # Support for texture dimensions up to 1024
 
 		# Check maximum anisotropy level
 		if not self.maxAnisotropy:
@@ -255,7 +269,15 @@ class RenderEngine( Tk.Frame ):
 			self.maxAnisotropy = maxAnisotropy.value
 			GXAnisotropy[3] = self.maxAnisotropy
 
+		# Set up the OpenGL context
+		gl.glClearColor( *self.bgColor )
+		gl.glClearDepth( 1.0 ) # Depth buffer setup
+
+		gl.glTexParameterf( gl.GL_TEXTURE_2D, gl.GL_TEXTURE_BASE_LEVEL, 0 )
+		gl.glTexParameterf( gl.GL_TEXTURE_2D, gl.GL_TEXTURE_MAX_LEVEL, 11 ) # Support for texture dimensions up to 1024
+
 		gl.glEnable( gl.GL_BLEND )
+		#if not self.shaders:
 		gl.glEnable( gl.GL_ALPHA_TEST )
 		gl.glEnable( gl.GL_DEPTH_TEST ) # Do depth comparisons
 		#gl.glEnable( gl.GL_COLOR_LOGIC_OP )
@@ -297,6 +319,7 @@ class RenderEngine( Tk.Frame ):
 		# Set up event handling for controls
 		#self.window._enable_event_queue = True
 		#self.window.on_key_press = self.on_key_press
+		#self.window.on_resize = self.on_resize
 		self.window.on_mouse_drag = self.camera.on_mouse_drag
 		self.window.on_mouse_scroll = self.camera.on_mouse_scroll
 		self.window.on_mouse_release = self.camera.on_mouse_release
@@ -304,17 +327,26 @@ class RenderEngine( Tk.Frame ):
 		#self.master.bind( '<KeyPress>', self.on_key_press2 )
 		#self.master.bind( "<1>", self.window.activate() ) # Move focus to the parent when clicked on
 
-		if resizable:
-			self.tic = time.time()
-			self.bind( "<Configure>", self.resizeViewport )
-
 		# Start the render event loop using Tkinter's main event loop
 		if not pyglet.app.event_loop.is_running:
 			pyglet.app.event_loop = CustomEventLoop( self.winfo_toplevel() )
 			pyglet.app.event_loop.run()
 
+		# Queue up binding the Configure event until after Tkinter settles down #todo; could use a better fix
+		self.master.after( 1000, self.finalizeSetup )
+
+	def finalizeSetup( self ):
+
+		""" This is scheduled to fire once, a moment after initialization 
+			to prevent multiple Configure events from firing at once. """
+
+		self.camera.buildProjectionMatrix()
+
 		# Move focus to the parent window (will be the pyglet window by default)
-		self.master.after( 1, lambda: self.master.focus_force() )
+		self.master.focus_force()
+
+		if self.resizable:
+			self.bind( "<Configure>", self.resizeViewport )
 
 	def clearRenderings( self, preserveBones=True ):
 
@@ -346,6 +378,10 @@ class RenderEngine( Tk.Frame ):
 		self.camera.reset()
 		self.window.updateRequired = True
 
+	def on_resize( self, width, height ):
+		print('resized')
+		#self.resizeViewport( )
+
 	def resizeViewport( self, event ):
 
 		""" Updates the tkinter canvas and pyglet rendering canvas 
@@ -367,6 +403,7 @@ class RenderEngine( Tk.Frame ):
 		if self.aspectRatio != newAspectRatio:
 			self.aspectRatio = newAspectRatio
 			#self.camera.defineFrustum()
+			self.camera.buildProjectionMatrix()
 
 		self.window.updateRequired = True
 
@@ -401,7 +438,7 @@ class RenderEngine( Tk.Frame ):
 			print( 'Incorrect number of coordinates given to create an edge: ' + str(vertices) )
 			return None
 
-		edge = Edge( vertices, color, colors, tags, show, thickness )
+		edge = Edge( self, vertices, color, colors, tags, show, thickness )
 		self.edges.append( edge )
 
 		self.window.updateRequired = True
@@ -419,7 +456,7 @@ class RenderEngine( Tk.Frame ):
 				print( 'Incorrect number of points given to create an edge: ' + str(vertices) )
 				continue
 
-			edge = Edge( vertices, color, colors, tags, show, thickness )
+			edge = Edge( self, vertices, color, colors, tags, show, thickness )
 			self.edges.append( edge )
 
 		self.window.updateRequired = True
@@ -530,7 +567,7 @@ class RenderEngine( Tk.Frame ):
 			adds it to the model skeleton dictionary, and repeats for this bone's children. """
 
 		# Add this bone to the renderer and skeleton dictionary
-		bone = Bone( parentJoint, thisJoint, modelMatrix, showBones )
+		bone = Bone( self, parentJoint, thisJoint, modelMatrix, showBones )
 		self.edges.append( bone )
 		skeleton[thisJoint.offset] = bone
 
@@ -906,9 +943,10 @@ class RenderEngine( Tk.Frame ):
 
 		self.window.updateRequired = True
 
-	def compileShader( self, shaderType, filename ):
+	def compileShader( self, shaderType, filename, shaderProgram=None ):
 
-		""" Compiles the fragment shader and links it to the rendering program. """
+		""" Compiles shader source code, then links it to the rendering program. 
+			Returns a shader program object if successful (via glCreateProgram)."""
 
 		try:
 			# Load the shader file
@@ -918,7 +956,7 @@ class RenderEngine( Tk.Frame ):
 			shaderFile.close()
 
 			# Encode the shader source code to bytes and load it into a buffer
-			#shaderSource = fragmentShader.encode( 'utf-8' )
+			#shaderSource = shaders.encode( 'utf-8' ) # py3 method
 			sourceBuffer = ctypes.create_string_buffer( shaderSource )
 
 			# Create a pointer to the shader source buffer
@@ -934,13 +972,14 @@ class RenderEngine( Tk.Frame ):
 			status = ctypes.c_int()
 			gl.glGetShaderiv( shader, gl.GL_COMPILE_STATUS, ctypes.byref(status) )
 			if status.value == 0:
-				info_log = ctypes.create_string_buffer(4096)
+				infoLogBuffer = ctypes.create_string_buffer( 4096 )
 				length = ctypes.c_int()
-				gl.glGetShaderInfoLog( shader, 4096, ctypes.byref(length), info_log )
-				raise Exception( info_log.value.decode('utf-8') )
+				gl.glGetShaderInfoLog( shader, 4096, ctypes.byref(length), infoLogBuffer )
+				raise Exception( infoLogBuffer.value.decode('utf-8') )
 
 			# Link the shader to a program object and activate it for rendering
-			shaderProgram = gl.glCreateProgram()
+			if not shaderProgram:
+				shaderProgram = gl.glCreateProgram()
 			gl.glAttachShader( shaderProgram, shader )
 			gl.glLinkProgram( shaderProgram )
 
@@ -948,16 +987,21 @@ class RenderEngine( Tk.Frame ):
 			error_code = gl.glGetError()
 			if error_code != gl.GL_NO_ERROR:
 				raise Exception( "Error found after linking {} shader: {}".format(filename, gl.gluErrorString(error_code)) )
-			
+
 			# Check for any linking errors
 			link_status = gl.GLint()
 			gl.glGetProgramiv( shaderProgram, gl.GL_LINK_STATUS, link_status )
 			if link_status.value == gl.GL_FALSE:
-				raise Exception( "Error linking {} shader: {}".format(filename, gl.gluErrorString(error_code)) )
+				errorString = gl.gluErrorString( error_code )
+				infoLogBuffer = ctypes.create_string_buffer( 4096 )
+				length = ctypes.c_int()
+				infoLog = gl.glGetProgramInfoLog( shaderProgram, 4096, ctypes.byref(length), infoLogBuffer )
+				raise Exception( "Error linking {} shader: {}\nInfo log: {}".format(filename, errorString, infoLog) )
 
 			# Activate the program object
 			gl.glUseProgram( shaderProgram )
-			print( '{} shader compiled and linked successfully.'.format(filename) )
+			if DEBUGMODE:
+				print( '{} shader compiled and linked successfully.'.format(filename) )
 
 			# Free memory
 			gl.glDeleteShader( shader )
@@ -971,24 +1015,24 @@ class RenderEngine( Tk.Frame ):
 
 	def setShaderInt( self, variableName, value ):
 		""" May also be used to set boolean uniforms. """
-		location = gl.glGetUniformLocation( self.fragmentShader, variableName )
+		location = gl.glGetUniformLocation( self.shaders, variableName )
 		gl.glUniform1i( location, value )
 
 	def setShaderFloat( self, variableName, value ):
-		location = gl.glGetUniformLocation( self.fragmentShader, variableName )
+		location = gl.glGetUniformLocation( self.shaders, variableName )
 		gl.glUniform1f( location, value )
 
 	def setShaderVec4( self, variableName, values ):
-		location = gl.glGetUniformLocation( self.fragmentShader, variableName )
+		location = gl.glGetUniformLocation( self.shaders, variableName )
 		gl.glUniform4f( location, *values )
 
 	def setShaderMatrix( self, variableName, matrix ):
-		location = gl.glGetUniformLocation( self.fragmentShader, variableName )
+		location = gl.glGetUniformLocation( self.shaders, variableName )
 		gl.glext_arb.glUniformMatrix4fv( location, 1, False, (gl.GLfloat * 16)(*matrix) )
 
 	def on_draw( self ):
 
-		""" Places the camera and renders all primitives to the display. """
+		""" Renders all primitives to the display. """
 
 		try:
 			# Clear the screen
@@ -1000,20 +1044,23 @@ class RenderEngine( Tk.Frame ):
 			#gl.glLightfv( gl.GL_LIGHT0, gl.GL_POSITION, (gl.GLfloat * 4)(self.camera.rotationPoint[0], self.camera.rotationPoint[1], self.camera.rotationPoint[2], 1.0) )
 
 			# Set the projection matrix to a perspective projection
-			gl.glMatrixMode( gl.GL_PROJECTION )
-			gl.glLoadIdentity()
-			gl.gluPerspective( self.camera.fov, self.aspectRatio, self.camera.zNear, self.camera.zFar )
+			# if not self.shaders:
+			# 	gl.glMatrixMode( gl.GL_PROJECTION )
+			# 	gl.glLoadIdentity()
+			# 	gl.gluPerspective( self.camera.fov, self.aspectRatio, self.camera.zNear, self.camera.zFar )
 
-			# Set the camera position, facing direction, and orientation
-			gl.gluLookAt( self.camera.position.x, self.camera.position.y, self.camera.position.z, 
-				self.camera.rotationPoint[0], self.camera.rotationPoint[1], self.camera.rotationPoint[2], 
-				self.camera.upVector.x, self.camera.upVector.y, self.camera.upVector.z )
+			# 	# Set the camera position, facing direction, and orientation
+			# 	gl.gluLookAt( self.camera.position.x, self.camera.position.y, self.camera.position.z, 
+			# 		self.camera.rotationPoint[0], self.camera.rotationPoint[1], self.camera.rotationPoint[2], 
+			# 		self.camera.upVector.x, self.camera.upVector.y, self.camera.upVector.z )
+			# else:
 
-			# vm = self.camera.buildMatrix()
-			# print(vm)
-			# view_matrix_array = (ctypes.c_float * len(vm))(*vm)
-			# # gl.glMultMatrixf(sum(self.camera.buildMatrix(), []))  # Flatten the matrix and apply
-			# gl.glMultMatrixf( view_matrix_array )
+			# Send projection and view matrices to the shaders
+			viewOrientation, viewTranslation = self.camera.buildViewMatrix()
+
+			self.setShaderMatrix( 'projectionMatrix', self.camera.projectionMatrix )
+			self.setShaderMatrix( 'viewOrientation', viewOrientation )
+			self.setShaderMatrix( 'viewTranslation', viewTranslation )
 
 			# Render a batch for each set of objects that have been added
 			if self.vertices:
@@ -1254,14 +1301,8 @@ class Camera( object ):
 		self._focalDistance = 10
 		self.defaultToAltZoom = False
 
-		# self.matrix = [
-		# 	1.0, 0.0, 0.0, -self.position.x,
-		# 	0.0, 1.0, 0.0, -self.position.y,
-		# 	0.0, 0.0, 1.0, -self.position.z,
-		# 	0.0, 0.0, 0.0, 1.0
-		# ]
-
 		self.reset()
+		self.buildProjectionMatrix()
 
 	@property
 	def focalDistance( self ):
@@ -1272,28 +1313,109 @@ class Camera( object ):
 		self._focalDistance = value
 		self.stepSize = value * 0.01
 
-	# def buildMatrix( self ):
-	# 	#u = Vector()
-	# 	#def create_view_matrix(camera_position, look_at_point, up_vector):
+	def updateFrustum( self, fov=None, zNear=None, zFar=None ):
 
-	# 	forward = Vector( *self.direction.subtract( self.position ) )
-	# 	forward.normalize()
+		""" Convenience method (so we don't forget to update the projection matrix :P). """
 
-	# 	#right = normalize_vector(cross_product(up_vector, forward))
-	# 	#right = self.upVector.crossProduct( forward )
-	# 	# right = cross_product( self.upVector, forward )
-	# 	# new_up = cross_product(forward, right)
-	# 	right = self.upVector.crossProduct( forward )
-	# 	new_up = forward.crossProduct( right )
+		if fov:
+			self.fov = fov
+		if zNear:
+			self.zNear = zNear
+		if zFar:
+			self.zFar = zFar
 
-	# 	view_matrix = [
-	# 		right.x, new_up.y, -forward.x, 0,
-	# 		right.y, new_up.y, -forward.y, 0,
-	# 		right.z, new_up.z, -forward.z, 0,
-	# 		-self.position.x, -self.position.y, -self.position.z, 1
-	# 	]
+		self.buildProjectionMatrix()
 
-	# 	return view_matrix
+	def buildProjectionMatrix( self ):
+
+		""" Builds the projection matrix, which is passed to the vertex shader and 
+			used to translate points from world space to the near clip plane. This 
+			should be updated if the render display's aspect ratio, FOV, or either 
+			of its near/far clip planes are modified. """
+
+		# Based on one of OpenGL's projection functions:
+		# http://www.manpagez.com/man/3/glFrustum/
+
+		zNear = self.zNear
+		zFar = self.zFar
+
+		# Calculate points defining the near clip plane
+		ar = self.engine.aspectRatio
+		halfFovRads = ( self.fov / ar ) * math.pi / 360
+		top = math.tan( halfFovRads ) * zNear
+		right = top * ar
+		bottom = -top
+		left = -right
+
+		# Written this way to open the potential for adding VR capability
+		x = 2 * zNear / ( right - left )
+		y = 2 * zNear / ( top - bottom )
+		# y = 1 / math.tan( self.fov / 2 )
+		# x = y / ar
+		depth = float( zFar - zNear )
+		A = ( right + left ) / ( right - left )
+		B = ( top + bottom ) / ( top - bottom )
+		C = ( zFar + zNear ) / depth
+		D = 2 * zFar * zNear / depth
+
+		# Scale to normalized device coordinates
+		x = x * zNear
+		y = y * zNear
+		A = A * zNear
+		B = B * zNear
+		w = -1.0
+
+		self.projectionMatrix = [
+			x, 0, A, 0,
+			0, y, B, 0,
+			0, 0, C, D,
+			0, 0, w, 0
+		]
+
+		# Source: http://www.manpagez.com/man/3/gluPerspective/
+
+		# f = 1 / math.tan( self.fov / 2 )
+		# a = self.engine.aspectRatio
+
+		# depth = float( zFar - zNear )
+		# c = ( zFar + zNear ) / depth
+		# d = 2 * zFar * zNear / depth
+		
+		# self.projectionMatrix = [
+		# 	f/a, 0, 0, 0,
+		# 	0, f, 0, 0,
+		# 	0, 0, c, d,
+		# 	0, 0, -1, 0 
+		# ]
+
+	def buildViewMatrix( self ):
+
+		""" Builds the projection matrix, which is passed to the vertex shader and 
+			used to translate points from world space to the near clip plane. This 
+			should be updated if the render display's aspect ratio, FOV, or either 
+			of its near/far clip planes are modified. """
+
+		up = self.upVector
+		right = self.rightVector
+		forward = self.forwardVector
+		position = self.position
+
+		viewMatrix = [
+			right.x, up.x, -forward.x, 0,
+			right.y, up.y, -forward.y, 0,
+			right.z, up.z, -forward.z, 0,
+			# -position.x, -position.y, -position.z, 1
+			0, 0, 0, 1
+		]
+
+		viewMatrix2 = [
+			1, 0, 0, 0,
+			0, 1, 0, 0, 
+			0, 0, 1, 0, 
+			-position.x, -position.y, -position.z, 1
+		]
+
+		return viewMatrix, viewMatrix2
 
 	def reset( self ):
 
@@ -1309,30 +1431,30 @@ class Camera( object ):
 		self.upVector = Vector( y=1.0 )
 		self.forwardVector = Vector( z=1.0 )
 
-	def defineFrustum( self ):
+	# def defineFrustum( self ):
 
-		""" Defines the viewable area of the render environment, which is composed 
-			of 6 sides and shaped like the cross-section of a pyramid. The result 
-			of this function is a tuple of the planes (sides) enclosing this area. """
+	# 	""" Defines the viewable area of the render environment, which is composed 
+	# 		of 6 sides and shaped like the cross-section of a pyramid. The result 
+	# 		of this function is a tuple of the planes (sides) enclosing this area. """
 
-		# Create vectors for the plane corners (points on the near plane, and vectors to the far plane)
-		fovRads = math.radians( self.fov )
-		halfHeight = math.tan( fovRads / 2 ) * self.zNear
-		halfWidth = halfHeight * self.engine.aspectRatio
+	# 	# Define points for the plane corners (on both the near and far planes)
+	# 	fovRads = math.radians( self.fov )
+	# 	halfHeight = math.tan( fovRads / 2 ) * self.zNear
+	# 	halfWidth = halfHeight * self.engine.aspectRatio
 
-		topLeft = ( -halfWidth, halfHeight, -self.zNear )
-		topRight = ( halfWidth, halfHeight, -self.zNear )
-		bottomLeft = ( -halfWidth, -halfHeight, -self.zNear )
-		bottomRight = ( halfWidth, -halfHeight, -self.zNear )
+	# 	topLeft = ( -halfWidth, halfHeight, -self.zNear )
+	# 	topRight = ( halfWidth, halfHeight, -self.zNear )
+	# 	bottomLeft = ( -halfWidth, -halfHeight, -self.zNear )
+	# 	bottomRight = ( halfWidth, -halfHeight, -self.zNear )
 
-		self.frustum = (
-			Plane( (0,0,0)+bottomLeft+topLeft ), 		# Left
-			Plane( (0,0,0)+topLeft+topRight ), 			# Top
-			Plane( (0,0,0)+topRight+bottomRight ), 		# Right
-			Plane( (0,0,0)+bottomRight+bottomLeft ), 	# Bottom
-			Plane( bottomLeft+topLeft+topRight ),		# Near
-			Plane()	# Far
-		)
+	# 	self.frustum = (
+	# 		Plane( (0,0,0)+bottomLeft+topLeft ), 		# Left
+	# 		Plane( (0,0,0)+topLeft+topRight ), 			# Top
+	# 		Plane( (0,0,0)+topRight+bottomRight ), 		# Right
+	# 		Plane( (0,0,0)+bottomRight+bottomLeft ), 	# Bottom
+	# 		Plane( bottomLeft+topLeft+topRight ),		# Near
+	# 		Plane()	# Far
+	# 	)
 
 	def setRotationPoint( self, tags=None, primitive=None, skipRotationReset=False ):
 
@@ -1429,6 +1551,11 @@ class Camera( object ):
 		self.position.y = y
 		self.position.z = z + zOffset
 
+		if DEBUGMODE:
+			print( 'camera point set to', self.position.coords )
+			print( 'rotation point set to', self.rotationPoint )
+			print( 'focalDistance set to', self.focalDistance )
+
 	def updatePosition( self ):
 
 		""" Updates the position of the camera, based on the centerpoint for 
@@ -1500,7 +1627,7 @@ class Camera( object ):
 			self.updatePosition()
 		else:
 			# Right-click is not held. Move both the camera and rotation point forward/back in space
-			speedMultiplier = ( shiftHeld * 2 ) + 1 # Results in 1 or 2
+			speedMultiplier = ( shiftHeld * 2 ) + 1 # Results in 1 or 3
 			if event.delta > 0:
 				# Zoom in
 				movementAmount = self.stepSize * -3.5 * speedMultiplier
@@ -1594,33 +1721,14 @@ class Camera( object ):
 
 	def on_mouse_release( self, x, y, button, modifiers ):
 
-		# Only operate on right-click release
-		if button != 4:
-			return
-		elif not DEBUGMODE:
+		# Only operate in Debug Mode, on right-click release
+		if not DEBUGMODE or button != 4:
 			return
 
 		# Show the new position of the rotation point
 		self.engine.addEdge( [self.rotationPoint[0]-2,self.rotationPoint[1],self.rotationPoint[2], self.rotationPoint[0]+2,self.rotationPoint[1],self.rotationPoint[2]], (255, 0, 0, 255), tags=('originMarker',), thickness=2 )
 		self.engine.addEdge( [self.rotationPoint[0],self.rotationPoint[1]-2,self.rotationPoint[2], self.rotationPoint[0],self.rotationPoint[1]+2,self.rotationPoint[2]], (0, 255, 0, 255), tags=('originMarker',), thickness=2 )
 		self.engine.addEdge( [self.rotationPoint[0],self.rotationPoint[1],self.rotationPoint[2]-2, self.rotationPoint[0],self.rotationPoint[1],self.rotationPoint[2]+2], (0, 0, 255, 255), tags=('originMarker',), thickness=2 )
-
-	# def toWorldSpace( self, x, y, z ):
-
-	# 	theta_x = math.radians( self.engine.rotation_X )  # Angle for rotation around the x-axis (45 degrees)
-	# 	theta_y = math.radians( self.engine.rotation_Y )
-
-	# 	# Rotation around the x-axis
-	# 	new_x = x
-	# 	new_y = y * math.cos(theta_x) - z * math.sin(theta_x)
-	# 	new_z = y * math.sin(theta_x) + z * math.cos(theta_x)
-
-	# 	# Rotation around the y-axis
-	# 	final_x = new_x * math.cos(theta_y) + new_z * math.sin(theta_y)
-	# 	final_y = new_y
-	# 	final_z = -new_x * math.sin(theta_y) + new_z * math.cos(theta_y)
-
-	# 	return final_x, final_y, final_z
 
 
 class Vector( object ):
@@ -1629,6 +1737,10 @@ class Vector( object ):
 		self.x = x
 		self.y = y
 		self.z = z
+
+	@property
+	def coords( self ):
+		return ( self.x, self.y, self.z )
 
 	def __iter__( self ):
 
@@ -1874,7 +1986,7 @@ class Primitive( object ):
 			print( 'Invalid color(s) given to create a primitive; {}'.format(err) )
 			colors = defaultColor * pointCount
 
-		return colors
+		return list( colors )
 	
 	def scale( self, scaleX, scaleY, scaleZ ):
 
@@ -2029,10 +2141,6 @@ class Vertex( Primitive ):
 			self.y = 0
 			self.z = 0
 
-		# Texture coordinates
-		self.s = 0
-		self.t = 0
-
 		self.color = color
 		self.tags = tags
 		self.show = show
@@ -2041,18 +2149,21 @@ class Vertex( Primitive ):
 	def render( self, batch ):
 		if self.show:
 			gl.glPointSize( self.size )
-			batch.add( 1, gl.GL_POINTS, None, ('v3f/static', (self.x, self.y, self.z)), ('c4B/static', self.color) )
+			batch.add( 1, gl.GL_POINTS, None, ('0gn3f', (self.x, self.y, self.z)), ('1gn4B', self.color) )
 
 
 class Edge( Primitive ):
 
-	def __init__( self, vertices, color=None, colors=(), tags=(), show=True, thickness=2 ):
-		self.vertices = ( 'v3f/static', vertices )
-		self.vertexColors = ( 'c4B/static', self.interpretColors( 2, color, colors ) )
+	def __init__( self, renderEngine, vertices, color=None, colors=(), tags=(), show=True, thickness=2 ):
+		self.renderEngine = renderEngine
+		# self.vertices = ( 'v3f/static', list(vertices) )
+		# self.vertexColors = ( 'c4B/static', self.interpretColors( 2, color, colors ) )
+		self.vertices = ( '0gn3f', list(vertices) )
+		self.vertexColors = ( '1gn4B', self.interpretColors( 2, color, colors ) )
 		self.tags = tags
 		self.show = show
 		self.thickness = thickness
-	
+
 	def render( self, batch ):
 		if self.show or 'originMarker' in self.tags:
 			gl.glLineWidth( self.thickness )
@@ -2062,9 +2173,9 @@ class Edge( Primitive ):
 class Triangle( Primitive ):
 
 	def __init__( self, vertices, color=None, colors=(), tags=(), show=True ):
-		self.vertices = ( 'v3f/static', vertices )
-		self.vertexColors = ( 'c4B/static', self.interpretColors( 3, color, colors ) )
-		self.normals = ( 'n3f/static', [] )
+		self.vertices = ( '0gn3f', vertices )
+		self.vertexColors = ( '1gn4B', self.interpretColors( 3, color, colors ) )
+		self.normals = ( '3gn3f', [] )
 		self.tags = tags
 		self.show = show
 	
@@ -2076,9 +2187,9 @@ class Triangle( Primitive ):
 class Quad( Primitive ):
 
 	def __init__( self, vertices, color=None, colors=(), tags=(), show=True ):
-		self.vertices = ( 'v3f/static', vertices )
-		self.vertexColors = ( 'c4B/static', self.interpretColors( 4, color, colors ) )
-		self.normals = ( 'n3f/static', [] )
+		self.vertices = ( '0gn3f', vertices )
+		self.vertexColors = ( '1gn4B', self.interpretColors( 4, color, colors ) )
+		self.normals = ( '3gn3f', [] )
 		self.tags = tags
 		self.show = show
 	
@@ -2091,7 +2202,7 @@ class Bone( Edge ):
 
 	count = 0
 
-	def __init__( self, parent, joint, modelMatrix, show=True, thickness=2 ):
+	def __init__( self, renderEngine, parent, joint, modelMatrix, show=True, thickness=2 ):
 
 		# Initialize coordinates for two vertices (initially relative to the origin to make rotation simple)
 		tx, ty, tz = joint.getValues()[11:14]
@@ -2100,7 +2211,7 @@ class Bone( Edge ):
 		# Initialize as a custom edge primitive
 		colors = ( (0,255,0,255), (0,0,255,255) ) # Green to Blue fade
 		tags=( 'bones', )
-		super( Bone, self ).__init__( vertices, None, colors, tags, show, thickness )
+		super( Bone, self ).__init__( renderEngine, vertices, None, colors, tags, show, thickness )
 
 		self.name = 'Joint_' + str( Bone.count )
 		self.joint = joint
@@ -2122,10 +2233,10 @@ class VertexList( Primitive ):
 
 	def __init__( self, primitiveType, tags=(), show=True ):
 		self.type = self.interpretPrimType( primitiveType )
-		self.vertices = ( 'v3f/static', [] )
-		self.vertexColors = ( 'c4B/static', [] )
-		self.texCoords = ( 't2f/static', [] )
-		self.normals = ( 'n3f/static', [] )
+		self.vertices = ( '0gn3f', [] )
+		self.vertexColors = ( '1gn4B', [] )
+		self.texCoords = ( '2gn2f', [] )
+		self.normals = ( '3gn3f', [] )
 		self.weights = [] # Envelope index
 
 		self.renderGroup = None
@@ -2218,8 +2329,13 @@ class VertexList( Primitive ):
 			self.texCoords = renderGroup.updateTexCoords( self.texCoords )
 
 	def render( self, batch ):
+
+		""" Buffers data into GPU memory for processing by the shaders. """
+
 		if self.show:
+			# if not self.renderGroup.renderEngine.shaders:
 			batch.add( self.vertexCount, self.type, self.renderGroup, self.vertices, self.vertexColors, self.texCoords )
+				# return
 
 
 # class PrimGroup( Group ):
@@ -2282,7 +2398,7 @@ class Material( Group ):
 			self.transparency = 1.0
 			self.shininess = 100.0
 
-		if not self.renderEngine.fragmentShader:
+		if not self.renderEngine.shaders:
 			# Convert to LP_c_float instances, which glMaterialfv expects
 			self.diffusion = (gl.GLfloat * 4)(*self.diffusion)
 			self.ambience = (gl.GLfloat * 4)(*self.ambience)
@@ -2345,14 +2461,13 @@ class Material( Group ):
 			and sets values in the shader if it is being used. """
 
 		# Set values in the shader if it's in use
-		if self.renderEngine.fragmentShader:
+		if self.renderEngine.shaders:
 			self.renderEngine.setShaderInt( 'useVertexColors', self.useVertexColors )
 			if self.renderState == 'normal':
 				self.renderEngine.setShaderInt( 'renderState', 0 )
 			else: # dim
 				self.renderEngine.setShaderInt( 'renderState', 1 )
 
-			#if not self.useVertexColors:
 			# Use material colors instead
 			self.renderEngine.setShaderVec4( 'diffuseColor', self.diffusion )
 			self.renderEngine.setShaderVec4( 'ambientColor', self.ambience )
@@ -2389,7 +2504,7 @@ class Material( Group ):
 
 		if self.pixelProcEnabled:
 			# Set variables in the fragment shader for alpha testing
-			if self.renderEngine.fragmentShader:
+			if self.renderEngine.shaders:
 				self.renderEngine.setShaderInt( 'alphaOp', self.alphaOp )
 				self.renderEngine.setShaderInt( 'alphaComp0', self.alphaComp0 )
 				self.renderEngine.setShaderInt( 'alphaComp1', self.alphaComp1 )
@@ -2431,7 +2546,7 @@ class Material( Group ):
 		# No pixel-processing
 		else:
 			# Disable pixel-processing alpha test
-			if self.renderEngine.fragmentShader:
+			if self.renderEngine.shaders:
 				self.renderEngine.setShaderInt( 'alphaOp', -1 )
 
 			# Set default operations
@@ -2445,7 +2560,7 @@ class Material( Group ):
 
 		""" Clears/resets rendering context (OpenGL state) for primitives using this group. """
 
-		if self.renderEngine.fragmentShader:
+		if self.renderEngine.shaders:
 			self.renderEngine.setShaderInt( 'alphaOp', -1 )
 			self.renderEngine.setShaderInt( 'useVertexColors', True )
 			self.renderEngine.setShaderInt( 'renderState', 0 )
@@ -2652,12 +2767,25 @@ class TexturedMaterial( Material ):
 		# Set states for the material
 		super( TexturedMaterial, self ).set_state()
 
-		if not self.enableTextures:
-			if self.renderEngine.fragmentShader:
-				self.renderEngine.setShaderInt( 'enableTextures', False )
+		# Update values for the shaders
+		if self.renderEngine.shaders:
+			self.renderEngine.setShaderInt( 'enableTextures', self.enableTextures )
+
+			if not self.enableTextures:
+				gl.glDisable( self.texture.target )
+				return
+
+			self.renderEngine.setShaderInt( 'texGenSource', self.texGenSrc )
+			self.renderEngine.setShaderInt( 'textureFlags', self.texFlags )
+			self.renderEngine.setShaderFloat( 'textureBlending', self.blending )
+			self.renderEngine.setShaderMatrix( 'textureMatrix', self.matrix )
+
+		elif not self.enableTextures:
+			gl.glDisable( self.texture.target )
 			return
 
 		# Enable and bind operations for this texture
+		gl.glEnable( gl.GL_TEXTURE_2D )
 		gl.glBindTexture( self.texture.target, self.texture.id )
 		if self.mipmaps:
 			# Add the base (level 0) texture (updates the currently bound texture)
@@ -2673,14 +2801,6 @@ class TexturedMaterial( Material ):
 			gl.glTexParameterf( gl.GL_TEXTURE_2D, gl.GL_TEXTURE_MAX_LOD, self.maxLOD )
 			gl.glTexParameterf( gl.GL_TEXTURE_2D, gl.GL_TEXTURE_LOD_BIAS, self.lodBias )
 			gl.glTexParameterf( gl.GL_TEXTURE_2D, gl.glext_arb.GL_TEXTURE_MAX_ANISOTROPY_EXT, self.anisotrophy )
-
-		# Update the fragment shader
-		if self.renderEngine.fragmentShader:
-			self.renderEngine.setShaderInt( 'texGenSource', self.texGenSrc )
-			self.renderEngine.setShaderInt( 'enableTextures', True )
-			self.renderEngine.setShaderInt( 'textureFlags', self.texFlags )
-			self.renderEngine.setShaderFloat( 'textureBlending', self.blending )
-			self.renderEngine.setShaderMatrix( 'textureMatrix', self.matrix )
 
 		# Texture filtering
 		gl.glTexParameteri( gl.GL_TEXTURE_2D, gl.GL_TEXTURE_MIN_FILTER, self.minFilter )
@@ -2700,10 +2820,10 @@ class TexturedMaterial( Material ):
 		
 		# Unset states for this texture
 		if self.enableTextures:
-			#gl.glDisable( self.texture.target )
+			gl.glDisable( self.texture.target )
 
 			# Disable texturing for other non-textured surfaces or primitives that might follow this
-			if self.renderEngine.fragmentShader:
+			if self.renderEngine.shaders:
 				self.renderEngine.setShaderInt( 'enableTextures', False )
 
 

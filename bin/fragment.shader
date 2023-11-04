@@ -1,6 +1,5 @@
-#version 130
-//#version 400 core
-//#version 330 core
+// #version 150
+#version 330 core
 
 // Define constants
 #define RENDER_NORMAL 0
@@ -107,9 +106,13 @@ uniform int alphaComp1;
 uniform float alphaRef0;
 uniform float alphaRef1;
 
-in vec4 gl_Color; // Vertex color
-//in vec2 gl_TexCoord; // Texture coordinate
-out vec4 fragColor; // Final output color
+// Get inputs from the vertex shader
+in vec4 vertColor;
+in vec2 textureCoords;
+
+// Final output color
+out vec4 fragColor;
+
 
 // Generate and return texture coordinates 
 // based on the coordinate type and source.
@@ -121,7 +124,8 @@ vec2 getTextureCoords()
 	switch (texCoordType)
 	{
 		case COORD_UV: // The usual case
-			coords = gl_TexCoord[0].st;
+			//coords = gl_TexCoord[0].st;
+			coords = textureCoords;
 			break;
 
 		// case COORD_REFLECTION:
@@ -250,7 +254,7 @@ vec4 applyTexture()
 {
 	// Get the initial texture color
 	vec2 textureCoords = getTextureCoords();
-	vec4 textureColor = texture2D(texture0, textureCoords).rgba;
+	vec4 textureColor = texture(texture0, textureCoords).rgba;
 	
 	// Skip influence of material colors if using vertex colors
 	if (useVertexColors) {
@@ -261,7 +265,7 @@ vec4 applyTexture()
 		// textureColor.a *= gl_Color.a;
 		// }
 		// if (useVertexColors)
-		textureColor *= gl_Color;
+		textureColor *= vertColor;
 		return textureColor;
 	}
 
@@ -378,6 +382,7 @@ vec3 adjustSaturation(vec3 inputColor, float amount)
 	return mix(intensity, inputColor, amount);
 }
 
+// The main processing function, to determine a single output color for the current fragment.
 void main()
 {
 	// Start off with a color from a texture, material, or vertex
@@ -387,7 +392,7 @@ void main()
 
 	} else if (useVertexColors) {
 		// Start with vertex colors only
-		fragColor = gl_Color;
+		fragColor = vertColor;
 		//fragColor = vec4(0, 1.0, 0, 0.5); // green
 
 	} else {
@@ -426,11 +431,13 @@ void main()
 		fragColor.rgb = adjustSaturation(fragColor.rgb, .3);
 		fragColor *= vec4(.45, .45, .45, 1.0);
 	}
+
+	//gl_FragColor = fragColor;
 	
 	// if (alphaOp == -1)
 	// 	fragColor = vec4(1.0, 0, 0, 0.5); // red
 	// else
-	// 	fragColor = vec4(0, 1.0, 0, 0.5); // green
+	// fragColor = vec4(0, 1.0, 0, 0.5); // green
 
 	// Saturation adjustment
 	//fragColor.rgb = adjustSaturation(fragColor.rgb, .9);
