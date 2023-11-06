@@ -2667,7 +2667,7 @@ class VerticalScrolledFrame( Tk.Frame ):
 		self.vscrollbar = Tk.Scrollbar( self, orient='vertical' )
 		self.vscrollbar.grid( column=1, row=0, sticky='ns' )
 		self.canvas = Tk.Canvas( self, bd=0, highlightthickness=0, yscrollcommand=self.vscrollbar.set )
-		self.canvas.grid( column=0, row=0, sticky='nsew' )
+		self.canvas.grid( column=0, row=0, sticky='nsew', ipadx=1 )
 		self.canvas.yview_scroll = self.yview_scroll
 		self.vscrollbar.config( command=self.canvas.yview )
 		self.maxHeight = maxHeight

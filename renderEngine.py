@@ -188,6 +188,26 @@ GXBlendFactor = [
 
 # 	return normalized_angle
 
+def matrixMultiply_4x4( matrix1, matrix2 ):
+
+	""" Performs matrix multiplication on two flattened 4x4 
+		arrays representing matrices in column-major format. 
+		Creates a new matrix and does not modify the originals."""
+
+	# Check if the matrices are compatible for multiplication
+	assert len( matrix1 ) == len( matrix2 ), "Incompatible matrix dimensions for multiplication"
+
+	result = [ 0.0 ] * 16
+
+	# Calculate the dot product for each element in the result
+	for i in range( 4 ):
+		for j in range( 4 ):
+			for k in range( 4 ):
+				#result[i * 4 + j] += matrix1[i * 4 + k] * matrix2[k * 4 + j] # row-major
+				result[i + j * 4] += matrix1[i + k * 4] * matrix2[k + j * 4]
+
+	return result
+
 
 class ProjectionOverride( Projection ):
 
@@ -235,7 +255,10 @@ class RenderEngine( Tk.Frame ):
 		self.window.projection = ProjectionOverride()
 		self.window.on_draw = self.on_draw
 		self.bind( '<Expose>', self.refresh )
+
+		# Enable debug features
 		if DEBUGMODE:
+			# Print OpenGL version
 			openGlVersion = self.window.context._info.get_version().split()[0]
 			print( 'OpenGL version: {}'.format(openGlVersion) )
 
@@ -310,8 +333,7 @@ class RenderEngine( Tk.Frame ):
 			print( 'Warning: Anti-aliasing is not supported on this computer.' )
 			print( 'Rendering with OpenGL version {}'.format(openGlVersion) )
 
-		self.edges = []
-		self.clearRenderings()
+		self.clearRenderings( False )
 
 		# Set up event handling for controls
 		#self.window._enable_event_queue = True
@@ -432,7 +454,7 @@ class RenderEngine( Tk.Frame ):
 
 		self.window.updateRequired = True
 
-	def addVertex( self, vertices, color=(128, 128, 128, 255), tags=(), show=True, size=4 ):
+	def addVertex( self, vertices, color=(128, 128, 128, 255), tags=(), show=True, size=4, transformations=None ):
 
 		if len( vertices ) != 3:
 			print( 'Incorrect number of coordinates given to create a vertex: ' + str(vertices) )
@@ -441,6 +463,9 @@ class RenderEngine( Tk.Frame ):
 		# Create the vertex and store it in the vertices list
 		vertex = Vertex( vertices, color, tags, show, size )
 		self.vertices.append( vertex )
+
+		if transformations:
+			vertex.transform( transformations )
 
 		# Create a batch if needed and add the primitive to it
 		if not self.verticesBatch:
@@ -451,7 +476,7 @@ class RenderEngine( Tk.Frame ):
 
 		return vertex
 
-	def addEdge( self, vertices, color=None, colors=(), tags=(), show=True, thickness=2 ):
+	def addEdge( self, vertices, color=None, colors=(), tags=(), show=True, thickness=2, transformations=None ):
 
 		""" Translates given points into a series of edges (lines) to be batch-rendered. 
 			The given vertices should contain 6 values (2 sets of x/y/z coords). """
@@ -463,6 +488,9 @@ class RenderEngine( Tk.Frame ):
 		edge = Edge( self, vertices, color, colors, tags, show, thickness )
 		self.edges.append( edge )
 
+		if transformations:
+			edge.transform( transformations )
+
 		# Create a batch if needed and add the primitive to it
 		if not self.edgesBatch:
 			self.edgesBatch = pyglet.graphics.Batch()
@@ -472,7 +500,7 @@ class RenderEngine( Tk.Frame ):
 
 		return edge
 
-	def addEdges( self, edgePoints, color=None, colors=(), tags=(), show=True, thickness=2 ):
+	def addEdges( self, edgePoints, color=None, colors=(), tags=(), show=True, thickness=2, transformations=None ):
 
 		""" Translates given points into a series of data points (edges) to be batch-rendered. 
 			The edgePoints arg should be a list of tuples, where each tuple contains 6 values 
@@ -489,11 +517,15 @@ class RenderEngine( Tk.Frame ):
 
 			edge = Edge( self, vertices, color, colors, tags, show, thickness )
 			self.edges.append( edge )
+
+			if transformations:
+				edge.transform( transformations )
+
 			edge.addToBatch( self.edgesBatch )
 
 		self.window.updateRequired = True
 
-	def addQuad( self, vertices, color=None, colors=(), tags=(), show=True ):
+	def addQuad( self, vertices, color=None, colors=(), tags=(), show=True, transformations=None ):
 
 		if len( vertices ) != 12:
 			print( 'Incorrect number of points given to create a quad: ' + str(vertices) )
@@ -501,6 +533,9 @@ class RenderEngine( Tk.Frame ):
 
 		quad = Quad( vertices, color, colors, tags, show )
 		self.quads.append( quad )
+
+		if transformations:
+			quad.transform( transformations )
 
 		# Create a batch if needed and add the primitive to it
 		if not self.quadsBatch:
@@ -511,7 +546,7 @@ class RenderEngine( Tk.Frame ):
 
 		return quad
 
-	def addVertexLists( self, vertexLists, renderGroup=None, dobj='', pobj='' ):
+	def addVertexLists( self, vertexLists, renderGroup=None, dobj='', pobj='', transformations=None ):
 
 		""" Adds one or more entries of a display list. Each display list entry contains 
 			one or more primitives of the same type (e.g. edge/triangle-strip/etc). """
@@ -531,6 +566,10 @@ class RenderEngine( Tk.Frame ):
 				vertexList.tags = ( dobj, pobj )
 			if renderGroup:
 				vertexList.addRenderGroup( renderGroup )
+
+			# Apply transformations from parent joints, if provided
+			if transformations:
+				vertexList.transform( transformations )
 
 			# Add to the render engine
 			self.vertexLists.append( vertexList )
@@ -693,7 +732,7 @@ class RenderEngine( Tk.Frame ):
 				#print( '{} is skeleton root'.format(joint.name) )
 				self.loadSkeleton( joint, showBones )
 
-	def renderJoint( self, joint, parent=None, showBones=False, skeleton=None ):
+	def renderJoint( self, joint, parent=None, showBones=False, skeleton=None, parentTransforms=None ):
 
 		""" Recursively scans the given joint and all child/next joints for 
 			Display Objects and Polygon Objects. Breaks down Polygon Objects 
@@ -704,50 +743,46 @@ class RenderEngine( Tk.Frame ):
 
 		# https://www.flipcode.com/documents/matrfaq.html#Q1 #todo
 
-		primitives = []
+		# Get the transformation matrix for this joint
+		transformMatrix = joint.buildLocalMatrix()
+
+		# Combine the above matrix with a parent, if provided
+		if parentTransforms:
+			transformMatrix = matrixMultiply_4x4( parentTransforms, transformMatrix )
 
 		# Check for a child joint to render
 		childJoint = joint.initChild( 'JointObjDesc', 2 )
 		if childJoint:
 			# Render child joints and collect their primitives in order to apply transformations
-			primitives.extend( self.renderJoint(childJoint, joint, showBones) )
+			self.renderJoint( childJoint, joint, showBones, parentTransforms=transformMatrix )
 
 		# Check for a 'next' (sibling) joint to render
 		nextJoint = joint.initChild( 'JointObjDesc', 3 )
 		if nextJoint:
 			if not parent:
 				parent = joint
-			self.renderJoint( nextJoint, parent, showBones )
+			self.renderJoint( nextJoint, parent, showBones, parentTransforms=parentTransforms )
 
 		# Check for a display object and polygon object(s) to render
 		dobj = joint.DObj
 		if dobj:
-			primitives.extend( self.renderDisplayObj(dobj) )
+			self.renderDisplayObj( dobj, parentTransforms=transformMatrix )
 
-		# Apply joint transformations for this joint's meshes as well as its children
-		transformationValues = joint.getValues()[5:14] # 9 values; 3 for each of rotation/scale/translation
-		for primitive in primitives:
-			primitive.rotate( *transformationValues[:3] )
-			primitive.scale( *transformationValues[3:6] )
-			primitive.translate( *transformationValues[6:] )
-
-		# Add a vertex to represent this joint
-		xyzCoords = transformationValues[6:]
+		# Add visual representation for this joint
 		if not skeleton:
-			primitives.append( self.addVertex( xyzCoords, (255, 0, 0, 255), ('bones',), showBones ) )
+			# Add a vertex to represent this joint
+			xyzCoords = joint.getValues()[11:14]
+			self.addVertex( xyzCoords, (255, 0, 0, 255), ('bones',), showBones, 4, transformMatrix )
 
-		# Connect a line between the current joint and its parent joint
-		if parent and not skeleton:
-			# Parent vertices will be added by the calling method's transformation step(s)
-			edge = self.addEdge( (0,0,0) + xyzCoords, colors=((0,255,0,255), (0,0,255,255)), tags=('bones',), show=showBones )
-			primitives.append( edge )
+			# Connect a line between the current joint and its parent
+			if parent:
+				# Parent vertices will be added by the calling method's transformation step(s)
+				self.addEdge( (0,0,0) + xyzCoords, None, ((0,255,0,255), (0,0,255,255)), ('bones',), showBones, 2, transformMatrix )
 
 		# Update the display to show current render progress
 		self.canvas.update()
 
-		return primitives
-
-	def renderDisplayObj( self, parentDobj, includeSiblings=True ):
+	def renderDisplayObj( self, parentDobj, includeSiblings=True, parentTransforms=None ):
 
 		""" Parses and renders the given Display Object (DObj) and 
 			all of its siblings. """
@@ -818,7 +853,7 @@ class RenderEngine( Tk.Frame ):
 					if dobj.skeleton:
 						pobj.moveToModelSpace( pobjPrimitives, dobj.skeleton )
 
-					self.addVertexLists( pobjPrimitives, materialGroup, dobjOffset, pobjOffset )
+					self.addVertexLists( pobjPrimitives, materialGroup, dobjOffset, pobjOffset, transformations=parentTransforms )
 					primitives.extend( pobjPrimitives )
 
 		# except AttributeError:
