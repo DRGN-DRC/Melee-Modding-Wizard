@@ -2918,14 +2918,14 @@ class StagePropertyEditor( ttk.Frame ):
 			# Add a value entry or color swatch widget
 			if offset >= 0xB8:
 				hexEntry.colorSwatchWidget = ColorSwatch( structTable.interior, hexData, hexEntry )
-				hexEntry.colorSwatchWidget.grid( column=2, row=row, pady=verticalPadding, padx=(5, 15) )
+				hexEntry.colorSwatchWidget.grid( column=2, row=row, pady=verticalPadding, padx=(5, 5) )
 			else:
 				# Add an editable field for this field's actual decoded value (and attach the hex edit widget for later auto-updating)
 				valueEntry = HexEditEntry( structTable.interior, self.file, absoluteFieldOffset, 4, formatting, propertyName, valueEntry=True, width=15 )
 				valueEntry.set( value )
 				valueEntry.hexEntryWidget = hexEntry
 				hexEntry.valueEntryWidget = valueEntry
-				valueEntry.grid( column=2, row=row, pady=verticalPadding, padx=(5, 15) )
+				valueEntry.grid( column=2, row=row, pady=verticalPadding, padx=(5, 5) )
 
 			offset += 4
 			row += 1
@@ -2968,7 +2968,7 @@ class StagePropertyEditor( ttk.Frame ):
 		printStatus( 'Ready' )
 
 		# Model display panel
-		self.engine = RenderEngine( self, (440, 300), True, background=globalData.gui.defaultSystemBgColor, borderwidth=0, relief='groove' )
+		self.engine = RenderEngine( self, (360, 360), True, background=globalData.gui.defaultSystemBgColor, borderwidth=0, relief='groove' )
 		self.engine.grid( column=2, row=1, sticky='nsew', padx=(0, 15) )
 		self.engine.camera.updateFrustum( zNear=10, zFar=3000 )
 

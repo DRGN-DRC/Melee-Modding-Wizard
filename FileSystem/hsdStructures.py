@@ -1265,9 +1265,9 @@ class DisplayListBlock( DataBlock ):
 					continue
 				primitiveFlags, vertexCount = struct.unpack( '>BH', headerData )
 				primitiveType = primitiveFlags & 0xF8
-				# vertexStreamIndex = primitiveFlags & 7
-				# if vertexStreamIndex != 0:
-				# 	print( 'Found a non-0 vertex stream index: ' + str(vertexStreamIndex) )
+				vertexStreamIndex = primitiveFlags & 7
+				if vertexStreamIndex != 0:
+					print( 'Found a non-0 vertex stream index: ' + str(vertexStreamIndex) )
 
 				# End the list if encountering an unrecognized type
 				if primitiveType not in self.enums['Primitive_Type'].keys():
@@ -2430,6 +2430,7 @@ class TextureObjDesc( StructBase ):
 				( '3<<0', 'COORD_SHADOW' ),
 				( '4<<0', 'COORD_TOON' ),
 				( '5<<0', 'COORD_GRADATION' ),
+				( '6<<0', 'COORD_BACKLIGHT' ),
 				( '1<<4', 'LIGHTMAP_DIFFUSE' ),
 				( '2<<4', 'LIGHTMAP_SPECULAR' ),
 				( '4<<4', 'LIGHTMAP_AMBIENT' ),
@@ -2480,7 +2481,7 @@ class TextureObjDesc( StructBase ):
 						'Padding',
 						'Texture_Flags',
 						'Blending',
-						'GXTexFilter',
+						'Mag_Filter',	# GXTexFilter
 						'Image_Header_Pointer',
 						'Palette_Header_Pointer',
 						'LOD_Struct_Pointer',
