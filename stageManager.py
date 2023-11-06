@@ -3059,7 +3059,7 @@ class StagePropertyEditor( ttk.Frame ):
 		self.engine.separateBatches()
 
 	def toggleBones( self ):
-		self.engine.showPart( 'bones', self.showBones.get() )
+		self.engine.showPart( 'bones', self.showBones.get(), 'edge' )
 
 	def viewModel( self ): pass
 	def viewModelInfo( self ):
@@ -3299,6 +3299,9 @@ class StagePropertyEditor( ttk.Frame ):
 
 
 class StageModelViewer( BasicWindow ):
+
+	""" A window to view and edit various basic stage properties, including 
+		blastzone/camera positions, item/player spawn points, and more. """
 	
 	def __init__( self, stageFile, dimensions, **kwargs ):
 		self.file = stageFile
@@ -3687,7 +3690,7 @@ class StageModelViewer( BasicWindow ):
 			coords = self.spotTable.values
 
 		maxCoord = max( [abs(value) for value in coords] )
-		zOffset = maxCoord * -1.4
+		zOffset = maxCoord * 1.4
 
 		self.engine.camera.position.z = zOffset
 		self.engine.camera.focalDistance = zOffset
