@@ -30,7 +30,7 @@ from basicFunctions import printStatus
 	Rendering calls to OpenGL functions will be checked afterwards for
 	errors using 'glGetError'. This will severely impact performance,
 	but provide useful exceptions in case of those points of failure. """
-DEBUGMODE = True
+DEBUGMODE = False
 
 # Disable a few options for increased performance
 pyglet.options['debug_gl'] = DEBUGMODE
@@ -38,6 +38,7 @@ pyglet.options['debug_trace_depth'] = 5 # Default is 1
 pyglet.options['audio'] = ( 'silent', )
 #pyglet.options['shadow_window'] = False
 pyglet.options['search_local_libs'] = False
+pyglet.options['debug_graphics_batch'] = False
 
 from pyglet import gl
 from pyglet.window import key, Projection
@@ -350,20 +351,38 @@ class RenderEngine( Tk.Frame ):
 
 	def clearRenderings( self, preserveBones=True ):
 
+		# Remove edges
 		if preserveBones:
 			bones = []
 			for edge in self.edges:
 				if 'bones' in edge.tags:
 					bones.append( edge )
-			self.edges = bones
+
+			if bones:
+				# Add the bones to a new batch
+				self.edges = bones
+				self.edgesBatch = pyglet.graphics.Batch()
+				for bone in bones:
+					bone.addToBatch( self.edgesBatch )
+			else:
+				self.edges = []
+				self.edgesBatch = None
 		else:
 			self.edges = []
+			self.edgesBatch = None
 
+		# Remove all other primitives
 		self.vertices = []
 		self.triangles = []
 		self.quads = []
 		self.vertexLists = []
-		self.batches = []
+		self.separatedVertexLists = []
+
+		self.verticesBatch = None
+		self.trianglesBatch = None
+		self.quadsBatch = None
+		self.vertexListBatches = []
+
 		self.textureCache = {}
 
 		# Add a marker to show the origin point
@@ -422,8 +441,14 @@ class RenderEngine( Tk.Frame ):
 			print( 'Incorrect number of coordinates given to create a vertex: ' + str(vertices) )
 			return None
 
+		# Create the vertex and store it in the vertices list
 		vertex = Vertex( vertices, color, tags, show, size )
 		self.vertices.append( vertex )
+
+		# Create a batch if needed and add the primitive to it
+		if not self.verticesBatch:
+			self.verticesBatch = pyglet.graphics.Batch()
+		vertex.addToBatch( self.verticesBatch )
 
 		self.window.updateRequired = True
 
@@ -441,6 +466,11 @@ class RenderEngine( Tk.Frame ):
 		edge = Edge( self, vertices, color, colors, tags, show, thickness )
 		self.edges.append( edge )
 
+		# Create a batch if needed and add the primitive to it
+		if not self.edgesBatch:
+			self.edgesBatch = pyglet.graphics.Batch()
+		edge.addToBatch( self.edgesBatch )
+
 		self.window.updateRequired = True
 
 		return edge
@@ -451,6 +481,10 @@ class RenderEngine( Tk.Frame ):
 			The edgePoints arg should be a list of tuples, where each tuple contains 6 values 
 			(2 sets of x/y/z coords). """
 
+		# Create a batch if needed and add the primitive to it
+		if not self.edgesBatch:
+			self.edgesBatch = pyglet.graphics.Batch()
+
 		for vertices in edgePoints:
 			if len( vertices ) != 6:
 				print( 'Incorrect number of points given to create an edge: ' + str(vertices) )
@@ -458,6 +492,7 @@ class RenderEngine( Tk.Frame ):
 
 			edge = Edge( self, vertices, color, colors, tags, show, thickness )
 			self.edges.append( edge )
+			edge.addToBatch( self.edgesBatch )
 
 		self.window.updateRequired = True
 
@@ -470,6 +505,11 @@ class RenderEngine( Tk.Frame ):
 		quad = Quad( vertices, color, colors, tags, show )
 		self.quads.append( quad )
 
+		# Create a batch if needed and add the primitive to it
+		if not self.quadsBatch:
+			self.quadsBatch = pyglet.graphics.Batch()
+		quad.addToBatch( self.quadsBatch )
+
 		self.window.updateRequired = True
 
 		return quad
@@ -477,47 +517,51 @@ class RenderEngine( Tk.Frame ):
 	def addVertexLists( self, vertexLists, renderGroup=None, dobj='', pobj='' ):
 
 		""" Adds one or more entries of a display list. Each display list entry contains 
-			one or more primitives of the same type (e.g. edge/triangle-strip/etc)."""
+			one or more primitives of the same type (e.g. edge/triangle-strip/etc). 
+			Note that .separateBatches() must be called after adding vertex lists! """
 
 		for vertexList in vertexLists:
+			# Add tags and a render group
 			if dobj and pobj:
 				vertexList.tags = ( dobj, pobj )
 			if renderGroup:
 				vertexList.addRenderGroup( renderGroup )
+
+			# Add to the render engine
 			self.vertexLists.append( vertexList )
 
 			# self.window.updateRequired = True
 			# self.canvas.update()
 
 		self.window.updateRequired = True
-	
-	def addPrimitives( self, primitives ):
 
-		""" Add one or more pre-initialized primitives without coords validation. """
+	# def addPrimitives( self, primitives ):
 
-		if not primitives:
-			return
+	# 	""" Add one or more pre-initialized primitives without coords validation. """
 
-		unknownObjects = []
+	# 	if not primitives:
+	# 		return
 
-		for prim in primitives:
-			if isinstance( prim, Vertex ):
-				self.vertices.append( prim )
-			elif isinstance( prim, Edge ):
-				self.edges.append( prim )
-			elif isinstance( prim, Triangle ):
-				self.triangles.append( prim )
-			elif isinstance( prim, Quad ):
-				self.quads.append( prim )
-			elif isinstance( prim, VertexList ):
-				self.vertexLists.append( prim )
-			else:
-				unknownObjects.append( prim )
+	# 	unknownObjects = []
 
-		if unknownObjects:
-			print( 'Unable to add unknown, non-primitive objects!: {}'.format(unknownObjects) )
+	# 	for prim in primitives:
+	# 		if isinstance( prim, Vertex ):
+	# 			self.vertices.append( prim )
+	# 		elif isinstance( prim, Edge ):
+	# 			self.edges.append( prim )
+	# 		elif isinstance( prim, Triangle ):
+	# 			self.triangles.append( prim )
+	# 		elif isinstance( prim, Quad ):
+	# 			self.quads.append( prim )
+	# 		elif isinstance( prim, VertexList ):
+	# 			self.vertexLists.append( prim )
+	# 		else:
+	# 			unknownObjects.append( prim )
 
-		self.window.updateRequired = True
+	# 	if unknownObjects:
+	# 		print( 'Unable to add unknown, non-primitive objects!: {}'.format(unknownObjects) )
+
+	# 	self.window.updateRequired = True
 
 	def loadSkeleton( self, rootJoint, showBones=True ):
 
@@ -570,6 +614,11 @@ class RenderEngine( Tk.Frame ):
 		bone = Bone( self, parentJoint, thisJoint, modelMatrix, showBones )
 		self.edges.append( bone )
 		skeleton[thisJoint.offset] = bone
+		
+		# Create a batch if needed and add the primitive to it
+		if not self.edgesBatch:
+			self.edgesBatch = pyglet.graphics.Batch()
+		bone.addToBatch( self.edgesBatch )
 
 		# Give IDs to the Display Objects (useful for determining high/low-model parts)
 		self._enumerateDObjs( thisJoint, skeleton )
@@ -817,14 +866,26 @@ class RenderEngine( Tk.Frame ):
 
 		opaqueParts = []
 		transparentParts = []
+		self.vertexListBatches = []
 
+		# Sort by transparency
 		for primitive in self.vertexLists:
 			if primitive.renderGroup.transparency < 1.0:
 				transparentParts.append( primitive )
 			else:
 				opaqueParts.append( primitive )
 
-		self.batches = [ opaqueParts, transparentParts ]
+		# Create batches if needed and add the primitives to them
+		if opaqueParts:
+			batch = pyglet.graphics.Batch()
+			[ p.addToBatch( batch ) for p in opaqueParts ]
+			self.vertexListBatches.append( batch )
+		if transparentParts:
+			batch = pyglet.graphics.Batch()
+			[ p.addToBatch( batch ) for p in transparentParts ]
+			self.vertexListBatches.append( batch )
+
+		self.separatedVertexLists = [ opaqueParts, transparentParts ]
 
 		self.window.updateRequired = True
 
@@ -1064,35 +1125,18 @@ class RenderEngine( Tk.Frame ):
 
 			# Render a batch for each set of objects that have been added
 			if self.vertices:
-				batch = pyglet.graphics.Batch()
-				for vertex in self.vertices:
-					vertex.render( batch )
-				batch.draw()
+				self.verticesBatch.draw()
 			if self.edges:
-				batch = pyglet.graphics.Batch()
-				for edge in self.edges:
-					edge.render( batch )
-				batch.draw()
+				self.edgesBatch.draw()
 			if self.triangles:
-				batch = pyglet.graphics.Batch()
-				for triangle in self.triangles:
-					triangle.render( batch )
-				batch.draw()
+				self.trianglesBatch.draw()
 			if self.quads:
-				batch = pyglet.graphics.Batch()
-				for quad in self.quads:
-					quad.render( batch )
-				batch.draw()
-			if len( self.batches ) > 1:
-				for vertexLists in self.batches:
-					batch = pyglet.graphics.Batch()
-					for prim in vertexLists:
-						prim.render( batch )
-					batch.draw()
-			elif self.vertexLists:
-				batch = pyglet.graphics.Batch()
-				for prim in self.vertexLists:
-					prim.render( batch )
+				self.quadsBatch.draw()
+			# if len( self.bat ) > 1:
+			# 	for vertexLists in self.vertexLists:
+			# 		batch.draw()
+			# elif self.vertexLists:
+			for batch in self.vertexListBatches:
 				batch.draw()
 
 			# Check for any general errors
@@ -1121,16 +1165,10 @@ class RenderEngine( Tk.Frame ):
 			objects = self.quads
 		elif primitive == 'vertexList':
 			objects = self.vertexLists
-			# objects = []
-			# for vList in self.vertexLists:
-			# 	objects.extend( vList )
 		else:
 			if primitive:
 				print( 'Warning; unrecognized primitive: ' + str(primitive) )
 			objects = self.vertices + self.edges + self.triangles + self.quads + self.vertexLists
-			# objects = self.vertices + self.edges + self.triangles + self.quads
-			# for vList in self.vertexLists:
-			# 	objects.extend( vList )
 
 		return objects
 
@@ -1138,7 +1176,9 @@ class RenderEngine( Tk.Frame ):
 
 		""" Collects totals for the number of each type of vertexList 
 			and primitive among vertexLists being rendered. 
-			Returns a dict of key=primType, value=[groupCount, primCount] """
+			Returns a dict of key=primType, value=[groupCount, primCount] 
+			Note that this ignores bones and primitives in the other 
+			render lists (self.vertices, selft.edges, etc.). """
 		
 		totals = OrderedDict( [
 			('Vertices', [0, 0]), ('Lines', [0, 0]), ('Line Strips', [0, 0]), 
@@ -1187,96 +1227,148 @@ class RenderEngine( Tk.Frame ):
 
 		return totals
 
-	def showPart( self, tag, visible, primitive=None ):
+	def showPart( self, tag, visible, primitive ):
 
 		""" Toggles the visibility for all primitives with a specified tag. 
-			A primitive type may be given to improve performance. """
+			Updates primitives .show property, and then rebuilds the batch 
+			that they belong to for rendering. """
 
-		for obj in self.getObjects( primitive ):
+		# Re-add the primitives to the batch(s)
+		if primitive == 'vertexList':
+			# Set visibility for the target objects
+			for obj in self.vertexLists:
+				if tag in obj.tags:
+					obj.show = visible
+
+			# Re-create the batches, adding only visible objects
+			newBatches = []
+			for objects in self.separatedVertexLists:
+				batch = pyglet.graphics.Batch()
+				for primitive in objects:
+					if primitive.visible:
+						primitive.addToBatch( batch )
+				newBatches.append( batch )
+			self.vertexListBatches = newBatches
+
+			self.window.updateRequired = True
+			return
+
+		# Dealing with something other than vertexLists; prepare to update the batches
+		elif primitive == 'vertex':
+			objects = self.vertices
+			batch = self.verticesBatch
+		elif primitive == 'edge':
+			objects = self.edges
+			batch = self.edgesBatch
+		elif primitive == 'triangle':
+			objects = self.triangles
+			batch = self.trianglesBatch
+		elif primitive == 'quad':
+			objects = self.quads
+			batch = self.quadsBatch
+		else:
+			raise Exception( 'Invalid primitive type given to re.showPart(): ' + primitive )
+
+		# Set visibility for the target objects, and re-create the batch, adding only visible objects
+		batch = pyglet.graphics.Batch()
+		for obj in objects:
 			if tag in obj.tags:
 				obj.show = visible
+			if obj.show:
+				obj.addToBatch( batch )
+
+		if primitive == 'vertex':
+			self.verticesBatch = batch
+		elif primitive == 'edge':
+			self.edgesBatch = batch
+		elif primitive == 'triangle':
+			self.trianglesBatch = batch
+		else:
+			self.quadsBatch = batch
 
 		self.window.updateRequired = True
 
-	def showAll( self, visible=True, primitive=None ):
+	# def showAll( self, visible=True, primitive=None ):
 
-		""" Toggles the visibility for all primitives with a specified tag. 
-			A primitive type may be given to improve performance. """
+	# 	""" Toggles the visibility for all primitives with a specified tag. 
+	# 		A primitive type may be given to improve performance. """
 
-		for obj in self.getObjects( primitive ):
-			obj.show = visible
+	# 	for obj in self.getObjects( primitive ):
+	# 		obj.show = visible
 
-		self.window.updateRequired = True
+	# 	self.window.updateRequired = True
 
-	def removePart( self, tag, primitive=None ):
+	def removePart( self, tag, primitive ):
 
 		""" Removes objects with the given tag from this render instance. 
 			A primitive type may be given to improve performance. """
 
 		if primitive == 'vertex':
 			newObjList = []
+			self.verticesBatch = pyglet.graphics.Batch()
 			for obj in self.vertices:
 				if tag not in obj.tags:
 					newObjList.append( obj )
+					if obj.show:
+						obj.addToBatch( self.verticesBatch )
 			self.vertices = newObjList
 
 		elif primitive == 'edge':
 			newObjList = []
+			self.edgesBatch = pyglet.graphics.Batch()
 			for obj in self.edges:
 				if tag not in obj.tags:
 					newObjList.append( obj )
+					if obj.show:
+						obj.addToBatch( self.edgesBatch )
 			self.edges = newObjList
 
 		elif primitive == 'triangle':
 			newObjList = []
+			self.trianglesBatch = pyglet.graphics.Batch()
 			for obj in self.triangles:
 				if tag not in obj.tags:
 					newObjList.append( obj )
+					if obj.show:
+						obj.addToBatch( self.trianglesBatch )
 			self.triangles = newObjList
 
 		elif primitive == 'quad':
 			newObjList = []
+			self.quadsBatch = pyglet.graphics.Batch()
 			for obj in self.quads:
 				if tag not in obj.tags:
 					newObjList.append( obj )
+					if obj.show:
+						obj.addToBatch( self.quadsBatch )
 			self.quads = newObjList
 
 		elif primitive == 'vertexList':
-			newObjList = []
+			# Remove from the main primitives list
+			newVertexLists = []
 			for obj in self.vertexLists:
 				if tag not in obj.tags:
-					newObjList.append( obj )
-			self.vertexLists = newObjList
+					newVertexLists.append( obj )
+			self.vertexLists = newVertexLists
 
-			# Re-separate batches
-			self.separateBatches()
+			# Re-create the batches (and the separated vLists list), adding only visible objects
+			newSeparatedVertexLists = []
+			newBatches = []
+			for vList in self.separatedVertexLists:
+				newVertexLists = []
+				batch = pyglet.graphics.Batch()
+				for obj in vList:
+					if tag not in obj.tags:
+						newVertexLists.append( primitive )
+						if obj.show:
+							primitive.addToBatch( batch )
+				newSeparatedVertexLists.append( newVertexLists )
+				newBatches.append( batch )
+			self.separatedVertexLists = newSeparatedVertexLists
+			self.vertexListBatches = newBatches
 
 		else:
-			if primitive:
-				print( 'Warning; unrecognized primitive: ' + str(primitive) )
-
-			self.vertices = []
-			self.edges = []
-			self.triangles = []
-			self.quads = []
-			self.vertexLists = []
-
-			for obj in self.getObjects( primitive ):
-				# Keep parts that don't have the given tag
-				if tag not in obj.tags:
-					if isinstance( obj, Vertex ):
-						self.vertices.append( obj )
-					elif isinstance( obj, Edge ):
-						self.edges.append( obj )
-					elif isinstance( obj, Triangle ):
-						self.triangles.append( obj )
-					elif isinstance( obj, Quad ):
-						self.quads.append( obj )
-					elif isinstance( obj, VertexList ):
-						self.vertexLists.append( obj )
-
-			# Re-separate batches
-			self.separateBatches()
+			raise Exception( 'Invalid primitive type given to re.showPart(): ' + primitive )
 
 		self.window.updateRequired = True
 
@@ -1294,7 +1386,7 @@ class Camera( object ):
 		self.engine = renderEngine
 
 		# These should be updated for context of different scene/model sizes
-		self.fov = 45
+		self.fov = 35
 		self.zNear = 5
 		self.zFar = 3500
 		self.stepSize = 0.1
@@ -1400,7 +1492,7 @@ class Camera( object ):
 		forward = self.forwardVector
 		position = self.position
 
-		viewMatrix = [
+		viewOrientation = [
 			right.x, up.x, -forward.x, 0,
 			right.y, up.y, -forward.y, 0,
 			right.z, up.z, -forward.z, 0,
@@ -1408,14 +1500,14 @@ class Camera( object ):
 			0, 0, 0, 1
 		]
 
-		viewMatrix2 = [
+		viewTranslation = [
 			1, 0, 0, 0,
 			0, 1, 0, 0, 
 			0, 0, 1, 0, 
 			-position.x, -position.y, -position.z, 1
 		]
 
-		return viewMatrix, viewMatrix2
+		return viewOrientation, viewTranslation
 
 	def reset( self ):
 
@@ -2146,7 +2238,7 @@ class Vertex( Primitive ):
 		self.show = show
 		self.size = size		# For rendering appearance size
 	
-	def render( self, batch ):
+	def addToBatch( self, batch ):
 		if self.show:
 			gl.glPointSize( self.size )
 			batch.add( 1, gl.GL_POINTS, None, ('0gn3f', (self.x, self.y, self.z)), ('1gn4B', self.color) )
@@ -2156,15 +2248,13 @@ class Edge( Primitive ):
 
 	def __init__( self, renderEngine, vertices, color=None, colors=(), tags=(), show=True, thickness=2 ):
 		self.renderEngine = renderEngine
-		# self.vertices = ( 'v3f/static', list(vertices) )
-		# self.vertexColors = ( 'c4B/static', self.interpretColors( 2, color, colors ) )
 		self.vertices = ( '0gn3f', list(vertices) )
 		self.vertexColors = ( '1gn4B', self.interpretColors( 2, color, colors ) )
 		self.tags = tags
 		self.show = show
 		self.thickness = thickness
 
-	def render( self, batch ):
+	def addToBatch( self, batch ):
 		if self.show or 'originMarker' in self.tags:
 			gl.glLineWidth( self.thickness )
 			batch.add( 2, gl.GL_LINES, None, self.vertices, self.vertexColors )
@@ -2179,7 +2269,7 @@ class Triangle( Primitive ):
 		self.tags = tags
 		self.show = show
 	
-	def render( self, batch ):
+	def addToBatch( self, batch ):
 		if self.show:
 			batch.add( 3, gl.GL_TRIANGLES, None, self.vertices, self.vertexColors )
 
@@ -2193,7 +2283,7 @@ class Quad( Primitive ):
 		self.tags = tags
 		self.show = show
 	
-	def render( self, batch ):
+	def addToBatch( self, batch ):
 		if self.show:
 			batch.add( 4, gl.GL_QUADS, None, self.vertices, self.vertexColors )
 
@@ -2328,7 +2418,7 @@ class VertexList( Primitive ):
 		if isinstance( renderGroup, TexturedMaterial ):
 			self.texCoords = renderGroup.updateTexCoords( self.texCoords )
 
-	def render( self, batch ):
+	def addToBatch( self, batch ):
 
 		""" Buffers data into GPU memory for processing by the shaders. """
 
