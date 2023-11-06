@@ -1764,7 +1764,7 @@ class TexturesEditorTab( ttk.Frame ):
 		if updateCamera and modelPane.autoCameraUpdates.get():
 			modelPane.engine.camera.setRotationPoint( primitive='vertexList' )
 
-		modelPane.engine.separateBatches()
+		#modelPane.engine.separateBatches()
 
 		# Update the title string under the render window
 		if len( modelPane.displayObjects ) == 1:

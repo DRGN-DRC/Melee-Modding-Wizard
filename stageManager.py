@@ -3008,14 +3008,6 @@ class StagePropertyEditor( ttk.Frame ):
 		if not self.file.filename.startswith( 'GrT' ):
 			targetsButton.config( state='disabled' )
 
-		# self.columnconfigure( 0, weight=1 )
-		# self.columnconfigure( 1, weight=1 )
-		# self.columnconfigure( 2, weight=2 )
-		# self.rowconfigure( 0, weight=0 )
-		# self.rowconfigure( 1, weight=1 )
-		# self.rowconfigure( 2, weight=1 )
-		# self.rowconfigure( 3, weight=1 )
-
 		self.columnconfigure( 'all', weight=1 )
 		self.columnconfigure( 2, weight=2 )
 		self.rowconfigure( 'all', weight=1 )
@@ -3056,7 +3048,7 @@ class StagePropertyEditor( ttk.Frame ):
 			# toc = time.clock()
 			# print( 'Render time: ' + str(toc-tic) )
 
-		self.engine.separateBatches()
+		#self.engine.separateBatches()
 
 	def toggleBones( self ):
 		self.engine.showPart( 'bones', self.showBones.get(), 'edge' )

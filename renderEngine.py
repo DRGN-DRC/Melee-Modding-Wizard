@@ -301,10 +301,6 @@ class RenderEngine( Tk.Frame ):
 		gl.glDisable( gl.GL_CULL_FACE ) # Enabled by default
 		#gl.glPolygonMode( gl.GL_FRONT_AND_BACK, gl.GL_LINE ) # Enable for wireframe mode (need to reset line widths)
 
-		#gl.glEnable( gl.GL_TEXTURE_2D )
-		# gl.glTexParameteri( gl.GL_TEXTURE_2D, gl.GL_TEXTURE_MAG_FILTER, gl.GL_LINEAR )
-		# gl.glTexParameteri( gl.GL_TEXTURE_2D, gl.GL_TEXTURE_MIN_FILTER, gl.GL_LINEAR )
-
 		try: # Anti-aliasing
 			gl.glEnable( gl.GL_LINE_SMOOTH )
 			gl.glEnable( gl.GL_POLYGON_SMOOTH )
@@ -376,8 +372,9 @@ class RenderEngine( Tk.Frame ):
 		self.triangles = []
 		self.quads = []
 		self.vertexLists = []
-		self.separatedVertexLists = []
+		self.separatedVertexLists = [ [], [] ]
 
+		# Clear batches
 		self.verticesBatch = None
 		self.trianglesBatch = None
 		self.quadsBatch = None
@@ -517,8 +514,16 @@ class RenderEngine( Tk.Frame ):
 	def addVertexLists( self, vertexLists, renderGroup=None, dobj='', pobj='' ):
 
 		""" Adds one or more entries of a display list. Each display list entry contains 
-			one or more primitives of the same type (e.g. edge/triangle-strip/etc). 
-			Note that .separateBatches() must be called after adding vertex lists! """
+			one or more primitives of the same type (e.g. edge/triangle-strip/etc). """
+
+		if renderGroup:
+			transparency = renderGroup.transparency
+		else:
+			transparency = 1.0
+
+		# Assume at least opaque parts will be present, and create the batch if needed
+		if not self.vertexListBatches:
+			self.vertexListBatches.append( pyglet.graphics.Batch() )
 
 		for vertexList in vertexLists:
 			# Add tags and a render group
@@ -529,6 +534,19 @@ class RenderEngine( Tk.Frame ):
 
 			# Add to the render engine
 			self.vertexLists.append( vertexList )
+
+			if transparency == 1.0:
+				# Add to the opaque list
+				self.separatedVertexLists[0].append( vertexList )
+				vertexList.addToBatch( self.vertexListBatches[0] )
+			else:
+				# Create the batch for transparent objects if needed
+				if len( self.vertexListBatches ) == 1:
+					self.vertexListBatches.append( pyglet.graphics.Batch() )
+
+				# Add to the transparent list
+				self.separatedVertexLists[1].append( vertexList )
+				vertexList.addToBatch( self.vertexListBatches[1] )
 
 			# self.window.updateRequired = True
 			# self.canvas.update()
@@ -718,14 +736,6 @@ class RenderEngine( Tk.Frame ):
 		if not skeleton:
 			primitives.append( self.addVertex( xyzCoords, (255, 0, 0, 255), ('bones',), showBones ) )
 
-		# Track the largest +/- x values to adjust the camera zoom
-		# xCoordAbs = -abs( xyzCoords[0] ) * 1.4
-		# if xCoordAbs < self.camera.rotationPoint[2] and xCoordAbs > -self.camera.zFar:
-		# 	if xCoordAbs < -800:
-		# 		self.camera.rotationPoint = ( self.camera.rotationPoint[0], self.camera.rotationPoint[1], -800 )
-		# 	else:
-		# 		self.camera.rotationPoint = ( self.camera.rotationPoint[0], self.camera.rotationPoint[1], xCoordAbs )
-
 		# Connect a line between the current joint and its parent joint
 		if parent and not skeleton:
 			# Parent vertices will be added by the calling method's transformation step(s)
@@ -736,7 +746,7 @@ class RenderEngine( Tk.Frame ):
 		self.canvas.update()
 
 		return primitives
-	
+
 	def renderDisplayObj( self, parentDobj, includeSiblings=True ):
 
 		""" Parses and renders the given Display Object (DObj) and 
@@ -822,7 +832,7 @@ class RenderEngine( Tk.Frame ):
 				print( 'Unable to render {}; {}'.format(parentDobj.name, err) )
 
 		return primitives
-	
+
 	def applyJointTransformations( self, primitives, parentJoint ):
 
 		""" Recursively moves through all Joint struct parents until no more 
