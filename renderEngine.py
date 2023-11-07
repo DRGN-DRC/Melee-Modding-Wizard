@@ -188,6 +188,7 @@ GXBlendFactor = [
 
 # 	return normalized_angle
 
+
 def matrixMultiply_4x4( matrix1, matrix2 ):
 
 	""" Performs matrix multiplication on two flattened 4x4 
@@ -197,16 +198,23 @@ def matrixMultiply_4x4( matrix1, matrix2 ):
 	# Check if the matrices are compatible for multiplication
 	assert len( matrix1 ) == len( matrix2 ), "Incompatible matrix dimensions for multiplication"
 
-	result = [ 0.0 ] * 16
+	( A1, B1, C1, D1, 
+	  E1, F1, G1, H1, 
+	  I1, J1, K1, L1, 
+	  M1, N1, O1, P1 ) = matrix1
+
+	( A2, B2, C2, D2, 
+	  E2, F2, G2, H2, 
+	  I2, J2, K2, L2, 
+	  M2, N2, O2, P2 ) = matrix2
 
 	# Calculate the dot product for each element in the result
-	for i in range( 4 ):
-		for j in range( 4 ):
-			for k in range( 4 ):
-				#result[i * 4 + j] += matrix1[i * 4 + k] * matrix2[k * 4 + j] # row-major
-				result[i + j * 4] += matrix1[i + k * 4] * matrix2[k + j * 4]
-
-	return result
+	return [
+		A2*A1+B2*E1+C2*I1+D2*M1, A2*B1+B2*F1+C2*J1+D2*N1, A2*C1+B2*G1+C2*K1+D2*O1, A2*D1+B2*H1+C2*L1+D2*P1,
+		E2*A1+F2*E1+G2*I1+H2*M1, E2*B1+F2*F1+G2*J1+H2*N1, E2*C1+F2*G1+G2*K1+H2*O1, E2*D1+F2*H1+G2*L1+H2*P1,
+		I2*A1+J2*E1+K2*I1+L2*M1, I2*B1+J2*F1+K2*J1+L2*N1, I2*C1+J2*G1+K2*K1+L2*O1, I2*D1+J2*H1+K2*L1+L2*P1,
+		M2*A1+N2*E1+O2*I1+P2*M1, M2*B1+N2*F1+O2*J1+P2*N1, M2*C1+N2*G1+O2*K1+P2*O1, M2*D1+N2*H1+O2*L1+P2*P1
+	]
 
 
 class ProjectionOverride( Projection ):
@@ -1135,6 +1143,7 @@ class RenderEngine( Tk.Frame ):
 	def setShaderMatrix( self, variableName, matrix ):
 		location = gl.glGetUniformLocation( self.shaders, variableName )
 		gl.glext_arb.glUniformMatrix4fv( location, 1, False, (gl.GLfloat * 16)(*matrix) )
+		#gl.glext_arb.glUniformMatrix4dv( location, 1, False, (gl.GLdouble * 16)(*matrix) )
 
 	def on_draw( self ):
 
@@ -1162,11 +1171,8 @@ class RenderEngine( Tk.Frame ):
 			# else:
 
 			# Send projection and view matrices to the shaders
-			viewOrientation, viewTranslation = self.camera.buildViewMatrix()
-
-			self.setShaderMatrix( 'projectionMatrix', self.camera.projectionMatrix )
-			self.setShaderMatrix( 'viewOrientation', viewOrientation )
-			self.setShaderMatrix( 'viewTranslation', viewTranslation )
+			projectionViewMatrix = matrixMultiply_4x4( self.camera.projectionMatrix, self.camera.buildViewMatrix() )
+			self.setShaderMatrix( 'projectionViewMatrix', projectionViewMatrix )
 
 			# Render a batch for each set of objects that have been added
 			if self.vertices:
@@ -1465,10 +1471,11 @@ class Camera( object ):
 
 	def buildProjectionMatrix( self ):
 
-		""" Builds the projection matrix, which is passed to the vertex shader and 
-			used to translate points from world space to the near clip plane. This 
-			should be updated if the render display's aspect ratio, FOV, or either 
-			of its near/far clip planes are modified. """
+		""" Builds the projection matrix, which defines the viewing frustum and is 
+			responsible for the illusion of a 3D perspective. This is passed to the 
+			vertex shader and used to translate points from camera/view space to 
+			clip space. This should be updated if the render display's aspect ratio, 
+			FOV, or either of its near/far clip planes are modified. """
 
 		# Based on one of OpenGL's projection functions:
 		# http://www.manpagez.com/man/3/glFrustum/
@@ -1487,72 +1494,43 @@ class Camera( object ):
 		# Written this way to open the potential for adding VR capability
 		x = 2 * zNear / ( right - left )
 		y = 2 * zNear / ( top - bottom )
-		# y = 1 / math.tan( self.fov / 2 )
-		# x = y / ar
 		depth = float( zFar - zNear )
 		A = ( right + left ) / ( right - left )
 		B = ( top + bottom ) / ( top - bottom )
 		C = ( zFar + zNear ) / depth
-		D = 2 * zFar * zNear / depth
-
-		# Scale to normalized device coordinates
-		x = x * zNear
-		y = y * zNear
-		A = A * zNear
-		B = B * zNear
-		w = -1.0
+		D = -2 * zFar * zNear / depth
+		w = 1.0
 
 		self.projectionMatrix = [
 			x, 0, A, 0,
 			0, y, B, 0,
-			0, 0, C, D,
-			0, 0, w, 0
+			0, 0, C, w,
+			0, 0, D, 0
 		]
-
-		# Source: http://www.manpagez.com/man/3/gluPerspective/
-
-		# f = 1 / math.tan( self.fov / 2 )
-		# a = self.engine.aspectRatio
-
-		# depth = float( zFar - zNear )
-		# c = ( zFar + zNear ) / depth
-		# d = 2 * zFar * zNear / depth
-		
-		# self.projectionMatrix = [
-		# 	f/a, 0, 0, 0,
-		# 	0, f, 0, 0,
-		# 	0, 0, c, d,
-		# 	0, 0, -1, 0 
-		# ]
 
 	def buildViewMatrix( self ):
 
-		""" Builds the projection matrix, which is passed to the vertex shader and 
-			used to translate points from world space to the near clip plane. This 
-			should be updated if the render display's aspect ratio, FOV, or either 
-			of its near/far clip planes are modified. """
+		""" Builds the view matrix, which is passed to the vertex shader and 
+			used to translate points from world space to camera space (in other 
+			words, moves the model(s) to represent the camera's current viewport). """
 
 		up = self.upVector
 		right = self.rightVector
 		forward = self.forwardVector
 		position = self.position
 
-		viewOrientation = [
+		# Multiply camera position with orientation to get translation values.
+		# This bypasses the need for separate rotation/position matrices and more multiplication
+		TX = -position.x*right.x + -position.y*right.y + -position.z*right.z
+		TY = -position.x*up.x + -position.y*up.y + -position.z*up.z
+		TZ = position.x*forward.x + position.y*forward.y + position.z*forward.z
+
+		return [
 			right.x, up.x, -forward.x, 0,
 			right.y, up.y, -forward.y, 0,
 			right.z, up.z, -forward.z, 0,
-			# -position.x, -position.y, -position.z, 1
-			0, 0, 0, 1
+			TX, TY, TZ, 1
 		]
-
-		viewTranslation = [
-			1, 0, 0, 0,
-			0, 1, 0, 0, 
-			0, 0, 1, 0, 
-			-position.x, -position.y, -position.z, 1
-		]
-
-		return viewOrientation, viewTranslation
 
 	def reset( self ):
 
@@ -1668,14 +1646,14 @@ class Camera( object ):
 		depth = maxZ - minZ
 		if width > ( height * self.engine.aspectRatio ):
 			# Use x-axis to determine zoom level
-			zOffset = width * 1.4
+			zOffset = width * 2.2
 		else:
 			# Use y-axis to determine zoom level (and also zoom out a little further)
-			zOffset = height * self.engine.aspectRatio * 1.4
+			zOffset = height * self.engine.aspectRatio * 2.2
 
 		# Ensure the camera doesn't clip into the object and we're not too far away
-		if ( zOffset - self.zNear * 1.5 ) < ( depth / 2 ):
-			zOffset = ( depth / 2 * 1.4 ) + self.zNear
+		if ( zOffset - self.zNear * 2.2 ) < ( depth / 2 ):
+			zOffset = ( depth / 2 * 2.2 ) + self.zNear
 		if zOffset > 800:
 			zOffset = 800
 
@@ -2253,16 +2231,23 @@ class Primitive( object ):
 		# Check if the matrices are compatible for multiplication
 		assert len( matrix1 ) == len( matrix2 ), "Incompatible matrix dimensions for multiplication"
 
-		result = [ 0.0 ] * 16
+		( A1, B1, C1, D1, 
+		  E1, F1, G1, H1, 
+		  I1, J1, K1, L1, 
+		  M1, N1, O1, P1 ) = matrix1
+
+		( A2, B2, C2, D2, 
+		  E2, F2, G2, H2, 
+		  I2, J2, K2, L2, 
+		  M2, N2, O2, P2 ) = matrix2
 
 		# Calculate the dot product for each element in the result
-		for i in range( 4 ):
-			for j in range( 4 ):
-				for k in range( 4 ):
-					#result[i * 4 + j] += matrix1[i * 4 + k] * matrix2[k * 4 + j] # row-major
-					result[i + j * 4] += matrix1[i + k * 4] * matrix2[k + j * 4]
-
-		return result
+		return [
+			A2*A1+B2*E1+C2*I1+D2*M1, A2*B1+B2*F1+C2*J1+D2*N1, A2*C1+B2*G1+C2*K1+D2*O1, A2*D1+B2*H1+C2*L1+D2*P1,
+			E2*A1+F2*E1+G2*I1+H2*M1, E2*B1+F2*F1+G2*J1+H2*N1, E2*C1+F2*G1+G2*K1+H2*O1, E2*D1+F2*H1+G2*L1+H2*P1,
+			I2*A1+J2*E1+K2*I1+L2*M1, I2*B1+J2*F1+K2*J1+L2*N1, I2*C1+J2*G1+K2*K1+L2*O1, I2*D1+J2*H1+K2*L1+L2*P1,
+			M2*A1+N2*E1+O2*I1+P2*M1, M2*B1+N2*F1+O2*J1+P2*N1, M2*C1+N2*G1+O2*K1+P2*O1, M2*D1+N2*H1+O2*L1+P2*P1
+		]
 
 
 class Vertex( Primitive ):
