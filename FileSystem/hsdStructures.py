@@ -25,6 +25,24 @@ from renderEngine import Vertex, VertexList
 
 showLogs = True
 
+
+GXCompType_VAL = [ # Describes vertex attribute formatting
+	'B', # uint8
+	'b', # sint8
+	'H', # uint16
+	'h', # sint16
+	'f', # float
+]
+
+GXCompType_CLR = [ # Describes vertex attribute formatting for colors
+	'H', 		# GX_RGB565
+	'BBB', 		# GX_RGB8
+	'BBBB', 	# GX_RGBX8
+	'H',  		# GX_RGBA4 (i.e. RGBA4444)
+	'BBB',  	# GX_RGBA6
+	'BBBB' 		# GX_RGBA8
+]
+
 					# = ---------------------------------------------- = #
 					#  [   HSD Internal File Structure Base Classes   ]  #
 					# = ---------------------------------------------- = #
@@ -1222,16 +1240,17 @@ class DisplayListBlock( DataBlock ):
 		# Determine the data length and formatting for one vertex of one entry in the display list
 		baseLength = 0
 		baseFormat = ''
-		for name, attrType, compType, vertexDescriptor, _, _ in attributesInfo:
+		for name, attrType, compType, vertexDescriptor, _, vertexStream in attributesInfo:
 			if attrType == 0: # GX_NONE
 				continue
+
 			elif attrType == 1: # DIRECT
 				if name == 11 or name == 12: # Color values
-					if vertexDescriptor == '1H': # 16-bit
+					if vertexDescriptor == 'H': # 16-bit
 						baseLength += 2
-					elif vertexDescriptor == '1BBB': # 24-bit
+					elif vertexDescriptor == 'BBB': # 24-bit
 						baseLength += 3
-					elif vertexDescriptor == '1BBBB': # 32-bit
+					elif vertexDescriptor == 'BBBB': # 32-bit
 						baseLength += 4
 					else: # Failsafe
 						enumName = VertexAttributesArray.enums['Attribute_Name'][name]
@@ -1241,12 +1260,21 @@ class DisplayListBlock( DataBlock ):
 				else: # Everything else (primarily matrix indices)
 					baseLength += 1
 					baseFormat += 'B'
+
 			elif attrType == 2: # GX_INDEX8
 				baseLength += 1
 				baseFormat += 'B'
+				if not vertexStream:
+					enumName = VertexAttributesArray.enums['Attribute_Name'][name]
+					print( 'Unable to get indexed vertex attribute; missing {} vertex stream for {}'.format(enumName, self.name) )
+
 			elif attrType == 3: # GX_INDEX16
 				baseLength += 2
 				baseFormat += 'H'
+				if not vertexStream:
+					enumName = VertexAttributesArray.enums['Attribute_Name'][name]
+					print( 'Unable to get indexed vertex attribute; missing {} vertex stream for {}'.format(enumName, self.name) )
+
 			else: # Failsafe
 				print( 'Invalid attribute type "{}"!'.format(attrType) )
 				return []
@@ -1316,10 +1344,11 @@ class DisplayListBlock( DataBlock ):
 						values = ( displayListValues[displayListIndex], )
 						displayListIndex += 1
 				else: # GX_INDEX8 / GX_INDEX16
-					valueIndex = displayListValues[displayListIndex] * indexStride
-					values = vertexStream[valueIndex:valueIndex+indexStride]
+					if vertexStream:
+						valueIndex = displayListValues[displayListIndex] * indexStride
+						values = vertexStream[valueIndex:valueIndex+indexStride]
 					displayListIndex += 1
-				
+
 				# Create the vertex and update it with the values collected above
 				if name == 0: # GX_VA_PNMTXIDX
 					vl.weights.append( values[0] / 3 )
@@ -1333,9 +1362,6 @@ class DisplayListBlock( DataBlock ):
 				elif name == 13: # GX_VA_TEX0
 					vl.texCoords[1].extend( values )
 					#print( self.name, values )
-				# elif name > 13:
-				# 	enumName = VertexAttributesArray.enums['Attribute_Name'][name]
-				# 	print( 'Encountered {} in {}'.format(enumName, self.name) )
 
 		vl.finalize()
 
@@ -2009,6 +2035,9 @@ class PolygonObjDesc( StructBase ): # A.k.a. Meshes
 
 class VertexAttributesArray( TableStruct ):
 
+	""" Data defining aspects/properties of vertices, including their positions, 
+		normals, colors, texture coordinates, etc. (See Attribute_Name for all.) """
+
 	enums = { 'Attribute_Name': OrderedDict([
 				( 0, 'GX_VA_PNMTXIDX' ),	# Position/Normal matrix index (index into envelope array)
 				( 1, 'GX_VA_TEX0MTXIDX' ),	# Texture matrix indices
@@ -2069,7 +2098,7 @@ class VertexAttributesArray( TableStruct ):
 			# 	GX_TEX_S     = 0
 			# 	GX_TEX_ST    = 1
 			# 
-			'Component_Type': OrderedDict([
+			'Component_Type': OrderedDict([ # GXCompType
 				( 0, 'GX_U8' ),		# 0 - 255
 				( 1, 'GX_S8' ),		# -127 - +127
 				( 2, 'GX_U16' ),	# 0 - 65535
@@ -2082,14 +2111,14 @@ class VertexAttributesArray( TableStruct ):
 		StructBase.__init__( self, *args, **kwargs )
 
 		self.name = 'Vertex Attributes Array ' + uHex( 0x20 + args[1] )
-		self.fields = (	'Attribute_Name',			# 0x0  -{ GXAttr
+		self.fields = (	'Attribute_Name',			# 0x0  -{ GXAttr; determines the kind of attribute and how to interpret its data
 						'Attribute_Type',			# 0x4  -{ GXAttrType (i.e. index type)
-						'Component_Count',			# 0x8  -{ GXCompCnt ('Comp' may also be PosComp/NrmComp/ClrComp/TexComp)
+						'Component_Count',			# 0x8  -{ GXCompCnt (may be one of several enumerations: PosComp/NrmComp/ClrComp/TexComp)
 						'Component_Type',			# 0xC  -{ GXCompType/GXClrCompType (i.e. value formatting; int8, uint16, etc.)
-						'Scale',					# 0x10 -{ 
-						'Padding',					# 0x11 -{ 
-						'Stride',					# 0x12 -{ 
-						'Vertex_Data_Pointer' )		# 0x14 -{ 
+						'Scale',					# 0x10 -{ "frac"; number of fractional bits to use when scaling ints into floats
+						'Padding',					# 0x11
+						'Stride',					# 0x12 -{ Multiplyer used when indexing bytes in the vertex data
+						'Vertex_Data_Pointer' )		# 0x14 -{ Pointer to raw data for a specific attribute
 		self.formatting = '>IIIIBBHI'
 		self.length = 0x18
 
@@ -2142,7 +2171,7 @@ class VertexAttributesArray( TableStruct ):
 				enumName = self.enums['Attribute_Name'][name]
 				print( 'Warning! Vertex attribute name {} has an unexpected dimensions enumeration: {}'.format(enumName, count) )
 
-		# GX_VA_NRM/GX_VA_NBT
+		# GX_VA_NRM
 		elif name == 10:
 			dimensions = 3
 
@@ -2170,57 +2199,20 @@ class VertexAttributesArray( TableStruct ):
 				enumName = self.enums['Attribute_Name'][name]
 				print( 'Warning! Vertex attribute name {} has an unexpected dimensions enumeration: {}'.format(enumName, count) )
 
+		# GX_VA_NBT
+		elif name == 25:
+			# Normal/Bitangent/tangent vectors (1 to 3 sets of 3 values each)
+			if count == 0:
+				dimensions = 3
+			else: # GX_NRM_NBT3 (for HW2)
+				dimensions = 9
+
 		else:
 			dimensions = 1
 			enumName = self.enums['Attribute_Name'][name]
 			print( 'Encountered the vertex attribute {} in {}'.format(enumName, self.name) )
 
 		return dimensions
-	
-	def determineFormat( self, name, compType ):
-
-		""" Determines the value formatting (data size) for an attribute, based on the 
-			enumerations for the kind of attribute (Attribute_Name) and component type. """
-		
-		# if name == 10 or name == 25: # GX_VA_NRM or GX_VA_NBT
-		# 	if compType == 0: # sint8
-		# 		valueFormat = 'b'
-		# 	elif compType == 1: # sint16
-		# 		valueFormat = 'h'
-		# 	elif compType == 2: # float
-		# 		valueFormat = 'f'
-		# 	else: # Failsafe
-		# 		valueFormat = ''
-		if name == 11 or name == 12: # GX_VA_CLR0 or GX_VA_CLR1
-			if compType == 0: # GX_RGB565
-				valueFormat = 'H'
-			elif compType == 1: # GX_RGB8
-				valueFormat = 'BBB'
-			elif compType == 2: # GX_RGBX8
-				valueFormat = 'BBBB'
-			elif compType == 3: # GX_RGBA4 (i.e. RGBA4444)
-				valueFormat = 'H'
-			elif compType == 4: # GX_RGBA6
-				valueFormat = 'BBB'
-			elif compType == 5: # GX_RGBA8
-				valueFormat = 'BBBB'
-			else: # Failsafe
-				valueFormat = ''
-		else:
-			if compType == 0: # uint8
-				valueFormat = 'B'
-			elif compType == 1: # sint8
-				valueFormat = 'b'
-			elif compType == 2: # uint16
-				valueFormat = 'H'
-			elif compType == 3: # sint16
-				valueFormat = 'h'
-			elif compType == 4: # float
-				valueFormat = 'f'
-			else: # Failsafe
-				valueFormat = ''
-
-		return valueFormat
 
 	def decodeEntries( self ):
 
@@ -2231,6 +2223,7 @@ class VertexAttributesArray( TableStruct ):
 			return self._attributeInfo
 
 		self._attributeInfo = []
+		warnings = set() # Collect warnings, preventing duplicates
 
 		for i, (name, attrType, count, compType, scale, _, stride, dataPointer) in self.iterateEntries():
 
@@ -2238,36 +2231,35 @@ class VertexAttributesArray( TableStruct ):
 			if name == 0xFF: # GX_VA_NULL
 				break
 
-			valueFormat = self.determineFormat( name, compType )
-
-			# Ensure a format was determined and determine how many dimensions are present in this attribute
-			if not valueFormat:
-				enumName = self.enums['Attribute_Name'][name]
-				print( 'Invalid vertex attribute component type for {}: {}'.format(enumName, compType) )
-				continue
+			# Determine the formatting and number of values will be unpacked per vertex for this attribute
 			elif name == 11 or name == 12:
-				dimensions = 1 # Simple override for the vertexDescriptor below for color formats
+				vertexDescriptor = GXCompType_CLR[compType]
+				indexStride = len( vertexDescriptor ) # Number of values after unpacking, not byte count!
 			else:
+				# Determine formatting for this attribute's values
 				dimensions = self.determineDimensions( name, count )
+				valueFormat = GXCompType_VAL[compType]
 
-			# Assemble the formatting for this attribute
-			vertexDescriptor = '{}{}'.format( dimensions, valueFormat )
-			indexStride = dimensions * len( valueFormat ) # Number of values to unpack per vertex for this attribute
+				# Assemble the formatting
+				vertexDescriptor = '{}{}'.format( dimensions, valueFormat )
+				indexStride = dimensions * len( valueFormat ) # Number of values after unpacking, not byte count!
 
 			# Check if this is direct (GX_DIRECT) display list data; no data indexing
 			if attrType == 1 or stride == 0:
 				self._attributeInfo.append( (name, attrType, compType, vertexDescriptor, indexStride, []) )
 				continue
 
-			# Check that the vertex data pointer is pointing to a struct
+			# Ensure that the vertex data pointer is pointing to a valid struct
 			pointerOffset = self.offset + ( self.entryLength * i ) + 0x14
 			if pointerOffset not in self.dat.pointerOffsets:
-				print( 'Warning! A vertex attribute, index {} in {}, references a data struct but does not have one!'.format(i, self.name) )
+				self._attributeInfo.append( (name, attrType, compType, '', 0, []) )
+				warnings.add( 'Warning! A vertex attribute, index {} in {}, references a data struct but does not have one!'.format(i, self.name) )
 				continue
 
 			# More validation
 			elif struct.calcsize( vertexDescriptor ) != stride:
-				print( 'Warning! Vertix attribute descriptor does not match expected stride! {} != {}'.format(struct.calcsize(vertexDescriptor), stride) )
+				self._attributeInfo.append( (name, attrType, compType, '', 0, []) )
+				warnings.add( 'Warning! Vertix attribute descriptor does not match expected stride! {} != {}'.format(struct.calcsize(vertexDescriptor), stride) )
 				continue
 
 			# Get the vertex attribute data struct, and get its data without padding
@@ -2278,13 +2270,19 @@ class VertexAttributesArray( TableStruct ):
 
 			# Unpack the vertex data struct's values and apply scaling
 			vertexData = struct.unpack( dataFormat, trimmedData )
-			#if compType != 4 and scale != 0 and name != 11 and name != 12: # If not a float and not a color attribute
-			#if compType != 4 and scale != 0 and ( name == 9 or name == 10 ): # If not a float and name = GX_VA_POS or GX_VA_NRM/GX_VA_NBT
-			if compType != 4 and scale != 0: # If not a float and scale is non-zero
+			if compType != 4 and scale != 0: # If not a float and scale is non-zero (not used with color types)
 				vertexData = [ value / float(1 << scale) for value in vertexData ]
 
 			# Store the info and data for this attribute
 			self._attributeInfo.append( (name, attrType, compType, vertexDescriptor, indexStride, vertexData) )
+
+			# Mention instances of unhandled attributes (#todo!)
+			if name not in ( 0, 9, 11, 12, 13 ):
+				enumName = self.enums['Attribute_Name'][name]
+				warnings.add( 'Encountered {} in {}'.format(enumName, self.name) )
+
+		# if warnings:
+		# 	print( '\n'.join(list(warnings)) )
 
 		return self._attributeInfo
 
