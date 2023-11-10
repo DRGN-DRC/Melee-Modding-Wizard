@@ -792,10 +792,15 @@ class RenderEngine( Tk.Frame ):
 
 	def renderDisplayObj( self, parentDobj, includeSiblings=True, parentTransforms=None ):
 
-		""" Parses and renders the given Display Object (DObj) and 
-			all of its siblings. """
+		""" Parses and renders the given Display Object (DObj) and [optionally] all of its siblings. """
 
 		primitives = []
+
+		# Determine the full list of objects to render
+		if includeSiblings:
+			dobjOffsets = parentDobj.getSiblings()
+		else:
+			dobjOffsets = [ parentDobj.offset ]
 
 		# Modify appearance of hidden joints
 		jointClass = globalData.fileStructureClasses['JointObjDesc']
@@ -805,10 +810,8 @@ class RenderEngine( Tk.Frame ):
 		else:
 			alphaAdjustment = 1.0
 
-		if includeSiblings:
-			dobjOffsets = parentDobj.getSiblings()
-		else:
-			dobjOffsets = [ parentDobj.offset ]
+		# Check for parents and get a transformation matrix if one wasn't provided
+		parentTransforms = self.getParentTransformations( parentDobj )
 
 		# Check current vertexList tags to prevent creating duplicate DObjs
 		vertexListTags = set()
@@ -876,71 +879,95 @@ class RenderEngine( Tk.Frame ):
 
 		return primitives
 
-	def applyJointTransformations( self, primitives, parentJoint ):
+	# def applyJointTransformations( self, primitives, parentJoint ):
 
-		""" Recursively moves through all Joint struct parents until no more 
-			are found, and applies all of their transformation values to the 
-			given primitives. """
+	# 	""" Recursively moves through all Joint struct parents until no more 
+	# 		are found, and applies all of their transformation values to the 
+	# 		given primitives. """
 
-		rotation = [ 0, 0, 0 ]
-		scale = [ 1.0, 1.0, 1.0 ]
-		translation = [ 0, 0, 0 ]
+	# 	rotation = [ 0, 0, 0 ]
+	# 	scale = [ 1.0, 1.0, 1.0 ]
+	# 	translation = [ 0, 0, 0 ]
+
+	# 	jointClass = globalData.fileStructureClasses['JointObjDesc']
+
+	# 	# Ascend the Joint structures tree while accumulating transformation values
+	# 	while parentJoint:
+	# 		# Gather the current transform values
+	# 		transformationValues = parentJoint.getValues()[5:14] # 9 values; 3 for each of rotation/scale/translation
+	# 		rotation = list( map(add, rotation, transformationValues[:3]) )
+	# 		scale = list( map(mul, scale, transformationValues[3:6]) )
+	# 		translation = list( map(add, translation, transformationValues[6:]) )
+			
+	# 		# Check for another parent joint
+	# 		parents = parentJoint.getParents()
+	# 		if not parents:
+	# 			break
+
+	# 		# Attempt to initialize the parent object
+	# 		# parentJointOffset = next(iter( parents ))
+	# 		# parentJoint = parentJoint.dat.initSpecificStruct( jointClass, parentJointOffset )
+	# 		parentJoint = parentJoint.getParent( jointClass )
+
+	# 	# Apply the accumulated transforms
+	# 	for primitive in primitives:
+	# 		primitive.rotate( *rotation )
+	# 		primitive.scale( *scale )
+	# 		primitive.translate( *translation )
+
+	def getParentTransformations( self, structure ):
+
+		""" Recursively combines all parent joints/bones' rotations, scales, 
+			and translations into one transformation matrix, which can then 
+			convert vertices/vectors from model space into world space. The 
+			input or starting structure could be a joint or a display object. """
 
 		jointClass = globalData.fileStructureClasses['JointObjDesc']
+		matrix1 = None
 
-		# Ascend the Joint structures tree while accumulating transformation values
-		while parentJoint:
-			# Gather the current transform values
-			transformationValues = parentJoint.getValues()[5:14] # 9 values; 3 for each of rotation/scale/translation
-			rotation = list( map(add, rotation, transformationValues[:3]) )
-			scale = list( map(mul, scale, transformationValues[3:6]) )
-			translation = list( map(add, translation, transformationValues[6:]) )
-			
-			# Check for another parent joint
-			parents = parentJoint.getParents()
-			if not parents:
-				break
+		while structure:
+			if isinstance( structure, jointClass ):
+				matrix2 = structure.buildLocalMatrix()
 
-			# Attempt to initialize the parent object
-			# parentJointOffset = next(iter( parents ))
-			# parentJoint = parentJoint.dat.initSpecificStruct( jointClass, parentJointOffset )
-			parentJoint = parentJoint.getParent( jointClass )
-		
-		# Apply the accumulated transforms
-		for primitive in primitives:
-			primitive.rotate( *rotation )
-			primitive.scale( *scale )
-			primitive.translate( *translation )
+				# Need to collect two matrices before we start combining them
+				if not matrix1:
+					matrix1 = matrix2
+				else:
+					matrix1 = matrixMultiply_4x4( matrix1, matrix2 )
 
-	def separateBatches( self ):
+			structure = structure.getParent( jointClass )
 
-		""" Sorts vertex lists (primitives) into separate rendering batches, 
-			so that partially transparent model parts will be rendered last. """
+		return matrix1
 
-		opaqueParts = []
-		transparentParts = []
-		self.vertexListBatches = []
+	# def separateBatches( self ):
 
-		# Sort by transparency
-		for primitive in self.vertexLists:
-			if primitive.renderGroup.transparency < 1.0:
-				transparentParts.append( primitive )
-			else:
-				opaqueParts.append( primitive )
+	# 	""" Sorts vertex lists (primitives) into separate rendering batches, 
+	# 		so that partially transparent model parts will be rendered last. """
 
-		# Create batches if needed and add the primitives to them
-		if opaqueParts:
-			batch = pyglet.graphics.Batch()
-			[ p.addToBatch( batch ) for p in opaqueParts ]
-			self.vertexListBatches.append( batch )
-		if transparentParts:
-			batch = pyglet.graphics.Batch()
-			[ p.addToBatch( batch ) for p in transparentParts ]
-			self.vertexListBatches.append( batch )
+	# 	opaqueParts = []
+	# 	transparentParts = []
+	# 	self.vertexListBatches = []
 
-		self.separatedVertexLists = [ opaqueParts, transparentParts ]
+	# 	# Sort by transparency
+	# 	for primitive in self.vertexLists:
+	# 		if primitive.renderGroup.transparency < 1.0:
+	# 			transparentParts.append( primitive )
+	# 		else:
+	# 			opaqueParts.append( primitive )
 
-		self.window.updateRequired = True
+	# 	# Create batches if needed and add the primitives to them
+	# 	if opaqueParts:
+	# 		batch = pyglet.graphics.Batch()
+	# 		[ p.addToBatch( batch ) for p in opaqueParts ]
+	# 		self.vertexListBatches.append( batch )
+	# 	if transparentParts:
+	# 		batch = pyglet.graphics.Batch()
+	# 		[ p.addToBatch( batch ) for p in transparentParts ]
+	# 		self.vertexListBatches.append( batch )
+
+	# 	self.separatedVertexLists = [ opaqueParts, transparentParts ]
+
+	# 	self.window.updateRequired = True
 
 	def collectTextures( self, dobj ):
 

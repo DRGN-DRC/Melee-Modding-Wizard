@@ -1685,6 +1685,9 @@ class TexturesEditorTab( ttk.Frame ):
 		obscureNonSelected = modelPane.obscureNonSelected.get()
 
 		if modelParts[0].skeleton:
+			# Using a model with a skeleton as a reference point
+			usingSkeleton = True
+
 			if modelPane.displayMode == DisplayMode.SelectedOnly:
 				modelPane.selectableObjects = modelPane.displayObjects
 				partsToRender = modelParts
@@ -1706,20 +1709,10 @@ class TexturesEditorTab( ttk.Frame ):
 			else: # All (display everything)
 				modelPane.selectableObjects = partsToRender = self.file.getDObjs()
 
-			# Render all parts that should be visible (and selectable in Render Options)
-			for part in partsToRender:
-				if self.hideBasedOnPoly( part ):
-					continue
-
-				# Set render state (normal or dim appearance)
-				if not obscureNonSelected or part in modelParts:
-					part.renderState = 'normal' # todo: make this an enum if more states are added
-				else:
-					part.renderState = 'dim'
-
-				modelPane.engine.renderDisplayObj( part, includeSiblings=False )
-
 		else:
+			# No skeleton with this model; use siblings only to determine relationships
+			usingSkeleton = False
+
 			if modelPane.displayMode == DisplayMode.SelectedOnly:
 				modelPane.selectableObjects = modelPane.displayObjects
 				partsToRender = modelParts
@@ -1739,21 +1732,20 @@ class TexturesEditorTab( ttk.Frame ):
 			else: # All
 				modelPane.selectableObjects = partsToRender = self.file.getDObjs()
 
-			# No skeleton to use when positioning various parts; fall back to basic joint transforms only
-			for part in partsToRender:
-				# Set render state (normal or dim appearance)
-				if not obscureNonSelected or part in modelParts:
-					part.renderState = 'normal' # todo: make this an enum if more states are added
-				else:
-					part.renderState = 'dim'
+		# Render all parts that should be visible (and selectable in Render Options)
+		for part in partsToRender:
+			# Hide low- or high-poly parts based on the user option
+			if usingSkeleton and self.hideBasedOnPoly( part ):
+				continue
 
-				# Render the part
-				primitives = modelPane.engine.renderDisplayObj( part, includeSiblings=False )
-				modelPane.currentRenders.append( part )
+			# Set render state (normal or dim appearance)
+			if not obscureNonSelected or part in modelParts:
+				part.renderState = 'normal' # todo: make this an enum if more states are added
+			else:
+				part.renderState = 'dim'
 
-				# Update relative position based on parent joint coordinates
-				parentJoint = part.getParent( hsdStructures.JointObjDesc )
-				modelPane.engine.applyJointTransformations( primitives, parentJoint )
+			# Render the part
+			modelPane.engine.renderDisplayObj( part, includeSiblings=False )
 
 		# Remember what parts were last selected to render
 		modelPane.currentRenders = modelParts # Excludes "related" parts, or extra parts that are selectable
@@ -2953,7 +2945,7 @@ class ModelTabRenderOptionsWindow( BasicWindow ):
 		file = modelPane.displayObjects[0].dat
 		windowTitle = 'Render Options ({})'.format( file.filename )
 
-		if not BasicWindow.__init__( self, globalData.gui.root, windowTitle, offsets=(180, 45), resizable=True, unique=True ):
+		if not BasicWindow.__init__( self, globalData.gui.root, windowTitle, offsets=(100, 45), resizable=True, unique=True ):
 			return # Unique window already exists; bringing that back into view now instead of creating a new window
 
 		self.editorTab = editorTab
@@ -3025,6 +3017,7 @@ class ModelTabRenderOptionsWindow( BasicWindow ):
 			modelParts.sort( key=lambda part: part.offset )
 
 		# Add checkboxes to the interface for each Display Object
+		jointClass = globalData.fileStructureClasses['JointObjDesc']
 		row = 0
 		for dobj in modelParts:
 			if dobj in self.modelPane.currentRenders:
@@ -3041,10 +3034,12 @@ class ModelTabRenderOptionsWindow( BasicWindow ):
 			else:
 				style = 'TCheckbutton'
 
+			parentJoint = dobj.getParent( jointClass )
+
 			if dobj.id == -1:
-				title = ' ' + dobj.name
+				title = ' {} - {}'.format( parentJoint.name, dobj.name )
 			else:
-				title = ' {}: {}'.format( dobj.id, dobj.name )
+				title = ' {} - {}: {}'.format( parentJoint.name, dobj.id, dobj.name )
 
 			btn = ttk.Checkbutton( self.partCheckboxesFrame.interior, text=title, variable=boolVar, command=self.dobjCheckboxClicked, style=style )
 			btn.grid( column=0, row=row, sticky='w', padx=(6, 0) )

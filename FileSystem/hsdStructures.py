@@ -77,6 +77,7 @@ class StructBase( object ):
 		self.branchSize 	= -1					# The size of this structure plus all of its children
 		self.structDepth 	= None
 		self.childClassIdentities = {}
+		self.classParents	= {}
 
 		self._parentsChecked = False
 		self._siblingsChecked = False
@@ -323,15 +324,24 @@ class StructBase( object ):
 
 	def getParent( self, targetClass, printWarnings=False ):
 
-		""" Checks among all parents this structure is attached to and returns one of a target class. """
+		""" Checks among all parents this structure is attached to and returns one of a target class. 
+			Returns None if a parent of the given class couldn't be initialized. """
 
-		parent = None
+		# See if it's cached
+		parent = self.classParents.get( targetClass )
+		if parent:
+			return parent
 
+		# Not already collected; try to find it
 		for parentOffset in self.getParents():
+			# Test if we can initialize this structure offset with the target class
 			parent = self.dat.initSpecificStruct( targetClass, parentOffset, self.offset, printWarnings=printWarnings )
 			if parent: break
 
-		if not parent and printWarnings:
+		# Cache so we don't have to search next time for this parent
+		if parent:
+			self.classParents[targetClass] = parent
+		elif printWarnings:
 			print( 'Unable to find a {} parent to {}'.format(targetClass.__name__, self.name) )
 
 		return parent
@@ -1564,9 +1574,8 @@ class JointObjDesc( StructBase ): # A.k.a Bone Structure
 
 class DisplayObjDesc( StructBase ):
 
-	""" Represents an object to be displayed (rendered), which includes 
-	 	a material with color and/or textures and other rendering properties, 
-		and a mesh. """
+	""" Represents an object to be displayed (rendered), including a material 
+	 	with color and/or textures with other rendering properties, and a mesh. """
 
 	count = 0
 
@@ -2281,8 +2290,8 @@ class VertexAttributesArray( TableStruct ):
 				enumName = self.enums['Attribute_Name'][name]
 				warnings.add( 'Encountered {} in {}'.format(enumName, self.name) )
 
-		# if warnings:
-		# 	print( '\n'.join(list(warnings)) )
+		if warnings:
+			print( '\n'.join(list(warnings)) )
 
 		return self._attributeInfo
 
