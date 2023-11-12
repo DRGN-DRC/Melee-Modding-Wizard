@@ -12,7 +12,7 @@
 """ Container for global data that all program files or modules may access. 
 	Contains settings, settings-related load/save functions, and look-up tables. """
 
-programVersion = '0.9.8'
+programVersion = '0.9.9'
 
 # External Dependencies
 import os
@@ -589,8 +589,10 @@ def getVanillaDiscPath():
 		file from the user settings, and prompts the user to enter one if a good path is not found. 
 		Can't be contained in main because it's needed in other files (which can't import from main). """
 
+	# Check the settings file to see if a vanilla path is available
 	vanillaDiscPath = settings.get( 'General Settings', 'vanillaDiscPath' )
 
+	# And ensure the path is still good...
 	if not vanillaDiscPath:
 		message = ( 'Please specify the full path to a vanilla NTSC 1.02 SSBM game disc. This path only '
 					'needs to be given once, and can be changed at any time in the settings.ini file. '
@@ -601,6 +603,7 @@ def getVanillaDiscPath():
 	else:
 		message = ''
 
+	# If there's a message created above, we need to get a new path
 	if message:
 		message += (
 			'\n\nPro-tip: In Windows, if you hold Shift while right-clicking on a file, there appears a context menu '
@@ -909,7 +912,7 @@ charColorLookup = {
 }
 
 
-costumeSlots = { # Character Costuems indexed by Costume ID, for each character
+costumeSlots = { # Character Costumes indexed by Costume ID, for each character
 	'Ca': ( 'Nr', 'Gy', 'Re', 'Wh', 'Gr', 'Bu' ),
 	'Dk': ( 'Nr', 'Bk', 'Re', 'Bu', 'Gr' ),
 	'Fx': ( 'Nr', 'Or', 'La', 'Gr' ),

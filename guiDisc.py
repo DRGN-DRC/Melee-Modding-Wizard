@@ -629,12 +629,43 @@ class DiscTab( ttk.Frame ):
 			# 	print( '0x{:x} equivalent to 0x{:x}: {}'.format(s1.offset, s2.offset, structsEquivalent) )
 
 			# if issubclass( discFile.__class__, CharCostumeFile ) and not discFile.filename.endswith( 'Nr.dat' ):# and discFile.filename.startswith( 'PlCaGr' ):
+			# # if issubclass( discFile.__class__, CharCostumeFile ) and discFile.filename.startswith( 'PlCaGr' ):
 			# 	# Check for Nr costume
 			# 	defaultCostume = globalData.disc.files.get( 'GALE01/Pl' + discFile.charAbbr + 'Nr.dat' )
 			# 	if defaultCostume:
+			# 		JointObjDesc = globalData.fileStructureClasses.get( 'JointObjDesc' )
+			# 		InverseMatrixObjDesc = globalData.fileStructureClasses.get( 'InverseMatrixObjDesc' )
 			# 		#structsEquivalent = discFile.structuresEquivalent( defaultCostume.getSkeletonRoot(), discFile.getSkeletonRoot(), True, [DisplayObjDesc] )
 			# 		structsEquivalent = discFile.structuresEquivalent( defaultCostume.getSkeletonRoot(), discFile.getSkeletonRoot(), True, None, [JointObjDesc, InverseMatrixObjDesc] )
 			# 		print( discFile.charAbbr + discFile.colorAbbr + ' skele equivalent to Nr costume: ' + str(structsEquivalent) )
+
+
+				# rootJoint = discFile.getSkeletonRoot()
+				# structures = discFile.getBranch( rootJoint.offset, classLimit=['DisplayObjDesc'], classLimitInclusive=False )
+				# offsets = [ s.offset for s in structures ]
+
+				# #print( [hex(0x20+s.offset) for s in structures] )
+				# print( len(offsets) )
+				# print( len(set(offsets)))
+				# # print( 'total size: ' + hex(rootJoint.getBranchSize()) )
+				# # print( 'total size: ' + hex(sum([s.length for s in structures])) )
+
+				# low = min( offsets ) - 0x200
+				# high = max( offsets ) + 0x200
+				# print(hex(low))
+				# print(hex(high))
+
+				# for i, offset in enumerate( discFile.structureOffsets ):
+				# 	if offset >= low and offset < high:
+				# 		s = discFile.getStruct( offset )
+
+				# 		if offset in offsets:
+				# 			print( s.name )
+				# 		else:
+				# 			print( s.name + '  !!' )
+
+				# 		nextStructOffset = discFile.structureOffsets[i+1]
+				# 		print( 'space to next struct: ' + hex(nextStructOffset-(s.offset+s.length)) )
 
 			# if discFile.__class__.__name__ == 'CharDataFile':
 			# 	lookupTable = discFile.getModelLookupTable()
@@ -2425,7 +2456,7 @@ class DiscMenu( Tk.Menu, object ):
 		if not cccWindow:
 			cccWindow = CharacterColorConverter()
 
-		# Create a copy of the file (wihtout making a disc copy) to send to the CCC, because it will be modified
+		# Create a copy of the file (without making a disc copy) to send to the CCC, because it will be modified
 		disc = self.fileObj.disc
 		fileCopy = disc.copyFile( self.fileObj, disc )
 

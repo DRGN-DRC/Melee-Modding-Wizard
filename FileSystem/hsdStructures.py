@@ -56,7 +56,7 @@ class StructBase( object ):
 
 	# __slots__ = ( 'dat', 'offset', 'data', 'name', 'label', 'fields', 'length', 'entryCount', 'formatting',
 	# 			  'parents', 'siblings', 'children', 'values', 'branchSize', 'childClassIdentities',
-	# 			  '_parentsChecked', '_siblingsChecked', '_childrenChecked', '_branchInitialized' )
+	# 			  '_parentsChecked', '_siblingsChecked', '_childrenChecked' )
 
 	def __init__( self, datSource, dataSectionOffset, parentOffset=-1, structDepth=None, entryCount=-1 ):
 
@@ -82,7 +82,6 @@ class StructBase( object ):
 		self._parentsChecked = False
 		self._siblingsChecked = False
 		self._childrenChecked = False
-		# self._branchInitialized = False
 
 		# Determine the structure's file depth (x, y) tuple, if possible.
 		#		x = how "deep" into the file (the file header is first, at 0. Root Nodes Table is next, at 1)
@@ -653,67 +652,46 @@ class StructBase( object ):
 
 		return self.children
 
-	# def getBranchDescendants( self, recursive=True, classLimit=None ):
+	def getDescendants( self, override=False, classLimit=None, structs=None, classLimitInclusive=True ):
 
-	# 	""" Recursively returns all children and sibling structs for this structure. """
+		""" Recursively initializes structures for an entire branch within the data section and returns them. """
 
-	# 	allStructs = set()
-	# 	subBranches = self.getChildren( includeSiblings=True )
-
-	# 	# print( 'Descendants of ' + self.name )
-	# 	# print( 'direct:' + str([ hex( 0x20 + s) for s in subBranches]) )
-
-	# 	for offset in subBranches:
-	# 		structure = self.dat.getStruct( offset )
-	# 		allStructs.add( structure )
-	# 		allStructs.update( structure.getBranchDescendants(classLimit=classLimit) )
-
-	# 	# print( 'all:' + str([ hex( 0x20 + s.offset) for s in allStructs]) )
-
-	# 	return allStructs
-
-	def getDescendants( self, override=False, classLimit=None ):
-
-		""" Recursively initializes structures for an entire branch within the data section. """
-
-		structs = []
-
-		# Prevent redundant passes over this branch of the tree (can happen if multiple structures point to the same structure)
-		# if self._branchInitialized and not override: # Checking self.dat.structs to see if this struct exists isn't enough
-		# 	if self.__class__ == classLimit:
-		# 		return structs
-		# 	else:
-		# 		return self.getBranchDescendants(classLimit=classLimit)
+		if not structs:
+			structs = []
 
 		# Initialize children
 		for childStructOffset in self.getChildren( includeSiblings=True ):
 			if childStructOffset == self.offset: continue # Prevents infinite recursion, in cases where a struct points to itself
 
-			# Check if the target child struct has already been initialized (only occurs when multiple structs point to one struct)
+			# Check if the target child struct has already been initialized
 			childStruct = self.dat.structs.get( childStructOffset, None )
 
+			# Check if we got a struct, None, or a class hint
 			if childStruct and not childStruct.__class__ == str:
 				# This struct/branch has already been initialized. So just update the child's parent structs set with this item.
 				childStruct.parents.add( self.offset )
+
+				# Ignore structs already collected (it may have multiple parents)
+				if childStruct in structs:
+					continue
 
 			else: # Create the new struct
 				childStruct = self.dat.getStruct( childStructOffset, self.offset )
 
 			# Prevent initialization of lower structures if using a class limit
-			if childStruct.__class__ == classLimit:
-				siblingOffsets = childStruct.getSiblings()
-				if siblingOffsets:
-					# This child will be included in its list of siblings
-					siblings = [ self.dat.getStruct(sib) for sib in siblingOffsets ]
-					structs.extend( siblings )
-				else:
-					structs.append( childStruct )
+			if childStruct.__class__ in classLimit:
+				if classLimitInclusive:
+					siblings = childStruct.getSiblings( asStructs=True )
+					if siblings:
+						# This child will be included in its list of siblings
+						structs.extend( siblings )
+					else:
+						structs.append( childStruct )
 				continue
 
+			# Collect this struct and its descendants
 			structs.append( childStruct )
-			structs.extend( childStruct.getDescendants(classLimit=classLimit) )
-
-		# self._branchInitialized = True
+			childStruct.getDescendants( classLimit=classLimit, structs=structs, classLimitInclusive=classLimitInclusive )
 
 		return structs
 
@@ -816,6 +794,14 @@ class StructBase( object ):
 			print( 'Unable to get a struct depth for ' + self.name )
 
 		return self.structDepth
+
+	def setData( self, offset, data ):
+
+		""" Updates data in this structure with the given data. This also 
+			clears the .values property so they will be re-fetched, if needed. """
+
+		self.data[offset:offset+len(data)]
+		self.values = ()
 
 	def setValue( self, index, value ):
 
@@ -988,14 +974,12 @@ class DataBlock( StructBase ):
 		self.name = 'Data Block ' + uHex( 0x20 + args[1] )
 		self._siblingsChecked = True
 		self._childrenChecked = True
-		# self._branchInitialized = True
 
 	def validated( self, *args, **kwargs ): return True
-	def getSiblings( self, nextOnly=False, asStructs=False ): return []
-	def isSibling( self, offset ): return False
-	def getChildren( self, includeSiblings=True ): return []
-	#def getBranchDescendants( self, recursive=True, classLimit=None ): return []
-	def getDescendants( self, override=False, classLimit=None ): return []
+	def getSiblings( self, *args, **kwargs ): return []
+	def isSibling( self, *args, **kwargs ): return False
+	def getChildren( self, *args, **kwargs ): return []
+	def getDescendants( self, *args, **kwargs ): return []
 	def getAttributes( self ): # Gets the properties of this block from a parent image/palette/other data header
 		aParentOffset = self.getAnyDataSectionParent()
 		return self.dat.getStruct( aParentOffset ).getValues()

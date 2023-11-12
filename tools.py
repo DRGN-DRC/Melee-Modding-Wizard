@@ -578,9 +578,12 @@ class CodeLookup( BasicWindow ):
 			self.dolIsVanilla = False
 			gameId = globalData.disc.gameId
 		else:
-			# Get the vanilla disc path
+			# Try the vanilla disc path
 			vanillaDiscPath = globalData.getVanillaDiscPath()
-			if not vanillaDiscPath: # todo: add warning here
+			if not vanillaDiscPath:
+				warningMessage = 'No disc reference is available. One is required in order to look up code.'
+				msg( warningMessage, 'No reference disc', parent=self.window, warning=True )
+				self.close()
 				return
 			vanillaDisc = Disc( vanillaDiscPath )
 			vanillaDisc.loadGameCubeMediaFile()
@@ -622,7 +625,7 @@ class CodeLookup( BasicWindow ):
 	# 	self.length.configure( state="normal" )
 	# 	self.length.delete( 0, 'end' )
 	# 	self.length.configure( state="readonly" )
-		
+
 	def locationUpdated( self, locationString ):
 
 		""" Validates text input into the offset/address entry field, whether entered 
@@ -1650,39 +1653,37 @@ class CharacterColorConverter( BasicWindow ):
 	""" Tool window to convert character costumes meant for one color slot to a different color slot. """
 
 	def __init__( self ):
-		if not BasicWindow.__init__( self, globalData.gui.root, 'Character Color Converter', dimensions=(720, 450), topMost=False, unique=True ):
+		if not BasicWindow.__init__( self, globalData.gui.root, 'Character Color Converter', dimensions=(720, 440), topMost=False, unique=True ):
 			return # If the above returned false, it displayed an existing window, so we should exit here
 
 		self.fontColor = 'black'
 		self.source = None
 		self.dest = None
 		self.targetCostumeId = -1
-		
-		fileSelectionRows = Tk.Frame( self.window )
 
+		fileSelectionRows = Tk.Frame( self.window ) # Contains the first two rows (descriptions and buttons)
+
+		# First row --------------------
 		ttk.Label( fileSelectionRows, text="Step 1 | Choose the source file you'd like to convert.\n\n(If selecting from the " \
 			"Disc File Tree, right-click \non the file and select 'Set as CCC Source File'.)", wraplength=350 ).grid( column=0, row=0, padx=15, pady=25 )
 		
 		row1RightCell = Tk.Frame( fileSelectionRows )
-
 		ttk.Button( row1RightCell, text='  Within a Disc  ', command=self.pointToDiscTab ).grid( column=0, row=0 )
 		ttk.Button( row1RightCell, text='  Standalone File  ', command=self.selectStandaloneSource ).grid( column=1, row=0 )
-
 		self.cccSourceCanvas = Tk.Canvas( row1RightCell, width=290, height=64, borderwidth=0, highlightthickness=0 )
 		self.cccIdentifiersXPos = 90
 		self.cccSourceCanvas.create_text( self.cccIdentifiersXPos, 20, anchor='w', font="-weight bold -size 10", fill=self.fontColor, text='Character: ' )
 		self.cccSourceCanvas.create_text( self.cccIdentifiersXPos, 44, anchor='w', font="-weight bold -size 10", fill=self.fontColor, text='Costume Color: ' )
 		self.cccSourceCanvas.insigniaImage = None
 		self.cccSourceCanvas.grid( column=0, row=1, columnspan=2, pady=7 )
+		row1RightCell.grid( column=1, row=0, pady=(26, 10) )
 
-		row1RightCell.grid( column=1, row=0, pady=(22, 0) )
-
-		ttk.Label( fileSelectionRows, text='Step 2 | Choose a "destination" file of the desired color (and same character). ' \
+		# Second row --------------------
+		ttk.Label( fileSelectionRows, text='Step 2 | Choose a "destination" file of the desired color and same character. ' \
 			'If you choose a destination file within a disc, that file will be replaced. If you choose a standalone file, a new ' \
 			"file will be created after the source file is converted.", wraplength=350 ).grid( column=0, row=1, padx=15, pady=25 )
-		
-		row2RightCell = Tk.Frame( fileSelectionRows )
 
+		row2RightCell = Tk.Frame( fileSelectionRows )
 		ttk.Button( row2RightCell, text='  Within a Disc  ', command=self.pointToDiscTab ).grid( column=0, row=0 )
 		ttk.Button( row2RightCell, text='  Standalone File  ', command=self.chooseDestinationColor ).grid( column=1, row=0 )
 		self.cccDestCanvas = Tk.Canvas( row2RightCell, width=290, height=64, borderwidth=0, highlightthickness=0 ) #, background='blue'
@@ -1690,19 +1691,20 @@ class CharacterColorConverter( BasicWindow ):
 		self.cccDestCanvas.create_text( self.cccIdentifiersXPos, 44, anchor='w', font="-weight bold -size 10", fill=self.fontColor, text='Costume Color: ' )
 		self.cccDestCanvas.insigniaImage = None
 		self.cccDestCanvas.grid( column=0, row=1, columnspan=2, pady=7 )
+		row2RightCell.grid( column=1, row=1, pady=10 )
 
-		row2RightCell.grid( column=1, row=1 )
 		fileSelectionRows.pack( pady=0 )
 
 		finalButtonsFrame = Tk.Frame( self.window )
-		ttk.Button( finalButtonsFrame, text='    Step 3 | Convert!    ', command=self.prepareColorConversion ).pack( side='left', padx=25 )
+		self.conversionBtn = ttk.Button( finalButtonsFrame, text='    Step 3 | Convert!    ', command=self.prepareColorConversion, state='disabled' )
+		self.conversionBtn.pack( side='left', padx=25 )
 		#self.cccOpenConvertedFileButton = ttk.Button( finalButtonsFrame, text='    Open Converted File    ', command=openConvertedCharacterFile, state='disabled' )
 		#self.cccOpenConvertedFileButton.pack( side='left', padx=25 )
 		finalButtonsFrame.pack( pady=(5, 10) )
 
 		cccBannerFrame = Tk.Frame( self.window )
 		ttk.Label( cccBannerFrame, image=globalData.gui.imageBank('cccBanner') ).place(relx=0.5, rely=0.5, anchor='center')
-		cccBannerFrame.pack( fill='both', expand=1 )
+		cccBannerFrame.pack( fill='both', expand=1, pady=7 )
 
 		# Set up the Drag-n-drop event handlers.
 		self.dnd = TkDnD( self.window )
@@ -1727,10 +1729,6 @@ class CharacterColorConverter( BasicWindow ):
 		
 		self.loadStandalone( filepaths[0], role )
 
-	def cancel( self ):
-		#globalData.cccWindow = None
-		self.close()
-
 	def pointToDiscTab( self ):
 
 		""" Prompt to load a disc if one is not open, and then go to the Disc File Tree tab. """
@@ -1751,7 +1749,7 @@ class CharacterColorConverter( BasicWindow ):
 				mainGui.loadDiscManagement()
 
 			mainGui.discTab.scrollToSection( 'Characters' )
-		
+
 	def selectStandaloneSource( self ):
 
 		""" Prompts the user to select a standalone file (one not within a disc) for the source file to be converted. """
@@ -1771,7 +1769,8 @@ class CharacterColorConverter( BasicWindow ):
 
 	def loadStandalone( self, filepath, role ):
 
-		""" Load a filepath as a DAT file object, store it, and update the GUI with character/color names/images. """
+		""" Loads a standalone file with the given filepath as a DAT file object 
+			and updates the GUI with character/color names/images for the target slot. """
 
 		try:
 			newFileObj = CharCostumeFile( None, -1, -1, '', extPath=filepath, source='file' )
@@ -1798,24 +1797,9 @@ class CharacterColorConverter( BasicWindow ):
 
 		self.updateSlotRepresentation( None, 'dest' )
 
-	# def createStandalone( self ):
-		
-	# 	# Get a save filepath from the user
-	# 	targetFile = tkFileDialog.asksaveasfilename(
-	# 		title="Where would you like to save the {} file?".format( fileExt[1:].upper() ),
-	# 		initialdir=globalData.getLastUsedDir(),
-	# 		initialfile=initialFilename,
-	# 		defaultextension=fileExt,
-	# 		filetypes=[ (fileTypeDescription, fileExt), ("All files", "*") ]
-	# 		)
-	# 	if targetFile == '':
-	# 		return # No filepath; user canceled
-			
-	#def prepareColorConversion( self, filepath, datHex, role ): # datHex includes the file header
-
 	def clearSlotRepresentation( self, role ):
 
-		""" Remove the insignia image and reset the character/color text for the source or destination canvas. """
+		""" Remove the insignia image and resets the character/color text for the source or destination canvas. """
 
 		if role == 'source':
 			canvas = self.cccSourceCanvas
@@ -1830,18 +1814,26 @@ class CharacterColorConverter( BasicWindow ):
 		canvas.create_text( self.cccIdentifiersXPos, 44, anchor='w', font="-weight bold -size 10", fill=self.fontColor, text='Costume Color: ' )
 		canvas.insigniaImage = None
 
+		self.updateConversionBtn()
+
 	def updateSlotRepresentation( self, fileObj, role ):
-		
+
+		""" Stores the given file object, initializes it (performs basic DAT file parsing and file 
+			structure creation) checks if the file/costume is supported by this tool, and then 
+			updates the GUI to show a character insignia and the color identified for this slot. """
+
 		charAbbr = ''
 		colorAbbr = ''
-		
-		if role == 'source':
-			self.source = fileObj
-			canvas = self.cccSourceCanvas
 
+		# Store
+		if role == 'source':
+			# Cancel and clear the slot if no file is available
 			if not fileObj:
 				self.clearSlotRepresentation( role )
 				return
+
+			self.source = fileObj
+			canvas = self.cccSourceCanvas
 		else:
 			self.dest = fileObj
 			canvas = self.cccDestCanvas
@@ -1851,10 +1843,12 @@ class CharacterColorConverter( BasicWindow ):
 			fileObj.initialize()
 			firstString = fileObj.rootNodes[0][1] # First root node symbol
 
-			if not firstString[:3] == 'Ply':
+			if not firstString[:3] == 'Ply': # Failsafe; the file should have already been validated as a character file
 				msg( "This file doesn't appear to be a character costume!", parent=self.window )
+				self.clearSlotRepresentation( role )
+				return
 			elif '5K' not in firstString:
-				if 'Kirby' in firstString:
+				if 'Kirby' in firstString: # :/
 					msg( "Only Kirby's base color files are supported (e.g. 'PlKbBu'). "
 						"You'll have to modify this one manually. Luckily, none of his files have many textures.", parent=self.window )
 				else: # If here, this must be Master/Crazy Hand, or one of the Fighting Wire Frames.
@@ -1875,27 +1869,27 @@ class CharacterColorConverter( BasicWindow ):
 			charAbbr = self.source.charAbbr
 			colorAbbr = globalData.costumeSlots[charAbbr][self.targetCostumeId]
 
+		# Ensure the character and the character's color slot is recognized
+		if not charAbbr:
+			errorMessage = 'This character could not be determined or is not supported. \n\nID (first root node string): ' + firstString
+		elif not colorAbbr:
+			errorMessage = 'This color slot could not be determined or is not supported. \n\nID (first root node string): ' + firstString
+
 		# Check for unsupported characters
-		if charAbbr == 'Gw':
-			msg( 'Game & Watch has no costume slots to swap!', parent=self.window )
-			self.clearSlotRepresentation( role )
-			return
+		elif charAbbr == 'Gw':
+			errorMessage = 'Game & Watch has no costume slots to swap!'
 		elif charAbbr == 'Gk':
-			msg( 'Giga Bowser has no costume slots to swap!', parent=self.window )
-			self.clearSlotRepresentation( role )
-			return		  # Falcon/Nana/Ness				Yellow Peach
-		elif charAbbr in ( 'Ca', 'Nn', 'Ns' ) or ( charAbbr == 'Pe' and colorAbbr == 'Ye' ):
-			msg( ("This character is not yet supported in this tool due to differing skeletal structures in the files. "
-					'In the meantime, if only the textures are different between these costumes, you could try the '
-					'CCC tool in DAT Texture Wizard, and/or export/import the model using HSDRaw.'), parent=self.window )
-			self.clearSlotRepresentation( role )
-			return
-		elif charAbbr in ( 'Pc', 'Pk', 'Pr' ):
-			msg( ("This character is not yet supported in this tool due to model (hat) differences. "
-					'In the meantime, if only the textures are different between these costumes, you could try the '
-					'CCC tool in DAT Texture Wizard, and/or export/import the model using HSDRaw.'), parent=self.window )
-			self.clearSlotRepresentation( role )
-			return
+			errorMessage = 'Giga Bowser has no costume slots to swap!'
+		# elif charAbbr in ( 'Ca', 'Nn', 'Ns' ) or ( charAbbr == 'Pe' and colorAbbr == 'Ye' ): # Falcon/Nana/Ness or Yellow Peach
+		# 	errorMessage = ( "This character is not yet supported in this tool due to differing skeletal structures in the files. "
+		# 					'In the meantime, if only the textures are different between these costumes, you could try the '
+		# 					'CCC tool in DAT Texture Wizard, or export/import the model using HSDRaw.' )
+		elif charAbbr in ( 'Pc', 'Pk', 'Pr' ): # Pichu, Pikachu, and Jiggs
+			errorMessage = ( "This character is not yet supported in this tool due to model (hat) differences. "
+							'In the meantime, if only the textures are different between these costumes, you could try the '
+							'CCC tool in DAT Texture Wizard, or export/import the model using HSDRaw.' )
+		else:
+			errorMessage = ''
 
 		# elif charAbbr == 'Pe' and colorAbbr == 'Ye':
 		# 	msg("Peach's yellow costume has too many differences from the other colors to map. You'll need to convert this costume manually. (Using the DAT Texture Tree tab to "
@@ -1908,16 +1902,13 @@ class CharacterColorConverter( BasicWindow ):
 		# 		'\n\nCharacter key found: ' + str(charKey in CCC) + '\nColor key found: ' + str(colorAbbr in charColorLookup), parent=self.window )
 		# else:
 
-		if not charAbbr:
-			msg( 'This character could not be determined or is not supported. \n\nID (first root node string): ' + firstString, parent=self.window )
-			self.clearSlotRepresentation( role )
-			return
-		elif not colorAbbr:
-			msg( 'This color slot could not be determined or is not supported. \n\nID (first root node string): ' + firstString, parent=self.window )
+		# Exit and clear the slot if this costume can't be converted
+		if errorMessage:
+			msg( errorMessage, parent=self.window )
 			self.clearSlotRepresentation( role )
 			return
 
-		# Get an image that is greyscale with alpha
+		# Get the base insignia image, which is greyscale with alpha
 		insigniaPath = os.path.join( globalData.paths['imagesFolder'], 'Universe Insignias', globalData.universeNames[charAbbr] + ".png" )
 		greyscaleInsignia = Image.open( insigniaPath ).convert( 'L' )
 
@@ -1942,8 +1933,20 @@ class CharacterColorConverter( BasicWindow ):
 		canvas.create_text( self.cccIdentifiersXPos, 20, anchor='w', fill=self.fontColor, font="-weight bold -size 10", text='Character: ' + charName )
 		canvas.create_text( self.cccIdentifiersXPos, 44, anchor='w', fill=self.fontColor, font="-weight bold -size 10", text='Costume Color: ' + colorName )
 
+		self.updateConversionBtn()
+
 		# Bring this window to the front
 		self.window.deiconify()
+
+	def updateConversionBtn( self ):
+
+		""" Enables the button to begin the conversion process (the Convert button) 
+			if a file/char and color are chosen for both the source and destination. """
+
+		if self.source and ( self.dest or self.targetCostumeId != -1 ):
+			self.conversionBtn['state'] = 'normal'
+		else:
+			self.conversionBtn['state'] = 'disabled'
 
 	def prepareColorConversion( self ):
 
@@ -1959,17 +1962,16 @@ class CharacterColorConverter( BasicWindow ):
 			return
 
 		# Ensure a target file or target color slot has been chosen
-		origColorAbbr = self.source.colorAbbr
-		if self.dest:
-			newColorAbbr = self.dest.colorAbbr
+		if self.dest: # Replacing a file object
+			destinationColor = self.dest.colorAbbr
 		elif self.targetCostumeId == -1:
-			msg( 'You must choose a destination file or target color first.', parent=self.window )
+			msg( 'You must choose a destination file or desired costume color first.', parent=self.window )
 			return
-		else:
-			newColorAbbr = globalData.costumeSlots[self.source.charAbbr][self.targetCostumeId]
+		else: # Creating a new file
+			destinationColor = globalData.costumeSlots[self.source.charAbbr][self.targetCostumeId]
 
 		# Ensure the color slots are different
-		if origColorAbbr == newColorAbbr:
+		if self.source.colorAbbr == destinationColor:
 			if self.dest:
 				msg( 'These character costumes are for the same color!\nThere is nothing to convert.', parent=self.window )
 			else:
@@ -1977,72 +1979,241 @@ class CharacterColorConverter( BasicWindow ):
 			return
 
 		# Passed validation; perform the conversion
-		self.convertCharacterColor( self.source, newColorAbbr, self.dest, self.window )
-		self.cancel()
+		returnCode = self.convertCharacterColor( self.source, destinationColor, self.dest, self.window )
+
+		# Close on success
+		if returnCode == 0:
+			self.close()
+
+	""" The following functions are defined as static methods so that they do not have to be initialised 
+		as part of a class instance (i.e with this whole tool's GUI window), which allows them to be used 
+		in other ways, such as on command-line without a GUI. """
+
+	@staticmethod
+	def skeletonsEquivalent( char, color1, color2 ):
+
+		""" This is based on prior testing using the structuresEquivalent() 
+			method and a whitelist of [JointObjDesc, InverseMatrixObjDesc]. """
+
+		if char in ( 'Dk', 'Fx', 'Kp', 'Lk', 'Lg', 'Mr' ):
+			# All costumes for these characters have the same skeleton
+			return True
+
+		elif char == 'Kb': # Kirby
+			if color1 in ( 'Ye', 'Bu', 'Gr' ) and color2 in ( 'Ye', 'Bu', 'Gr' ):
+				return True
+			elif color1 in ( 'Re', 'Wh' ) and color2 in ( 'Re', 'Wh' ):
+				return True
+
+		elif char in ( 'Ms', 'Mt', 'Pp', 'Pr', 'Ss', 'Dr' ): # Marth, Mewtwo, Popo, Jiggs, Samus, Dr. Mario
+			# For these costumes, only the neutral slot is differet; the other colors have the same skeleton
+			if color1 != 'Nr' and color2 != 'Nr':
+				return True
+
+		elif char == 'Pe': # Peach
+			if color1 in ( 'Nr', 'Wh', 'Gr' ) and color2 in ( 'Nr', 'Wh', 'Gr' ):
+				return True
+
+		elif char == 'Pk': # Pikachu
+			if color1 in ( 'Re', 'Bu' ) and color2 in ( 'Re', 'Bu' ):
+				return True
+
+		elif char == 'Nn': # Nana
+			if color1 in ( 'Nr', 'Ye', 'Aq' ) and color2 in ( 'Nr', 'Ye', 'Aq' ):
+				return True
+
+		elif char == 'Ys': # Yoshi
+			# Nr and Re both have unique skeletons. The rest have the same
+			if color1 not in ( 'Nr', 'Re' ) and color2 not in ( 'Nr', 'Re' ):
+				return True
+
+		elif char == 'Zd': # Zelda
+			if color1 in ( 'Nr', 'Bu' ) and color2 in ( 'Nr', 'Bu' ):
+				return True
+			elif color1 in ( 'Re', 'Gr', 'Wh' ) and color2 in ( 'Re', 'Gr', 'Wh' ):
+				return True
+
+		elif char == 'Sk' or char == 'Pc': # Sheik and Pichu
+			if color1 in ( 'Nr', 'Gr' ) and color2 in ( 'Nr', 'Gr' ):
+				return True
+
+		elif char == 'Fc' or char == 'Gn': # Falco and Ganondorf
+			if color1 in ( 'Nr', 'Re' ) and color2 in ( 'Nr', 'Re' ):
+				return True
+
+		elif char == 'Cl': # Young Link
+			if color1 in ( 'Nr', 'Re', 'Bk' ) and color2 in ( 'Nr', 'Re', 'Bk' ):
+				return True
+			elif color1 in ( 'Bu', 'Wh' ) and color2 in ( 'Bu', 'Wh' ):
+				return True
+
+		elif char == 'Fe': # Roy
+			if color1 in ( 'Nr', 'Re', 'Gr' ) and color2 in ( 'Nr', 'Re', 'Gr' ):
+				return True
+			elif color1 in ( 'Bu', 'Ye' ) and color2 in ( 'Bu', 'Ye' ):
+				return True
+
+		return False
+
+	@staticmethod
+	def getVanillaSkeleton( destGameFileName, guiParent=None ):
+
+		""" Get the skeleton for the given file from the vanilla reference disc. 
+			Potential #todo: use the extracted skeletons from Ploaj's validator instead,
+			which might be needed for mex support? """
+
+		try:
+			# Try to initialize the vanilla disc
+			vanillaDiscPath = globalData.getVanillaDiscPath()
+			if not vanillaDiscPath:
+				warning = 'A reference to a vanilla disc is required in order to get a vanilla model skeleton of the destination color slot!'
+				msg( warning, 'No reference disc', parent=guiParent, warning=True )
+				return None
+			vanillaDisc = Disc( vanillaDiscPath )
+			vanillaDisc.load()
+
+			# Get the vanilla character data file, and return its skeleton
+			charFile = vanillaDisc.getFile( destGameFileName )
+			if not charFile: # Failsafe; if it's really a vanilla disc, this should work!
+				warning = ( "Unable to get a vanilla model skeleton of the destination color slot! "
+							"The character file {} couldn't be found or loaded from the reference disc.".format( destGameFileName ) )
+				msg( warning, 'Unable to load character file', parent=guiParent, warning=True )
+				return None
+			rootJoint = charFile.getSkeletonRoot()
+			return charFile.getBranch( rootJoint.offset, classLimit=['DisplayObjDesc'], classLimitInclusive=False )
+
+		except Exception as err:
+			warning = 'Unable to get a vanilla model skeleton of the destination color slot!\n\n{}'.format( err )
+			msg( warning, 'Unable to get skeleton', parent=guiParent, error=True )
+			return None
+
+	@staticmethod
+	def updateSkeleton( source, vanilla ):
+
+		""" Copies struct values from the vanilla skeleton into the source file's skeleton. """
+
+		if len( source ) != len( vanilla ):
+			raise Exception( 'dissimilar skeletal structures (different lengths).' )
+
+		# Iterate over both sets of skeletal structures together
+		for sourceStruct, vanillaStruct in zip( source, vanilla ):
+			# Update a bone
+			if isinstance( sourceStruct, hsdStructures.JointObjDesc ):
+				if not isinstance( vanillaStruct, hsdStructures.JointObjDesc ):
+					raise Exception( 'mismatched joints in the skeleton.' )
+
+				# Copy over rotation, scale, and translation values to update the struct and the file's data
+				transformData = vanillaStruct.data[0x14:0x38]
+				sourceStruct.setData( 0x14, transformData )
+				sourceStruct.dat.setData( sourceStruct.offset+0x14, transformData )
+
+			# Update an inverse bind matrix
+			elif isinstance( sourceStruct, hsdStructures.InverseMatrixObjDesc ):
+				if not isinstance( vanillaStruct, hsdStructures.InverseMatrixObjDesc ):
+					raise Exception( 'mismatched inverse bind matrices in the skeleton.' )
+
+				# Copy over the whole matrix
+				sourceStruct.setData( 0, vanillaStruct.data )
+				sourceStruct.dat.setData( sourceStruct.offset, vanillaStruct.data )
+
+			# Update... wait, what?!
+			else:
+				print( 'Encountered an unexpected struct when updating the skeleton!: ' + sourceStruct.name )
 
 	@staticmethod
 	def convertCharacterColor( sourceFile, newColorAbbr, destinationFile=None, guiParent=None ):
-		
-		origColorAbbr = sourceFile.colorAbbr
 
-		# print( 'source:', origColorAbbr )
-		# print( 'target:', newColorAbbr )
+		""" The main functionality (magic) of this tool; performs the costume conversion by 
+			modifying the source file and replacing the destination file with it, or by 
+			creating a new (standalone) file. """
+
+		sourceColor = sourceFile.colorAbbr
+		destGameFileName = 'Pl{}{}'.format( sourceFile.charAbbr, newColorAbbr )
 
 		#saveAndShowTempFileData( sourceFile.getData(), 'CCC old.dat' )
 
 		# Check what kind of strings we're updating from (neutral slot or other?)
 		firstString = sourceFile.rootNodes[0][1] # First root node symbol
 		charKey, colorKey = firstString[3:].split( '5K' ) # e.g. PlyZelda5KWh_Share_joint or PlyZelda5K_Share_joint
-		if colorKey.startswith( '_' ): origColorAbbr = 'Nr'
-		else: origColorAbbr = colorKey.split( '_' )[0]
+		if colorKey.startswith( '_' ): sourceColor = 'Nr'
+		else: sourceColor = colorKey.split( '_' )[0]
+
+		# Replace the skeleton, if needed
+		if not CharacterColorConverter.skeletonsEquivalent( sourceFile.charAbbr, sourceColor, newColorAbbr ):
+			vanillaSkeleton = CharacterColorConverter.getVanillaSkeleton( destGameFileName + '.dat', guiParent )
+			if not vanillaSkeleton:
+				return 1 # A notice to the user would have been given by the method above
+
+			# Get the skeleton in the source file
+			rootJoint = sourceFile.getSkeletonRoot()
+			sourceSkeleton = sourceFile.getBranch( rootJoint.offset, classLimit=['DisplayObjDesc'], classLimitInclusive=False )
+
+			# Update the skeleton in the original/source file
+			try:
+				CharacterColorConverter.updateSkeleton( sourceSkeleton, vanillaSkeleton )
+			except Exception as err:
+				warning = ( "This conversion can't be done due to {} In the meantime, if only the "
+							'textures are different between these costumes, you could try the '
+		 					'CCC tool in DAT Texture Wizard, or export/import the model using HSDRaw.' ).format( err )
+				msg( warning, 'Unable to convert skeleton', parent=guiParent, error=True )
+				return 2
 
 		# Update the root node strings/symbols
 		newRootNodes = []
-		if origColorAbbr == 'Nr':
-			# Add color abbreviations to strings
-			for offset, oldString in sourceFile.rootNodes:
-				charKey, colorKey = oldString.split( '5K' )
+		fileSizeDiff = 0
+		for offset, oldString in sourceFile.rootNodes:
+			# Ignore unrecognized symbols! These could theoretically exist with some advanced mods
+			if '5K' not in oldString:
+				newRootNodes.append( (offset, oldString) )
+				continue
+
+			charKey, colorKey = oldString.split( '5K' )
+
+			# Determine how the string needs to be processed and create a new string
+			if sourceColor == 'Nr':
+				# Add color abbreviation to the string
 				newString = charKey + '5K' + newColorAbbr + colorKey
-				newRootNodes.append( (offset, newString) )
-			fileSizeDiff = 2 * len( sourceFile.rootNodes )
-		elif newColorAbbr == 'Nr':
-			# Remove color abbreviations from strings
-			for offset, oldString in sourceFile.rootNodes:
-				charKey, colorKey = oldString.split( '5K' )
+				fileSizeDiff += 2
+			elif newColorAbbr == 'Nr':
+				# Remove color abbreviation from the string
 				newString = charKey + '5K' + colorKey[2:]
-				newRootNodes.append( (offset, newString) )
-			fileSizeDiff = -2 * len( sourceFile.rootNodes )
-		else:
-			# Change color abbreviations to new ones
-			for offset, oldString in sourceFile.rootNodes:
-				charKey, colorKey = oldString.split( '5K' )
+				fileSizeDiff -= 2
+			else:
+				# Change existing color abbreviation to a new one
 				newString = charKey + '5K' + newColorAbbr + colorKey[2:]
-				newRootNodes.append( (offset, newString) )
-			fileSizeDiff = 0
+
+			newRootNodes.append( (offset, newString) )
+
 		sourceFile.rootNodes = newRootNodes
 
+		# Update the file header with a new filesize if needed
 		if fileSizeDiff != 0:
 			sourceFile.headerInfo['filesize'] += fileSizeDiff
 			sourceFile.size += fileSizeDiff
-		
+
 		# Update file data (rebuild header and/or string table bytearrays)
 		sourceFile.headerNeedsRebuilding = True
 		sourceFile.stringsNeedRebuilding = True
 		sourceFile.getFullData()
+		sourceFile._colorAbbr = newColorAbbr
+		sourceFile.getDescription() # Updates short/long descriptions
 
 		# Update the filename
-		gameFileName = 'Pl{}{}'.format( sourceFile.charAbbr, origColorAbbr )
+		gameFileName = 'Pl{}{}'.format( sourceFile.charAbbr, sourceColor )
 		if gameFileName in sourceFile.filename:
-			newGameFileName = 'Pl{}{}'.format( sourceFile.charAbbr, newColorAbbr )
-			sourceFile.filename = sourceFile.filename.replace( gameFileName, newGameFileName )
+			sourceFile.filename = sourceFile.filename.replace( gameFileName, destGameFileName )
 
 		# Save the converted file
-		if destinationFile: # Saving to a disc (replace existing destination file)
+		if destinationFile:
+			# Saving to a disc (replace existing destination file)
 			globalData.disc.replaceFile( destinationFile, sourceFile )
 
-			# Color the replaced file in the Disc File Tree
-			globalData.gui.discTab.isoFileTree.item( destinationFile.isoPath, tags='changed' )
-			
+			# Update the description and coloring of the file in the Disc File Tree
+			originalDescription = globalData.gui.discTab.isoFileTree.item( destinationFile.isoPath, 'values' )[0]
+			if len( originalDescription ) < 30: # Expecting something short...
+				originalDescription += ' (new from CCC)'
+			globalData.gui.discTab.isoFileTree.item( destinationFile.isoPath, values=(originalDescription, 'file'), tags='changed' )
+
 			# Update program status message
 			globalData.gui.updateProgramStatus( 'File converted successfully', success=True )
 			globalData.gui.playSound( 'menuChange' )
@@ -2052,18 +2223,5 @@ class CharacterColorConverter( BasicWindow ):
 
 		#saveAndShowTempFileData( sourceFile.getData(), 'CCC new.dat' )
 
-		if sourceFile.charAbbr not in ( 'Dk', 'Fx', 'Kp', 'Lg', 'Lk', 'Mr' ):
-			msg( "Due to minor differences in these costume's skeletons, there may be potential for "
-				 "desyncs if using this new character file with Slippi. You have been warned. :P", 'Warning!', warning=True )
-		
-# def openConvertedCharacterFile():
+		return 0
 
-# 	""" This function is used by the Character Color Converter (CCC) tab, for opening a finished/converted costume file in 
-# 		the DAT Texture Tree tab. This is useful for making sure the conversion was successful and the new textures are intact. """
-
-# 	destFilepath = CCC['dataStorage']['destFile']
-
-# 	if Gui.isoFileTree.exists( destFilepath ): 
-# 		loadFileWithinDisc( destFilepath ) # 'destFilepath' will actually be an iid in this case.
-# 	else: 
-# 		fileHandler( [destFilepath] )

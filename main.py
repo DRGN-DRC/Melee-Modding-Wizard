@@ -198,7 +198,7 @@ class SettingsMenu( Tk.Menu, object ):
 				variable=globalData.boolSettings['backupOnRebuild'], command=globalData.saveProgramSettings )
 		# self.add_checkbutton( label='Auto-Generate CSP Trim Colors', underline=5, 											# G
 		# 		variable=globalData.boolSettings['autoGenerateCSPTrimColors'], command=globalData.saveProgramSettings )
-		self.add_checkbutton( label='Always Add Files Alphabetically', underline=11, 											# F
+		self.add_checkbutton( label='Always Add Files to Discs Alphabetically', underline=11, 									# F
 				variable=globalData.boolSettings['alwaysAddFilesAlphabetically'], command=globalData.saveProgramSettings )
 
 		self.add_checkbutton( label='Run Dolphin in Debug Mode', underline=15, 													# D

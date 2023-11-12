@@ -624,7 +624,7 @@ class DatFile( FileBase ):
 		self.pointerOffsets = [] 		# List of file offsets of all pointers in the file, including root/ref node pointers
 		self.pointerValues = [] 		# List of values found at the target locations of the above pointers
 		self.pointers = []				# Sorted list of (pointerOffset, pointerValue) tuples, useful for looping both together
-		self.structureOffsets = []		# A list formed from the above pointerValues list, excluding duplicate entries
+		self.structureOffsets = []		# A sorted list formed from the above pointerValues list, excluding duplicate entries
 		self.orphanStructures = set()	# These are not attached to the rest of the file heirarchy/tree in the usual manner (i.e. no parents)
 		self.structs = {}				# key = structOffset, value = HSD structure object
 		self.deepDiveStats = {}			# After parsing the data section, this will contain pairs of key=structClassName, value=instanceCount
@@ -651,7 +651,7 @@ class DatFile( FileBase ):
 		self.headerData = self.data[:0x20]
 		self.data = self.data[0x20:]
 		self.parseHeader()
-		
+
 		# Other file sections can now be separated out, using information from the header
 		stringTableStart = self.headerInfo['stringTableStart']
 		self.rtData = self.data[ self.headerInfo['rtStart'] : self.headerInfo['rtEnd'] ]
@@ -660,7 +660,7 @@ class DatFile( FileBase ):
 		# Parse the RT and String Table
 		self.parseRelocationTable()
 		stringTableLength = self.parseStringTable()
-		
+
 		# Separate out other file sections using the info gathered above
 		self.stringTableData = self.data[ stringTableStart : stringTableStart + stringTableLength ]
 		self.tailData = self.data[ stringTableStart + stringTableLength : ]
@@ -767,6 +767,7 @@ class DatFile( FileBase ):
 		""" Creates two lists (for root/reference nodes) to define structure locations. 
 			Both are a list of tuples of the form ( structOffset, string ), 
 			where the string is from the file's string table. """
+			#todo: improve efficiency; unpack whole table at once
 
 		try:
 			rootNodes = []; referenceNodes = []
@@ -856,9 +857,10 @@ class DatFile( FileBase ):
 	def parseDataSection( self ):
 
 		""" This method uses the root and reference nodes to identify structures 
-			within the data section of the DAT file. Some root/reference nodes point
-			to the start of a hierarchical branch into the file, while others simply
-			serve as labels for parts of branches or for specific structures. """
+			within the data section of the DAT file, and initializes all of them. 
+			Some root/reference nodes point to the start of a hierarchical branch 
+			into the file, while others simply serve as labels for parts of 
+			branches or for specific structures. """
 
 		self.initialize()
 
@@ -1377,21 +1379,26 @@ class DatFile( FileBase ):
 
 	def rebuildNodeAndStringTables( self ):
 
-		""" Rebuilds the root nodes table, reference nodes table, and string table. """
+		""" Rebuilds data for the root nodes table, reference nodes table, and string table. 
+			Also rebuilds the string dictionary property, in case it has changed. """
 
 		self.stringTableData = bytearray()
 		nodeValuesList = []
+		self.stringDict = {}
 
 		self.rootNodes.sort()
 		self.referenceNodes.sort()
 
 		for structOffset, string in self.rootNodes + self.referenceNodes:
 			# Collect values for this node to be encoded in the finished table
-			nodeValuesList.extend( [structOffset, len(self.stringTableData)] )
+			stringTableLength = len( self.stringTableData )
+			nodeValuesList.extend( [structOffset, stringTableLength] )
 
 			# Add the string for this node to the string table
 			self.stringTableData.extend( string.encode('ascii') )
 			self.stringTableData.append( 0 ) # Add a null terminator for this string
+
+			self.stringDict[stringTableLength] = string
 
 		# Encode both node tables together
 		self.nodeTableData = struct.pack( '>{}I'.format(len(nodeValuesList)), *nodeValuesList )
@@ -1400,13 +1407,16 @@ class DatFile( FileBase ):
 		self.nodesNeedRebuilding = False
 		self.stringsNeedRebuilding = False
 
+		# Update the extra node lists, in case the root/reference nodes have changed
+		self.separateNodeLists()
+
 	def setData( self, dataOffset, newData ):
 
 		""" Directly updates (replaces) data in this file, in either the data section or tail data. The data 
 			input should be a single int (if the data is only one byte) or a bytearray. The offset is relative 
-			to the start of that section. Data in pre-initialized structs will not be updated. Does not record 
-			the change in self.unsavedChanges; for that, see .recordChange() or the .updateData() method. 
-			If you're not sure which to use, you should probably be using .updateData(). """
+			to the start of that section. Data in structs initialized before this will not be updated. Does 
+			not record the change in self.unsavedChanges; for that, see .recordChange() or the .updateData() 
+			method. If you're not sure which to use, you should probably be using .updateData(). """
 
 		if type( newData ) == int: # Just a single byte/integer value (0-255)
 			assert newData >= 0 and newData < 256, 'Invalid input to DatFile.setData(): ' + str(newData)
@@ -2443,16 +2453,30 @@ class DatFile( FileBase ):
 
 		return paletteData, paletteType
 
-	def getBranch( self, offset ):
+	def getBranch( self, offset, classLimit=None, classLimitInclusive=True ):
 
 		""" Returns all structures that make up a given branch of a dat file
 			(i.e. a structure and all of its children/siblings/decendants). """
 
 		parentStruct = self.getStruct( offset )
 		# print( 'parent: ' + hex(0x20 + parentStruct.offset) )
-		structs = [ parentStruct ]
+		#structs = [ parentStruct ]
 
-		structs.extend( parentStruct.getDescendants() )
+		# Convert class names to actual classes for the class limit list
+		if classLimit:
+			newClassLimit = []
+			for className in classLimit:
+				if isinstance( className, str ):
+					actualClass = globalData.fileStructureClasses.get( className )
+					if not actualClass:
+						print( 'Warning! Unrecognized class given to getBranch(): ' + className)
+					else:
+						newClassLimit.append( actualClass )
+				else:
+					newClassLimit.append( className )
+			classLimit = newClassLimit
+
+		structs = parentStruct.getDescendants( classLimit=classLimit, structs=[parentStruct], classLimitInclusive=classLimitInclusive )
 
 		# print( [hex(0x20+s.offset) for s in structs] )
 		# print( 'total size: ' + hex(parentStruct.getBranchSize()) )
@@ -2568,7 +2592,7 @@ class DatFile( FileBase ):
 			print( '{} and {} not equivalent; child count mismatch: {} != {}'.format(struct1.name, struct2.name, len(struct1Children), len(struct2Children)) )
 			return False
 
-		# Get pointer offsets within this struct
+		# Get pointer offsets within this struct (relative to the struct start)
 		pointerOffsets1 = []
 		for pointerOffset, _ in struct1.dat.pointers:
 			# Ensure we're only looking in range of this struct

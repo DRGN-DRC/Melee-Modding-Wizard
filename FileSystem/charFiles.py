@@ -1366,6 +1366,13 @@ class CharCostumeFile( CharFileBase, DatFile ):
 		jointClass = globalData.fileStructureClasses['JointObjDesc']
 		return self.initSpecificStruct( jointClass, firstNodeOffset )
 
+	def getSkeleton( self ):
+
+		""" Returns all bones (joint structures) making up this character's skeleton. """
+
+		rootJoint = self.getSkeletonRoot()
+		return self.getBranch( rootJoint.offset, classLimit=['DisplayObjDesc'], classLimitInclusive=False )
+
 	def getDObjs( self ):
 
 		""" An optimization to the generic DAT method (searches just the first/main root node). 

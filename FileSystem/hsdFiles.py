@@ -1172,6 +1172,6 @@ class StageFile( DatFile ):
 		if len( jointsIntersect ) > 1:
 			print( 'Found multiple model group parents for Struct 0x{:X}'.format(initialStructOffset) )
 
-		# Intersection found! Return the first model group
+		# Intersection found! Return the first offset in the intersection (likely only one)
 		jointOffset = next( iter(jointsIntersect) )
 		return self.initSpecificStruct( hsdStructures.JointObjDesc, jointOffset, gobjArray.offset, (2, 0) )
