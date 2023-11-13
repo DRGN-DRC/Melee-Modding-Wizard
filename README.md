@@ -24,9 +24,6 @@ This is built in Python 2 (with plans to transition to Python 3), and I don't ha
 * **pngquant**      ( [Website](https://pngquant.org/) | [GitHub](https://github.com/kornelski/pngquant) )    `- Used in palette and CSP trim color generation`
     - Copyright (c) by Kornel Lesiński (2009-2018), Greg Roelofs (1997-2002), and Jef Poskanzer (1989, 1991)
     - Licensed under GPL v3 or later
-* **wimgt**        ( [Website](https://szs.wiimm.de/wimgt/) | [GitHub](https://github.com/Wiimm/wiimms-szs-tools) )    `- Used for CMPR (type _14) texture encoding`
-    - Copyright (c) by Wiimm (2011)
-    - GNU GPL v2 or later
 * **xxHash**    ( [PyPI](https://pypi.org/project/xxhash/) | [GitHub](https://github.com/ifduyue/python-xxhash) )      `- Used for Dolphin hash generation`
     - Copyright (c) by Yue Du (2014-2020)
     - Licensed under [BSD 2-Clause License](http://opensource.org/licenses/BSD-2-Clause)
