@@ -41,7 +41,9 @@ from textureEditing import TexturesEditor
 class StageSwapTable( object ):
 
 	""" Data table for 20XX HP's Stage Engine. This table is 0x5D0 bytes long, and located at 
-		the 'tableOffset' value below. It is composed of 31 entries, each 0x30 bytes long. 
+		the 'tableOffset' value below in the DOL for older versions of 20XX. In 20XX versions 
+		starting with 5.0.0, this file is located in the disc's filesystem and loaded on boot. 
+		It is composed of 31 entries, each 0x30 bytes long. 
 
 		Each entry is of this form:
 			B	0x0: Stage name (ASCII; only used as identifier in this table)
@@ -271,10 +273,10 @@ class ScrollArrows( object ):
 		self.upArrowId = None
 		
 		# Add the arrow button click and hover event handlers
-		canvas.tag_bind( 'downArrow', '<1>', lambda event: self.scrollItems(-self.scrollAmount) )
+		canvas.tag_bind( 'downArrow', '<1>', lambda event: self.scrollAnimated('down') )
 		canvas.tag_bind( 'downArrow', '<Enter>', self.downArrowHovered )
 		canvas.tag_bind( 'downArrow', '<Leave>', self.downArrowUnhovered )
-		canvas.tag_bind( 'upArrow', '<1>', lambda event: self.scrollItems(self.scrollAmount) )
+		canvas.tag_bind( 'upArrow', '<1>', lambda event: self.scrollAnimated('up') )
 		canvas.tag_bind( 'upArrow', '<Enter>', self.upArrowHovered )
 		canvas.tag_bind( 'upArrow', '<Leave>', self.upArrowUnhovered )
 		canvas.yview_scroll = self.onMouseWheelScroll
@@ -304,6 +306,26 @@ class ScrollArrows( object ):
 		self.canvas['cursor'] = ''
 		self.canvas.itemconfigure( self.upArrowId, image=self.upArrowImage )
 
+	def scrollAnimated( self, direction ):
+
+		""" Animates scrolling up or down to a new group of stages. 
+			Used when clicking on the scroll arrows. """
+
+		steps = 5
+
+		if self.scrollAmount % steps != 0: # It'll still function, but it's not ideal
+			print( 'Stage Manager warning: scroll amount is not evenly divisible by the animation step size!' )
+
+		if direction == 'up':
+			distance = self.scrollAmount / steps
+		else:
+			distance = self.scrollAmount / -steps
+
+		for i in range( steps ):
+			self.scrollItems( distance )
+			time.sleep( .02 )
+			self.canvas.update_idletasks()
+
 	def scrollItems( self, distance ):
 
 		""" Negative scrollPosition means the icons are moving up. """
@@ -324,9 +346,10 @@ class ScrollArrows( object ):
 			if not self.canvas.find_withtag( 'downArrow' ):
 				self.addDownArrow()
 
-		self.canvas.move( 'icons', 0, distance )
-		self.canvas.move( 'selectionBorder', 0, distance )
-		self.canvas.scrollPosition += distance
+		if distance != 0:
+			self.canvas.move( 'icons', 0, distance )
+			self.canvas.move( 'selectionBorder', 0, distance )
+			self.canvas.scrollPosition += distance
 
 	def onMouseWheelScroll( self, amount, units ):
 		# Multiply the amount a bit, since it will be 4 for each mouseWheel movement. And reverse it
@@ -736,7 +759,7 @@ class StageManager( ttk.Frame ):
 										'OnGo Function:') ).grid( column=0, row=0, padx=(0, 5) )
 		self.basicInfoLabel = ttk.Label( basicLabelFrame, width=25 )
 		self.basicInfoLabel.grid( column=1, row=0 )
-		ttk.Button( basicLabelFrame, text='Edit Properties', width=24, command=self.editBasicProperties ).grid( column=0, columnspan=2, row=1, pady=(3, 0) )
+		#ttk.Button( basicLabelFrame, text='Edit Properties', width=24, command=self.editBasicProperties ).grid( column=0, columnspan=2, row=1, pady=(3, 0) )
 		basicLabelFrame.grid( column=0, row=0, padx=(padding, 0), pady=padding )
 
 		# Stage Swap Details
@@ -754,19 +777,26 @@ class StageManager( ttk.Frame ):
 		self.editStageSwapDetailsBtn.place( anchor='se', relx=1, rely=1 )
 		fileLoadLabelFrame.grid( column=1, columnspan=2, row=0, padx=0, pady=padding )
 
-		# Controls (basic functions like import/export)
+		# Stage File Operation buttons
 		#emptyWidget = Tk.Frame( relief='flat' ) # This is used as a simple workaround for the labelframe, so we can have no text label with no label gap.
 		#self.controlsFrame = ttk.Labelframe( row1, labelwidget=emptyWidget, padding=(20, 4) )
-		self.controlsFrame = ttk.LabelFrame( row1, text='  Stage File Operations  ', labelanchor='n', padding=8 )
-		ttk.Button( self.controlsFrame, text='Export', command=self.exportStage ).grid( column=0, row=0, padx=4, pady=4 )
-		ttk.Button( self.controlsFrame, text='Import', command=self.importStage ).grid( column=1, row=0, padx=4, pady=4 )
-		ttk.Button( self.controlsFrame, text='Delete', command=self.deleteStage ).grid( column=0, row=2, padx=4, pady=4 )
-		ttk.Button( self.controlsFrame, text='Add Variation', command=self.addStageVariation ).grid( column=1, row=2, padx=4, ipadx=7, pady=4 )
-		ttk.Button( self.controlsFrame, text='Test', command=self.testStage ).grid( column=0, row=3, padx=4, pady=4 )
-		ttk.Button( self.controlsFrame, text='Rename', command=self.renameStage ).grid( column=1, row=3, padx=4, pady=4 )
-		rsssBtn = ttk.Button( self.controlsFrame, text='Rename RSSS Name', command=self.renameRsssName )
-		ToolTip( rsssBtn, 'Name shown on the\nRandom Stage Select Screen.', justify='center' )
-		rsssBtn.grid( column=0, columnspan=2, row=4, padx=4, pady=4, ipadx=9 )
+		vPadding = 4
+		self.controlsFrame = ttk.LabelFrame( row1, text='  Stage File Operations  ', labelanchor='n', padding=(12, 8, 8, 8) )
+		ttk.Button( self.controlsFrame, text='Export', command=self.exportStage ).grid( column=0, row=0, padx=4, pady=vPadding )
+		ttk.Button( self.controlsFrame, text='Delete', command=self.deleteStage ).grid( column=1, row=0, padx=4, pady=vPadding )
+		ttk.Button( self.controlsFrame, text='Import', command=self.importStage ).grid( column=0, row=1, padx=4, pady=vPadding )
+		ttk.Button( self.controlsFrame, text='Add Variation', command=self.addStageVariation ).grid( column=1, row=1, padx=4, ipadx=8, pady=vPadding )
+		ttk.Button( self.controlsFrame, text='Edit', command=self.editBasicProperties ).grid( column=0, row=2, padx=4, pady=vPadding )
+		descRenameBtn = ttk.Button( self.controlsFrame, text='Rename', command=self.renameStage )
+		ToolTip( descRenameBtn, ( "This renames the stage's description, which is just defined in\n"
+								  'the ".\\File Descriptions\\GALE01.yaml" file in most cases.\n'
+								  "However, for Random Neutrals in 20XX, these names are stored\n"
+								  "in the CSS file, and used in-game in the Debug Menu." ), justify='center', wraplength=400, location='w' )
+		descRenameBtn.grid( column=1, row=2, padx=4, pady=vPadding )
+		rsssBtn = ttk.Button( self.controlsFrame, text='Rename RSSS', command=self.renameRsssName )
+		ToolTip( rsssBtn, 'Name shown on the\nRandom Stage Select Screen.', justify='center', location='w' )
+		rsssBtn.grid( column=1, row=3, padx=4, ipadx=8, pady=vPadding )
+		ttk.Button( self.controlsFrame, text='Test', command=self.testStage ).grid( column=0, row=3, padx=4, pady=vPadding )
 		self.controlsFrame.grid( column=3, row=0, padx=(0, padding), pady=padding )
 
 		row1.grid( column=0, columnspan=2, row=1, sticky='nsew' )
@@ -815,21 +845,22 @@ class StageManager( ttk.Frame ):
 		self.altMusicChanceLabel = ttk.Label( musicLabelFrame )
 		self.toolTips['altChanceEditor'] = ToolTipEditor( self.altMusicChanceLabel, self, delay=500, location='e', width=4 )
 		self.altMusicChanceLabel.grid( column=1, row=8, sticky='w' )
-		musicLabelFrame.grid( column=0, columnspan=2, row=1, padx=(35, 0), pady=padding, sticky='ew' )
+		musicLabelFrame.grid( column=0, row=0, padx=(35, 0), pady=padding, sticky='ew' )
 
 		# Preview Text
 		previewTextLabelFrame = ttk.LabelFrame( row2, text='  Preview Text  ', labelanchor='n', padding=8 )
+		#previewTextLabelFrame = Tk.Frame( row2, bg='blue' )
 		self.previewTextCanvas = Tk.Canvas( previewTextLabelFrame, width=224, height=56, borderwidth=0, highlightthickness=0 )
 		self.previewTextCanvas.image = None # Used to store an image for this canvas, to prevent garbage collection
 		self.previewTextCanvas.pilImage = None
 		def noScroll( arg1, arg2 ): pass
 		self.previewTextCanvas.yview_scroll = noScroll
 		self.previewTextCanvas.grid( column=0, columnspan=3, row=0, pady=(2, 6) )
-		ttk.Label( previewTextLabelFrame, text='Top Text:' ).grid( column=0, row=1 )
+		ttk.Label( previewTextLabelFrame, text='Top Text:' ).grid( column=0, row=1, sticky='e' )
 		self.previewTextTopTextEntry = ttk.Entry( previewTextLabelFrame, width=22 )
 		self.previewTextTopTextEntry.bind( '<Return>', self.generatePreviewText )
 		self.previewTextTopTextEntry.grid( column=1, columnspan=2, row=1, pady=3 )
-		ttk.Label( previewTextLabelFrame, text='Bottom Text:' ).grid( column=0, row=2 )
+		ttk.Label( previewTextLabelFrame, text='Bottom Text:' ).grid( column=0, row=2, sticky='e' )
 		self.previewTextBottomTextEntry = ttk.Entry( previewTextLabelFrame, width=22 )
 		self.previewTextBottomTextEntry.bind( '<Return>', self.generatePreviewText )
 		self.previewTextBottomTextEntry.grid( column=1, columnspan=2, row=2, pady=3 )
@@ -837,18 +868,21 @@ class StageManager( ttk.Frame ):
 		previewBtn.grid( column=0, columnspan=2, row=3, pady=3, ipadx=7 )
 		ToolTip( previewBtn, text='Generates a new texture from the text entered above. Does not automatically save the texture to file; for that, hit Save.' )
 		saveBtn = ttk.Button( previewTextLabelFrame, text='Save', command=self.savePreviewText )
-		saveBtn.grid( column=2, row=3, pady=3 )
+		saveBtn.grid( column=0, columnspan=2, row=4, pady=3 )
 		ToolTip( saveBtn, text='Saves the texture shown above to the current stage select screen file.' )
 		exportBtn = ttk.Button( previewTextLabelFrame, text='Export', command=self.exportPreviewText )
-		exportBtn.grid( column=0, columnspan=2, row=4, pady=3 )
+		exportBtn.grid( column=2, row=3, pady=3, padx=(0, 20) )
 		ToolTip( exportBtn, text='Export the texture shown above to an external PNG/TPL file.' )
 		importBtn = ttk.Button( previewTextLabelFrame, text='Import', command=self.importPreviewText )
-		importBtn.grid( column=2, row=4, pady=3 )
+		importBtn.grid( column=2, row=4, pady=3, padx=(0, 20) )
 		ToolTip( importBtn, text='Import an external PNG/TPL file to the current stage select screen file.' )
-		previewTextLabelFrame.grid( columnspan=2, column=2, row=1, padx=35, pady=padding, sticky='ew' )
+		previewTextLabelFrame.grid( column=1, row=0, padx=35, pady=padding, sticky='ew' )
+		previewTextLabelFrame.columnconfigure( 'all', weight=1 )
+		previewTextLabelFrame.rowconfigure( 'all', weight=1 )
 
 		row2.grid( column=0, columnspan=2, row=2, sticky='nsew' )
-		row2.columnconfigure( 'all', weight=1 )
+		row2.columnconfigure( 0, weight=2 )
+		row2.columnconfigure( 1, weight=1 )
 		row2.rowconfigure( 'all', weight=1 )
 		
 		# Configure window resize behavior
@@ -1520,23 +1554,20 @@ class StageManager( ttk.Frame ):
 		# Enable the stage control buttons
 		if self.stageSwapTable: # Means it's 20XX
 			self.editStageSwapDetailsBtn['state'] = 'normal'
-			canvas = self.getCurrentCanvas()
 
-			for widget in self.controlsFrame.winfo_children():
-				# Disable the Add Variation button if this stage is maxed out on slots; all else enabled
-				if widget['text'] == 'Add Variation' and not self.allowAddingVariations( stageFile, canvas ):
-					widget['state'] = 'disabled'
-				else:
-					widget['state'] = 'normal'
+			# Disable the Add Variation button if this stage is maxed out on slots; all else enabled
+			canvas = self.getCurrentCanvas()
+			enableVariationsBtn = self.allowAddingVariations( stageFile, canvas )
 
 		else: # Is vanilla Melee
 			self.editStageSwapDetailsBtn['state'] = 'disabled'
-			
-			for widget in self.controlsFrame.winfo_children():
-				if widget['text'] == 'Add Variation':
-					widget['state'] = 'disabled'
-				else:
-					widget['state'] = 'normal'
+			enableVariationsBtn = False
+
+		for widget in self.controlsFrame.winfo_children():
+			if enableVariationsBtn and widget['text'] == 'Add Variation':
+				widget['state'] = 'disabled'
+			else:
+				widget['state'] = 'normal'
 
 	def getMusicTableEntryIndex( self ):
 
