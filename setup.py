@@ -12,13 +12,15 @@
 programName = "Melee Modding Wizard"
 
 import globalData
-import sys, os
+import sys, os, shutil
 from cx_Freeze import setup, Executable
 
 # Determine whether the host environment is 64 or 32 bit.
 if sys.maxsize > 2**32: environIs64bit = True
 else: environIs64bit = False
 
+
+# Define what files and folders to include with the build.
 # Dependencies are typically automatically detected, but they might need fine tuning.
 buildOptions = dict(
 	packages = [], 
@@ -36,6 +38,7 @@ buildOptions = dict(
 	]
 )
 
+
 # Check whether to preserve the console window that opens with the GUI 
 # (arg 1 should be "build", second should be %useConsole%)
 if sys.argv[2].startswith( 'y' ):
@@ -44,11 +47,16 @@ else:
 	base = 'Win32GUI' if sys.platform == 'win32' else None
 
 # Strip off extra command line arguments, because setup isn't expecting them and will throw an invalid command error.
+if len( sys.argv ) > 1:
+	print( 'Unexpected arguments were found for building!: ' + str(sys.argv) )
+	print( 'Only the first two will be used by setup.py' )
 sys.argv = sys.argv[:2]
 
 # Normalize the version string for setup ('version' below must be a string, with only numbers or dots)
 simpleVersion = '.'.join( [char for char in globalData.programVersion.split('.') if char.isdigit()] )
 
+
+# Compile the program!
 setup(
 	name = programName,
 	version = simpleVersion,
@@ -62,9 +70,8 @@ setup(
 			base = base)
 		]
 	)
+print( '\nCompilation complete.' )
 
-# Perform file/folder renames
-print '\nCompilation complete.'
 
 # Get the name of the new program folder that will be created in '\build\'
 scriptHomeFolder = os.path.abspath( os.path.dirname(sys.argv[0]) )
@@ -74,9 +81,10 @@ for directory in os.listdir( scriptHomeFolder + '\\build' ):
 		programFolder = directory
 		break
 else: # The loop above didn't break; programFolder not found
-	print '\nUnable to locate the new program folder!'
+	print( '\nUnable to locate the new program folder!' )
 	exit( 1 )
-	
+
+
 # Set the new program name
 if environIs64bit:
 	newFolderName = '{} - v{} (x64)'.format( programName, globalData.programVersion )
@@ -84,8 +92,26 @@ else:
 	newFolderName = '{} - v{} (x86)'.format( programName, globalData.programVersion )
 oldFolderPath = os.path.join( scriptHomeFolder, 'build', programFolder )
 newFolderPath = os.path.join( scriptHomeFolder, 'build', newFolderName )
+nameIndex = 2
+while os.path.exists( newFolderPath ):
+	if nameIndex > 2: # Count already added; split it off first
+		newFolderPath = newFolderPath.rsplit( None, 1 )[0] # Split on first whitepace instance only
+	newFolderPath += ' (' + str(nameIndex) + ')'
+	nameIndex += 1
 os.rename( oldFolderPath, newFolderPath )
-print '\nNew program folder successfully created and renamed to "' + newFolderName + '".'
+print( '\nNew program folder successfully created and renamed to "' + os.path.basename(newFolderPath) + '".' )
+
+
+# Delete the Micro Melee disc and temp files, if present
+try:
+	microMeleePath = os.path.join( newFolderPath, 'bin', "Micro Melee.iso" )
+	os.remove( microMeleePath )
+except: pass
+try:
+	tmpFilesFolder = os.path.join( newFolderPath, 'bin', 'tempFiles' )
+	shutil.rmtree( tmpFilesFolder )
+except: pass
+
 
 # Open the new folder
 os.startfile( newFolderPath )
