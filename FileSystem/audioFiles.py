@@ -19,7 +19,7 @@ from string import hexdigits
 # Internal dependencies
 import globalData
 from fileBases import FileBase
-from basicFunctions import msg, cmdChannel
+from basicFunctions import msg, cmdChannel, allAreEqual
 
 
 class MusicFile( FileBase ):
@@ -32,7 +32,7 @@ class MusicFile( FileBase ):
 		self.externalWavFile = ''
 		self.sampleRate = -1
 		self.channels = -1
-		self.channelMetaData = [] 	# A list of metadata values for each channel
+		#self.channelMetaData = [] 	# A list of metadata values for each channel
 		self.duration = -1			# In milliseconds
 		self.loopPoint = -1			# Point in the song (in ms) where the track should restart after reaching the end
 
@@ -106,34 +106,41 @@ class MusicFile( FileBase ):
 		# 0x32: Initial Predictor Scale
 		# 0x34: Initial Sample History 1
 		# 0x36: Initial Sample History 2
-		for channel in range( self.channels ):
-			offset = 0x10 + ( channel * 0x38 )
-			values = list( struct.unpack('>HHIII', self.getData( offset, 0x10 )) )
-			values.extend( struct.unpack('>HHHH', self.getData( offset+0x30, 0x8 )) )
-			# print 'loop flag :', values[0]
-			# print 'format    :', values[1]
-			# print 'StartAddr :', values[2]
-			# print 'EndAddr   :', hex(values[3])
-			# print 'CurrentAdr:', values[4]
-			# print 'gain      :', values[5]
-			# print 'pScale    :', values[6]
-			# print 'initSH1   :', values[7]
-			# print 'initSH1   :', values[8]
-			# print 'byteCount :', hex(( values[3] - values[4] ) / 2)
-			# print 'loopStart :', values[2] - values[4], hex(values[2] - values[4])
-			# print ''
-			self.channelMetaData.append( values )
+		# for channel in range( self.channels ):
+		# 	offset = 0x10 + ( channel * 0x38 )
+		# 	values = list( struct.unpack('>HHIII', self.data[offset:offset+0x10]) )
+		# 	values.extend( struct.unpack('>HHHH', self.data[offset+0x30:offset+0x38]) )
+		# 	# print 'loop flag :', values[0]
+		# 	# print 'format    :', values[1]
+		# 	# print 'StartAddr :', values[2]
+		# 	# print 'EndAddr   :', hex(values[3])
+		# 	# print 'CurrentAdr:', values[4]
+		# 	# print 'gain      :', values[5]
+		# 	# print 'pScale    :', values[6]
+		# 	# print 'initSH1   :', values[7]
+		# 	# print 'initSH2   :', values[8]
+		# 	# print 'byteCount :', hex(( values[3] - values[4] ) / 2)
+		# 	# print 'loopStart :', values[2] - values[4], hex(values[2] - values[4])
+		# 	# print ''
+		# 	self.channelMetaData.append( values )
 
 		# Compare like values (not needed; just looking for descrepencies)
-		#valueNames = 
+		# Upon testing, looks like just pScale has differing values between channels
+		# names = [ 'loop flag', 'format', 'StartAddr', 'EndAddr', 'CurrentAdr', 'gain', 'pScale', 'initSH1', 'initSH2' ]
+		# i = 0
 		# for likeValues in zip( *self.channelMetaData ):
 		# 	if not allAreEqual( likeValues ):
-		# 		print 'Found differing channel metadata!'
-		# 		print likeValues
+		# 		print( 'Found differing channel metadata!' )
+		# 		print( names[i] )
+		# 		print( likeValues )
+		# 	i += 1
 
 	def readBlocks( self ):
 
-		# Make sure the file header has be read
+		""" Reads through the data blocks of the file to determine 
+			track length (self.duration) and the loop point. """
+
+		# Ensure the file header has be read
 		if self.channels == -1:
 			self.readHeader()
 
@@ -157,71 +164,117 @@ class MusicFile( FileBase ):
 
 		blockOffset = 0x10 + ( self.channels * 0x38 ) # Typically 0x80 in a 2-channel file
 
-		excludedLoopBlocks = []
-		blockOffsets = []
-		blockLengths = []
-		dataLengths = []
 		loops = False
+		dataLengths = []
+		#blockLengths = []
+		totalDataBytes = 0.0
+		self.blockOffsets = []
 
 		while True:
-			blockLen, dataLen, nextBlockOffset = struct.unpack( '>IIi', self.getData(blockOffset, 0xC) )
-			blockOffsets.append( blockOffset )
-			blockLengths.append( blockLen )
-			dataLengths.append( dataLen )
+			blockLength, dataLength, nextBlockOffset = struct.unpack( '>IIi', self.data[blockOffset:blockOffset+0xC] )
+			self.blockOffsets.append( blockOffset )
+			#blockLengths.append( blockLength )
+			dataLengths.append( dataLength )
+			totalDataBytes += dataLength
 
-			if nextBlockOffset == -1:
-				#print 'found last block at:', hex(blockOffset)
+			# Look for a loop-back point or another end to the data
+			if nextBlockOffset == -1: # No looping!
 				break
 			elif nextBlockOffset < blockOffset:
-				#print 'looping back'
 				loops = True
 				break
 			elif nextBlockOffset + 0xC > self.size:
-				print( 'Invalid next block offset!:', hex(nextBlockOffset + 0xC) )
+				print( 'Invalid next-block offset!: ' + hex(nextBlockOffset + 0xC) )
 				break
 			else:
-				#print 'next block offset:', hex(nextBlockOffset)
 				blockOffset = nextBlockOffset
 
-		#print '\n', len( blockOffsets ), 'total blocks'
-		# print 'block offsets:', [ hex(o) for o in blockOffsets ]
+		# print '\n', len( self.blockOffsets ), 'total blocks'
+		# print 'block offsets:', [ hex(o) for o in self.blockOffsets ]
 		# print 'block lengths:', [ hex(o) for o in blockLengths ]
 		# print 'data lengths:', [ hex(o) for o in dataLengths ]
-		#print 'total block length:', sum( blockLengths )
+		# print 'total block length:', sum( blockLengths )
 		# print 'total data length :', sum( dataLengths )
-		# print 'final block offset:', hex(blockOffsets[-1])
+		# print 'final block offset:', hex(self.blockOffsets[-1])
 
-		totalDataBytes = sum( dataLengths ) / 2 # For one channel
-		self.duration = math.ceil( totalDataBytes / float(self.sampleRate) * 1.75 * 1000 )
-		#print 'duration by block l'
+		# Calculate track duration
+		compressionRatio = 1.75 * 1000
+		self.duration = math.ceil( totalDataBytes / self.channels / self.sampleRate * compressionRatio )
 
 		if loops:
 			# Determine how much data will be excluded by the loop
-			excludedDataLen = 0
-			for offset, dataLen in zip( blockOffsets, dataLengths ):
+			excludedDataLen = 0.0
+			for offset, dataLength in zip( self.blockOffsets, dataLengths ):
 				if offset == nextBlockOffset: # Found the loop block
 					break
-				excludedDataLen += dataLen
+				excludedDataLen += dataLength
 
 			# Calculate the duration of the excluded data
 			if excludedDataLen == 0: # Loops back to the first block
 				self.loopPoint = 0
 			else:
-				self.loopPoint = math.ceil( excludedDataLen / 2 / float(self.sampleRate) * 1.75 * 1000 )
+				self.loopPoint = math.ceil( excludedDataLen / self.channels / self.sampleRate * compressionRatio )
 		else:
 			self.loopPoint = -1
 
-	# def isHexTrack( self ):
+	# def setLoopPoint( self, point ):
 
-	# 	""" These are 20XX's added custom tracks, e.g. 01.hps, 02.hps, etc. """
+	# 	""" Sets the given loop point (time position, in milliseconds) to the 
+	# 		nearest data block offset. Returns an exit code for success/failure:
+	# 			0: Success
+	# 			1: Unable to set the loop point; the value is too high
+	# 			2: Unable to set the loop point; file data ended prematurely """
 
-	# 	if not self._isHexTrackDetermined:
-	# 		if len( self.filename ) == 6 and self.isoPath.split( '/' )[1] == 'audio': # Filename includes ".hps"
-	# 			if self.filename[0] in hexdigits and self.filename[1] in hexdigits:
-	# 				self._isHexTrack = True
-				
-	# 		self._isHexTrackDetermined = True
+	# 	# Approximate the amount of data to skip for the loop
+	# 	compressionRatio = 1.75 * 1000
+	# 	estimatedDataLength = point / compressionRatio * self.sampleRate * 2
 
+	# 	if estimatedDataLength >= self.size - 0x20:
+	# 		print( 'The given loop point is too high; beyond data blocks' )
+	# 		return 1
+
+	# 	# Calculate the offset of the first block
+	# 	blockOffset = 0x10 + ( self.channels * 0x38 ) # Typically 0x80 in a 2-channel file
+
+	# 	loops = False
+	# 	totalDataBytes = 0
+	# 	loopBlockOffset = -1
+
+	# 	while True:
+	# 		blockLength, dataLength, nextBlockOffset = struct.unpack( '>IIi', self.data[blockOffset:blockOffset+0xC] )
+	# 		blockStart = totalDataBytes
+	# 		totalDataBytes += dataLength
+
+	# 		# Check if the loop point is within this block (if it hasn't already been determined)
+	# 		if estimatedDataLength <= totalDataBytes and loopBlockOffset > -1:
+	# 			# Check if we're closer to the start of this block or the next
+	# 			toBlockStart = estimatedDataLength - blockStart
+	# 			toBlockEnd = totalDataBytes - estimatedDataLength
+	# 			if toBlockStart <= toBlockEnd:
+	# 				loopBlockOffset = blockOffset
+	# 			else:
+	# 				loopBlockOffset = nextBlockOffset
+
+	# 		# Look for a loop-back point or another end to the data
+	# 		if nextBlockOffset == -1: # No looping!
+	# 			break
+	# 		elif nextBlockOffset < blockOffset:
+	# 			loops = True
+	# 			break
+	# 		elif nextBlockOffset + 0xC > self.size:
+	# 			print( 'Invalid next-block offset!: ' + hex(nextBlockOffset + 0xC) )
+	# 			break
+	# 		else:
+	# 			blockOffset = nextBlockOffset
+
+	# 	if loopBlockOffset == -1: # Failsafe; shouldn't happen, even with a bad given point
+	# 		print( 'Unable to set a loop point; unable to find a data block that would contain it! The file data may be incomplete or corrupt.' )
+	# 		return 2
+
+
+
+	# 	return self._isHexTrack
+		
 	# 	return self._isHexTrack
 
 	def getDescription( self ):
@@ -239,12 +292,8 @@ class MusicFile( FileBase ):
 		else: # Check if there's a file explicitly defined in the file descriptions yaml config file
 			description = self.yamlDescriptions.get( self.filename, '' )
 
-		# if description:
-		# 	self.description = description
 		self._shortDescription = description
 		self._longDescription = description
-		
-		#return self.description
 
 	def setDescription( self, description, gameId='' ):
 

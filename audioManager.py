@@ -31,7 +31,7 @@ import FileSystem
 
 from FileSystem import MusicFile
 from basicFunctions import printStatus, uHex, humansize, msg, cmdChannel
-from guiSubComponents import ColoredLabelButton, getNewNameFromUser, BasicWindow, NeoTreeview
+from guiSubComponents import ColoredLabelButton, getNewNameFromUser, BasicWindow, NeoTreeview, ClickText
 
 
 def getHpsFile( windowParent=None, isoPath='' ):
@@ -127,19 +127,20 @@ class AudioManager( ttk.Frame ):
 		# Construct the right-hand side of the interface, the info panels
 		infoPane = ttk.Frame( self )
 
-		generalLabelFrame = ttk.LabelFrame( infoPane, text='  General Info  ', labelanchor='n', padding=(20, 0, 20, 4) ) # Padding order: Left, Top, Right, Bottom.
-		ttk.Label( generalLabelFrame, text=('Total Tracks:\nTotal Music Filespace:\nDisc Filespace Remaining:') ).pack( side='left' )
+		generalLabelFrame = ttk.LabelFrame( infoPane, text='  Disc Info  ', labelanchor='n', padding=(20, 0, 20, 4) ) # Padding order: Left, Top, Right, Bottom.
+		ttk.Label( generalLabelFrame, text=('Total Tracks:\nTotal Disc Size:\nTotal Music Filespace:\nDisc Filespace Remaining:') ).pack( side='left' )
 		self.generalInfoLabel = ttk.Label( generalLabelFrame )
 		self.generalInfoLabel.pack( side='right', padx=6 )
+		infoBtn = ClickText( generalLabelFrame, '?', self.infoBtnClicked )
+		infoBtn.place( relx=1.0, rely=1.0, anchor='se', x=14 )
 		generalLabelFrame.pack( pady=(12, 6) )
-		
+
 		trackInfoLabelFrame = ttk.LabelFrame( infoPane, text='  Track Info  ', labelanchor='n', padding=(20, 0, 20, 4) )
 		ttk.Label( trackInfoLabelFrame, text=('Music ID:\nFile Size:\nSample Rate:\nChannels:\nDuration:\nLoop Point:') ).pack( side='left' )
 		self.trackInfoLabel = ttk.Label( trackInfoLabelFrame, width=22 )
 		self.trackInfoLabel.pack( side='right', padx=6 )
-		# Show/Edit loop point
 		trackInfoLabelFrame.pack( pady=6 )
-		
+
 		# emptyWidget = Tk.Frame( relief='flat' ) # This is used as a simple workaround for the labelframe, so we can have no text label with no label gap.
 		# self.controlsFrame = ttk.Labelframe( infoPane, labelwidget=emptyWidget, padding=(20, 4) )
 		self.controlsFrame = ttk.Frame( infoPane )
@@ -169,11 +170,18 @@ class AudioManager( ttk.Frame ):
 		#self.fileTree.bind( "<3>", self.createContextMenu ) # Right-click
 
 		infoPane.grid( column=2, row=0, sticky='n' )
-		
+
 		self.columnconfigure( 0, weight=0 )
 		self.columnconfigure( 1, weight=0 )
 		self.columnconfigure( 2, weight=1 )
 		self.rowconfigure( 'all', weight=1 )
+
+	def infoBtnClicked( self, event ):
+		msg( 'Disc Filespace Remaining is comparing against the standard size for a GameCube disc, which is '
+			 '~1.36 GB (1,459,978,240 bytes). Discs larger than this may be a problem for Nintendont, but '
+			 'discs up to 4 GB should still work fine for both Dolphin and DIOS MIOS. (Dolphin may even play '
+			 "discs larger than 4 GB, but some features may not work properly.) If you don't care whether your "
+			 "disc is larger than the standard size, you can ignore this value.", 'Disc Space Concerns', self.master )
 
 	def clear( self ):
 
@@ -279,8 +287,8 @@ class AudioManager( ttk.Frame ):
 
 		totalDiscFilesize = globalData.disc.getDiscSizeCalculations( ignorePadding=True )[0]
 		spaceRemaining = FileSystem.disc.defaultGameCubeMediaSize - totalDiscFilesize
-		
-		self.generalInfoLabel['text'] = '\n'.join( [str(filecount), humansize(totalMusicSize), humansize(spaceRemaining) ] )
+
+		self.generalInfoLabel['text'] = '\n'.join( [str(filecount), humansize(totalDiscFilesize), humansize(totalMusicSize), humansize(spaceRemaining) ] )
 
 	def formatDuration( self, duration ):
 
@@ -351,23 +359,26 @@ class AudioManager( ttk.Frame ):
 
 		# Format file size and track duration strings
 		fileSizeString = '{}   (0x{:X})'.format( humansize(musicFile.size), musicFile.size ) # Displays as MB/KB, and full hex value
-		# seconds, milliseconds = divmod( musicFile.duration, 1000 )
-		# minutes, seconds = divmod( seconds, 60 )
-		# durationString = '{:02}:{:02}.{:03}'.format( int(minutes), int(seconds), int(milliseconds) ) # Will pad minutes/seconds to 2 characters, and milliseconds to 3
 		durationString = self.formatDuration( musicFile.duration )
 
+		# Build the loop point string
 		if musicFile.loopPoint == -1:
 			loopPointString = 'None'
 		elif musicFile.loopPoint == 0:
 			loopPointString = '00:00.000 (track start)'
 		else:
-			# seconds, milliseconds = divmod( musicFile.loopPoint, 1000 )
-			# minutes, seconds = divmod( seconds, 60 )
-			# loopPointString = '{:02}:{:02}.{:03}'.format( int(minutes), int(seconds), int(milliseconds) ) # Will pad minutes/seconds to 2 characters, and milliseconds to 3
 			loopPointString = self.formatDuration( musicFile.loopPoint )
 
-		# Update the Track Info label and clear the references list
-		self.trackInfoLabel['text'] = '\n'.join( [musicId, fileSizeString, '{:,} Hz'.format(musicFile.sampleRate), str(musicFile.channels), durationString, loopPointString] )
+		# Combine above strings and update the Track Info label
+		self.trackInfoLabel['text'] = '\n'.join( [
+													musicId, 
+													fileSizeString, 
+													'{:,} Hz'.format( musicFile.sampleRate ), 
+													str( musicFile.channels ), 
+													durationString, 
+													loopPointString
+												] )
+		# Clear the references list
 		self.referencesList['text'] = ''
 
 		# Update the Play/Pause button
@@ -820,13 +831,13 @@ class LoopEditor( ttk.Frame ):
 		ttk.Label( self, text='Second:' ).grid( column=2, row=1, padx=6, pady=4 )
 		self.secondsEntry = ttk.Entry( self, width=8, state='disabled' )
 		self.secondsEntry.grid( column=3, row=1, padx=6, pady=4 )
-		helpBtn = ttk.Label( self, text='?', foreground='#445', cursor='hand2' )
+
+		helpBtn = ClickText( self, '?', self.helpBtnClicked )
 		helpBtn.grid( column=4, row=1, padx=(6, 18), pady=4 )
-		helpBtn.bind( '<1>', self.helpBtnClicked )
 		
 	def helpBtnClicked( self, event ):
-		msg( 'A "Normal" loop starts the track back at the very beginning once it reaches the end, '
-			 'whereas a "Custom" loop re-starts the track at the specified point after the first playthrough.\n\n'
+		msg( 'A "Normal" loop starts the track back at the very beginning once it reaches the end, whereas a '
+			 '"Custom" loop re-starts the track at the specified point, the Loop Point, after the first playthrough.\n\n'
 			 'Minutes should be an integer value between 0 and 60. Seconds may be a float value between 0 and 60, '
 			 'which may include decimal places for milliseconds. e.g. 10 or 32.123', 'Loop Time Input Formats', self.master )
 
@@ -1162,15 +1173,20 @@ class AudioEngine( object ):
 
 	""" Orchestrates audio start/stop/pause functionality for HPS files. 
 		Plays the audio within a separate dedicated thread. """
-	
+
 	def __init__( self ):
-		self.audioThread = None
 		self.readPos = -1 # Read position for the currently playing audio file
+		self.loopPos = -1
+		self.volume = .35 # Range between 0 and 1.0
+		self.callback = None
+		self.audioThread = None
+
+		# Create events to interact with processing in a separate thread
+		self.playRepeat = Event()
 		self.playbackAllowed = Event()
 		self.exitAudioThread = Event()
-		self.playRepeat = Event()
-		self.volume = .35
-		self.callback = None
+		self.loopPointRepeat = Event()
+		self.loopPointRepeat.set()
 
 		globalData.gui.root.bind( '<<audioDone>>', self.done )
 
@@ -1189,10 +1205,16 @@ class AudioEngine( object ):
 		# if not playConcurrently:
 		self.stop()
 
+		assert self.volume >= 0 and self.volume <= 1.0, 'Audio Engine volume is out of range! (currently set to {})'.format(self.volume)
+
 		# Convert the track to WAV format
 		assert hpsFileObj.getAsWav, 'Error; hpsFileObj given to AudioEngine has no getAsWav method.'
 		wavFilePath = hpsFileObj.getAsWav()
-		if not wavFilePath: return # Indicates an error (should have been conveyed in some way by now)
+		if not wavFilePath:
+			return # Indicates an error (should have been conveyed in some way by now)
+
+		# Calculate the loop point (the file.loopPoint property is in milliseconds; so this is loopPoint x samplesPerMillisecond)
+		self.loopPos = hpsFileObj.loopPoint * ( hpsFileObj.sampleRate / 1000 )
 
 		# Reset flags to allow playback
 		self.playbackAllowed.set()
@@ -1223,7 +1245,7 @@ class AudioEngine( object ):
 	def stop( self ):
 		self.exitAudioThread.set()
 		self.playbackAllowed.set() # If paused, make sure the loop can proceed to exit itself
-		
+
 		if not self.audioThread:
 			return
 
@@ -1279,7 +1301,7 @@ class AudioEngine( object ):
 
 	def _playAudioHelper( self, soundFilePath, deleteWav=False ):
 
-		""" Helper (thread-target) function for playSound(). Runs in a separate 
+		""" Helper/thread-target function for start(). Runs in a separate 
 			thread to prevent audio playback from blocking main execution. """
 
 		p = None
@@ -1292,13 +1314,12 @@ class AudioEngine( object ):
 			wf = wave.open( soundFilePath, 'rb' )
 
 			# Get track info and open an audio data stream
-			sampleWidth = wf.getsampwidth()
-			channels = wf.getnchannels()
+			channels, sampleWidth, framerate, nframes, comptype, compname = wf.getparams()
 			assert sampleWidth == 2, 'Unsupported sample width: ' + str( sampleWidth )
 			assert channels == 2, 'Unsupported channel count: ' + str( channels )
 			stream = p.open( format=p.get_format_from_width(sampleWidth),
 								channels=channels,
-								rate=wf.getframerate(),
+								rate=framerate,
 								output=True )
 
 			# Prepare for the data stream loop
@@ -1306,7 +1327,7 @@ class AudioEngine( object ):
 			data = wf.readframes( framesPerIter )
 
 			# Continuously read/write data from the file to the stream until there is no data left
-			while len( data ) > 0:
+			while data:
 				self.playbackAllowed.wait() # This will block if the playbackAllowed event is not set
 				
 				if self.exitAudioThread.isSet(): # Check if this thread should stop and exit
@@ -1318,17 +1339,25 @@ class AudioEngine( object ):
 				else:
 					data = self._adjustVolume( data )
 					stream.write( data )
-					
+
+				# Try to get another chunk to play
 				data = wf.readframes( framesPerIter )
 
 				# Check if playing should start over (repeat is turned on)
-				if self.playRepeat.isSet() and not len( data ) > 0:
-					wf.setpos( 0 ) # Setting read position to the start of the file
-					data = wf.readframes( framesPerIter )
+				if len( data ) / ( channels * sampleWidth ) < framesPerIter:
+					if self.playRepeat.isSet():
+						if self.loopPointRepeat.isSet():
+							# Set read position to the loop point
+							wf.setpos( self.loopPos )
+						else:
+							# Set read position to the start of the file
+							wf.rewind()
+
+						data += wf.readframes( framesPerIter - len(data)/(channels*sampleWidth) )
 
 		except Exception as err:
 			soundFileName = os.path.basename( soundFilePath )
-			print( 'Unable to play "{}" song; {}'.format(soundFileName, err) )
+			print( 'Unable to play "{}"; {}'.format(soundFileName, err) )
 
 		# Stop the stream
 		if stream:
@@ -1386,12 +1415,17 @@ class AudioControlModule( ttk.Frame, object ):
 		self.stopBtn.grid( column=1, row=0, padx=spacing )
 		self.resetBtn = ColoredLabelButton( self, 'Media Controls/reset', self.reset, 'Restart' )
 		self.resetBtn.grid( column=2, row=0, padx=spacing )
-		self.repeatBtn = ColoredLabelButton( self, 'Media Controls/repeat', self.toggleRepeatMode, 'Repeat' )
+		self.repeatBtn = ColoredLabelButton( self, 'Media Controls/repeat', self.toggleRepeat, 'Repeat' )
 		self.repeatBtn.grid( column=3, row=0, padx=spacing )
 
 		# Adjust the tooltip text offset so the mouse doesn't obscure it
 		for btn in ( self.playBtn, self.stopBtn, self.resetBtn, self.repeatBtn ):
 			btn.toolTip.configure( offset=10 )
+
+		# Add a checkbox for the loop point
+		self.repeatAtLoopPoint = Tk.IntVar( value=1 ) # Default onvalue/offvalue states for Checkbutton are 1/0, not True/False
+		repeatCheckbox = ttk.Checkbutton( self, text='Repeat at Loop Point', variable=self.repeatAtLoopPoint, command=self.toggleRepeatMode )
+		repeatCheckbox.grid( column=0, columnspan=4, row=1, padx=spacing, pady=3 )
 
 	@property
 	def audioFile( self ):
@@ -1457,11 +1491,12 @@ class AudioControlModule( ttk.Frame, object ):
 	def reset( self, event ):
 		self.audioEngine.reset()
 
-	def toggleRepeatMode( self, event ):
+	def toggleRepeat( self, event ):
 
-		""" Wrapper for the "Repeat" checkbox in the GUI. Using a variable such as an IntVar (which is tied to 
-			the GUI) in another thread can cause severe problems, so this method instead uses the IntVar variable 
-			to control an event object, which is then used to control looping in the thread playing audio. """
+		""" Wrapper for the "Repeat" checkbox in the GUI. Using a variable such as an IntVar 
+			(which is tied to the GUI) in another thread can cause severe problems, so this 
+			method instead uses the IntVar variable to control an event object, which is then 
+			used to control looping in the thread playing audio. """
 
 		if self.audioEngine.playRepeat.isSet():
 			self.audioEngine.playRepeat.clear()
@@ -1469,3 +1504,15 @@ class AudioControlModule( ttk.Frame, object ):
 		else:
 			self.audioEngine.playRepeat.set()
 			self.repeatBtn.updateColor() # Set default image to the original highlight color the button was initialized with
+
+	def toggleRepeatMode( self ):
+
+		""" Wrapper for the "Repeat at Loop Point" checkbox in the GUI. Using a variable such 
+			as an IntVar (which is tied to the GUI) in another thread can cause severe problems, 
+			so this method instead uses the IntVar variable to control an event object, which is 
+			then used to control looping in the thread playing audio. """
+
+		if self.repeatAtLoopPoint.get():
+			self.audioEngine.loopPointRepeat.set()
+		else:
+			self.audioEngine.loopPointRepeat.clear()
