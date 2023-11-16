@@ -89,7 +89,7 @@ class CharModding( ttk.Notebook ):
 		if globalData.disc.is20XX:
 			if not self.radioButtonsFrame:
 				self.radioButtonsFrame = ttk.Frame( self.selectionTab )
-				ttk.Radiobutton( self.radioButtonsFrame, text='Default', value='.dat', variable=self.extSearch, command=self.populateCharButtons ).pack( side='left' )
+				ttk.Radiobutton( self.radioButtonsFrame, text='Vanilla', value='.dat', variable=self.extSearch, command=self.populateCharButtons ).pack( side='left' )
 				ttk.Radiobutton( self.radioButtonsFrame, text='SD Remix', value='.sat', variable=self.extSearch, command=self.populateCharButtons ).pack( side='left' )
 				ttk.Radiobutton( self.radioButtonsFrame, text='PAL', value='.pat', variable=self.extSearch, command=self.populateCharButtons ).pack( side='left' )
 				self.radioButtonsFrame.pack()
@@ -530,7 +530,7 @@ class ActionEditor( ttk.Frame, object ):
 		""" Clears the subAction list (if it has anything displayed) and 
 			repopulates it with entries from the character's action table. """
 		
-		self.listboxIndices = {} # Key = listboxIndex, value = eventIndex
+		self.listboxIndices = {} # Key = listboxIndex (entry in the widget), value = actionTableEntryIndex
 
 		title = '{} Action States Table   (0x{:X}):'.format( self.charFile.filename, self.actionTable.offset + 0x20 )
 		self.tableTitleVar.set( title )
@@ -597,12 +597,16 @@ class ActionEditor( ttk.Frame, object ):
 
 		# Clear current selection, and then select the same item that was selected before (if it's still present)
 		self.subActionList.selection_clear( 0, 'end' )
-		listboxIndex = self.listboxFromEntryIndex( self.lastSelection )
+		listboxIndex = self.getListboxFromActionIndex( self.lastSelection )
 		if listboxIndex != -1:
 			self.subActionList.selection_set( listboxIndex )
 			self.subActionList.see( listboxIndex )
 
-	def listboxFromEntryIndex( self, index ):
+	def getListboxFromActionIndex( self, index ):
+
+		""" Gets and returns the listbox index (item/line index in the GUI's widget)
+			for a given entry index in the action states table. """
+
 		return reverseDictLookup( self.listboxIndices, index, -1 )
 
 	def updateFilters( self, name, idx, mode ):
@@ -669,20 +673,24 @@ class ActionEditor( ttk.Frame, object ):
 	def subActionSelected( self, guiEvent=None, checkForUnsavedChanges=True ):
 
 		""" Parses subAction events and updates the GUI. Called on selection of the subAction list. 
-		
+			Note that we track self.lastSelection using the action table index, because the listbox 
+			index may change due to filtering.
+
 			Maybe a bug in Tkinter, but this may also be called upon the ListboxSelect of other Listboxes, 
 			however it will not have a selection. Also, if debugging and breaking on this method it may appear 
 			to be called multiple times upon ListboxSelect, however prints show it only being called once. """
 
-		# Get the subAction index and values from the subaction entry
+		# Ensure we can get a selection
 		selection = self.subActionList.curselection()
 		if not selection:
 			return
 		listBoxIndex = selection[0]
-		if listBoxIndex == self.listboxFromEntryIndex( self.lastSelection ): # No change!
+
+		# Check if the current action selection has changed
+		if listBoxIndex == self.getListboxFromActionIndex( self.lastSelection ): # No change!
 			return
 
-		# Check for unsaved changes that the user might want
+		# Check for unsaved changes that the user might want to keep
 		if checkForUnsavedChanges and self.hasUnsavedChanges():
 			proceed = tkMessageBox.askyesno( 'Unsaved Changes Detected', 'It appears there are unsaved changes to the subAction events.\n\nDo you want to discard these changes?' )
 			if proceed: # Discard changes
@@ -692,21 +700,21 @@ class ActionEditor( ttk.Frame, object ):
 			else:
 				# Do not proceed; keep the previous selection and do nothing
 				self.subActionList.selection_clear( 0, 'end' )
-				self.subActionList.selection_set( self.listboxFromEntryIndex(self.lastSelection) )
+				self.subActionList.selection_set( self.getListboxFromActionIndex(self.lastSelection) )
 				return
 
 		# Clear the events display pane and reset the scrollbar
 		self.displayPane.delete_all_items()
 		self.displayPane.master.master.yview_moveto( 0 )
-		
+
 		# Commiting to this selection. Get information on it
-		index = self.listboxIndices[listBoxIndex] # Convert from listbox index to actions table index
-		self.lastSelection = index
-		namePointer, animOffset, animSize, eventsPointer, flags, _, _, _ = self.actionTable.getEntryValues( index )
-		
+		actionTableIndex = self.listboxIndices[listBoxIndex] # Convert from listbox index to actions table index
+		self.lastSelection = actionTableIndex
+		namePointer, animOffset, animSize, eventsPointer, flags, _, _, _ = self.actionTable.getEntryValues( actionTableIndex )
+
 		# Update general info display
-		self.subActionIndex.set( 'Table Index:  0x{:X}'.format(index) )
-		entryOffset = 0x20 + self.actionTable.offset + ( index * 0x18 )
+		self.subActionIndex.set( 'Table Index:  0x{:X}'.format(actionTableIndex) )
+		entryOffset = 0x20 + self.actionTable.offset + ( actionTableIndex * 0x18 )
 		self.entryOffset.set( 'Entry Offset:  0x{:X}'.format(entryOffset) )
 		if animOffset == 0: # Assuming this is supposed to be null/no struct reference, rather than the struct at 0x20
 			#self.targetAnimName.set( 'Target Animation:  N/A' )
@@ -754,14 +762,16 @@ class ActionEditor( ttk.Frame, object ):
 				self.subActionEventsSize.set( 'Events Table Size:  0x{:X}'.format(self.subActionStruct.getLength()) )
 			except Exception as err:
 				self.subActionStruct = None
-				actionName = self.getActionName( namePointer, index )[1]
-				printStatus( 'Unable to parse {} subAction (index {}); {}'.format(actionName, index, err) )
+				actionName = self.getActionName( namePointer, actionTableIndex )[1]
+				printStatus( 'Unable to parse {} subAction (index {}); {}'.format(actionName, actionTableIndex, err) )
 				self.subActionEventsSize.set( 'Events Table Size:  N/A' )
 				return
 
 		# Show that there are no events to display if there are none (i.e. only has an End of Script event)
 		if not self.subActionStruct or ( len(self.subActionStruct.events) == 1 and self.subActionStruct.events[0].id == 0 ):
-			if not self.displayPaneMessage:
+			if self.displayPaneMessage:
+				self.displayPaneMessage['text'] = 'No events'
+			else:
 				self.displayPaneMessage = ttk.Label( self, text='No events' )
 				self.displayPaneMessage.grid( column=2, row=2, sticky='n', pady=150 )
 		else:
@@ -807,7 +817,7 @@ class ActionEditor( ttk.Frame, object ):
 	def expandAll( self, guiEvent ):
 		for item in self.displayPane._list_of_items:
 			eM = item.eventModule
-			
+
 			# Use the method on the expand/collapse button to expand
 			if eM.expandBtn and not eM.expanded:
 				eM.expandBtn.toggle()
@@ -815,7 +825,7 @@ class ActionEditor( ttk.Frame, object ):
 	def collapseAll( self, guiEvent ):
 		for item in self.displayPane._list_of_items:
 			eM = item.eventModule
-			
+
 			# Use the method on the expand/collapse button to collapse
 			if eM.expanded: # No need to check for button; can't be expanded without it
 				eM.expandBtn.toggle()
@@ -828,7 +838,7 @@ class ActionEditor( ttk.Frame, object ):
 		if not self.subActionStruct:
 			globalData.gui.updateProgramStatus( 'No subAction events struct has been loaded' )
 			return
-		
+
 		# Construct a new bytearray for .data based on the current events
 		self.subActionStruct.rebuild()
 		if self.subActionStruct.origData == self.subActionStruct.data:
@@ -857,7 +867,7 @@ class ActionEditor( ttk.Frame, object ):
 			msg( 'This action has no subAction events struct! The action has a null subAction events pointer, or the structure could not be initialized.' )
 			return
 		listBoxIndex = selection[0]
-		index = self.listboxIndices[listBoxIndex] # Convert from listbox index to actions table index
+		actionTableIndex = self.listboxIndices[listBoxIndex] # Convert from listbox index to actions table index
 
 		# Try to initialize the vanilla disc
 		vanillaDiscPath = globalData.getVanillaDiscPath()
@@ -870,7 +880,7 @@ class ActionEditor( ttk.Frame, object ):
 		# Get the vanilla character data file, and get the original events struct from it
 		vCharFile = vanillaDisc.getFile( 'Pl{}.dat'.format(self.charFile.charAbbr) )
 		vActionTable = vCharFile.getActionTable()
-		vEventsPointer = vActionTable.getEntryValues( index )[3]
+		vEventsPointer = vActionTable.getEntryValues( actionTableIndex )[3]
 		vSubActionStruct = vCharFile.initDataBlock( SubAction, vEventsPointer, vActionTable.offset )
 		vStructData = vSubActionStruct.data
 
@@ -883,8 +893,8 @@ class ActionEditor( ttk.Frame, object ):
 		# Save the vanilla data to the current struct and update the file
 		self.subActionStruct.data = vStructData
 		self.subActionStruct.events = []
-		namePointer = self.actionTable.getEntryValues( index )[0]
-		actionName = self.getActionName( namePointer, index, useParenthesis=True )[1]
+		namePointer = self.actionTable.getEntryValues( actionTableIndex )[0]
+		actionName = self.getActionName( namePointer, actionTableIndex, useParenthesis=True )[1]
 		description = '{} subAction events restored to vanilla'.format( actionName )
 		self.charFile.updateStruct( self.subActionStruct, description, 'SubAction events restored' )
 
