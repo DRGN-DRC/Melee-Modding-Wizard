@@ -11,54 +11,54 @@
 
 
     >==-------------
-    >=- Overview
+    |=- Overview
     >==----------
 
 	Most of the command-line functionality is organized into a few "operation groups", 
-	which must be specified to access features within them. For examples...
+	which must be specified in order to access features within them. For examples...
 
 
 	To get information on a disc:
 
 		"MMW.exe" disc --discPath [filePath] --info
 
-	To export a file from a disc:
+	Or to export a file from a disc:
 
 		"MMW.exe" disc --discPath [filePath] --export "Start.dol"
 	
 
 	In these cases, "disc" is the operation group name. Below is a brief description of each group 
 	and the operations available within them. Additional switches that are specific to one of these 
-	features are not included here. For more detail on a specifc operation, see the sections below.
-	Details for specific op groups can also be viewed using the command "MMW.exe [opGroup] -h".
+	features aren't included here. For details on a specifc operation, see the sections below this one.
+	Details for specific op groups can also be viewed using the command "MMW.exe [opGroup] --help".
 
-	You may use the full argument name, e.g. "--build", or a shorthand version of it, shown in
+	You may use a full argument name, such as "--build", or a shorthand version of it, shown in
 	parenthesis below (e.g. "-b" instead of "--build").
 
-	    = Disc Operations
+	    = "disc" for Disc Operations
 		--build (-b)		Build a disc from extracted root files
 		--export (-e)		Export files from a disc
 		--import (-i)		Import files to a disc
 		--listFiles (-l)	List all files in a disc
 		--info (-n)		Show information on a given disc
 
-	    = Test Operations
+	    = "test" for Test Operations
 		--boot			Boot test a given stage/character in Dolphin
-		--validate		Test whether files are of an expected type
+		--validate		Test whether files are of an expected type (char/stage/music/etc)
 
-  WIP!	    = Code Operations
-		--install		Install a list of given mods
+  WIP!	    = "code" for Code Operations
+		--install		Install a list of given code-based mods
 		--library		Specify the library to install from (if not using default)
 
 
 	There are a few extra arguments which do not require an operation group:
 
 		--help (-h)		Show the program's help message and exit
-		--version (-v)		Show program's version number and exit
+		--version (-v)		Show the program's version number and exit
 
 
     >==------------------------------------------------------
-    >=- OpGroup: "disc" (Disc and Root Folder Operations)
+    |=- OpGroup: "disc" (Disc and Root Folder Operations)
     >==---------------------------------------------------
 
 	--build (-b) ROOTFOLDERPATH
@@ -68,22 +68,24 @@
 		the --output option is also provided.
 
 	--discPath (-d) DISCPATH
-		Provide a filepath for a target disc for the program to operate on. This is required 
-		for most of the disc operations (those that say they operate on a "given disc").
+		Provide a filepath for a target disc or root folder for the program to operate on. 
+		This is required for most of the disc operations (particularly, those that say they 
+		operate on a "given disc").
 
 	--export (-e) ISOPATH [ISOPATH ...]
 		Export one or more files from a given disc. Use an ISO path to target a specific 
 		file within the disc: 'e.g. "--export PlSsNr.dat" or "--export ./audio/us/mario.ssm"
 		If operating on multiple files, this should be a list of ISO paths (separated by 
-		spaces). If the --output command is not also used, files are output to the current 
-		working directory.'
+		spaces). Alternatively, you may instead provide a text file containing a list of ISO 
+		paths (one on each line). If the --output command is not also used, files are output 
+		to the current working directory.
 
 	--import (-i) FILEPATH [FILEPATH ...]
 		Provide one or more filepaths for external/standalone files to be imported into a 
 		given disc. Supplement this with the --isoPath (-p) command to define what file(s) in 
 		the disc to replace. The given filepath may be a single path, or a list of paths for 
-		multiple files (separated by spaces). If operating on multiple files, the list of paths 
-		should be in the same order as those in the --isoPath argument.
+		multiple files (separated by spaces). If operating on multiple files, the list of 
+		paths should be in the same order as those in the --isoPath argument.
 
 	--listFiles (-l)
 		List the files within a given disc. May be used with --info.
@@ -100,24 +102,25 @@
 		may include the file name in order to name the finished file.
 
 	--isoPath (-p) ISOPATH [ISOPATH ...]
-		Used to target one or more specific files within a disc. e.g. "PlSsNr.dat" or 
-		"./audio/us/mario.ssm". If operating on multiple files, this should be a list of ISO 
-		paths (separated by spaces).
+		Used to target one or more specific files within a disc for other various operations. 
+		e.g. "PlSsNr.dat" or "./audio/us/mario.ssm". If operating on multiple files, this 
+		should be a list of ISO paths (separated by spaces). Alternatively, you may instead 
+		provide a text file containing a list of ISO paths (one on each line).
 
 
     >==--------------------------------------
-    >=- OpGroup: "test" (Test Operations)
+    |=- OpGroup: "test" (Test Operations)
     >==-----------------------------------
 
-	--boot (-b) [		Input: Single file path
+	--boot (-b) FILEPATH
 		If you use this command with a stage or character file, that file will be loaded 
 		into a mostly-vanilla mini disc, and loaded in the Dolphin instance you've provided. 
 		The game will be booted directly into a match with the given stage or character 
 		for immediate testing.
-	--debug (-d)		Flag
+	--debug (-d)
 		Use this flag to run Dolphin in Debug Mode when using the --boot command above.
 
-	--validate (-v)		Input: One or more file paths (space-separated)
+	--validate (-v) FILEPATH [FILEPATH ...]
 		Validate files to determine if they are of an expected type. By default, this will 
 		attempt to validate them as "dat" files, however you may change this using the 
 		--validationType command to be more specific. You may pass one or more file paths to 
@@ -161,16 +164,26 @@
 		The first form is simpler, but the second form guarantees order is preserved in output 
 		and allows for duplicate filepaths (to test the same file for multiple types).
 
-	--validationType (-vt)		Input: One or more file types
+		By default, this feature will print results to stdout, in a basic human-readable format. 
+		However, you may instead output results to a JSON file or to stdout as a JSON-formatted 
+		string by using the --outputJsonFile and/or --outputJsonString arguments.
+
+		The exit code when using this feature can also tell you the result of the operation. 
+		If you convert the exit code to binary, the resulting 1s and 0s indicate a pass with 0, 
+		or a fail with 1. Thus, the number will be 0 if all test cases passed. Or for example 
+		if the exit code is 6, and three files were provided, 6 = 110 in binary, so the first 
+		two files failed validation, while the last file passed.
+
+	--validationType (-vt) FILETYPE [FILETYPE ...]
 		Provide the expected file type(s) for the --validate command. If only one type is given,
 		all of the given paths will be expected to be that type. Or you may provide a list of 
 		types; one for each file path given. The default if this command is not used is "dat". 
 		Other allowable validation types are "music", "menu", "stage", and "character". This 
 		option is ignored when using JSON input.
 
-	--outputJsonFile (-ojf)		Input: Single file path
+	--outputJsonFile (-ojf) FILEPATH
 		Provide a filepath to output a JSON results file for the --validate command.
 
-	--outputJsonString (-ojs)	Flag
+	--outputJsonString (-ojs)
 		Output JSON results on stdout as a string when using the --validate command. 
-		Usage of this option will disable the normal file status printout.
+		Usage of this option will disable the normal, human-readable results printout.

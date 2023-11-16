@@ -2585,11 +2585,13 @@ def parseArguments(): # Parses command line arguments
 		discOpsParser.add_argument( '-b', '--build', dest='rootFolderPath', help='Builds a disc file (ISO or GCM) from a given root folder path. '
 											'The folder should contain a "sys" folder, and optionally a "files" folder (or else files will be taken from '
 											'the same root folder). The disc will be built in the root path given, unless the --output option is also provided.' )
-		discOpsParser.add_argument( '-d', '--discPath', help='Provide a filepath for a target disc for the program to operate on. This is required '
-															 'for most of the disc operations (those that say they operate on a "given disc").' )
-		discOpsParser.add_argument( '-e', '--export', help='Export one or more files from a given disc. Use an ISO path to target a specific file within the disc: '
-														   'e.g. "--export PlSsNr.dat" or "--export ./audio/us/mario.ssm" '
+		discOpsParser.add_argument( '-d', '--discPath', help='Provide a filepath for a target disc or root folder for the program to '
+															 'operate on. This is required for most of the disc operations (particularly, '
+															 'those that say they operate on a "given disc").' )
+		discOpsParser.add_argument( '-e', '--export', help='Export one or more files from a given disc. Use an ISO path to target a specific file '
+														   'within the disc: \ne.g. "--export PlSsNr.dat" or "--export ./audio/us/mario.ssm" '
 														   'If operating on multiple files, this should be a list of ISO paths (separated by spaces). '
+														   'Alternatively, you may instead provide a text file containing a list of ISO paths (one on each line). '
 														   'If the --output command is not also used, files are output to the current working directory.', nargs='+', metavar='ISOPATH' )
 		discOpsParser.add_argument( '-i', '--import', dest='_import', help='Provide one or more filepaths for external/standalone files to be imported '
 														   'into a given disc. Supplement this with the --isoPath (-p) command to define what file(s) '
@@ -2599,41 +2601,57 @@ def parseArguments(): # Parses command line arguments
 		discOpsParser.add_argument( '-l', '--listFiles', action="store_true", help='List the files within a given disc. May be used with --info.' )
 		discOpsParser.add_argument( '-n', '--info', action="store_true", help='Show various information on a given disc. May be used with --listFiles.' )
 		discOpsParser.add_argument( '-nbu', '--no-backup-on-rebuild', dest='noBackupOnRebuild', action="store_true", help='Do not back up (create a copy of) '
-											'the disc in cases where it needs to be rebuilt. Instead, the original disc will be replaced by a new file by the same name.' )
+																	'the disc in cases where it needs to be rebuilt. Instead, the original disc will be '
+																	'replaced by a new file by the same name.' )
 		discOpsParser.add_argument( '-o', '--output', dest='outputFilePath', help='Provides an output path for various operations. May be just a folder path, '
 																				  'or it may include the file name in order to name the finished file.' )
-		discOpsParser.add_argument( '-p', '--isoPath', help='Used to target one or more specific files within a disc. e.g. "PlSsNr.dat" or "./audio/us/mario.ssm". '
-															'If operating on multiple files, this should be a list of ISO paths (separated by spaces).', nargs='+' )
-		
+		discOpsParser.add_argument( '-p', '--isoPath', help='Used to target one or more specific files within a disc for other various operations. '
+															'e.g. "PlSsNr.dat" or "./audio/us/mario.ssm". If operating on multiple files, this should '
+															'be a list of ISO paths (separated by spaces). Alternatively, you may instead provide a text '
+															'file containing a list of ISO paths (one on each line). ', nargs='+' )
+
 		# Define "test" options
-		testOpsParser = subparsers.add_parser( 'test', help='Asset test tool. Used to validate or boot-test assets such as characters or stage files.' )
-		testOpsParser.add_argument( '-b', '--boot', help='Provide a filepath for a character/stage/etc., to have boot-tested in Dolphin.' )
+		testOpsParser = subparsers.add_parser( 'test', help='Asset test tool. Used to validate or boot-test assets such as character or stage files.' )
+		testOpsParser.add_argument( '-b', '--boot', metavar='FILEPATH', help='Provide a filepath for a character/stage/etc., to have boot-tested in Dolphin.' )
 		testOpsParser.add_argument( '-d', '--debug', action="store_true", help='Use this flag to run Dolphin in Debug Mode when using the --boot command.' )
-		testOpsParser.add_argument( '-v', '--validate', help='Validate files to determine if they are of an expected type. By default, this will '
-															 'attempt to validate them as "dat" files, however you may change this using the '
-															 '--validationType command to be more specific. You may pass one or more file paths to '
-															 'this command. Or you may instead provide a JSON file or JSON-formatted string for input '
-															 '(see the Command-Line Usage doc for details and examples).', nargs='+' )
-		testOpsParser.add_argument( '-vt', '--validationType', help='Provide the expected file type(s) for the --validate command. If only one type is given, '
-																	'all of the given paths will be expected to be that type. Or you may provide a list of '
-																	'types; one for each file path given. The default if this command is not used is "dat". '
-																	'Other allowable validation types are "music", "menu", "stage", and "character". This '
-																	'option is ignored when using JSON input.', default=['dat'], nargs='+' )
-		# testOpsParser.add_argument( '-vj', '--validateJson', help='Validate given files to determine if they are of an expected type (like --validate), except '
-		# 														  'that input (file paths and expected types) may be a JSON file, or JSON-formatted string.' )
-		testOpsParser.add_argument( '-ojf', '--outputJsonFile', help='Provide a filepath to output a JSON results file for the --validate command.' )
-		testOpsParser.add_argument( '-ojs', '--outputJsonString', action="store_true", help='Output JSON results on stdout as a string when using the --validate command. '
-																							'Usage of this option will disable the normal file status printout.' )
-		
+		testOpsParser.add_argument( '-v', '--validate', metavar='FILEPATH', help='Validate files to determine if they are of an expected type. '
+															 'By default, this will attempt to validate them as "dat" files, however you may change '
+															 'this using the --validationType command to be more specific. You may pass one or more '
+															 'file paths to this command. Or you may instead provide a JSON file or JSON-formatted '
+															 'string for input (see the Command-Line Usage doc for details and examples). By default, '
+															 'this feature will print results to stdout, in a basic human-readable format. '
+															 'However, you may instead output results to a JSON file or to stdout as a JSON-'
+															 'formatted string by using the --outputJsonFile and/or --outputJsonString arguments.'
+															 'The exit code when using this feature can also tell you the result of the operation. '
+															 'If you convert the exit code to binary, the resulting 1s and 0s indicate a pass with 0, '
+															 'or a fail with 1. Thus, the number will be 0 if all test cases passed. Or for example '
+															 'if the exit code is 6, and three files were provided, 6 = 110 in binary, so the first '
+															 'two files failed validation, while the last file passed.', nargs='+' )
+		testOpsParser.add_argument( '-vt', '--validationType', metavar='TYPE', help='Provide the expected file type(s) for the --validate command. '
+																	'If only one type is given, all of the given paths will be expected to be that '
+																	'type. Or you may provide a list of types; one for each file path given. The '
+																	'default if this command is not used is "dat". Other allowable validation types '
+																	'are "music", "menu", "stage", and "character". This argument is ignored when '
+																	'using JSON input.', default=['dat'], nargs='+' )
+		testOpsParser.add_argument( '-ojf', '--outputJsonFile', metavar='FILEPATH', help='Provide a filepath to output a JSON results file for the '
+																				'--validate command.' )
+		testOpsParser.add_argument( '-ojs', '--outputJsonString', action="store_true", help='Output JSON results on stdout as a string when using '
+																				'the --validate command. Usage of this option will disable the '
+																				'normal, human-readable results printout.' )
+
 		# Define "code" options
 		codeOpsParser = subparsers.add_parser( 'code', help='Add custom code to a DOL or ISO, or examine one for installed codes.' )
-		codeOpsParser.add_argument( '-i', '--install', help='Install code to a given DOL or ISO. Input should be a colon-separated list of mod names.' )
-		codeOpsParser.add_argument( '-l', '--library', help='A path to a Code Library directory. If not provided, the current default will be used.' )
+		codeOpsParser.add_argument( '-i', '--install', metavar='MODNAME', help='Install code to a given DOL or ISO. Input should be a list of mod names, '
+																	'separated by spaces (wrap mod names that have spaces in them with double-quotes). '
+																	'Alternatively, you may instead provide a text file containing a list of ISO paths '
+																	'(one on each line).', nargs='+' )
+		codeOpsParser.add_argument( '-l', '--library', metavar='FOLDERPATH', help='A path to a Code Library directory. If not provided, the current default '
+																	'will be used.' )
 
 	except Exception as err:
 		# Exit the program on error (with exit code 1)
 		parser.exit( status=1, message='There was an error in parsing the command line arguments:\n' + str(err) )
-		
+
 	parser.set_default_subparser( 'none' )
 
 	return parser.parse_args()
@@ -2641,7 +2659,8 @@ def parseArguments(): # Parses command line arguments
 
 def determineSavePath( disc ):
 
-	""" Function for command-line usage. """
+	""" Determines a filepath for saving a disc image. 
+		This function is used with command-line only. """
 
 	filename = ''
 	
@@ -2689,13 +2708,13 @@ def determineSavePath( disc ):
 def importFilesToDisc():
 
 	""" Function for command-line usage. """
-	
+
 	if not args.isoPath:
 		print( 'No --isoPath argument provided! This is required in order to specify the file(s) to replace.' )
 		sys.exit( 2 )
 
 	disc = loadDisc( args.discPath )
-	
+
 	# Parse and normalize the isoPaths and filePath input
 	isoPaths = parseInputList( args.isoPath, disc.gameId )
 	filePaths = parseInputList( args._import )
@@ -3049,18 +3068,6 @@ def parseInputList( inputList, gameId='' ):
 		or a path to a file to open containing items. Returns a list of items. """
 
 	# Check if it's a standalone text file containing items
-	# if not '|' in inputList and inputList.lower().endswith( '.txt' ) and os.path.exists( inputList ):
-	# 	with open( inputList, 'r' ) as listFile:
-	# 		paths = listFile.read().splitlines()
-
-	# elif '|' in inputList: # A list of items was given directly as a string
-	# 	print( 'splitting by newline')
-	# 	paths = inputList.split( '|' )
-
-	# else: # Single item given; convert to list
-	# 	print( 'else' )
-	# 	paths = [ inputList ]
-
 	if len( inputList ) == 1 and inputList[0].lower().endswith( '.txt' ) and os.path.exists( inputList[0] ):
 		with open( inputList[0], 'r' ) as listFile:
 			paths = listFile.read().splitlines()
@@ -3103,7 +3110,8 @@ if __name__ == '__main__':
 		# Make sure required arguments are present
 		if not args.discPath and not args.rootFolderPath:
 			print( 'No disc path or root folder path provided to operate on.' )
-			print( """Please provide one via -d or --discPath. For example, '-d "C:\\folder\\game.iso' """ )
+			print( """Please provide one via -d or --discPath""" )
+			print( """For example, 'MMW.exe disc -d "C:\\folder\\game.iso"'""" )
 			sys.exit( 2 )
 
 		# Check for informational commands
