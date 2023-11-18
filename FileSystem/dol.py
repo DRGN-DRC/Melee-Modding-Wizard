@@ -139,7 +139,7 @@ class Dol( FileBase ):
 
 	def __init__( self, *args, **kwargs ):
 		FileBase.__init__( self, *args, **kwargs )
-		
+
 		self.region = ''
 		self.version = ''
 		self.revision = ''
@@ -155,12 +155,21 @@ class Dol( FileBase ):
 		# self._externalCodelistData = ()
 		# self._externalInjectionData = ()
 
+		# Not used, but available:
+		self.bssMemAddress = -1
+		self.bssSize = -1
+		self.entryPoint = -1
+
 		self.project = -1
 		self.major = -1
 		self.minor = -1
 		self.patch = -1
 
 	def load( self ):
+
+		""" Parses the file header to collect section information, determines the revision 
+			(version and region) of the DOL, checks if it's SSBM or for 20XX, and checks for 
+			custom code regions defined for this DOL revision. """
 
 		# Skip this method if the file has already been loaded
 		if self.sectionInfo:
@@ -190,8 +199,7 @@ class Dol( FileBase ):
 		else: # Load without booleanVars
 			globalData.loadRegionOverwriteOptions( False )
 
-	# def validate( self ):
-
+	# def validate( self ): #todo
 
 	def parseHeader( self ):
 
@@ -243,7 +251,7 @@ class Dol( FileBase ):
 		elif self.data[0x3B6C1B:0x3B6C32] == ssbmStringBytes: self.region = 'NTSC'; self.version = '1.01'
 		elif self.data[0x3B5A3B:0x3B5A52] == ssbmStringBytes: self.region = 'NTSC'; self.version = '1.00'
 		elif self.data[0x3B75E3:0x3B75FA] == ssbmStringBytes: self.region = 'PAL'; self.version = '1.00'
-		else: 
+		else:
 			self.region = self.version = ''
 			self.isMelee = False
 
@@ -294,7 +302,6 @@ class Dol( FileBase ):
 			apparentRegion, apparentVersion = normalizeRegionString( customVersionString ).split() # Should never return 'ALL' in this case
 
 			if ( apparentRegion == 'NTSC' or apparentRegion == 'PAL' ) and apparentVersion.find( '.' ) != -1:
-				print( 'DOL revision determined from metadata: {} {}'.format(self.region, self.version) )
 				self.region, self.version = apparentRegion, apparentVersion
 		
 		if self.region and self.version:
@@ -318,6 +325,10 @@ class Dol( FileBase ):
 		else:
 			userMessage = "This DOL's revision could not be determined. Please select a region and game version below."
 		userMessage += ' Note that codes may not be able to be installed or detected properly if these are set incorrectly.'
+
+		if not globalData.gui:
+			# Must be running something via command-line
+			return
 
 		# Prompt the user (using the disc region/version above for predictors)
 		revisionWindow = RevisionPromptWindow( userMessage, regionSuggestion, versionSuggestion )
@@ -638,7 +649,7 @@ class Dol( FileBase ):
 
 		return nameOffset, nameString
 
-	def loadCustomCodeRegions( self ):
+	def loadCustomCodeRegions( self, collectAll=False ):
 
 		""" Loads and validates the custom code regions available for this DOL revision.
 			Filters out regions pertaining to other revisions, and those that fail basic validation. """
@@ -650,7 +661,7 @@ class Dol( FileBase ):
 			revisionList, regionName = parseSettingsFileRegionName( fullRegionName )
 
 			# Check if the region/version of these regions are relavant to the currently loaded DOL revision
-			if 'ALL' in revisionList or self.revision in revisionList:
+			if collectAll or 'ALL' in revisionList or self.revision in revisionList:
 
 				# Validate the regions; perform basic checks that they're valid ranges for this DOL
 				for i, ( regionStart, regionEnd ) in enumerate( regions ):
@@ -710,7 +721,7 @@ class Dol( FileBase ):
 				if specificRegion: break
 
 		return codeRegions
-		
+
 	def regionsOverlap( self, regionList ):
 
 		""" Checks given custom code regions to make sure they do not overlap one another. 
@@ -747,10 +758,10 @@ class Dol( FileBase ):
 		return overlapDetected
 
 	def offsetInEnabledRegions( self, dolOffset ):
-		
+
 		""" Checks if a DOL offset falls within an area reserved for custom code. 
 			Returns a tuple of ( bool:inEnabledRegion, string:regionNameFoundIn ) """
-			
+
 		inEnabledRegion = False
 		regionNameFoundIn = ''
 

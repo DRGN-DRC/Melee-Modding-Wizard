@@ -42,7 +42,7 @@ class CodeManagerTab( ttk.Frame ):
 		# Add this tab to the main GUI, and add drag-and-drop functionality
 		mainGui.mainTabFrame.add( self, text=' Code Manager ' )
 		mainGui.dnd.bindtarget( self, mainGui.dndHandler, 'text/uri-list' )
-		
+
 		# Create the notebook that code module tabs (categories) will be attached to
 		self.codeLibraryNotebook = ttk.Notebook( self )
 		self.codeLibraryNotebook.pack( fill='both', expand=1, pady=7 )
@@ -445,13 +445,13 @@ class CodeManagerTab( ttk.Frame ):
 		
 		# Always parse the Core Code library
 		# coreCodesLibraryPath = globalData.paths['coreCodes']
-		# self.parser.includePaths = [ os.path.join(coreCodesLibraryPath, '.include'), os.path.join(globalData.scriptHomeFolder, '.include') ]
-		# self.parser.processDirectory( coreCodesLibraryPath )
+		# includePaths = [ os.path.join(coreCodesLibraryPath, '.include'), os.path.join(globalData.scriptHomeFolder, '.include') ]
+		# self.parser.processDirectory( coreCodesLibraryPath, includePaths )
 
 		# Parse the currently selected "main" library
 		#if self.libraryFolder != coreCodesLibraryPath:
-		self.parser.includePaths = [ os.path.join(self.libraryFolder, '.include'), os.path.join(globalData.scriptHomeFolder, '.include') ]
-		self.parser.processDirectory( self.libraryFolder )
+		includePaths = [ os.path.join(self.libraryFolder, '.include'), os.path.join(globalData.scriptHomeFolder, '.include') ]
+		self.parser.processDirectory( self.libraryFolder, includePaths )
 		globalData.codeMods = self.parser.codeMods
 
 		# Add the mods parsed above to the GUI
@@ -1149,7 +1149,7 @@ class CodeManagerTab( ttk.Frame ):
 
 		toc = time.clock()
 		print( 'time to check for conflicts:', toc-tic )
-		
+
 		if conflictedMods:
 			modNames = '\n'.join( [mod.name for mod in conflictedMods] )
 			proceed = tkMessageBox.askyesno( 'Mod Internal Conflicts Detected', 'Some mods were found to have internal conflicts and will not '

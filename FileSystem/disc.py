@@ -239,16 +239,20 @@ class Disc( object ):
 
 		if systemFilePaths:
 			self.loadRootFolder( systemFilePaths )
-		
+			return 0
+
 		# Not a directory (or missing system files); check that it's a valid file path
 		elif not os.path.exists( self.filePath ):
 			msg( "Unable to find the disc or root path. Check the path and make sure the file hasn't been moved or deleted." )
+			return 1
 
 		elif self.ext.lower() in ( '.iso', '.gcm' ):
 			self.loadGameCubeMediaFile()
+			return 0
 
 		else:
 			msg( 'Unable to load the given root folder or disc path. (Acceptable file extensions are .ISO and .GCM.)' )
+			return 2
 
 	def loadRootFolder( self, systemFilePaths ):
 
@@ -2616,8 +2620,8 @@ class Disc( object ):
 		#mods = parser.parseModsLibraryFile( modsFilePath, [] )
 		
 		# Build the list of paths for .include script imports (this will be prepended by the folder housing each mod text file)
-		parser.includePaths = [ os.path.join(modsFilePath, '.include'), os.path.join(globalData.scriptHomeFolder, '.include') ]
-		parser.processDirectory( modsFilePath )
+		includePaths = [ os.path.join(modsFilePath, '.include'), os.path.join(globalData.scriptHomeFolder, '.include') ]
+		parser.processDirectory( modsFilePath, includePaths )
 
 		# arenaHiMalloc = fileLoadCode = None
 		# for mod in mods:
@@ -2986,8 +2990,8 @@ class MicroMelee( Disc ):
 	# 	# Parse the Core Codes library for the codes needed for testing
 	# 	parser = CodeLibraryParser()
 	# 	modsFilePath = globalData.paths['coreCodes']
-	# 	parser.includePaths = [ os.path.join(modsFilePath, '.include'), os.path.join(globalData.scriptHomeFolder, '.include') ]
-	# 	parser.processDirectory( modsFilePath )
+	# 	includePaths = [ os.path.join(modsFilePath, '.include'), os.path.join(globalData.scriptHomeFolder, '.include') ]
+	# 	parser.processDirectory( modsFilePath, includePaths )
 
 	# 	# Customize the code mod to load the given stage
 	# 	assetTest = parser.getModByName( 'Asset Test' )
@@ -3022,8 +3026,8 @@ class MicroMelee( Disc ):
 		# Parse the Core Codes library for the codes needed for testing
 		parser = CodeLibraryParser()
 		modsFilePath = globalData.paths['coreCodes']
-		parser.includePaths = [ os.path.join(modsFilePath, '.include'), os.path.join(globalData.scriptHomeFolder, '.include') ]
-		parser.processDirectory( modsFilePath )
+		includePaths = [ os.path.join(modsFilePath, '.include'), os.path.join(globalData.scriptHomeFolder, '.include') ]
+		parser.processDirectory( modsFilePath, includePaths )
 
 		# Customize the Asset Test mod to load the given stage
 		codesToInstall = []
@@ -3090,8 +3094,8 @@ class MicroMelee( Disc ):
 		# Parse the Core Codes library for the codes needed for testing
 		parser = CodeLibraryParser()
 		modsFilePath = globalData.paths['coreCodes']
-		parser.includePaths = [ os.path.join(modsFilePath, '.include'), os.path.join(globalData.scriptHomeFolder, '.include') ]
-		parser.processDirectory( modsFilePath )
+		includePaths = [ os.path.join(modsFilePath, '.include'), os.path.join(globalData.scriptHomeFolder, '.include') ]
+		parser.processDirectory( modsFilePath, includePaths )
 
 		# Customize the Asset Test mod to load the given character
 		codesToInstall = []

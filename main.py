@@ -40,9 +40,11 @@ FR_NOT_ENUM = 0x20
 #tic = time.clock()
 import globalData
 
+from codeMods import CodeLibraryParser
 from tools import CharacterColorConverter, TriCspCreator, AsmToHexConverter, CodeLookup
 from FileSystem import DatFile, CharDataFile, CharAnimFile, CharCostumeFile
 from FileSystem import CssFile, SssFile, StageFile, MusicFile
+from FileSystem.dol import Dol
 from FileSystem.disc import Disc, isExtractedDirectory
 from basicFunctions import grammarfyList, msg, openFolder
 from guiSubComponents import (
@@ -2200,7 +2202,7 @@ class MainGui( Tk.Frame, object ):
 
 		# Check if the Codes Manager tab is open
 		if self.codeManagerTab:
-			# Make a backup copy of the DOL in the disc
+			# Make a backup copy of the DOL that's currently in the disc (so we can replace the original when done)
 			origDol = disc.dol
 			dolBackup = disc.copyFile( origDol )
 
@@ -2565,7 +2567,9 @@ def parseArguments(): # Parses command line arguments
 	argparse.ArgumentParser.set_default_subparser = set_default_subparser
 
 	try:
-		parser = argparse.ArgumentParser( description='Program for modding SSBM. The GUI will be opened by default if no command line arguments are given.' )
+		parser = argparse.ArgumentParser( description='Program for modding SSBM (Super Smash Bros. Melee), offering '
+													  'a GUI as well as command-line support. Other GameCube and Wii '
+													  'games are also supported with some features.' )
 
 		# Allow for filepaths to be provided without a flag (this will also catch files drag-and-dropped onto the program icon)
 		parser.add_argument( 'filePath', nargs='?', help='If no operation or option flags are given, but a filepath is provided, '
@@ -2640,13 +2644,39 @@ def parseArguments(): # Parses command line arguments
 																				'normal, human-readable results printout.' )
 
 		# Define "code" options
-		codeOpsParser = subparsers.add_parser( 'code', help='Add custom code to a DOL or ISO, or examine one for installed codes.' )
+		codeOpsParser = subparsers.add_parser( 'code', help='Add custom code to a DOL or ISO, or examine one to print out information.' )
+		codeOpsParser.add_argument( '-d', '--discPath', help='Provide a filepath for a target disc or root folder for the program to operate on.' )
+		codeOpsParser.add_argument( '-dol', '--dolPath', help='Provide a filepath for a DOL file for the program to operate on.' )
 		codeOpsParser.add_argument( '-i', '--install', metavar='MODNAME', help='Install code to a given DOL or ISO. Input should be a list of mod names, '
 																	'separated by spaces (wrap mod names that have spaces in them with double-quotes). '
 																	'Alternatively, you may instead provide a text file containing a list of ISO paths '
 																	'(one on each line).', nargs='+' )
-		codeOpsParser.add_argument( '-l', '--library', metavar='FOLDERPATH', help='A path to a Code Library directory. If not provided, the current default '
-																	'will be used.' )
+		codeOpsParser.add_argument( '-l', '--library', metavar='FOLDERPATH', help='A path to a Code Library directory. If not provided, '
+																					'the default program library will be used.' )
+		codeOpsParser.add_argument( '-r', '--region', help='Specify the region that the DOL is built for; one of "NTSC" or "PAL". '
+							 								'This argument is only required if the region cannot be auto-detected. Typically, the '
+															"region can easily be auto-detected if you're providing a disc to operate on, or the "
+															"DOL you're providing is for SSBM. So you would likely only need this if you are "
+															"providing a non-SSBM DOL and not a disc." )
+		codeOpsParser.add_argument( '-v', '--version', help='Specify the version of the DOL; as a string like "1.02". '
+							 								'This argument is only required if the version cannot be auto-detected. Typically, the '
+															"version can easily be auto-detected if you're providing a disc to operate on, or the "
+															"DOL you're providing is for SSBM. So you would likely only need this if you are "
+															"providing a non-SSBM DOL and not a disc." )
+		codeOpsParser.add_argument( '-cr', '--codeRegions', metavar='REGIONNAME', help='Specify the regions in the DOL where custom code will be installed. '
+																	'Input should be a list of region names, as seen in the codeRegionSettings.py file. '
+																	'(A name is the portion after the vertical bar, i.e. "|", and thus excludes the '
+																	'revision portion.)', nargs='+' )
+		codeOpsParser.add_argument( '-ccr', '--checkCodeRegions', help='Prints out information on available code regions defined in the '
+																	'codeRegionSettings.py file. You can filter this list if you also provide '
+																	'the --region, --version, and/or --codeRegions arguments. Or you may filter '
+																	'by providing the disc or DOL that you intend to install to, which in most '
+																	'cases will auto-detect the region and version. If you provide none of these '
+																	'other arguments, this will print out information on all defined code regions.', 
+																	action="store_true" )
+		codeOpsParser.add_argument( '-cd', '--checkDol', help='Prints out information on the given DOL file, or the DOL in the '
+																'given disc. This includes the region, version, filesize, and '
+																'text/data section information.', action="store_true" )
 
 	except Exception as err:
 		# Exit the program on error (with exit code 1)
@@ -2982,6 +3012,125 @@ def validateAssets():
 	sys.exit( int(binaryString, 2) )
 
 
+def printDolInfo( dol ):
+	
+	""" Prints out information on a DOL. This function is 
+		only used for the command-line feature, --checkDol """
+
+	from basicFunctions import humansize, uHex
+
+	if dol.region:
+		print( 'Region:               ' + dol.region )
+	else:
+		print( 'Region:               Unknown       (use the --region argument when working with this DOL)' )
+
+	if dol.version:
+		print( 'Version:              ' + dol.version )
+	else:
+		print( 'Version:              Unknown       (use the --version argument when working with this DOL)' )
+
+	print( 'BSS Memory Address:   ' + uHex(dol.bssMemAddress) )
+	print( 'BSS Size:             ' + uHex(dol.bssSize) )
+	print( 'Execution Entrypoint: ' + uHex(dol.entryPoint) )
+
+	print( 'Detected as Melee:    ' + str(dol.isMelee) )
+
+	if dol.project == -1:
+		print( 'Project Designation:  N/A' )
+		print( 'Project Version:      N/A' )
+	elif dol.project == 0:
+		print( 'Project Designation:  20XX HP' )
+		print( 'Project Version:      {}.{}.{}'.format(dol.major, dol.minor, dol.patch) )
+
+	totalTextSections = 0
+	totalDataSections = 0
+	totalData = 0
+	headerAdded = False
+	sectionLines = [ 'Text Sections:', '           File Offset:  RAM Address:  Section Size:' ]
+
+	for sectionName, ( fileOffset, memAddress, size ) in dol.sectionInfo.items():
+		if sectionName.startswith( 'text' ):
+			totalTextSections += 1
+		else:
+			totalDataSections += 1
+			if not headerAdded:
+				# Add the total size for text sections
+				sectionLines.append( '                                 Total: {:>10}'.format(uHex(totalData)) )
+				totalData = 0
+
+				# Prepare to start collecting for data sections
+				sectionLines.append( 'Data Sections:' )
+				sectionLines.append( '           File Offset:  RAM Address:  Section Size:' )
+				headerAdded = True
+
+		# Pad the name to 6 characters (align left), and pad all other values to 10 (align right)
+		sectionLines.append( '    {:<6}  {:>10}    {:>10}    {:>10}'.format(sectionName, uHex(fileOffset), uHex(memAddress), uHex(size)) )
+		totalData += size
+	sectionLines.append( '                                 Total: {:>10}'.format(uHex(totalData)) )
+
+	print( 'Size:                 {}  ({:,} bytes)'.format(humansize(dol.size), dol.size) )
+	print( 'Total Text Sections:  ' + str(totalTextSections) )
+	print( 'Total Data Sections:  ' + str(totalDataSections) )
+	print( '-----------------------------------------------------' )
+
+	for line in sectionLines:
+		print( line )
+
+
+def installCodes( args, disc, dol ):
+
+	""" Installs code-based mods into a DOL file. """
+
+	# Determine a code library path and validate it
+	if args.library:
+		libraryPath = args.library
+		includePaths = [ os.path.join(libraryPath, '.include') ]
+	else: # Use the program's default library
+		libraryPath = os.path.join( globalData.scriptHomeFolder, 'Code Library' )
+		includePaths = [ os.path.join(libraryPath, '.include'), os.path.join(globalData.scriptHomeFolder, '.include') ]
+	if not os.path.exists( libraryPath ):
+		print( 'Unable to find the given code library folder: "{}"'.format(libraryPath) )
+		sys.exit( 3 )
+
+	# Load the code library
+	try:
+		parser = CodeLibraryParser()
+		parser.processDirectory( libraryPath, includePaths )
+		assert parser.codeMods, 'no mods could be parsed.'
+	except Exception as err:
+		print( 'Unable to load the code library; {}'.format(err) )
+		sys.exit( 202 )
+
+	# Parse and normalize the mod names to install
+	missingMods = []
+	if len( args.install ) == 1 and args.install[0].upper() == 'ALL':
+		modsToInstall = parser.codeMods
+	else:
+		modNames = parseInputList( args.install )
+
+		# Collect the mods to install
+		modsToInstall = []
+		for mod in parser.codeMods:
+			if mod.name in modNames:
+				modsToInstall.append( mod )
+
+		# Ensure we have a list of mods to install
+		if not modsToInstall:
+			print( 'Unable to find the given mods in the library.' )
+			sys.exit( 203 )
+
+		# Check for any missing mods
+		if len( modsToInstall ) != len( modNames ):
+			modsFound = [ mod.name for mod in modsToInstall ]
+			for mod in modNames:
+				if mod not in modsFound:
+					missingMods.append( mod )
+
+	# Save codes to the DOL
+
+	print( 'todo' )
+
+
 def loadAssetTest():
 
 	""" Function for command-line usage. Boots an instance of the game with the given asset. 
@@ -3046,18 +3195,25 @@ def loadAssetTest():
 
 def loadDisc( discPath ):
 
-	""" Simple function to load a given disc image, for command-line program usage. 
-		Will give an error message and exit the program if there's a problem. """
+	""" Simple function to load/return a disc image for a given filepath. Only used by command-line features. 
+		This will give an error message and exit the program if a problem is detected. """
 
-	disc = Disc( args.discPath )
-	disc.load()
+	try:
+		disc = Disc( discPath )
+		returnCode = disc.load()
+	except Exception as err:
+		print( 'There was an unexpected error when attempting to load the disc; {}'.format(err) )
+		sys.exit( 4 )
 
 	if not disc.files:
-		if not os.path.exists( args.discPath ): # A warning will have already been given if this is the case
+		# A warning will have already been given if returnCode == 1 or 2
+		if returnCode == 1: # File/folder path not found
 			sys.exit( 3 )
-		else:
-			print( 'Unable to load the disc.' )
-			sys.exit( 4 )
+		elif returnCode == 2: # Invalid file extension?
+			print( 'You may want to check that you have the correct path (and extension) for a disc or root folder input.' )
+		else: # No exception; but there are no files either!
+			print( 'Unable to load the disc (empty or corrupt filesystem).' )
+		sys.exit( 4 )
 
 	return disc
 
@@ -3071,7 +3227,6 @@ def parseInputList( inputList, gameId='' ):
 	if len( inputList ) == 1 and inputList[0].lower().endswith( '.txt' ) and os.path.exists( inputList[0] ):
 		with open( inputList[0], 'r' ) as listFile:
 			paths = listFile.read().splitlines()
-
 	else:
 		paths = inputList
 
@@ -3092,6 +3247,11 @@ def parseInputList( inputList, gameId='' ):
 
 		paths = fullPaths
 
+	# Ensure the list isn't empty
+	if not paths:
+		print( 'Invalid input; an input list appears to be empty.' )
+		sys.exit( 2 )
+
 	return paths
 
 
@@ -3108,7 +3268,7 @@ if __name__ == '__main__':
 	if args.opsParser == 'disc':
 
 		# Make sure required arguments are present
-		if not args.discPath and not args.rootFolderPath:
+		if not args.discPath:
 			print( 'No disc path or root folder path provided to operate on.' )
 			print( """Please provide one via -d or --discPath""" )
 			print( """For example, 'MMW.exe disc -d "C:\\folder\\game.iso"'""" )
@@ -3165,8 +3325,89 @@ if __name__ == '__main__':
 
 	# Check for "code" operation group
 	elif args.opsParser == 'code':
-		print( 'todo' )
-	
+
+		# Get the target DOL file to operate on
+		if args.discPath:
+			disc = loadDisc( args.discPath )
+			dol = disc.dol # Already initialized with disc load
+		elif args.dolPath:
+			dol = Dol( None, -1, -1, '', '', args.dolPath, 'file' )
+			
+			# Initialize the DOL file (parse header to get regions, determine revision, and get custom code regions)
+			try:
+				dol.load()
+			except Exception as err:
+				print( 'Unable to load the DOL file; {}'.format(err) )
+				sys.exit( 201 )
+		elif args.checkCodeRegions:
+			# Not performing any modifications, but we still need a DOL object
+			dol = Dol( None, -1, -1, 'dol' )
+			if args.region and args.version:
+				dol.region = args.region
+				dol.version = args.version
+				dol.revision = dol.region + ' ' + dol.version
+			# Spoof checks/warnings for regions being outside of the DOL's codespace
+			dol.maxDolOffset = float( "inf" )
+		else:
+			print( 'No disc path or DOL file provided to operate on.' )
+			print( """Please provide one via -d or --discPath""" )
+			print( """For example, 'MMW.exe disc -d "C:\\folder\\game.iso"'""" )
+			sys.exit( 2 )
+
+		if args.checkCodeRegions:
+			from basicFunctions import uHex
+
+			# Load custom code regions from the codeRegionSettings.py file, and collect the requested regions
+			codeRegions = []
+			if args.codeRegions:
+
+				# The user has given us a list of region names to filter by
+				dol.loadCustomCodeRegions( collectAll=True )
+
+				# Iterate over the regions collected
+				for regionName, regions in dol.customCodeRegions.items():
+					if regionName in args.codeRegions:
+						for regionStart, regionEnd in regions:
+							codeRegions.append( (regionStart, regionEnd, regionName) )
+				checkForConflicts = True
+			elif dol.revision:
+				# Collect only applicable regions
+				dol.loadCustomCodeRegions()
+				codeRegions = dol.getCustomCodeRegions( searchDisabledRegions=True )
+				checkForConflicts = True
+			else:
+				# Collect all regions
+				dol.loadCustomCodeRegions( collectAll=True )
+				codeRegions = dol.getCustomCodeRegions( searchDisabledRegions=True )
+				checkForConflicts = False # Don't bother, as it's assumed there will be conflicts
+
+			# Check for conflicts among the code regions selected for use
+			# if checkForConflicts:
+			# 	print( 'Checking if regions overlap...' )
+			# 	dol.regionsOverlap( codeRegions ) # A warning will have been given to the user if they overlap
+			# else:
+			# 	print( 'Skipping check for overlapping regions.' )
+
+			if codeRegions:
+				print( '\n    Name:                       Region Start:  Region End:' )
+				for regionStart, regionEnd, regionName in codeRegions:
+					print( '{:<32}{:>11}{:>13}'.format(regionName, uHex(regionStart), uHex(regionEnd)) )
+			else:
+				print( 'No code regions could be found or determined.' )
+
+		elif args.checkDol:
+			printDolInfo( dol )
+
+		else:
+			# Initialize an empty disc object (so we can tap into its code-saving methods)
+			if not dol.disc:
+				disc = Disc( '' )
+				disc.gameId = 'GALE01'
+				disc.files['GALE01/Start.dol'] = dol
+				dol.disc = disc
+
+			installCodes( args, disc, dol )
+
 	# If [non-h/-v] arguments are detected but no opGroup is specified, it's likely a disc filepath
 	elif args.filePath:
 	
@@ -3197,7 +3438,7 @@ if __name__ == '__main__':
 			print( '' )
 			print( 'Use "{}" --help (or -h) to see usage instructions.'.format(sys.argv[0]) )
 			sys.exit( 1 )
-	
+
 	# No option group or other command line arguments detected; start the GUI
 	else:
 		# Load the program settings and initialize the GUI
@@ -3229,7 +3470,7 @@ if __name__ == '__main__':
 #
 #	[Exception to this is the --validate command; exit code is based on pass/fail of individual files.]
 #
-# 100 series codes (disc save failure; from disc.save, disc.saveFilesToDisc, or disc.buildNewDisc):
+# 100 series codes 		(disc save failure; from disc.save, disc.saveFilesToDisc, or disc.buildNewDisc):
 #	101: No changes to be saved
 #	102: Missing system files
 #	103: Unable to create a new disc file
@@ -3237,3 +3478,8 @@ if __name__ == '__main__':
 #	105: Unrecognized error during file writing
 #	106: Unable to overwrite existing file
 #	107: Could not rename discs or remove original
+#
+# 200 series codes		(for code-based mod operations)
+#	201: Unable to load the DOL
+#	202: Unable to load the code library
+#	203: Unable to find the given mods in the library

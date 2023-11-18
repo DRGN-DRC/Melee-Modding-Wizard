@@ -926,8 +926,8 @@ class TriCspCreator( object ):
 		# Parse the Core Codes library for the codes needed for booting to match and setting up a pose
 		coreCodes = CodeLibraryParser()
 		coreCodesFolder = globalData.paths['coreCodes']
-		coreCodes.includePaths = [ os.path.join(coreCodesFolder, '.include'), os.path.join(globalData.scriptHomeFolder, '.include') ]
-		coreCodes.processDirectory( coreCodesFolder )
+		includePaths = [ os.path.join(coreCodesFolder, '.include'), os.path.join(globalData.scriptHomeFolder, '.include') ]
+		coreCodes.processDirectory( coreCodesFolder, includePaths )
 		codesToInstall = []
 
 		# Customize the Asset Test mod to load the chosen characters/costumes
@@ -954,8 +954,8 @@ class TriCspCreator( object ):
 		# Parse the Pose Codes
 		poseCodes = CodeLibraryParser()
 		poseCodesFolder = globalData.paths['triCsps']
-		poseCodes.includePaths = [ os.path.join(poseCodesFolder, '.include'), os.path.join(globalData.scriptHomeFolder, '.include') ]
-		poseCodes.processDirectory( poseCodesFolder )
+		includePaths = [ os.path.join(poseCodesFolder, '.include'), os.path.join(globalData.scriptHomeFolder, '.include') ]
+		poseCodes.processDirectory( poseCodesFolder, includePaths )
 		
 		# Check for a pose code specific to this character in the Pose Codes file
 		poseCodeName = globalData.charList[charId] + ' Pose Code'

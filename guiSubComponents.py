@@ -1192,7 +1192,10 @@ class GeneralHelpWindow( BasicWindow ):
 			'modify the behavior or parameters of a code right from within the GUI in this program. They can '
 			'use sliders, enter numbers, or choose from drop-downs rather than needing to understand how to '
 			'read and modify the hex or source code of the mod. Look for the "Configurations" section in the '
-			'"Code Library Manual" to learn about these options and how to implement them.' )
+			'"Code Library Manual" to learn about these options and how to implement them.' ),
+
+		17: ( 'Keep in mind that this program supports command-line usage as well. So you could create '
+			'batch files to perform common tasks, such as replacing files in a disc or installing codes!' ),
 
 		# 2: ( "There are multiple useful behaviors you can call upon when importing textures:"
 		# 	"\n- When viewing the contents of a disc on the 'Disc File Tree' tab. The imported "
@@ -1205,7 +1208,6 @@ class GeneralHelpWindow( BasicWindow ):
 		# 8: ( 'A quick and easy way to view file structures relating to a given texture is to use '
 		# 	'the "Show in Structural Analysis" feature, found by right-clicking on a texture.' ),
 
-		#17: ( '' ),
 		#18: ( '' ),
 		#19: ( '' ),
 		#20: ( "IT'S A SECRET TO EVERYBODY." ),

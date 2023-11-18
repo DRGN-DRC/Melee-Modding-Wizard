@@ -187,3 +187,23 @@
 	--outputJsonString (-ojs)
 		Output JSON results on stdout as a string when using the --validate command. 
 		Usage of this option will disable the normal, human-readable results printout.
+
+
+    >==------------------------------------------------
+    |=- OpGroup: "code" (Code-Based Mod Operations)
+    >==---------------------------------------------
+
+	--discPath (-d) FILEPATH
+		Provide a filepath for a target disc or root folder for the program to operate on. 
+
+	--dolPath (-dol) FILEPATH
+		Provide a filepath for a target disc or root folder for the program to operate on. 
+
+	--install (-i) MODNAME [MODNAME ...]
+		Install code to a given DOL or ISO. Input should be a list of mod names, separated by 
+		spaces (wrap mod names that have spaces in them with double-quotes). Alternatively, 
+		you may instead provide a text file containing a list of ISO paths (one on each line).
+
+	--library (-l) FOLDERPATH
+		A path to a Code Library directory. If not provided, the default program library will 
+		be used.

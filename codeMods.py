@@ -1567,14 +1567,17 @@ class CodeLibraryParser():
 		else:
 			self.codehandlerFound = False
 
-	def processDirectory( self, folderPath ):
+	def processDirectory( self, folderPath, includePaths=None ):
 
 		""" Starting point for processing a Code Library. Recursively processes sub-folders. """
+
+		if includePaths:
+			self.includePaths = includePaths
 
 		parentFolderPath, thisFolderName = os.path.split( folderPath )
 		parentFolderName = os.path.split( parentFolderPath )[1]
 		itemsInDir = os.listdir( folderPath ) # May be files or folders
-		includePaths = [ folderPath ] + self.includePaths
+		includePaths = [ folderPath ] + self.includePaths # Create a new list, adding the current folder
 
 		# Check if this folder is a mod in AMFS format
 		if 'codes.json' in itemsInDir:
