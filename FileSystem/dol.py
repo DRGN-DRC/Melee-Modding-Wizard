@@ -651,7 +651,8 @@ class Dol( FileBase ):
 
 	def loadCustomCodeRegions( self, collectAll=False ):
 
-		""" Loads and validates the custom code regions available for this DOL revision.
+		""" Loads and validates the custom code regions available for this DOL revision 
+			(space in the DOL permitted for overwriting with custom code) from codeRegionSettings.py. 
 			Filters out regions pertaining to other revisions, and those that fail basic validation. """
 
 		incompatibleRegions = []
@@ -695,9 +696,10 @@ class Dol( FileBase ):
 
 	def getCustomCodeRegions( self, searchDisabledRegions=False, specificRegion='', useRamAddresses=False ):
 
-		""" This gets the regions defined for custom code use (regions permitted for overwrites) in codeRegionSettings.py. 
-			Returned as a list of tuples of the form (regionStart, regionEnd). Note that the region names in the dictionary 
-			are not the "full" region names; i.e. they don't include revision. """
+		""" This filters the regions defined for custom code use by what is currently enabled 
+			in the global region overwrite options. Returns a list of tuples of the form 
+			(regionStart, regionEnd, regionName). Note that the region names in the 
+			dictionary are not the "full" region names; i.e. they don't include revision. """
 
 		codeRegions = []
 

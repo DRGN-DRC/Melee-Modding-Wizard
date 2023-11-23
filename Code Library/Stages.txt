@@ -231,6 +231,18 @@ Version -- DOL Offset ------ Hex to Replace ---------- ASM Code
 	-==-
 
 
+All Floors Are Drop-Through
+All floors can be dropped through (and ceilings can be passed through) like standard platforms.
+<https://smashboards.com/threads/all-floors-are-drop-through.513411/>
+[DRGN]
+Revision ---- DOL Offset ---- Hex to Replace ---------- ASM Code -
+NTSC 1.02 --- 0x8004CBD4 ---- 546305EE -> 38600100 # rlwinm r3,r3,0,23,23(00000100) -> li r3, 0x100
+------------- 0x8004FD24 ---- AB240006 -> 3B200000 # lha r25, 0x0006 (r4) -> li r25, 0
+
+
+	-==-
+
+
 Disable All-Star Heal Portal from Ending Match
 [Achilles]
 Version -- DOL Offset ------ Hex to Replace ---------- ASM Code

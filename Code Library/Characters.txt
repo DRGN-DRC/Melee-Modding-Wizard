@@ -126,15 +126,38 @@ Version -- DOL Offset ------ Hex to Replace ---------- ASM Code
 	-==-
 
 
-Marth - Costume Dependent Marth Sword Swing Colors
-Color 1 of Marth's sword swing is changed on a per costume basis
-Blue costume [default] = Default swing color (teal)
-Red costume = Red swing color
-Green costume = Green swing color
-White costume = Light purple swing color
-Black costume = Gold swing color
-Code can be modified to change the colors to whatever you like (check the text file library for more notes).
-(Updated 4/29 with slightly shortened code.)
+Marth/Roy - Truly Costume Dependent Sword Swing Colors
+Allows each Marth or Roy costume file to have its own set of custom colors, even if there are multiple costume files per color slot. This is how 20XX achieves its different sword-swing colors for each costume. The colors are not stored in this code, and are instead stored in the costume files themselves. See the SmashBoards link (and the post below it) for usage details.
+<https://smashboards.com/threads/new-costume-dependent-sword-colors-code-for-marth.432680/post-21678621>
+[Achilles]
+Version -- DOL Offset ------ Hex to Replace ---------- ASM Code
+NTSC 1.02 --- 0x8013651C ---- 4E800020 -> Branch
+
+8085E124 80840068
+3CC00002 60C6BFB4
+8065DB54 2C030012
+41A2000C 3CC00002
+60C65448 7C843214
+8865E169 2C030000
+40A20008 3884FFFC
+3CC05352 60C64742
+80640000 7C033000
+40820024 38A5FFF0
+88640004 98650000
+80640005 90650001
+80640009 5463C23E
+90650005 4E800020
+
+
+	-==-
+
+
+Marth - Costume Dependent Marth Sword Swing Colors (Updated 4/29)
+Color 1 of Marth's sword swing is changed on a per costume basis.
+
+Blue costume [default] = Default swing color (teal), Red costume = Red swing color, Green costume = Green swing color, White costume = Light purple swing color, Black costume = Gold swing color
+
+This code contains the individual colors, and affects all Marth costumes globally. It can be modified to change the colors to whatever you like (check the text file library for more notes).
 [Achilles]
 Version -- DOL Offset ------ Hex to Replace ---------- ASM Code
 1.02 ----- 0x80136510 --- 94650008 -> Branch
@@ -305,7 +328,7 @@ PAL ------ 0x148E80 ---- 3880015E -> 38800041 ---- (li r4,350 --> li r4,65)
 
 Mr. Game and Watch - Always Specific Hammer Value
 Default is 9. Check the text file library to change this.
-(Notes: http://smashboards.com/threads/melee-gecko-codes-guide-and-discussion.327311/page-32#post-18703696)
+<http://smashboards.com/threads/melee-gecko-codes-guide-and-discussion.327311/page-32#post-18703696>
 [Wooggle]
 Version -- DOL Offset ------ Hex to Replace ---------- ASM Code
 1.02 ----- 0x8014C760 --- 7FC3002E -> 3BC00008
@@ -572,7 +595,6 @@ NTSC 1.02 --- 0x802B9D28 ---- 40820078 -> 48000078
 
 Ganon Float v1.0
 Features:
-
 -Applies only to Ganondorf.
 -Kills all vertical velocity.
 -Allows for aerial movement.

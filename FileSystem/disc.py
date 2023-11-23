@@ -229,6 +229,7 @@ class Disc( object ):
 		# self._dol = None
 		# self._css = None
 		self._symbols = []			# Lines from a .map file
+		self.mapSavePath = ''
 
 	def load( self ):
 
@@ -1633,12 +1634,12 @@ class Disc( object ):
 				 '(Dolphin may even play discs larger than 4 GB, but some features may not work.)', 'Standard Disc Size Exceeded' )
 
 		return 0, filesUpdated
-	
+
 	def save( self, newDiscPath='' ):
-		
+
 		""" Saves all changed files in an ISO to disc; either by replacing each 
 			file in-place (and updating the FST), or rebuilding the whole disc. 
-			
+
 			May return the following return codes:
 				0: Success; no problems detected
 				1: No changes to be saved
@@ -1653,7 +1654,7 @@ class Disc( object ):
 		# Perform some clean-up operations for 20XXHP features
 		if self.is20XX:
 			cssFile = self.css
-			
+
 			# Check for CSS file changes
 			if cssFile and cssFile.unsavedChanges:
 				# Check that the hex tracks music name table is valid
@@ -1823,6 +1824,7 @@ class Disc( object ):
 			discFolder = os.path.dirname( self.filePath )
 			symbolMapPath = os.path.join( discFolder, self.gameId + '.map' )
 			print( 'Map file updated and placed with the disc' )
+		self.mapSavePath = symbolMapPath
 
 		# Back-up any existing file
 		try: os.rename( symbolMapPath, symbolMapPath + '.bak' )
@@ -2292,11 +2294,13 @@ class Disc( object ):
 
 		for mod in codeMods:
 			if not mod: continue # May be 'None' if a mod wasn't found
+			elif mod.errors: # Failsafe; theoretically shouldn't have been selectable
+				msg( 'Skipping installation of "{}" due to the following errors:\n{}'.format(mod.name, '\n'.join(mod.errors)) )
+				codesNotInstalled.append( mod )
+				continue
 			elif mod.state == 'unavailable': # Failsafe; theoretically shouldn't have been selectable
 				msg( 'Skipping installation of "{}" due to it being unavailable.'.format(mod.name) )
-				continue
-			elif mod.errors: # Failsafe; theoretically shouldn't have been selectable
-				msg( 'Skipping installation of "{}" due to the following errors:\n\n{}'.format(mod.name, '\n'.join(mod.errors)) )
+				codesNotInstalled.append( mod )
 				continue
 			elif mod.type == 'gecko' and mod in codesNotInstalled: # A part of this mod already failed installation
 				continue
@@ -2308,6 +2312,7 @@ class Disc( object ):
 			requiredStandaloneFunctions, missingFunctions = mod.getRequiredStandaloneFunctionNames()
 			if missingFunctions:
 				msg( mod.name + ' cannot not be installed because the following standalone functions are missing:\n\n' + grammarfyList(missingFunctions) )
+				codesNotInstalled.append( mod )
 				continue
 
 			# Prepare for allocating and saving SFs and code changes for this mod to the DOL
@@ -2568,9 +2573,9 @@ class Disc( object ):
 		for areaStart, areaEnd, spaceUsed in self.allocationMatrix[:-1]:
 			totalSpace += areaEnd - areaStart
 			totalSpaceUsed += spaceUsed
-		print( 'total space available:', uHex(totalSpace) )
-		print( 'total space used:', uHex(totalSpaceUsed) )
-		print( 'total space remaining:', uHex(totalSpace-totalSpaceUsed) )
+		print( 'Total space available: 0x{:X}'.format(totalSpace) )
+		print( 'Total space used: 0x{:X}'.format(totalSpaceUsed) )
+		print( 'Total space remaining: 0x{:X}'.format(totalSpace-totalSpaceUsed) )
 
 		# If the injection code file was used, add codes to the game required to load it on boot
 		if self.injectionsCodeFile and self.injectionsCodeFile.data:
@@ -2595,9 +2600,6 @@ class Disc( object ):
 		if newSymbols and self.imageName != 'Micro Melee Test Disc':
 			self.updateSymbols( newSymbols )
 			self.saveMapFile()
-
-		if codesNotInstalled:
-			msg( '{} code mods installed. However, these mods could not be installed:\n\n{}'.format(totalModsInstalled, '\n'.join(codesNotInstalled)) )
 
 		return codesNotInstalled
 

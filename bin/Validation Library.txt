@@ -1,0 +1,272 @@
+
+
+
+	!  These codes are for testing MCM/MMW code installation functionality.	!
+	|									|
+	|  The finished DOL should have these properties/effects:		|
+	|	- Boots directly to a match on Great Bay			|
+	|	- Red C. Falcon vs. Blue Y. Link				|
+	|	- Mash 'A' to find that Falcon can't rapid-jab			|
+	|	- Pressing D-pad directions adjust P1 & P2 damage		|
+	|	- Upon pausing:							|
+	|		- Characters are 2D					|
+	|		- Camera can move 360 degrees (unrestricted)		|
+	|	- Upon pressing down:						|
+	|		- Character drops through stage like it's a platform	|
+
+
+	With the above conditions being true, this should indicate the following
+	code-install features in the program are [probably] working properly:
+
+		- Static overwrites
+		- Injections
+		- Configurations (uint8s with/without option lists)
+
+	After applying these codes and confirming the above traits we have a DOL 
+	with the following hashes (so we don't need to boot to test installation):
+
+		- CRC-32: 5725014E
+		- SHA-1:  F822A02F0E60552C4A9526A573E47FCFBF0A731D
+
+
+	Full command:
+
+py -2 main.py code --dolPath "Start (NTSC 102).dol" --install ALL --library "Validation Library.txt" --codeRegions "Common Code Regions" --output "Start_NTSC102_TEST.dol"
+		
+
+	-==-
+
+
+Boot to In-Game v2
+Simple code for testing things out. Boots directly into a match with specified P1, P2, and stage, which can be changed by modifying the code.
+
+Character and Stage IDs are 'external' IDs; which you can find referenced here:
+https://docs.google.com/spreadsheets/d/1JX2w-r2fuvWuNgGb6D3Cs4wHQKLFegZe2jhbBuIhCG8/edit#gid=20
+<https://smashboards.com/threads/official-melee-texture-hack-thread.361190/post-21753098>
+Configurations:
+    uint8 Player 1 Character = 0
+        0: Captain Falcon
+        1: DK
+        2: Fox
+        3: Game & Watch
+        4: Kirby
+        5: Bowser
+        6: Link
+        7: Luigi
+        8: Mario
+        9: Marth
+        10: Mewtwo
+        11: Ness
+        12: Peach
+        13: Pikachu
+        14: Ice Climbers
+        15: Jigglypuff
+        16: Samus
+        17: Yoshi
+        18: Zelda
+        19: Sheik
+        20: Falco
+        21: Young Link
+        22: Doc
+        23: Roy
+        24: Pichu
+        25: Ganondorf
+        26: Master Hand
+        27: Male Wireframe
+        28: Female Wireframe
+        29: Giga Bowser
+        30: Crazy Hand
+        31: Sandbag
+        32: Solo Popo
+    uint8 Player 2 Character = 21
+        0: Captain Falcon
+        1: DK
+        2: Fox
+        3: Game & Watch
+        4: Kirby
+        5: Bowser
+        6: Link
+        7: Luigi
+        8: Mario
+        9: Marth
+        10: Mewtwo
+        11: Ness
+        12: Peach
+        13: Pikachu
+        14: Ice Climbers
+        15: Jigglypuff
+        16: Samus
+        17: Yoshi
+        18: Zelda
+        19: Sheik
+        20: Falco
+        21: Young Link
+        22: Doc
+        23: Roy
+        24: Pichu
+        25: Ganondorf
+        26: Master Hand
+        27: Male Wireframe
+        28: Female Wireframe
+        29: Giga Bowser
+        30: Crazy Hand
+        31: Sandbag
+        32: Solo Popo
+    uint8 P1 Costume ID = 2
+    uint8 P2 Costume ID = 2
+    uint8 Stage = 13 # Uses External Stage ID
+        2: Fountain of Dreams
+        3: Pokemon Stadium
+        4: Peach's Castle
+        5: Kongo Jungle
+        6: Brinstar
+        7: Corneria
+        8: Yoshi's Story
+        9: Onett
+        10: Mute City
+        11: Rainbow Cruise
+        12: Jungle Japes
+        13: Great Bay
+        14: Hyrule Temple
+        15: Brinstar Depths
+        16: Yoshi's Island
+        17: Green Greens
+        18: Fourside
+        19: Mushroom Kingdom I
+        20: Mushroom Kingdom II
+        21: Akaneia
+        22: Venom
+        23: PokeFloats
+        24: Big Blue
+        25: Icicle Mountain
+        26: IceTop
+        27: Flat Zone
+        28: Dream Land
+        29: Yoshi's Island 64
+        30: Kongo Jungle 64
+        31: Battlefield
+        32: Final Destination
+[UnclePunch]
+Revision ---- DOL Offset ---- Hex to Replace ---------- ASM Code -
+NTSC 1.02 ---- 0x1A11A0 ----- 887E0000 -> 3860000E
+-------------- 0x1AE008 ----- 38800006 -> Branch
+
+388000[[Player 1 Character]] 39C000[[P1 Costume ID]]
+99DC0063 00000000
+
+-------------- 0x1AE010 ----- 38000008 -> Branch
+
+380000[[Player 2 Character]] 39C000[[P2 Costume ID]]
+99DC0087 00000000
+
+-------------- 0x16B3D4 ----- A07F000E -> 386000[[Stage]]
+
+
+	-==-
+
+
+Captain Falcon - No Rapid Jabs
+[Achilles]
+Version -- DOL Offset ------ Hex to Replace ---------- ASM Code
+1.02 ------ 0xD376C ---- 7C0802A6 -> Branch
+
+81DE0064 2C0E0002
+40820008 4E800020
+7C0802A6 00000000
+
+
+	-==-
+
+
+All Characters are 2D
+Makes all characters the same thickness as G&W.
+<https://smashboards.com/threads/all-characters-are-2d.452667/>
+[DRGN]
+Revision ---- DOL Offset ---- Hex to Replace ---------- ASM Code -
+NTSC 1.02 --- 0x80068fe4 ---- 2C00001B -> 48000008
+
+
+	-==-
+
+
+D-Pad Controls Damage
+[Dan Salvato]
+Version -- DOL Offset ------ Hex to Replace ---------- ASM Code
+1.02 ----- 0x8006D1EC --- 7C0802A6 -> Branch
+
+3DE08047 61EF9C3F
+8A0F0000 2C100000
+41A200D8 3E60805A
+62737000 3A400000
+2C100001 4082000C
+3E40FFFF 3E80BF80
+2C100002 4082000C
+3E400001 3E803F80
+2C100004 4082000C
+3E40FFF6 3E80C120
+2C100008 4082000C
+3E40000A 3E804120
+92530000 92930008
+3E000000 9A0F0000
+3E200000 3DE08045
+61EF30E0 820F0000
+7E109214 2C100000
+40800008 3A000000
+920F0000 39EF0E90
+3A310001 2C110004
+4180FFDC 3DE080BD
+61EFA4A0 81EF0000
+3E000000 C0130008
+C02F1890 EC21002A
+C0130004 FC010000
+4080000C D00F1890
+48000008 D02F1890
+81EF0008 2C0F0000
+41820008 4BFFFFCC
+7C0802A6 48000000
+
+
+	-==-
+
+
+Unrestricted Pause Camera
+[Achilles]
+Revision ---- DOL Offset ---- Hex to Replace ---------- ASM Code -
+NTSC 1.02 --- 0x80224C24 ---- C0230040 -> 39E00000
+------------- 0x8002F5B0 ---- D03F02F8 -> 91FF02F8
+------------- 0x80224C44 ---- C0230048 -> 3DE04700
+------------- 0x8002F5BC ---- D03F02FC -> 91FF02FC
+------------- 0x80224C5C ---- EC210032 -> 3DE04700
+------------- 0x8002F58C ---- D03F02E8 -> 91FF02E8
+------------- 0x80224C74 ---- EC210032 -> 3DE04700
+------------- 0x8002F594 ---- D03F02EC -> 91FF02EC
+------------- 0x80224C8C ---- EC210032 -> 3DE04700
+------------- 0x8002F5A4 ---- D03F02F4 -> 91FF02F4
+------------- 0x80224CA4 ---- EC210032 -> 3DE04700
+------------- 0x8002F59C ---- D03F02F0 -> 91FF02F0
+
+
+	-==-
+
+
+All Floors Are Drop-Through
+All floors can be dropped through (and ceilings can be passed through) like standard platforms.
+<https://smashboards.com/threads/all-floors-are-drop-through.513411/>
+[DRGN]
+Revision ---- DOL Offset ---- Hex to Replace ---------- ASM Code -
+NTSC 1.02 --- 0x8004CBD4 ---- 546305EE -> 38600100 # rlwinm r3,r3,0,23,23(00000100) -> li r3, 0x100
+------------- 0x8004FD24 ---- AB240006 -> 3B200000 # lha r25, 0x0006 (r4) -> li r25, 0
+
+
+	-==-
+
+
+Enable OSReport Print on Crash
+Enables an on-screen crash printout (stack trace) in cases where the game crashes; very useful for debugging. If this mod is to be used, the External Frame Buffer (XFB) option in Dolphin should be enabled, and the Aux Code Regions in MCM's Code-Space Options should not be used (i.e. that region should be vanilla code). This mod will automatically be selected by default if it's found in your library. You may change this behavior by setting the "alwaysEnableCrashReports" option in the "settings.py" file to False.
+<https://smashboards.com/threads/enable-osreport-print-on-crash.456513/>
+[UnclePunch]
+Revision ---- DOL Offset ---- Hex to Replace ---------- ASM Code -
+NTSC 1.02 --- 0x80397878 ---- 801E0000 -> 4800020C
+NTSC 1.01 --- 0x80396B98 ---- 801F00D0 -> 4800020C
+NTSC 1.00 --- 0x803959B4 ---- 4BFFE4B5 -> 4800020C
+PAL 1.00 ---- 0x803977A0 ---- 7CA00038 -> 4800020C

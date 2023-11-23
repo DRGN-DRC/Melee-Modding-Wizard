@@ -93,7 +93,7 @@
 			form. This format is convenient because of its simplicity, and the 
 			fact that it supports almost all features, besides code caches. 
 			For some advanced or complex codes, the AMFS format may be a better 
-			choice.
+			choice. Though this format parses faster than AMFS.
 
 		* Gecko Code:
 			The traditional, de facto standard for Dolphin and some other code 

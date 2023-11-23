@@ -170,7 +170,7 @@ class CodeChange( object ):
 		self.length = newLength
 		self.origCode = '' # Will otherwise have the wrong amount of data. Will be recollected when needed
 	
-	def evaluate( self, reevaluate=False ):
+	def evaluate( self, reevaluate=False, silent=False ):
 
 		""" Checks for special syntaxes and configurations, ensures configuration options are present and 
 			configured correctly, and assembles source code if it's not already in hex form. Reevaluation 
@@ -237,7 +237,8 @@ class CodeChange( object ):
 		if self.processStatus != 0:
 			self.preProcessedCode = ''
 			self.isCached = False
-			print( 'Error parsing code change at', self.offset, '  Error code: {}; {}'.format( self.processStatus, self.mod.stateDesc ) )
+			if not silent:
+				print( 'Error parsing code change at {}.  Error code: {}; {}'.format(self.offset, self.processStatus, self.mod.stateDesc) )
 
 		return self.processStatus
 
@@ -661,16 +662,10 @@ class CodeMod( object ):
 
 		return '\n'.join( errorMsg )
 
-	def assessForErrors( self ):
+	def assessForErrors( self, dol=None, silent=False ):
 		
-		""" Evaluates this mod's custom code for assembly errors and checks for valid DOL offsets. """
-
-		# Get the DOL file
-		try:
-			dol = globalData.getVanillaDol()
-		except Exception as err:
-			printStatus( 'Unable to get DOL to assess code offsets/addresses; {}'.format(err.message), warning=True )
-			dol = None
+		""" Evaluates this mod's custom code for assembly errors 
+			and [optionally] checks for valid DOL offsets. """
 
 		for codeChanges in self.data.values():
 			for change in codeChanges:
@@ -684,17 +679,16 @@ class CodeMod( object ):
 					if error:
 						self.parsingError = True
 						self.errors.add( error )
-				
-				# Check for assembly errors
-				change.evaluate( True )
 
-	def assessForConflicts( self, silent=False, revision='' ):
+				# Check for assembly errors
+				change.evaluate( True, silent )
+
+	def assessForConflicts( self, silent=False, revision='', dol=None ):
 
 		""" Evaluates this mod's changes to look for internal overwrite conflicts 
 			(i.e. more than one change that affects the same code space). 
 			Returns True or False on whether a conflict was detected. """
 
-		dol = globalData.getVanillaDol()
 		conflictDetected = False
 		modifiedRegions = []
 
@@ -719,7 +713,7 @@ class CodeMod( object ):
 				addressEnd = ramAddress + 4
 			else:
 				addressEnd = ramAddress + change.getLength()
-				
+
 			# Check if this change overlaps other regions collected so far
 			for regionStart, codeLength in modifiedRegions:
 				regionEnd = regionStart + codeLength
@@ -756,14 +750,21 @@ class CodeMod( object ):
 
 		return conflictDetected
 
-	def diagnostics( self, level=1, silent=False ):
+	def diagnostics( self, level=5, dol=None, silent=True ):
 
-		self.assessForErrors()
+		if not dol and level == 1:
+			# Get the DOL file
+			try:
+				dol = globalData.getVanillaDol()
+			except Exception as err:
+				if not silent:
+					printStatus( 'Unable to get DOL to assess code offsets/addresses; {}'.format(err.message), warning=True )
 
-		for revision in self.data.keys():
-			self.assessForConflicts( silent, revision )
+		self.assessForErrors( dol, silent )
 
-		#if level >= 2:
+		if dol and level < 5:
+			for revision in self.data.keys():
+				self.assessForConflicts( silent, revision, dol )
 
 	def validateWebLink( self, origUrlString ):
 
@@ -776,14 +777,15 @@ class CodeMod( object ):
 			print( 'Invalid link detected for "{}": {}'.format(self.name, err) )
 			return
 
-		# Check the domain against the whitelist. netloc will be something like "youtube.com" or "www.youtube.com"
-		if potentialLink.scheme and potentialLink.netloc.split('.')[-2] in ( 'smashboards', 'github', 'youtube' ):
-			return potentialLink
-
-		elif not potentialLink.scheme:
+		if not potentialLink.scheme:
 			print( 'Invalid link detected for "{}" (no scheme): {}'.format(self.name, origUrlString) )
-		else:
+
+		# Check the domain against the whitelist. netloc will be something like "youtube.com" or "www.youtube.com"
+		elif potentialLink.netloc.split('.')[-2] not in ( 'smashboards', 'github', 'youtube' ):
 			print( 'Invalid link detected for "{}" (domain not allowed): {}'.format(self.name, origUrlString) )
+
+		else:
+			return potentialLink
 
 	def buildModString( self ):
 
@@ -827,9 +829,13 @@ class CodeMod( object ):
 					titleLine += ' (0x{:X})'.format( mask )
 
 				if comment:
-					titleLine += ' ' + comment.lstrip()
+					comment = comment.lstrip()
+					if comment.startswith( '#' ):
+						titleLine += ' ' + comment
+					else:
+						titleLine += ' # ' + comment
 				headerLines.append( titleLine )
-				
+
 				for components in members:
 					if len( components ) == 2:
 						name, value = components
@@ -840,7 +846,7 @@ class CodeMod( object ):
 						if comment: # Expected to still have "#" prepended
 							line += ' ' + comment.lstrip()
 						headerLines.append( line )
-		
+
 		if self.auth:
 			headerLines.append( '[' + self.auth + ']' )
 		else:
@@ -854,7 +860,7 @@ class CodeMod( object ):
 			addVersionHeader = True
 
 			for change in codeChanges:
-				newHex = change.rawCode.strip()
+				newHex = '\n'.join( change.rawCode.strip().splitlines() ) # Normalizes line separators
 				if not newHex:
 					continue
 
@@ -929,7 +935,7 @@ class CodeMod( object ):
 
 					# Assemble the line string with the original and new hex codes.
 					codeChangeLines.append( functionName + '\n' + newHex + '\n' )
-					
+
 		if addChangesHeader:
 			headerLines.append( codeChangesHeader )
 
@@ -1202,7 +1208,7 @@ class CodeMod( object ):
 		# Add web links
 		if self.webLinks:
 			jsonData['codes'][0]['webLinks'] = []
-			for item in self.webLinks:
+			for item in self.webLinks: # Item should be a tuple of (URL, comment)
 				jsonData['codes'][0]['webLinks'].append( item )
 
 		jsonData['codes'][0]['build'] = []
@@ -1545,11 +1551,12 @@ class CodeMod( object ):
 
 class CodeLibraryParser():
 
-	""" The primary component for loading a Code Library. Will identify and parse the standard .txt file mod format, 
-		as well as the AMFS structure. The primary .include paths for import statements are also set here. 
+	""" The primary component for loading a Code Library. This will identify and parse the 
+		standard .txt file mod format, as well as the AMFS structure. The primary .include 
+		paths for import statements are also set here. 
 
-		Include Path Priority:
-			1) The current working directory (usually the program root folder)
+		Include path priority during assembly:
+			1) The current working directory (implicit; usually the program root folder)
 			2) Directory of the mod's code file (or the code's root folder with AMFS)
 			3) The current Code Library's ".include" directory
 			4) The program root folder's ".include" directory """
@@ -1573,11 +1580,17 @@ class CodeLibraryParser():
 
 		if includePaths:
 			self.includePaths = includePaths
+		includePaths = [ folderPath ] + self.includePaths # Create a new list, adding the current folder
+
+		# If the given path is actually a text file, parse it exclusively as an MCM library
+		if folderPath.lower().endswith( '.txt' ):
+			# Collect all mod definitions from this file
+			self.parseModsLibraryFile( folderPath, includePaths )
+			return
 
 		parentFolderPath, thisFolderName = os.path.split( folderPath )
 		parentFolderName = os.path.split( parentFolderPath )[1]
 		itemsInDir = os.listdir( folderPath ) # May be files or folders
-		includePaths = [ folderPath ] + self.includePaths # Create a new list, adding the current folder
 
 		# Check if this folder is a mod in AMFS format
 		if 'codes.json' in itemsInDir:
@@ -2299,96 +2312,7 @@ class CodeLibraryParser():
 		#primaryCategory = jsonContents.get( 'category', 'Uncategorized' ) # Applies to all in this json's "codes" list
 		primaryCategory = jsonContents.get( 'category', categoryDefault ) # Applies to all in this json's "codes" list
 
-		if codeSection:
-			for codeset in codeSection:
-				name = 'Unknown mod' # In case the JSON doesn't even have this
-				mod = None
-
-				try:
-					# Get the mod name, and typecast the authors and description lists to strings
-					name = codeset['name'].strip()
-					authors = ', '.join( codeset['authors'] )
-					description = '\n'.join( codeset['description'] )
-
-					# Create the mod object
-					mod = CodeMod( name, authors, description, folderPath, True )
-					mod.category = codeset.get( 'category', primaryCategory ) # Secondary definition, per-code dict basis
-					mod.configurations = codeset.get( 'configurations', OrderedDict([]) )
-					mod.validateConfigurations()
-
-					# Get paths for .include ASM import statements, and web links
-					mod.includePaths = includePaths
-					links = codeset.get( 'webLinks', () )
-					for item in links:
-						if isinstance( item, (tuple, list) ) and len( item ) == 2:
-							mod.webLinks.append( item )
-						elif isinstance( item, (str, unicode) ): # Assume it's just a url, missing a comment
-							mod.webLinks.append( (item, '') )
-					
-					# Set the revision (region/version) this code is for
-					overallRevision = codeset.get( 'revision', '' )
-					if overallRevision:
-						overallRevision = self.normalizeRegionString( overallRevision )
-						mod.setCurrentRevision( overallRevision )
-
-					buildList = codeset.get( 'build' )
-
-					if buildList:
-						for codeChangeDict in buildList:
-							codeType = codeChangeDict['type'] # Expected; not optional
-							annotation = codeChangeDict.get( 'annotation', '' ) # Optional; may not be there
-
-							# Set the revision (region/version) this code is for
-							if not overallRevision:
-								revision = codeChangeDict.get( 'revision' )
-								if revision:
-									revision = self.normalizeRegionString( revision )
-								else:
-									revision = 'NTSC 1.02'
-								mod.setCurrentRevision( revision )
-							
-							if codeType == 'replace': # Static Overwrite; basically an 02/04 Gecko codetype (hex from json)
-								mod.addStaticOverwrite( codeChangeDict['address'], codeChangeDict['value'].splitlines(), annotation=annotation )
-
-							elif codeType == 'inject': # Standard code injection (hex from file)
-								self.parseAmfsInject( codeChangeDict, mod, annotation )
-
-							elif codeType == 'replaceCodeBlock': # Static overwrite of variable length (hex from file)
-								self.parseAmfsReplaceCodeBlock( codeChangeDict, mod, annotation )
-
-							elif codeType == 'injectFolder': # Process a folder of .asm files; all as code injections
-								self.parseAmfsInjectFolder( codeChangeDict, mod, annotation )
-
-							elif codeType in ( 'branch', 'branchAndLink', 'binary', 'replaceBinary' ):
-								mod.parsingError = True
-								mod.errors.add( 'The "' + codeType + '" AMFS code type is not supported' )
-
-							elif codeType == 'standalone': # For Standalone Functions
-								self.parseAmfsStandalone( codeChangeDict, mod, annotation )
-
-							# elif codeType == 'gecko':
-							# 	self.parseAmfsGecko( codeChangeDict, mod, annotation )
-
-							else:
-								mod.parsingError = True
-								mod.errors.add( 'Unrecognized AMFS code type: ' + codeType )
-
-						self.storeMod( mod )
-
-					else: # Build all subfolders/files
-						mod.errors.add( "No 'build' section found in codes.json" )
-
-				except Exception as err:
-					if not mod: # Ill-formatted JSON, or missing basic info
-						mod = CodeMod( name, '??', 'JSON located at "{}"'.format(jsonPath), folderPath, True )
-						mod.category = codeset.get( 'category', primaryCategory ) # Secondary definition, per-code dict basis
-
-					# Store an errored-out shell of this mod, so the user can notice it and know a broken mod is present
-					mod.parsingError = True
-					mod.errors.add( 'Unable to parse codes section; {}'.format(err) )
-					self.storeMod( mod )
-
-		else: # Grab everything from the current folder (and subfolders). Assume .s are static overwrites, and .asm are injections
+		if not codeSection: # Grab everything from the current folder (and subfolders). Assume .s are static overwrites, and .asm are injections
 			# Typecast the authors and description lists to strings
 			# authors = ', '.join( codeset['authors'] )
 			# description = '\n'.join( codeset['description'] )
@@ -2397,6 +2321,96 @@ class CodeLibraryParser():
 
 			#self.errors.add( "No 'codes' section found in codes.json" ) #todo
 			msg( 'No "codes" section found in codes.json for the mod in "{}".'.format(folderPath) )
+			return
+
+		for codeset in codeSection:
+			name = 'Unknown mod' # In case the JSON doesn't even have this
+			mod = None
+
+			try:
+				# Get the mod name, and typecast the authors and description lists to strings
+				name = codeset['name'].strip()
+				authors = ', '.join( codeset['authors'] )
+				description = '\n'.join( codeset['description'] )
+
+				# Create the mod object
+				mod = CodeMod( name, authors, description, folderPath, True )
+				mod.category = codeset.get( 'category', primaryCategory ) # Secondary definition, per-code dict basis
+				mod.configurations = codeset.get( 'configurations', OrderedDict([]) )
+				mod.validateConfigurations()
+
+				# Add paths for .include ASM import statements, and web links
+				mod.includePaths = includePaths
+				links = codeset.get( 'webLinks', () )
+				for item in links:
+					if isinstance( item, (tuple, list) ):
+						if len( item ) == 2:
+							mod.webLinks.append( item )
+					elif item != '': # Assume it's just a url without a comment
+						mod.webLinks.append( (item, '') )
+
+				# Set the revision (region/version) this code is for
+				overallRevision = codeset.get( 'revision', '' )
+				if overallRevision:
+					overallRevision = self.normalizeRegionString( overallRevision )
+					mod.setCurrentRevision( overallRevision )
+
+				buildList = codeset.get( 'build' )
+
+				if buildList:
+					for codeChangeDict in buildList:
+						codeType = codeChangeDict['type'] # Expected; not optional
+						annotation = codeChangeDict.get( 'annotation', '' ) # Optional; may not be there
+
+						# Set the revision (region/version) this code is for
+						if not overallRevision:
+							revision = codeChangeDict.get( 'revision' )
+							if revision:
+								revision = self.normalizeRegionString( revision )
+							else:
+								revision = 'NTSC 1.02'
+							mod.setCurrentRevision( revision )
+						
+						if codeType == 'replace': # Static Overwrite; basically an 02/04 Gecko codetype (hex from json)
+							mod.addStaticOverwrite( codeChangeDict['address'], codeChangeDict['value'].splitlines(), annotation=annotation )
+
+						elif codeType == 'inject': # Standard code injection (hex from file)
+							self.parseAmfsInject( codeChangeDict, mod, annotation )
+
+						elif codeType == 'replaceCodeBlock': # Static overwrite of variable length (hex from file)
+							self.parseAmfsReplaceCodeBlock( codeChangeDict, mod, annotation )
+
+						elif codeType == 'injectFolder': # Process a folder of .asm files; all as code injections
+							self.parseAmfsInjectFolder( codeChangeDict, mod, annotation )
+
+						elif codeType in ( 'branch', 'branchAndLink', 'binary', 'replaceBinary' ):
+							mod.parsingError = True
+							mod.errors.add( 'The "' + codeType + '" AMFS code type is not supported' )
+
+						elif codeType == 'standalone': # For Standalone Functions
+							self.parseAmfsStandalone( codeChangeDict, mod, annotation )
+
+						# elif codeType == 'gecko':
+						# 	self.parseAmfsGecko( codeChangeDict, mod, annotation )
+
+						else:
+							mod.parsingError = True
+							mod.errors.add( 'Unrecognized AMFS code type: ' + codeType )
+
+					self.storeMod( mod )
+
+				else: # Build all subfolders/files
+					mod.errors.add( "No 'build' section found in codes.json" )
+
+			except Exception as err:
+				if not mod: # Ill-formatted JSON, or missing basic info
+					mod = CodeMod( name, '??', 'JSON located at "{}"'.format(jsonPath), folderPath, True )
+					mod.category = codeset.get( 'category', primaryCategory ) # Secondary definition, per-code dict basis
+
+				# Store an errored-out shell of this mod, so the user can notice it and know a broken mod is present
+				mod.parsingError = True
+				mod.errors.add( 'Unable to parse codes section; {}'.format(err) )
+				self.storeMod( mod )
 
 	def parseSourceFileHeader( self, asmFile ):
 

@@ -1,11 +1,13 @@
 {
 	"codes": [
 		{
-			"name": "Asset Test",
+			"name": "Boot to Custom Match",
 			"authors": [ "UnclePunch" ],
-			"description": [ "Configures the game to boot strait into a match or menu, with configurable settings." ],
-			"category": "Core Codes",
-			"webLinks": [ "https://smashboards.com/threads/boot-to-custom-match.474651/", "" ],
+			"description": [ "Configures the game to boot strait into a match or menu, with configurable settings. Check the ASM source for even more options." ],
+			"category": "Debug Codes",
+			"webLinks": [ 
+				[ "https://smashboards.com/threads/boot-to-custom-match.474651/", "" ]
+			],
 			"configurations": {
 				"Timer": {
 					"type": "uint8",
@@ -19,6 +21,7 @@
 					]
 				},
 				"HUD Count": {
+					"annotation": "Number of player HUDs to create",
 					"type": "uint8",
 					"value": 8,
 					"default": 8,

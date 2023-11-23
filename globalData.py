@@ -642,7 +642,7 @@ def getVanillaDol( skipCache=False ):
 		vanillaDiscPath = getVanillaDiscPath()
 		if not vanillaDiscPath: # User canceled path input
 			raise Exception( 'no vanilla disc available for reference' )
-		
+
 		vanillaDisc = Disc( vanillaDiscPath )
 		vanillaDisc.load() # This will also load/initialize the DOL
 		dol = vanillaDisc.dol

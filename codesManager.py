@@ -149,7 +149,7 @@ class CodeManagerTab( ttk.Frame ):
 		currentTab = self.getCurrentTab()
 
 		if not forceUpdate and self.lastTabSelected == currentTab:
-			print( 'already selected;', self.controlPanel.winfo_manager(), self.controlPanel.winfo_ismapped() )
+			#print( 'already selected;', self.controlPanel.winfo_manager(), self.controlPanel.winfo_ismapped() )
 			return
 		elif self.lastTabSelected and self.lastTabSelected != currentTab:
 			globalData.gui.playSound( 'menuChange' )
@@ -315,7 +315,7 @@ class CodeManagerTab( ttk.Frame ):
 			the tab change events) have finished. """
 
 		notebook.bind( '<<NotebookTabChanged>>', self.onTabChange )
-		
+
 	def getCurrentTab( self ):
 		
 		""" Returns the currently selected tab in the Mods Library tab, or None if one is not selected. 
@@ -560,9 +560,9 @@ class CodeManagerTab( ttk.Frame ):
 							modPanelToScroll = modsPanel
 
 			# If this tab is going to be immediately visible/selected, add its modules now
-			if targetCategory == mod.category:
-				module = ModModule( modsPanel.interior, mod )
-				module.pack( fill='x', expand=1 )
+			# if targetCategory == mod.category:
+			# 	module = ModModule( modsPanel.interior, mod )
+			# 	module.pack( fill='x', expand=1 )
 
 			# Store the mod for later; actual modules for the GUI will be created on tab selection
 			modsPanel.mods.append( mod )
@@ -1041,6 +1041,11 @@ class CodeManagerTab( ttk.Frame ):
 
 		tic = time.clock()
 
+		if globalData.disc:
+			dol = globalData.disc.dol
+		else:
+			dol = None
+
 		# Scan the library for mods to be installed or uninstalled
 		for mod in globalData.codeMods:
 			if mod.state == 'disabled' or mod.state == 'unavailable':
@@ -1061,7 +1066,7 @@ class CodeManagerTab( ttk.Frame ):
 					# 	continue
 
 					# Attempt to convert the Gecko code changes to standard static overwrites and injections
-					newMod = self.convertGeckoCode( mod, globalData.disc.dol )
+					newMod = self.convertGeckoCode( mod, dol )
 
 					if newMod: # Unable to convert it; install it as a Gecko code
 						# geckoCodesToInstall.append( mod )
@@ -1134,15 +1139,8 @@ class CodeManagerTab( ttk.Frame ):
 				# 		geckoCodesToInstall.append( mod )
 				# 		continue
 
-				# if mod.assessForConflicts():
-				# 	conflictedMods.append( mod )
-				# else:
-				# 	modsToInstall.append( mod )
-				# 	newModsToInstall = True
-
-			#elif mod.state == 'enabled':
-
-			if mod.assessForConflicts():
+			# Assess mods that are enabled or pendingEnable
+			if mod.assessForConflicts( dol=dol ):
 				conflictedMods.append( mod )
 			else:
 				modsToInstall.append( mod )
@@ -1183,9 +1181,9 @@ class CodeManagerTab( ttk.Frame ):
 
 		elif modsToUninstall: # If installing new mods, all mods selected for uninstall will automatically be excluded
 			globalData.gui.updateProgramStatus( 'Uninstalling {} codes'.format(len(modsToUninstall)) )
-		
+
 			# Make sure the DOL has been initialized (header parsed and properties determined)
-			globalData.disc.dol.load()
+			dol.load()
 
 			# Uninstall the codes
 			modsNotUninstalled = globalData.disc.uninstallCodeMods( modsToUninstall )
@@ -1449,7 +1447,7 @@ class ModModule( Tk.Frame, object ):
 				break
 
 		else: # Loop above didn't break; mod not found
-			self.mod.diagnostics( silent=True )
+			self.mod.diagnostics( 1 )
 
 			newTab = CodeConstructor( mainGui.codeConstructionTab, self )
 			mainGui.codeConstructionTab.add( newTab, text=self.mod.name )
@@ -1603,11 +1601,11 @@ class CodeConstructor( Tk.Frame ):
 			# Validate and parse the URL
 			urlObj = self.mod.validateWebLink( origUrl )
 			if not urlObj: return
-			
+
 			url = urlObj.geturl()
 			domain = urlObj.netloc.split( '.' )[-2] # i.e. 'smashboards' or 'github'
 			destinationImage = globalData.gui.imageBank( domain + 'Link' )
-			
+
 			# Add an image for this link
 			imageLabel = ttk.Label( self.webLinksFrame, image=destinationImage )
 			imageLabel.urlObj = urlObj
@@ -2009,7 +2007,7 @@ class CodeConstructor( Tk.Frame ):
 		else: modTypeTitle = modType
 
 		return modTypeTitle
-		
+
 	def removeCodeChange( self, codeChangeModule ):
 		versionTab = globalData.gui.root.nametowidget( self.revisionsNotebook.select() )
 
@@ -2122,7 +2120,7 @@ class CodeConstructor( Tk.Frame ):
 		self.updateSaveStatus( True )
 
 		# Evaluate the custom code and check for assembly errors
-		self.mod.diagnostics()
+		self.mod.diagnostics( 1 )
 		self.updateErrorNotice()
 
 		globalData.gui.playSound( 'menuChange' )
@@ -2448,7 +2446,7 @@ class CodeConstructor( Tk.Frame ):
 
 		analysisText += '\n\n\tInclude Paths for assembly:\n' + '\n'.join( self.mod.includePaths )
 		
-		self.mod.diagnostics( silent=True )
+		self.mod.diagnostics( 1 )
 		self.updateErrorNotice()
 
 		if self.mod.errors:
@@ -2974,19 +2972,36 @@ class CodeConfigWindow( BasicWindow ):
 		configuration options. Created by clicking on a ModModule config buttton. """
 
 	def __init__( self, mod ):
+		# Intelligently determine window y offset (reduce if it'll be a tall window)
+		yOffset = 180
+		if len( mod.configurations ) > 7:
+			if len( mod.configurations ) > 15:
+				yOffset = 20
+			else: # 9 - 15
+				yOffset = 180 - ( (len(mod.configurations) - 7) * 20 ) # 180 is the default for a BasicWindow
+				if yOffset < 20:
+					yOffset = 20
+
 		# Found some public config options; create the configuration window
-		super( CodeConfigWindow, self ).__init__( globalData.gui.root, mod.name + ' - Configuration', resizable=True, minsize=(450, 100) )
+		super( CodeConfigWindow, self ).__init__( 
+			globalData.gui.root, 
+			mod.name + ' - Configuration', 
+			offsets=(180, yOffset), 
+			resizable=True, 
+			minsize=(450, 100), 
+			unique=True
+		)
 
 		self.mod = mod
 		self.hiddenOptions = []
 		#self.skipValidation = False
 		self.allowSliderUpdates = True
-		sepPad = 7 # Separator padding
+		sepPad = 8 # Separator padding
 		vPad = ( 8, 0 ) # Vertical padding
 		validationCommand = globalData.gui.root.register( self.entryUpdated )
 
-		self.optionsFrame = VerticalScrolledFrame( self.window )
-		
+		self.optionsFrame = VerticalScrolledFrame( self.window, maxHeight=globalData.gui.root.winfo_height() - 80 )
+
 		ttk.Separator( self.optionsFrame.interior, orient='horizontal' ).grid( column=0, columnspan=3, row=0, pady=vPad[0], sticky='ew', padx=sepPad )
 
 		# Add rows for each option to be displayed
@@ -2996,12 +3011,12 @@ class CodeConfigWindow( BasicWindow ):
 			if 'hidden' in optionDict:
 				self.hiddenOptions.append( optionName )
 				continue
-			
+
 			# Check the type and data width
 			optType = optionDict.get( 'type' )
 			currentValue = optionDict.get( 'value' )
 			if not optType or currentValue == None: # Failsafe; should have been validated by now
-				globalData.gui.updateProgramStatus( '{} is missing critical configuration details!'.format(optionName) )
+				globalData.gui.updateProgramStatus( '{} is missing critical configuration details! (no type or value)'.format(optionName) )
 				continue
 
 			# Optional parameters
@@ -3011,7 +3026,7 @@ class CodeConfigWindow( BasicWindow ):
 
 			# Add the option name, with a comment/annotation if one is available
 			nameLabel = ttk.Label( self.optionsFrame.interior, text=optionName ) #  + u'  \N{BLACK DOWN-POINTING TRIANGLE}'
-			nameLabel.grid( column=0, row=row, sticky='w', padx=28 )
+			nameLabel.grid( column=0, row=row, sticky='w', padx=(28, 0) )
 
 			# Add a hover tooltip to the name
 			details = 'Type:  {}\nDefault value:  {}'.format( optType, optionDict['default'] )
@@ -3065,7 +3080,7 @@ class CodeConfigWindow( BasicWindow ):
 
 			ttk.Separator( self.optionsFrame.interior, orient='horizontal' ).grid( column=0, columnspan=3, row=row+1, pady=vPad[0], sticky='ew', padx=sepPad )
 			row += 2
-		
+
 		self.optionsFrame.grid( column=0, row=0, pady=vPad, padx=40, ipadx=0, sticky='nsew' )
 
 		self.optionsFrame.interior.rowconfigure( 'all', weight=1 )

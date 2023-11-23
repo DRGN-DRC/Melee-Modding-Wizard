@@ -2305,50 +2305,19 @@ class MainGui( Tk.Frame, object ):
 		# Save all file changes to the disc
 		returnCode, updatedFiles = disc.save( newPath )
 
-		message = ''
-
 		if returnCode == 0:
 			# Reload the disc and show a save confirmation
 			self.loadRootOrDisc( disc.filePath, True, False, True, False, updatedFiles )
 			self.updateProgramStatus( 'Save Successful', success=True )
-
-		elif returnCode == 1:
-			self.updateProgramStatus( 'There were no changes to be saved' )
-		elif returnCode == 2:
-			self.updateProgramStatus( 'Unable to save the disc; there are missing system files!', error=True ) # todo: report which are missing
-		elif returnCode == 3:
-			message = ( "Unable to create a new copy of the disc. Be sure there is write access to the destination, and if there is a file being "
-						 "replaced, be sure it's not write-locked (meaning another program has it open, preventing it from being overwritten)." )
-			self.updateProgramStatus( 'Unable to create a new disc file. Be sure this program has write permissions', error=True )
-		elif returnCode == 4:
-			if not os.path.exists( disc.filePath ):
-				message = ( 'Unable to open the original disc file for saving. Be sure that it has not been moved or deleted.' )
-			elif not disc.rebuildReason:
-				message = ( 'Unable to open the original disc file for saving. Be sure that the file is not being used by another program (like Dolphin :P).' )
-			else: # Only opening in read mode in this case (not sure how this might fail)
-				message = ( 'Unable to open the original disc file for reading.' )
-			self.updateProgramStatus( 'Unable to open the original disc', error=True )
-		elif returnCode == 5:
-			message = 'Unable to save the disc; there was an unrecognized error during file writing.'
-			self.updateProgramStatus( message[:-1], error=True )
-		elif returnCode == 6:
-			message = ( 'The disc file to replace could not be overwritten.\n\n'
-						"Be sure there is write access to the destination, and that the file isn't write-"
-						"locked (meaning another program has it open, preventing it from being overwritten)." )
-			self.updateProgramStatus( 'Unable to save the disc; unable to overwrite existing file', error=True )
-		elif returnCode == 7:
-			message = ( 'A back-up file was successfully created, however there was an error while attempting to rename the files and remove the original.\n\n'
-						"This can happen if the original file is locked for editing (for example, if it's open in another program)." )
-			self.updateProgramStatus( 'Unable to save the disc; could not rename discs or rename original', error=True )
 		else:
-			message = 'Unable to save the disc; unrecognized save method return code: ' + str( returnCode )
-			self.updateProgramStatus( message, error=True )
+			# Update the status bar, and generate a more detailed message for the pop-up below
+			message = translateDiscSaveError( returnCode, disc )
 
-		# For most errors, ask if the user would like to try saving again
-		if returnCode > 2:
-			if tkMessageBox.askretrycancel( 'Problem While Saving', message ):
-				returnCode = self.save( newPath )
-		
+			# For most errors, ask if the user would like to try saving again
+			if returnCode > 2:
+				if tkMessageBox.askretrycancel( 'Problem While Saving', message ):
+					returnCode = self.save( newPath )
+
 		return returnCode
 
 	def concatAllUnsavedChanges( self, basicSummary ):
@@ -2509,6 +2478,61 @@ class MainGui( Tk.Frame, object ):
 			self.runInEmulator()
 
 
+def translateDiscSaveError( returnCode, disc ):
+
+	""" Translates the given returnCode from the disc's save method into two human-
+		readable messages. One is a short message output to the status bar, if the 
+		GUI is initialized. The second is a longer, more detailed message which 
+		should be reported to the user in some way, and is returned by this function. 
+		This function is used by both the GUI and by command-line functions. """
+
+	# Generate a short message for the status bar
+	if returnCode == 1:
+		shortMessage = 'There were no changes to be saved'
+		longMessage = 'There are no changes to be saved.'
+	elif returnCode == 2:
+		shortMessage = longMessage = 'Unable to save the disc; there are missing system files!' # todo: report which are missing
+	elif returnCode == 3:
+		shortMessage = 'Unable to create a new disc file. Be sure this program has write permissions'
+		longMessage = ( "Unable to create a new copy of the disc. Be sure there is write access to the destination, and if there is a file being "
+					 "replaced, be sure it's not write-locked (meaning another program has it open, preventing it from being written to)." )
+	elif returnCode == 4:
+		if not os.path.exists( disc.filePath ):
+			shortMessage = 'Unable to find the original disc file for saving'
+			longMessage = ( 'Unable to find the original disc file for saving. Be sure that it has not been moved or deleted.' )
+		elif not disc.rebuildReason:
+			shortMessage = 'Unable to open the original disc file for saving'
+			longMessage = ( 'Unable to open the original disc file for saving. Be sure that '
+				  			'the file is not being used by another program (like Dolphin :P).' )
+		else: # Only opening in read mode in this case (not sure how this might fail)
+			shortMessage = 'Unable to open the original disc file for reading'
+			longMessage = shortMessage + '.'
+	elif returnCode == 5:
+		shortMessage = 'Unable to save the disc; there was an unrecognized error during file writing'
+		longMessage = shortMessage + '.'
+	elif returnCode == 6:
+		shortMessage = 'Unable to save the disc; unable to overwrite existing file'
+		longMessage = ( 'The disc file to replace could not be overwritten.\n\n'
+					"Be sure there is write access to the destination, and that the file isn't write-"
+					"locked (meaning another program has it open, preventing it from being overwritten)." )
+	elif returnCode == 7:
+		shortMessage = 'Unable to save the disc; could not rename discs or rename original'
+		longMessage = ( 'A back-up file was successfully created, however there was an error while attempting to rename the files and remove the original.\n\n'
+					"This can happen if the original file is locked for editing (for example, if it's open in another program)." )
+	else:
+		shortMessage = 'Unable to save the disc; unrecognized save method return code: ' + str( returnCode )
+		longMessage = shortMessage + '.'
+
+	# Update the program's status bar
+	if globalData.gui:
+		if returnCode == 1:
+			globalData.gui.updateProgramStatus( shortMessage )
+		else:
+			globalData.gui.updateProgramStatus( shortMessage, error=True )
+
+	return longMessage
+
+
 #																		/-----------------------------------\
 #	====================================================================   Command Line Parsing & Functions  =========
 #																		\-----------------------------------/
@@ -2650,9 +2674,17 @@ def parseArguments(): # Parses command line arguments
 		codeOpsParser.add_argument( '-i', '--install', metavar='MODNAME', help='Install code to a given DOL or ISO. Input should be a list of mod names, '
 																	'separated by spaces (wrap mod names that have spaces in them with double-quotes). '
 																	'Alternatively, you may instead provide a text file containing a list of ISO paths '
-																	'(one on each line).', nargs='+' )
+																	'(one on each line). Or you may provide the keyword "ALL" to install all mods in '
+																	'the given code library.', nargs='+' )
 		codeOpsParser.add_argument( '-l', '--library', metavar='FOLDERPATH', help='A path to a Code Library directory. If not provided, '
 																					'the default program library will be used.' )
+		codeOpsParser.add_argument( '-o', '--output', dest='outputFilePath', help='Provides an output path for various operations. May be just a folder '
+																				  'path, or it may include the file name in order to also name the '
+																				  'finished file. If this is not used, codes will be saved to the disc '
+																				  'or DOL in-place, modifying the existing file. If this argument is '
+																				  'used, any changes will be saved to a new copy of the file. If this '
+																				  'path is a DOL filepath, then the output file will be a DOL file, '
+																				  'even if the input was a disc.' )
 		codeOpsParser.add_argument( '-r', '--region', help='Specify the region that the DOL is built for; one of "NTSC" or "PAL". '
 							 								'This argument is only required if the region cannot be auto-detected. Typically, the '
 															"region can easily be auto-detected if you're providing a disc to operate on, or the "
@@ -2667,6 +2699,8 @@ def parseArguments(): # Parses command line arguments
 																	'Input should be a list of region names, as seen in the codeRegionSettings.py file. '
 																	'(A name is the portion after the vertical bar, i.e. "|", and thus excludes the '
 																	'revision portion.)', nargs='+' )
+		codeOpsParser.add_argument( '-cfg', '--configs', metavar='CONFIG', help='Set code configurations (see the Code Library Manual for what these are). '
+																	'The format for one config change should be [modName]|[valueName]|[value].', nargs='+' )
 		codeOpsParser.add_argument( '-ccr', '--checkCodeRegions', help='Prints out information on available code regions defined in the '
 																	'codeRegionSettings.py file. You can filter this list if you also provide '
 																	'the --region, --version, and/or --codeRegions arguments. Or you may filter '
@@ -2677,6 +2711,9 @@ def parseArguments(): # Parses command line arguments
 		codeOpsParser.add_argument( '-cd', '--checkDol', help='Prints out information on the given DOL file, or the DOL in the '
 																'given disc. This includes the region, version, filesize, and '
 																'text/data section information.', action="store_true" )
+
+		# Define "make" options
+		#makeOpsParser = subparsers.add_parser( 'make', help='Create specific game assets, such as CSPs or stage preview text.' )
 
 	except Exception as err:
 		# Exit the program on error (with exit code 1)
@@ -2696,20 +2733,20 @@ def determineSavePath( disc ):
 	
 	# Determine the new disc filepath output
 	if args.outputFilePath:
-		# Check for a file extension to determine if this is a folder or file path
-		if os.path.splitext( args.outputFilePath )[1]:
-			directory, filename = os.path.split( args.outputFilePath )
-		else: # No extension
+		# Determine if this is a folder or file path
+		if os.path.isdir( args.outputFilePath ):
 			directory = args.outputFilePath
+		else: # No extension
+			directory, filename = os.path.split( args.outputFilePath )
 
-	elif args.rootFolderPath:
+	elif hasattr( args, 'rootFolderPath' ) and args.rootFolderPath: # Only present with 'disc' operations
 		# Build in the same directory as the root folder
 		directory = os.path.dirname( args.rootFolderPath )
 
 	else: # No output path specified; output to the same directory as the original disc
 		assert not disc.isRootFolder, 'Expected to be able to get a file name from a non-root-folder path.'
 
-		return '' # No specific path will allow the save method to determine a new name itself
+		return '' # Returning no specific path, the save method will determine a new name by itself
 
 	# Determine a filename from the disc if one has not been given
 	if not filename:
@@ -2766,12 +2803,16 @@ def importFilesToDisc():
 	returnCode = disc.save( savePath )[0]
 
 	if returnCode == 0:
-		print( 'Disc output path: "' + disc.filePath + '"' )
-	
-	if returnCode != 0: # Problem during disc saving
+		print( 'Disc successfully saved to "' + disc.filePath + '"' )
+
+		if failedImports: # Notice of failed imports already reported by .importFiles()
+			sys.exit( 6 )
+		else:
+			sys.exit( 0 )
+
+	else:
+		print( translateDiscSaveError(returnCode, disc) )
 		sys.exit( returnCode + 100 )
-	elif failedImports:
-		sys.exit( 6 )
 
 
 def buildDiscFromRoot():
@@ -2806,32 +2847,10 @@ def buildDiscFromRoot():
 
 	# Print result message
 	if returnCode == 0:
-		print( '\nDisc built successfully.  Build time:', toc-tic )
-	elif returnCode == 1:
-		print( '\nThere were no changes detected to be saved.' )
-	elif returnCode == 3:
-		print( "\nUnable to create a new copy of the disc. Be sure there is write access to the destination, and if there is a file being "
-				"replaced, be sure it's not write-locked (meaning another program has it open, preventing it from being overwritten)." )
-	elif returnCode == 4:
-		if not os.path.exists( newDisc.filePath ):
-			print( '\nUnable to open the original disc file for saving. Be sure that it has not been moved or deleted.' )
-		elif not globalData.disc.rebuildReason:
-			print( '\nUnable to open the original disc file for saving. Be sure that the file is not being used by another program (like Dolphin :P).' )
-		else: # Only opening in read mode in this case (not sure how this might fail)
-			print( '\nUnable to open the original disc file for reading.' )
-	elif returnCode == 5:
-		print( '\nUnable to save the disc; there was an unrecognized error during file writing.' )
-	elif returnCode == 6:
-		print( '\nThe disc file to replace could not be overwritten.\n\n'
-				"Be sure there is write access to the destination, and that the file isn't write-"
-				"locked (meaning another program has it open, preventing it from being overwritten)." )
-	elif returnCode == 7:
-		print( '\nA back-up file was successfully created, however there was an error while attempting to rename the files and remove the original.\n\n'
-				"This can happen if the original file is locked for editing (for example, if it's open in another program)." )
+		print( '\nDisc built successfully.  Build time: ' + str(toc-tic) )
+		sys.exit( 0 )
 	else:
-		print( '\nUnable to save the disc; unrecognized save method return code: ' + str(returnCode) )
-
-	if returnCode != 0:
+		print( '\n' + translateDiscSaveError(returnCode, newDisc) )
 		sys.exit( returnCode + 100 )
 
 
@@ -3012,6 +3031,101 @@ def validateAssets():
 	sys.exit( int(binaryString, 2) )
 
 
+def applyExplicitRevision( dol ):
+
+	""" If a specific revision (region and version arguments) was given, 
+		validate the input here and update the DOL. """
+	
+	# Validate the region and version arguments
+	if args.region not in ( 'NTSC', 'PAL' ):
+		print( 'Invalid region string. Acceptable values are "NTSC" or "PAL".' )
+		sys.exit( 2 )
+	try:
+		major, minor = args.version.split( '.' )
+		int( major ); int( minor )
+	except:
+		print( 'Invalid version string. The version should be a two-number string, like "1.02" or "1.00".' )
+		sys.exit( 2 )
+
+	# Check if this was a change from the auto-detect
+	if dol.region + ' ' + dol.version == dol.revision:
+		# Give a note to the user if this wasn't needed
+		if args.discPath:
+			print( "This disc's revision (region and version) are already auto-detected as {}.".format(dol.revision) )
+		else:
+			print( "This DOL's revision (region and version) are already auto-detected as {}.".format(dol.revision) )
+		print( "You don't need to specify the --region and --version options for this DOL." )
+	else:
+		dol.region = args.region
+		dol.version = args.version
+		dol.revision = dol.region + ' ' + dol.version
+
+		# Re-load region options
+		dol.loadCustomCodeRegions()
+		globalData.loadRegionOverwriteOptions()
+
+
+def printRegionInfo( dol ):
+	
+	""" Prints out information on a custom code regions defined in 
+		the codeRegionSettings.py fil. This function is only used 
+		for the command-line feature, --checkCodeRegions """
+
+	from basicFunctions import uHex
+
+	# Load custom code regions from the codeRegionSettings.py file, and collect the requested regions
+	codeRegions = []
+	if args.codeRegions:
+		# The user has given us a list of region names to filter by
+		dol.loadCustomCodeRegions( collectAll=True )
+
+		# Iterate over the regions collected
+		for regionName, regions in dol.customCodeRegions.items():
+			if regionName in args.codeRegions:
+				for regionStart, regionEnd in regions:
+					codeRegions.append( (regionStart, regionEnd, regionName) )
+		checkForConflicts = True
+
+	elif dol.revision:
+		# Collect only applicable regions
+		dol.loadCustomCodeRegions()
+		codeRegions = dol.getCustomCodeRegions( searchDisabledRegions=True )
+		checkForConflicts = True
+
+	else:
+		# Collect all regions
+		dol.loadCustomCodeRegions( collectAll=True )
+		codeRegions = dol.getCustomCodeRegions( searchDisabledRegions=True )
+		checkForConflicts = False # Don't bother, as it's assumed there will be conflicts
+
+	# Check for conflicts among the code regions selected for use
+	# if checkForConflicts:
+	# 	print( 'Checking if regions overlap...' )
+	# 	dol.regionsOverlap( codeRegions ) # A warning will have been given to the user if they overlap
+	# else:
+	# 	print( 'Skipping check for overlapping regions.' )
+
+	if codeRegions:
+		print( '\n    Name:                       Region Start:  Region End:     Length:' )
+		lastName = ''
+		total = 0
+		for regionStart, regionEnd, regionName in codeRegions:
+			length = regionEnd - regionStart
+
+			# Add a total for the last region's space if this is the start of a new set of regions
+			if lastName and regionName != lastName:
+				print( '                                                    Total: {:>10}'.format(uHex(total)) )
+				total = 0
+
+			# Print info for this region
+			total += length
+			print( '{:<32}{:>11}{:>13}{:>13}'.format(regionName, uHex(regionStart), uHex(regionEnd), uHex(length)) )
+			lastName = regionName
+		print( '                                                    Total: {:>10}'.format(uHex(total)) )
+	else:
+		print( 'No code regions could be found or determined.' ) # :O
+
+
 def printDolInfo( dol ):
 	
 	""" Prints out information on a DOL. This function is 
@@ -3076,10 +3190,17 @@ def printDolInfo( dol ):
 	for line in sectionLines:
 		print( line )
 
+	print( '-----------------------------------------------------' )
+	print( 'Compatible Custom-Code Regions:' )
+	for region in dol.customCodeRegions:
+		print( region )
 
-def installCodes( args, disc, dol ):
+
+def installCodes( dol ):
 
 	""" Installs code-based mods into a DOL file. """
+
+	import shutil
 
 	# Determine a code library path and validate it
 	if args.library:
@@ -3126,9 +3247,155 @@ def installCodes( args, disc, dol ):
 				if mod not in modsFound:
 					missingMods.append( mod )
 
-	# Save codes to the DOL
+	# Check if we need custom code space for injection mods
+	codeSpaceNeeded = False
+	for mod in modsToInstall:
+		if mod.type != 'static':
+			codeSpaceNeeded = True
+			break
 
-	print( 'todo' )
+	if codeSpaceNeeded:
+		# Set the code regions to use
+		regionsAvailable = globalData.overwriteOptions.keys()
+		regionsRequested = parseInputList( args.codeRegions )
+		regionsFound = 0
+		for regionName in regionsAvailable:
+			if regionName in regionsRequested:
+				globalData.overwriteOptions[regionName] = True
+				regionsFound += 1
+			else:
+				globalData.overwriteOptions[regionName] = False
+
+		# Check if we should continue (any regions were found)
+		if regionsFound == 0:
+			print( 'Unable to install; no custom code regions could be found.' )
+			sys.exit( 6 ) #todo: we don't need to fail here once codes.bin is hooked up
+
+		# Check whether all requested regions were found
+		elif regionsFound != len( regionsRequested ):
+			print( "Warning: The following code regions couldn't be found:" )
+			for region in regionsRequested:
+				if region not in regionsAvailable:
+					print( region )
+
+	elif args.codeRegions:
+		print( 'It appears that none of the codes you have listed for '
+			   'installation require custom code space in the DOL for '
+			   'overwrites. Therefore you do not need to provide custom '
+			   'code regions to use for these mods (i.e. --codeRegions).' )
+
+	# Load program settings (defaults or those set in settings.ini)
+	globalData.loadProgramSettings()
+
+	# Parse mod configurations, and set given values (#todo)
+
+	# Set mod revisions and check for mod errors or conflicts
+	for mod in modsToInstall:
+		mod.setCurrentRevision( dol.revision )
+		mod.diagnostics( 1, dol )
+		
+		# Disable mods with problems
+		if mod.assemblyError or mod.parsingError:
+			mod.state = 'unavailable'
+
+		# Disable mods that are not applicable to the currently loaded DOL
+		elif dol.revision not in mod.data:
+			mod.state = 'unavailable'
+
+	# Save codes to the DOL
+	disc = dol.disc
+	modsNotInstalled = disc.installCodeMods( modsToInstall )
+	modInstallCount = len( modsToInstall ) - len( modsNotInstalled )
+
+	# Check for and report any problems
+	if modInstallCount == 0:
+		print( 'None of the requested mods could be installed!' )
+		sys.exit( 205 )
+
+	# Save the disc or DOL file
+	if disc.filePath:
+		savePath = determineSavePath( disc )
+
+		# Determine if we'll save the whole disc, or just export the DOL
+		if savePath.lower().endswith( '.dol' ):
+			# Save the dol to an external/standalone file (and codes.bin, if present)
+			successful = disc.dol.export( savePath )
+
+			if successful:
+				print( 'DOL saved successfully' )
+			else:
+				print( 'Unable to export the DOL file' )
+				sys.exit( 207 )
+
+			# Attempt to save the codes.bin file if it's present
+			codesFile = disc.getFile( 'codes.bin' )
+
+			if codesFile:
+				# Save the codes file
+				saveDir = os.path.dirname( savePath )
+				codesPath = os.path.join( saveDir, 'codes.bin' )
+				successful = codesFile.export( codesPath )
+
+				if successful:
+					print( 'DOL and codes.bin files saved successfully' )
+				else:
+					print( 'DOL saved successfully; error saving codes.bin' )
+					sys.exit( 207 )
+		else:
+			# Save the whole disc
+			returnCode = disc.save( savePath )[0]
+
+			if returnCode != 0: # Unable to save the disc!
+				print( '\n' + translateDiscSaveError(returnCode, disc) )
+				sys.exit( returnCode )
+
+		outputDir = os.path.dirname( disc.filePath )
+
+	else:
+		# Saving a DOL file, not a disc.
+		# Determine the output filepath.
+		if args.outputFilePath:
+			if os.path.isdir( args.outputFilePath ):
+				# User didn't specify a filename; create one
+				oldPath, ext = os.path.splitext( args.dolPath )
+				savePath = oldPath + ' - NEW' + ext # .\folder\Start.dol -> .\folder\Start - NEW.dol
+			else:
+				savePath = args.outputFilePath
+		else:
+			savePath = args.dolPath
+
+		# Write the file to an external/standalone file
+		successful = disc.dol.export( savePath )
+
+		if successful:
+			print( 'DOL saved successfully' )
+		else:
+			print( 'Unable to export the DOL file' )
+			sys.exit( 207 )
+
+		outputDir = os.path.dirname( savePath )
+
+	# Copy over the map file to the destination folder, if it was generated
+	mapSaveDir = os.path.dirname( disc.mapSavePath )
+	if mapSaveDir != outputDir and os.path.exists( disc.mapSavePath ):
+		try:
+			shutil.copy2( disc.mapSavePath, outputDir )
+		except Exception as err:
+			print( 'Unable to copy the map file; {}'.format(err) )
+
+	# Save succeeded; assess code installation failures
+	if modsNotInstalled:
+		if modInstallCount == 1:
+			print( '1 mod was successfully installed. However, the ' )
+		else:
+			print( '{} mods were successfully installed. However, the '.format(len(modInstallCount)) )
+		print( 'following mods could not be installed:' )
+		for mod in modsNotInstalled:
+			print( mod.name )
+		sys.exit( 206 )
+
+	else:
+		sys.exit( 0 )
 
 
 def loadAssetTest():
@@ -3330,83 +3597,49 @@ if __name__ == '__main__':
 		if args.discPath:
 			disc = loadDisc( args.discPath )
 			dol = disc.dol # Already initialized with disc load
+
 		elif args.dolPath:
+			# External/standalone DOL file provided. Initialize a new file object
 			dol = Dol( None, -1, -1, '', '', args.dolPath, 'file' )
-			
+
 			# Initialize the DOL file (parse header to get regions, determine revision, and get custom code regions)
 			try:
 				dol.load()
 			except Exception as err:
 				print( 'Unable to load the DOL file; {}'.format(err) )
 				sys.exit( 201 )
+
 		elif args.checkCodeRegions:
-			# Not performing any modifications, but we still need a DOL object
+			# Not performing any modifications on a DOL file, but we still need a DOL object for its methods
 			dol = Dol( None, -1, -1, 'dol' )
-			if args.region and args.version:
-				dol.region = args.region
-				dol.version = args.version
-				dol.revision = dol.region + ' ' + dol.version
 			# Spoof checks/warnings for regions being outside of the DOL's codespace
 			dol.maxDolOffset = float( "inf" )
+
 		else:
 			print( 'No disc path or DOL file provided to operate on.' )
 			print( """Please provide one via -d or --discPath""" )
 			print( """For example, 'MMW.exe disc -d "C:\\folder\\game.iso"'""" )
 			sys.exit( 2 )
 
+		# If a region and version were given, validate and apply them
+		if args.region and args.version:
+			applyExplicitRevision( dol )
+
 		if args.checkCodeRegions:
-			from basicFunctions import uHex
-
-			# Load custom code regions from the codeRegionSettings.py file, and collect the requested regions
-			codeRegions = []
-			if args.codeRegions:
-
-				# The user has given us a list of region names to filter by
-				dol.loadCustomCodeRegions( collectAll=True )
-
-				# Iterate over the regions collected
-				for regionName, regions in dol.customCodeRegions.items():
-					if regionName in args.codeRegions:
-						for regionStart, regionEnd in regions:
-							codeRegions.append( (regionStart, regionEnd, regionName) )
-				checkForConflicts = True
-			elif dol.revision:
-				# Collect only applicable regions
-				dol.loadCustomCodeRegions()
-				codeRegions = dol.getCustomCodeRegions( searchDisabledRegions=True )
-				checkForConflicts = True
-			else:
-				# Collect all regions
-				dol.loadCustomCodeRegions( collectAll=True )
-				codeRegions = dol.getCustomCodeRegions( searchDisabledRegions=True )
-				checkForConflicts = False # Don't bother, as it's assumed there will be conflicts
-
-			# Check for conflicts among the code regions selected for use
-			# if checkForConflicts:
-			# 	print( 'Checking if regions overlap...' )
-			# 	dol.regionsOverlap( codeRegions ) # A warning will have been given to the user if they overlap
-			# else:
-			# 	print( 'Skipping check for overlapping regions.' )
-
-			if codeRegions:
-				print( '\n    Name:                       Region Start:  Region End:' )
-				for regionStart, regionEnd, regionName in codeRegions:
-					print( '{:<32}{:>11}{:>13}'.format(regionName, uHex(regionStart), uHex(regionEnd)) )
-			else:
-				print( 'No code regions could be found or determined.' )
+			printRegionInfo( dol )
 
 		elif args.checkDol:
 			printDolInfo( dol )
 
 		else:
-			# Initialize an empty disc object (so we can tap into its code-saving methods)
 			if not dol.disc:
+				# Initialize an empty disc object (so we can tap into its code-saving methods)
 				disc = Disc( '' )
 				disc.gameId = 'GALE01'
 				disc.files['GALE01/Start.dol'] = dol
 				dol.disc = disc
 
-			installCodes( args, disc, dol )
+			installCodes( dol )
 
 	# If [non-h/-v] arguments are detected but no opGroup is specified, it's likely a disc filepath
 	elif args.filePath:
@@ -3480,6 +3713,10 @@ if __name__ == '__main__':
 #	107: Could not rename discs or remove original
 #
 # 200 series codes		(for code-based mod operations)
-#	201: Unable to load the DOL
+#	201: Unable to load the DOL (disc loaded successfully)
 #	202: Unable to load the code library
 #	203: Unable to find the given mods in the library
+#	204: Conflicts detected among the requested mods
+# 	205: None of the requested mods could not be installed
+# 	206: Some of the requested mods could not be installed
+# 	207: Unable to save the finished DOL or codes.bin file
