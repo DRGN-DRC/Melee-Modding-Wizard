@@ -1273,7 +1273,7 @@ class ModModule( Tk.Frame, object ):
 		typeIndicatorImage = globalData.gui.imageBank( mod.type + 'Indicator' )
 		if typeIndicatorImage:
 			bgImage = Tk.Label( self, image=typeIndicatorImage )
-			bgImage.grid( rowspan=3, column=2, row=0, sticky='e', padx=8 )
+			bgImage.grid( rowspan=3, column=2, row=0, sticky='e', padx=8, pady=3 )
 		else:
 			print( 'No image found for "' + mod.type + 'Indicator' + '"!' )
 
@@ -1393,7 +1393,7 @@ class ModModule( Tk.Frame, object ):
 		if updateControlPanelCounts:
 			currentTab = self.master.master.master.master # self -> modsPanel.interior -> modsPanel -> VerticalScrolledFrame -> mainTabFrame
 			globalData.gui.codeManagerTab.updateInstalledModsTabLabel( currentTab )
-	
+
 	def clicked( self, event ):
 
 		""" Handles click events on mod modules to toggle their install state 
@@ -1428,7 +1428,7 @@ class ModModule( Tk.Frame, object ):
 		globalData.gui.playSound( 'menuChange' )
 
 		self.setState( state )
-		
+
 	def editMod( self, event ):
 
 		""" Load a mod from the Mods Library tab into the Mod Construction tab. """
@@ -1462,7 +1462,7 @@ class ModModule( Tk.Frame, object ):
 		cmsg( self.mod.assembleErrorMessage(), '{} Issues'.format(self.mod.name), 'left' )
 
 	def configureMod( self, event ):
-		
+
 		# Check for non-hidden configuration options
 		# configs = []
 		# for optionName, optionDict in self.mod.configurations.items():

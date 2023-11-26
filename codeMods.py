@@ -2094,7 +2094,7 @@ class CodeLibraryParser():
 		mod.desc = 'Injection from standalone file "{}"'.format( sourceFile )
 		mod.includePaths = includePaths
 		mod.category = category
-		
+
 		# Read the file for info and the custom code
 		returnCode, address, author, customCode, preProcCode, rawBin, anno = self.getCustomCodeFromFile( sourceFile, mod, True, modName )
 
@@ -2106,7 +2106,7 @@ class CodeLibraryParser():
 			mod.parsingError = True
 			mod.stateDesc = 'Missing address for "{}"'.format( sourceFile )
 			mod.errors.add( 'Unable to find an address' )
-			
+
 		codeChange = mod.addInjection( address, customCode, '', anno, modName )
 		if preProcCode:
 			codeChange.loadPreProcCode( preProcCode, rawBin )
@@ -2115,7 +2115,7 @@ class CodeLibraryParser():
 	def storeMod( self, mod ):
 
 		""" Store the given mod, and perfom some basic validation on it. """
-		
+
 		if not mod.data:
 			mod.stateDesc = 'Missing mod data'
 			mod.errors.add( 'Missing mod data; may be defined incorrectly' )
@@ -2370,7 +2370,7 @@ class CodeLibraryParser():
 							else:
 								revision = 'NTSC 1.02'
 							mod.setCurrentRevision( revision )
-						
+
 						if codeType == 'replace': # Static Overwrite; basically an 02/04 Gecko codetype (hex from json)
 							mod.addStaticOverwrite( codeChangeDict['address'], codeChangeDict['value'].splitlines(), annotation=annotation )
 
@@ -2427,7 +2427,7 @@ class CodeLibraryParser():
 
 			# Parse the second line to check for an author
 			secondLine = asmFile.readline()
-			if secondLine.startswith( '#' ) and 'Author:' in secondLine:
+			if secondLine.startswith( '#' ) and 'author:' in secondLine.lower():
 				author = secondLine.split( ':', 1 )[1].lstrip()
 
 		# Check for the multi-line format
@@ -2459,8 +2459,12 @@ class CodeLibraryParser():
 					4: Missing source file
 					5: Encountered an error reading the source file """
 
-		if not annotation: # Use the file name for the annotation (without file extension)
-			annotation = os.path.splitext( os.path.basename(fullAsmFilePath) )[0]
+		# Get the full path, just without the file extension
+		baseFilePath = os.path.splitext( fullAsmFilePath )[0]
+
+		if not annotation:
+			# Use the file name for the annotation (without file extension)
+			annotation = os.path.basename( baseFilePath )
 
 		# Try to get the custom/source code, and the address/offset if needed
 		try:
@@ -2482,22 +2486,22 @@ class CodeLibraryParser():
 			offset = ''
 			author = ''
 			customCode = ''
-			
+
 		except Exception as err: # Unknown error
 			print( err )
+			filename = os.path.basename( fullAsmFilePath )
 			mod.parsingError = True
-			mod.stateDesc = 'File reading error with ' + os.path.basename( fullAsmFilePath )
-			mod.errors.add( 'Encountered an error while reading {}: {}'.format(os.path.basename(fullAsmFilePath), err) )
+			mod.stateDesc = 'File reading error with ' + filename
+			mod.errors.add( 'Encountered an error while reading {}: {}'.format(filename, err) )
 			return 5, '', '', '', '', False, annotation
 
 		# Check for preProcessed files (.txt/.bin) and see if the source code is more recent
-		baseFilePath = os.path.splitext( fullAsmFilePath )[0]
 		if customCode:
 			if not globalData.checkSetting( 'useCodeCache' ):
 				# No need for reading other source files if skipping code cache
 				print( 'loading source-only for ' + mod.name + ' (cache skipped)' )
 				return 0, offset, author, customCode, '', False, annotation
-	
+
 			# Check if the source code is newer than the assembled binary
 			binaryModifiedTime = 0
 			foundBin = False
@@ -2633,7 +2637,7 @@ class CodeLibraryParser():
 
 		address, sourceFile, changeName = self.getAddressAndSourceFile( codeChangeDict, mod )
 		fullAsmFilePath = '\\\\?\\' + os.path.normpath( os.path.join(mod.path, sourceFile) )
-		
+
 		# Read the file for info and the custom code
 		returnCode, _, _, customCode, preProcCode, rawBin, anno = self.getCustomCodeFromFile( fullAsmFilePath, mod, False, annotation )
 		#if returnCode != 0:
@@ -2641,7 +2645,7 @@ class CodeLibraryParser():
 			# mod.stateDesc = 'Parsing error; unable to get code from file'
 			# mod.errors.add( "Unable to read the 'sourceFile' {}".format(sourceFile) )
 		#	return
-		
+
 		# Store the info for this code change
 		codeChange = mod.addStaticOverwrite( address, customCode, '', anno, changeName )
 		if preProcCode:
@@ -2659,7 +2663,7 @@ class CodeLibraryParser():
 					self._processAmfsInjectSubfolder( itemPath, mod, annotation, isRecursive )
 				elif itemPath.endswith( '.asm' ):
 					self.parseAmfsInject( None, mod, annotation, sourceFile=itemPath )
-			
+
 		except WindowsError as err:
 			mod.parsingError = True
 			mod.errors.add( 'Unable to find the folder "{}"'.format(fullFolderPath) )
@@ -2751,7 +2755,7 @@ class CommandProcessor( object ):
 
 		""" Rewrites a hex string to something more human-readable, displaying 8 
 			bytes per line by default (2 blocks of 4 bytes, separated by a space). """
-		
+
 		assert blocksPerLine > 0, 'Invalid blocksPerLine given to beautifyHex: ' + str( blocksPerLine )
 
 		code = [ rawHex[:8] ] # Start with the first block included, to prevent a check for whitespace in the loop
@@ -2763,9 +2767,9 @@ class CommandProcessor( object ):
 				code.append( ' ' + rawHex[block:block+8] )
 			else:
 				code.append( '\n' + rawHex[block:block+8] )
-		
+
 		return ''.join( code ).rstrip()
-		
+
 	@staticmethod
 	def restoreCustomSyntaxInHex( hexCode, syntaxInfo, totalLength, blocksPerLine=4 ):
 
@@ -2860,7 +2864,7 @@ class CommandProcessor( object ):
 					lineNumber = int( lineNumber ) + errorLineOffset
 					errorLines.append( '{}: {}'.format(lineNumber, line) )
 					continue
-				
+
 				# Condense the file path and rebuild the rest of the string as it was
 				lineParts = line.split( ': ', 2 ) # Splits on first 2 occurrances only
 				fileName, lineNumber = lineParts[0].rsplit( ':', 1 )
@@ -2904,7 +2908,7 @@ class CommandProcessor( object ):
 			print( 'Errors detected during disassembly:' )
 			print( errors )
 			return ( '', errors )
-		
+
 		return self.parseDisassemblerOutput( output )
 
 	def parseAssemblerOutput( self, cmdOutput, beautify=False ):
@@ -3224,7 +3228,7 @@ class CommandProcessor( object ):
 			# 	preProcessedCode = preProcessedLines[0] + '|S|' # Need to make sure this is included
 			# else:
 			# 	preProcessedCode = '|S|'.join( preProcessedLines )
-			
+
 		if errors:
 			return 1, -1, errors, []
 
@@ -3262,9 +3266,9 @@ class CommandProcessor( object ):
 
 				sectionChunks = codeLine.split( '[[' )
 				sectionLength = 0
-				
+
 				if validateConfigs: # Use the mod's configuration option to determine option length
-					
+
 					# Parse out all option names, and collect their information from the mod's configuration dictionaries
 					for chunk in sectionChunks:
 						if ']]' in chunk:
@@ -3289,7 +3293,7 @@ class CommandProcessor( object ):
 								names = [ name.strip() for name in names ] # Remove whitespace from start/end of names
 							else:
 								names = [ varName ]
-							
+
 							customSyntaxRanges.append( [length+sectionLength, optionWidth, 'opt', codeLine, names] )
 
 							# If the custom code following the option is entirely raw hex, get its length
@@ -3352,10 +3356,10 @@ class CommandProcessor( object ):
 								optNames = [ name.strip() for name in optNames ] # Remove whitespace from start/end of names
 							else:
 								optNames = [ varName ]
-							
+
 							optOffset = length + sectionLength + groupLength
 							customSyntaxRanges.append( [optOffset, optionWidth, 'opt', codeLine, optNames] )
-							
+
 							groupParts.insert( nameIndex, optPlaceholder )
 							sectionLength += groupLength + optionWidth
 						else:
@@ -3371,7 +3375,7 @@ class CommandProcessor( object ):
 				# Strip out whitespace and store the line
 				pureHex = ''.join( codeLine.split() )
 				length += len( pureHex ) / 2
-				
+
 				preProcessedLines.append( pureHex )
 
 		preProcessedCode = ''.join( preProcessedLines )
@@ -3418,7 +3422,7 @@ class CommandProcessor( object ):
 			elif '[[' in codeLine and ']]' in codeLine: # Identifies configuration option placeholders
 				customSyntax.append( codeLine )
 				filteredLines.append( compilationPlaceholder )
-				
+
 				# Try to determine the nibble length of the code on this line
 				# sectionLength = 0
 				# sectionChunks = codeLine.split( '[[' )
@@ -3433,7 +3437,7 @@ class CommandProcessor( object ):
 
 				# Round up to closest multiple of 4 bytes
 				#length += roundTo32( sectionLength, 8 )
-				
+
 				# Eliminate potential whitespace from variable space
 				sectionChunks = codeLine.split( '[[' )
 				for i, chunk in enumerate( sectionChunks ):
@@ -3766,7 +3770,7 @@ class CommandProcessor( object ):
 				branchDistance += 0x1000000
 			else:
 				opCode = '48'
-			
+
 			# Return the hex for a hard (unconditional) branch
 			branch = "{}{:06X}".format( opCode, branchDistance ) # Pads the value portion to 6 characters
 
