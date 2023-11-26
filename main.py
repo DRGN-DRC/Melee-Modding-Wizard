@@ -33,8 +33,6 @@ from subprocess import Popen, PIPE, CalledProcessError
 from sys import argv as programArgs 	# Access command line arguments, and files given (drag-and-dropped) to the program icon
 from PIL import Image, ImageTk
 from ctypes import windll, byref, create_unicode_buffer, create_string_buffer
-FR_PRIVATE  = 0x10
-FR_NOT_ENUM = 0x20
 
 # Internal dependencies
 #tic = time.clock()
@@ -689,7 +687,7 @@ class AboutMenu( Tk.Menu, object ):
 	def showManual( self ):
 
 		""" Open the manual file in the user's default text editor. """
-		
+
 		usageFilePath = os.path.join( globalData.scriptHomeFolder, 'MMW Manual.txt' )
 
 		try:
@@ -717,18 +715,18 @@ class MainMenuOption( object ):
 		self.coords = coords
 		self.color = hoverColor
 		self.callback = clickCallback
-		self.hoverText = hoverText
 		self.font = ( 'A-OTF Folk Pro H', 11 )
 		self.mouseHovered = False
 		self.selfTag = selfTag = 'menuOpt' + str( currentMenuOptionCount + 1 )
-		
-		# Add the text object
-		self.text = u'\u200A'.join( list(text) ) # Rejoin with the unicode 'Hair Space' to add some kerning (https://jkorpela.fi/chars/spaces.html)
-		
+
+		# Rejoin text with the unicode 'Hair Space' to add some kerning (https://jkorpela.fi/chars/spaces.html)
+		self.text = u'\u200A'.join( list(text) )
+		self.hoverText = u'\u200A'.join( list(hoverText) )
+
 		# Create black text for the hover effect (using two objects rather than just changing color of the other text object to make a bolder font)
 		self.blackText1 = canvas.create_text( coords[0]+24, coords[1]+12, text=self.text, anchor='w', tags=('blackText', selfTag,), font=self.font, fill='black' )
 		self.blackText2 = canvas.create_text( coords[0]+24, coords[1]+12, text=self.text, anchor='w', tags=('blackText', selfTag,), font=self.font, fill='black' )
-		
+
 		# Create the default orange text
 		self.textObj = canvas.create_text( coords[0]+24, coords[1]+12, text=self.text, anchor='w', tags=('menuOptions', selfTag), font=self.font, fill='#cb9832' )
 
@@ -755,13 +753,12 @@ class MainMenuOption( object ):
 		# Add click and hover event handlers
 		canvas.tag_bind( selfTag, '<1>', self.clicked )
 		canvas.tag_bind( selfTag, '<Enter>', self.hovered )
-		#canvas.tag_bind( selfTag, '<Leave>', self.unhovered )
 
 	def clicked( self, event ):
 
 		""" Initial method called when an option is clicked on. """
 
-		if self.color == '#7b5467': return # temporarily disabled
+		if self.color == '#7b5467': return # Sound Effect Editor; temporarily disabled
 
 		self.callback( event )
 		self.unhovered() # todo: fix; not working in this case?
@@ -787,12 +784,11 @@ class MainMenuOption( object ):
 		# Ensure other options are unhovered
 		self.unhoverOthers()
 		self.mouseHovered = True
-		
-		#if self.hoverText:
-		#globalData.gui.updateProgramStatus( self.hoverText )
+
+		# Update the text at the bottom of the main border
 		self.canvas.itemconfigure( self.canvas.bottomText, text=self.hoverText )
 
-		if self.color == '#7b5467': return
+		if self.color == '#7b5467': return # Sound Effect Editor; temporarily disabled
 
 		self.canvas['cursor'] = 'hand2'
 
@@ -812,7 +808,7 @@ class MainMenuOption( object ):
 			self.canvas.loadBorderImages( self.color )
 
 		globalData.gui.playSound( 'menuChange' )
-	
+
 	def unhovered( self, event=None ):
 
 		self.canvas['cursor'] = ''
@@ -841,6 +837,10 @@ class MainMenuCanvas( Tk.Canvas ):
 
 		self.debugMode = DEBUGMODE
 		self.testSet = '' # For testing. Set to 'ABGxx' to test a specific character image, or to '' for no testing
+		self.charImageOffsets = { # Used to adjust the X offset of character images (those not included default to 0)
+			'ABG01': 4, # C. Falcon
+			'ABG02': 28 # Bowser
+		}
 
 		self.mainMenuFolder = os.path.join( globalData.paths['imagesFolder'], 'Main Menu' )
 		self.mainGui = mainGui
@@ -860,7 +860,7 @@ class MainMenuCanvas( Tk.Canvas ):
 
 		self.mainBorderWidth = 800 # Keep this an even number
 		self.mainBorderHeight = 530
-		self.bottomTextWidth = 290
+		self.bottomTextWidth = 308
 		self.bottomText = -1 # Item ID for the main menu bottom text
 
 		self.initFonts()
@@ -885,12 +885,12 @@ class MainMenuCanvas( Tk.Canvas ):
 			if not globalData.checkSetting( 'disableMainMenuAnimations' ):
 				self.queueNewAnimation( shortFirstIdle=True )
 
-			# Add some test buttons if testing/debugging
-			if self.testSet:
-				self.create_text( width-40, 80, text='Fade', fill='silver', tags=('testFade',) )
-				self.create_text( width-40, 120, text='Wireframe\nPass', fill='silver', tags=('testWireframe',) )
-				self.tag_bind( 'testFade', '<1>', self.testFade )
-				self.tag_bind( 'testWireframe', '<1>', self.testWireframe )
+		# Add some test buttons if testing/debugging
+		if self.debugMode or self.testSet:
+			self.create_text( width-40, 80, text='Fade', fill='silver', tags=('testFade',) )
+			self.create_text( width-40, 120, text='Wireframe\nPass', fill='silver', tags=('testWireframe',) )
+			self.tag_bind( 'testFade', '<1>', self.testFade )
+			self.tag_bind( 'testWireframe', '<1>', self.testWireframe )
 
 		# Show current coordinates of mouse in debug mode
 		if self.debugMode:
@@ -909,14 +909,14 @@ class MainMenuCanvas( Tk.Canvas ):
 		""" Load fonts from the fonts folder into Tkinter. These fonts will be referred to 
 			by family name (e.g. 'A-OTF Folk Pro H'). To find the exact name of a font, you 
 			may use 'tkFont.families()'. """
-		
+
 		self.initFont( 'A-OTF Folk Pro, Bold.otf' ) # For the main menu buttons/options text
 		self.initFont( 'A-OTF Folk Pro, Heavy.otf' ) # For the main menu top text
 		self.initFont( 'A-OTF Folk Pro, Medium.otf' ) # For the main menu bottom text
 		#print( tkFont.families() )
 
 	def initFont( self, fontName, private=True, enumerable=True ):
-		
+
 		""" Makes fonts located in file `fontpath` available to the font system.
 
 			`private`     if True, other processes cannot see this font, and this 
@@ -931,6 +931,9 @@ class MainMenuCanvas( Tk.Canvas ):
 		# https://github.com/ifwe/digsby/blob/f5fe00244744aa131e07f09348d10563f3d8fa99/digsby/src/gui/native/win/winfonts.py#L15
 		# This function is written for Python 2.x. For 3.x, you have to convert the isinstance checks to bytes and str
 
+		FR_PRIVATE  = 0x10
+		FR_NOT_ENUM = 0x20
+
 		fontpath = os.path.join( globalData.paths['fontsFolder'], fontName )
 
 		if isinstance(fontpath, str):
@@ -944,6 +947,10 @@ class MainMenuCanvas( Tk.Canvas ):
 
 		flags = (FR_PRIVATE if private else 0) | (FR_NOT_ENUM if not enumerable else 0)
 		numFontsAdded = AddFontResourceEx(byref(pathbuf), flags, 0)
+
+		if numFontsAdded != 2:
+			filename = os.path.basename( fontpath )
+			print( 'Unable to load two fonts from {}.'.format(filename) )
 
 		return bool( numFontsAdded )
 
@@ -969,22 +976,28 @@ class MainMenuCanvas( Tk.Canvas ):
 		# Add the top and wireframe images to the canvas
 		originY = ( int(self['height']) - self.mainBorderHeight ) / 2
 		bottomBorderY = originY + self.mainBorderHeight - 18
-		
+
 		# Create the canvas image element, or reconfigure an existing one
+		defaultXOffset = 635
+		xOffset = defaultXOffset + self.charImageOffsets.get( self.imageSet, 0 )
 		if self.topLayerId == -1:
-			self.topLayerId = self.create_image( 635, bottomBorderY, image=self.topLayer, anchor='s', tags=('charImage',) )
+			self.topLayerId = self.create_image( xOffset, bottomBorderY, image=self.topLayer, anchor='s', tags=('charImage',) )
 			self.tag_bind( self.topLayerId, '<Enter>', self.menuOptionsUnhovered )
 		else:
 			# The canvas item already exists; reconfigure it
 			self.itemconfig( self.topLayerId, image=self.topLayer )
 
-			# Layer the menu option background elements over the character image, and the text over the menu option background elements
-			# self.tag_raise( 'menuOptionsBg', 'charImage' )
-			# self.tag_raise( 'menuOptions', 'menuOptionsBg' )
+			# Update position (negate the old character-specific xOffset shift, while adding the new one)
+			currentX = self.coords( self.topLayerId )[0]
+			self.move( self.topLayerId, xOffset-currentX, 0 )
+
+		# Ensure the bottom-text border is over the image
+		# self.tag_raise( 'bottomTextBorder', 'charImage' )
+		# self.tag_raise( self.bottomText, 'bottomTextBorder' )
 
 		# Load the alpha channel as a new image (for use with the mask)
 		self.fullSizeMask = self.wireframeLayer.getchannel( 'A' ) # Returns a new image, in 'L' mode, of the given channel
-	
+
 	def colorizeImage( self, image, color ):
 
 		""" Applies the given color to a given black-and-white image, and returns it. """
@@ -1001,8 +1014,7 @@ class MainMenuCanvas( Tk.Canvas ):
 			needed to prevent garbage collection of the images. """
 
 		# If images for this border color have already been created, just switch to those
-		imgsDict = self.borderImgs.get( color )
-		if imgsDict:
+		if color in self.borderImgs:
 			self.currentBorderColor = color
 			self.refreshBorderImages()
 			return
@@ -1089,7 +1101,8 @@ class MainMenuCanvas( Tk.Canvas ):
 
 	def refreshBorderImages( self ):
 
-		""" Reconfigures canvas image objects with new images to update them with a new color. """
+		""" Updates the border images to the 'current' color (based on what was last selected). 
+			This reconfigures canvas image objects using cached images from the borderImgs dict. """
 
 		imgsDict = self.borderImgs[self.currentBorderColor]
 
@@ -1115,8 +1128,9 @@ class MainMenuCanvas( Tk.Canvas ):
 
 	def initMainBorder( self ):
 
-		""" Places all images for the main background on the canvas.
-			Subsequent updates to these objects are made by the refresh method above. """
+		""" Places all images for the main background's border on the canvas. 
+			This will only be done once on initial program load; subsequent 
+			updates to these objects are made by the refresh method above. """
 
 		imgsDict = self.borderImgs[self.currentBorderColor]
 
@@ -1139,7 +1153,7 @@ class MainMenuCanvas( Tk.Canvas ):
 		self.borderParts['borderTopCenter'] = self.create_image( originX+26+(widthFillTop/2), originY, image=imgsDict['borderTopCenter'], anchor='nw', tags=('mainBorder',) )
 		self.borderParts['borderTopRightFill'] = self.create_image( originX+26+(widthFillTop/2)+66, originY, image=imgsDict['borderTopRightFill'], anchor='nw', tags=('mainBorder',) )
 		self.borderParts['borderTopRight'] = self.create_image( rightSideX, originY, image=imgsDict['borderTopRight'], anchor='nw', tags=('mainBorder',) )
-		
+
 		# Right
 		self.borderParts['borderRight'] = self.create_image( rightSideX, originY+70, image=imgsDict['borderRight'], anchor='nw', tags=('mainBorder',) )
 
@@ -1151,8 +1165,8 @@ class MainMenuCanvas( Tk.Canvas ):
 		self.borderParts['borderBottomLeftInner'] = self.create_image( originX+26+widthFillBotLeft, bottomY, image=imgsDict['borderBottomLeftInner'], anchor='nw', tags=('mainBorder',) )
 		self.borderParts['borderBottomLeftFill'] = self.create_image( originX+26, bottomY, image=imgsDict['borderBottomLeftFill'], anchor='nw', tags=('mainBorder',) )
 		self.borderParts['borderBottomLeft'] = self.create_image( originX, bottomY, image=imgsDict['borderBottomLeft'], anchor='nw', tags=('mainBorder',) )
-		
-		# Middle
+
+		# Middle-fill area (shadow)
 		self.borderParts['borderMiddle'] = self.create_image( originX+26, originY+70, image=imgsDict['borderMiddle'], anchor='nw', tags=('mainBorder',) )
 		self.tag_bind( self.borderParts['borderMiddle'], '<Enter>', self.menuOptionsUnhovered )
 
@@ -1169,7 +1183,7 @@ class MainMenuCanvas( Tk.Canvas ):
 		bracketImage.paste( side, (0, 0) )
 		bracketImage.paste( side.transpose(Image.FLIP_LEFT_RIGHT), (self.bottomTextWidth+2, 0) )
 		imgsDict['borderCenterBracket'] = ImageTk.PhotoImage( bracketImage )
-		self.create_image( textXCoord, textYCoord, image=imgsDict['borderCenterBracket'], anchor='n', tags=('mainBorder',) )
+		self.create_image( textXCoord, textYCoord, image=imgsDict['borderCenterBracket'], anchor='n', tags=('mainBorder', 'bottomTextBorder') )
 
 		# Add top text
 		text = u'Main Menu'
@@ -1258,7 +1272,7 @@ class MainMenuCanvas( Tk.Canvas ):
 
 	def queueNewAnimation( self, shortFirstIdle=False ):
 
-		# Exit if in-testing mode
+		# Exit if in testing mode
 		if self.testSet:
 			return
 
@@ -1354,7 +1368,7 @@ class MainMenuCanvas( Tk.Canvas ):
 			opacity = 0
 		else:
 			opacity = self._fadeProgress / 100.0
-			
+
 		# Update the layer's alpha
 		self.topLayer = ImageTk.PhotoImage( Image.blend(self._transparentMask, self.origTopLayer, opacity) )
 		self.itemconfigure( self.topLayerId, image=self.topLayer )
@@ -1376,7 +1390,7 @@ class MainMenuCanvas( Tk.Canvas ):
 		self.addMenuOption( 'Load Recent', '#394aa6', 25, self.loadRecentMenu, hoverText='Return to your latest work.' ) # blue
 		self.addMenuOption( 'Load Disc', '#a13728', -19, self.openDisc, hoverText='Load an ISO or GCM file.' ) # red
 		self.addMenuOption( 'Load Root Folder', '#077523', -47, self.openRoot, hoverText='Load an extracted filesystem.' ) # green
-		self.addMenuOption( 'Browse Code Library', '#9f853b', -35, self.browseCodes, hoverText='Browse code-related game mods.' ) # yellow
+		self.addMenuOption( 'Browse Code Library', '#9f853b', -35, self.browseCodes, hoverText='Browse code-based game mods.' ) # yellow
 
 	def removeOptions( self, showAnimations=True, callBack=None ):
 
@@ -1427,18 +1441,18 @@ class MainMenuCanvas( Tk.Canvas ):
 		# Add new options
 		if globalData.disc.isMelee and globalData.disc.is20XX:
 			self.menuOptionCount = 7
-			self.addMenuOption( 'Disc Management', '#394aa6', 69, self.mainGui.loadDiscManagement, showAnimations, 'Disc File Tree and Disc Details tabs.' ) # blue
-			self.addMenuOption( 'Code Manager', '#a13728', 21, self.browseCodes, showAnimations, 'Make code-related modifications.' ) # red
+			self.addMenuOption( 'Disc Management', '#394aa6', 74, self.mainGui.loadDiscManagement, showAnimations, 'View or change files in the disc.' ) # blue
+			self.addMenuOption( 'Code Manager', '#a13728', 21, self.browseCodes, showAnimations, 'Make code-based modifications.' ) # red
 			self.addMenuOption( 'Stage Manager', '#077523', -19, self.mainGui.loadStageEditor, showAnimations, 'Configure stage loading.' ) # green
 			self.addMenuOption( 'Music Manager', '#9f853b', -40, self.loadMusicManager, showAnimations, 'Listen to and configure music.' ) # yellow
 			self.addMenuOption( 'Sound Effect Editor', '#7b5467', 0, self.mainGui.loadDiscManagement, showAnimations, 'WIP!' ) # pinkish (blended)
 			self.addMenuOption( 'Character Modding', '#53c6b8', -35, self.loadCharacterModder, showAnimations, 'Modify character properties.' ) # teal
-			self.addMenuOption( 'Debug Menu Editor', '#582493', -22, self.loadDebugMenuEditor, showAnimations, 'View/edit the in-game Debug Menu.' ) # purple
+			self.addMenuOption( 'Debug Menu Editor', '#582493', -22, self.loadDebugMenuEditor, showAnimations, 'Modify the in-game Debug Menu.' ) # purple
 
 		elif globalData.disc.isMelee:
 			self.menuOptionCount = 6
-			self.addMenuOption( 'Disc Management', '#394aa6', 60, self.mainGui.loadDiscManagement, showAnimations, 'Disc File Tree and Disc Details tabs.' ) # blue
-			self.addMenuOption( 'Code Manager', '#a13728', 14, self.browseCodes, showAnimations, 'Make code-related modifications.' ) # red
+			self.addMenuOption( 'Disc Management', '#394aa6', 60, self.mainGui.loadDiscManagement, showAnimations, 'View or change files in the disc.' ) # blue
+			self.addMenuOption( 'Code Manager', '#a13728', 14, self.browseCodes, showAnimations, 'Make code-based modifications.' ) # red
 			self.addMenuOption( 'Stage Manager', '#077523', -22, self.mainGui.loadStageEditor, showAnimations, 'Configure stage loading.' ) # green
 			self.addMenuOption( 'Music Manager', '#9f853b', -40, self.loadMusicManager, showAnimations, 'Listen to and configure music.' ) # yellow
 			self.addMenuOption( 'Sound Effect Editor', '#7b5467', 0, self.mainGui.loadDiscManagement, showAnimations, 'WIP!' ) # pinkish (blended)
@@ -1446,8 +1460,8 @@ class MainMenuCanvas( Tk.Canvas ):
 
 		else:
 			self.menuOptionCount = 3
-			self.addMenuOption( 'Disc Management', '#394aa6', 21, self.mainGui.loadDiscManagement, showAnimations, 'Disc File Tree and Disc Details tabs.' ) # blue
-			self.addMenuOption( 'Code Manager', '#a13728', -34, self.browseCodes, showAnimations, 'Make code-related modifications.' ) # red
+			self.addMenuOption( 'Disc Management', '#394aa6', 21, self.mainGui.loadDiscManagement, showAnimations, 'View or change files in the disc.' ) # blue
+			self.addMenuOption( 'Code Manager', '#a13728', -34, self.browseCodes, showAnimations, 'Make code-based modifications.' ) # red
 			self.addMenuOption( 'Music Manager', '#9f853b', -14, self.loadMusicManager, showAnimations, 'Listen to and configure music.' ) # yellow
 
 		# Set the main menu bottom text
