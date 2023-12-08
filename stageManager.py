@@ -962,22 +962,22 @@ class StageManager( ttk.Frame ):
 		return sisFile.getStageMenuName( stageSlotId )
 
 	def updateBasicInfo( self, stageFile ):
-		
+
 		rsssName = self.getRsssName( self.selectedStageSlotId ).encode( 'utf8' )
 		readableSize = humansize( stageFile.size )
 
 		self.basicInfoLabel['text'] = '{}\n{}\n{:X}\n{:X}'.format( rsssName, readableSize, stageFile.initFunction, stageFile.onGoFunction )
 
 	def editBasicProperties( self ):
-		
+
 		""" Creates a new tab in the Textures Editor interface for the given file. """
-		
+
 		# Create the new tab for the given file
 		stageFile = self.getSelectedStage()
 		if not stageFile:
 			msg( 'Please first select a stage to edit!', 'No Stage Selected', warning=True )
 			return
-		
+
 		self.addStageFileTab( stageFile )
 
 	def addStageFileTab( self, stageFile ):
@@ -1038,7 +1038,10 @@ class StageManager( ttk.Frame ):
 			stkindString = '0x{:X} | {}'.format( newExtStageId, stkindDescription )
 
 		# Create a string for the filename offset
-		sFilenameOffset = '0x{:X} | 0x{:X}'.format( self.dol.offsetInRAM(iFilenameOffset), iFilenameOffset )
+		if iFilenameOffset == -1: # Used with the Target Test slot, which is based on the current Debug Menu selection
+			sFilenameOffset = 'Dynamic'
+		else:
+			sFilenameOffset = '0x{:X} | 0x{:X}'.format( self.dol.offsetInRAM(iFilenameOffset), iFilenameOffset )
 
 		# Create a string for the byte replacement offset and values
 		if byteReplacePointer == 0:
@@ -1441,6 +1444,7 @@ class StageManager( ttk.Frame ):
 
 		# Get information from the Stage Swap Table on what file(s) this icon/stage slot should load
 		newExtStageId, stageFlags, byteReplacePointer, byteReplacement, randomByteValues = self.stageSwapTable.getEntryInfo( self.selectedStageSlotId, canvas.pageNumber )
+		targetTestStage = False
 
 		# Get the Internal Stage ID of the stage to be loaded
 		if newExtStageId == 0: # No change; this will be the currently selected stage slot
@@ -1448,30 +1452,32 @@ class StageManager( ttk.Frame ):
 		else:
 			newIntStageId = self.dol.getIntStageIdFromExt( newExtStageId )
 			if newIntStageId == 0x16: # i.e. external stage ID 0x1A, Icicle Mountain (anticipating no hacked stages of this); switch to current Target Test stage
-				print( 'Unsupported; target test stage filename undetermined' )
-				self.stageVariationUnselected()
-				return
+				targetTestStage = True
 
-		dolFilenameOffset, filenames = self.stageSwapTable.determineStageFiles( newIntStageId, canvas.pageNumber, byteReplacePointer, byteReplacement, randomByteValues )
+		if targetTestStage:
+			dolFilenameOffset = -1
+			self.variationsTreeview.insert( '', 'end', text='Determined by Debug Menu', values=('', 'targetTest'), tags='warning' )
+		else:
+			dolFilenameOffset, filenames = self.stageSwapTable.determineStageFiles( newIntStageId, canvas.pageNumber, byteReplacePointer, byteReplacement, randomByteValues )
 
-		# Populate the variations treeview with the file names (and descriptions) determined above
-		gameId = globalData.disc.gameId
-		pathsAdded = set() # Watches for duplicates
-		for filename in filenames:
-			isoPath = gameId + '/' + filename
-			stageFile = globalData.disc.files.get( isoPath )
+			# Populate the variations treeview with the file names (and descriptions) determined above
+			gameId = globalData.disc.gameId
+			pathsAdded = set() # Watches for duplicates
+			for filename in filenames:
+				isoPath = gameId + '/' + filename
+				stageFile = globalData.disc.files.get( isoPath )
 
-			if stageFile:
-				displayName = self.getVariationDisplayName( stageFile, canvas.pageNumber )
+				if stageFile:
+					displayName = self.getVariationDisplayName( stageFile, canvas.pageNumber )
 
-				if isoPath in pathsAdded:
-					self.variationsTreeview.insert( '', 'end', text=displayName +' (duplicate)', values=(filename, isoPath), tags='warning' )
+					if isoPath in pathsAdded:
+						self.variationsTreeview.insert( '', 'end', text=displayName +' (duplicate)', values=(filename, isoPath), tags='warning' )
+					else:
+						self.variationsTreeview.insert( '', 'end', text=displayName, values=(filename, isoPath) )
 				else:
-					self.variationsTreeview.insert( '', 'end', text=displayName, values=(filename, isoPath) )
-			else:
-				self.variationsTreeview.insert( '', 'end', text='- No File -', values=(filename, isoPath), tags='fileNotFound' ) # No need to check for dups; not possible
-			
-			pathsAdded.add( isoPath )
+					self.variationsTreeview.insert( '', 'end', text='- No File -', values=(filename, isoPath), tags='fileNotFound' ) # No need to check for dups; not possible
+				
+				pathsAdded.add( isoPath )
 
 		# Update text shown in the 'Stage Swap Details' panel
 		self.updateSwapDetails( newIntStageId, newExtStageId, dolFilenameOffset, byteReplacePointer, byteReplacement, randomByteValues, stageFlags )
@@ -1481,12 +1487,16 @@ class StageManager( ttk.Frame ):
 		newPreviewImage = canvas.sssFile.getTexture( previewTextureOffset, 224, 56, 0, 0x1880, getAsPilImage=True )
 		self.updatePreviewImage( newPreviewImage )
 
-		# Select the first item in the treeview by default (which will also call the selection method, stageVariationSelected)
-		variationIids = self.variationsTreeview.get_children()
-		if len( variationIids ) > 0:
-			firstItem = variationIids[0]
-			self.variationsTreeview.focus( firstItem )
-			self.variationsTreeview.selection_set( firstItem )
+		if targetTestStage:
+			# Disable all buttons on the right control panel
+			self.stageVariationUnselected( True )
+		else:
+			# Select the first item in the treeview by default (which will also call the selection method, stageVariationSelected)
+			variationIids = self.variationsTreeview.get_children()
+			if len( variationIids ) > 0:
+				firstItem = variationIids[0]
+				self.variationsTreeview.focus( firstItem )
+				self.variationsTreeview.selection_set( firstItem )
 
 	def getSelectedStage( self ):
 
@@ -1509,7 +1519,7 @@ class StageManager( ttk.Frame ):
 
 		return selectedTab.canvas
 
-	def stageVariationUnselected( self ):
+	def stageVariationUnselected( self, disableAll=False ):
 
 		""" Called when a non-existant stage from the Variations treeview (a stage file that doesn't exist in the disc) 
 			is clicked on. Clears or resets GUI elements specific to a stage file. """
@@ -1520,10 +1530,13 @@ class StageManager( ttk.Frame ):
 
 		# Disable the controls for stages until a stage is selected
 		for widget in self.controlsFrame.winfo_children():
-			if widget['text'] == 'Add Variation':
+			if not disableAll and widget['text'] == 'Add Variation':
 				widget['state'] = 'normal'
 			else:
 				widget['state'] = 'disabled'
+
+		if disableAll:
+			self.editStageSwapDetailsBtn['state'] = 'disabled'
 
 	def stageVariationSelected( self, event ):
 
@@ -1535,7 +1548,18 @@ class StageManager( ttk.Frame ):
 
 		# Check whether this is the same stage that was already selected (to prevent unncessary work)
 		if not stageFile:
-			self.stageVariationUnselected()
+			# Check if there is any selection available
+			iidSelectionsTuple = self.variationsTreeview.selection()
+			if not iidSelectionsTuple:
+				self.stageVariationUnselected()
+				return
+
+			# Check if this is the target test stage slot in 20XX
+			isoPath = self.variationsTreeview.item( iidSelectionsTuple[0], 'values' )[1]
+			if isoPath == 'targetTest':
+				self.stageVariationUnselected( True )
+			else:
+				self.stageVariationUnselected()
 			return
 		# elif stageFile == self.selectedStage: # This was already selected
 		# 	return
@@ -2151,30 +2175,31 @@ class StageManager( ttk.Frame ):
 		# Get the selected file object from the disc
 		isoPath = self.variationsTreeview.item( iid, 'values' )[1] # Values tuple is (filename, isoPath)
 		stageObj = globalData.disc.files.get( isoPath )
-		
-		if stageObj:
-			# Remove the file from the disc
-			globalData.disc.removeFiles( [stageObj] )
+		if not stageObj:
+			return
 
-			# Update random neutral stage name in MnSlChr
-			if stageObj.isRandomNeutral():
-				stageObj.setDescription( 'Custom {}'.format(stageObj.randomNeutralId) )
+		# Remove the file from the disc
+		globalData.disc.removeFiles( [stageObj] )
 
-			# Update the GUI
-			self.stageVariationUnselected()
-			self.variationsTreeview.item( iid, text='- No File -', tags='fileNotFound' )
-			globalData.gui.updateProgramStatus( '{} removed from the disc'.format(stageObj.filename) )
+		# Update random neutral stage name in MnSlChr
+		if stageObj.isRandomNeutral():
+			stageObj.setDescription( 'Custom {}'.format(stageObj.randomNeutralId) )
 
-			# Update the Disc File Tree Tab
-			discTab = globalData.gui.discTab
-			if discTab:
-				discTab.isoFileTree.delete( stageObj.isoPath )
-			
-			# Update the Disc Details Tab
-			detailsTab = globalData.gui.discDetailsTab
-			if detailsTab:
-				detailsTab.isoFileCountText.set( "{:,}".format(len(globalData.disc.files)) )
-				#detailsTab # todo: disc size as well
+		# Update the GUI
+		self.stageVariationUnselected()
+		self.variationsTreeview.item( iid, text='- No File -', tags='fileNotFound' )
+		globalData.gui.updateProgramStatus( '{} removed from the disc'.format(stageObj.filename) )
+
+		# Update the Disc File Tree Tab
+		discTab = globalData.gui.discTab
+		if discTab:
+			discTab.isoFileTree.delete( stageObj.isoPath )
+
+		# Update the Disc Details Tab
+		detailsTab = globalData.gui.discDetailsTab
+		if detailsTab:
+			detailsTab.isoFileCountText.set( "{:,}".format(len(globalData.disc.files)) )
+			#detailsTab # todo: disc size as well
 
 	def updateSongBehavior( self ):
 
@@ -2292,7 +2317,7 @@ class StageSwapEditor( BasicWindow ):
 			newIntStageId = self.stageManagerTab.dol.getIntStageIdFromExt( newExtStageId )
 			if newIntStageId == 0x16: # i.e. external stage ID 0x1A, Icicle Mountain (anticipating no hacked stages of this); switch to current Target Test stage
 				print( 'Unsupported; target test stage filename undetermined' )
-				return -1, ()
+				return None
 
 		if newExtStageId == 0:
 			defaultOption = 'N/A (No swap)'
