@@ -3382,12 +3382,14 @@ def installCodes( dol ):
 		successful = disc.dol.export( savePath )
 
 		if successful:
-			print( 'DOL saved successfully' )
-		else:
-			print( 'Unable to export the DOL file' )
+			print( 'DOL saved to "{}"'.format(savePath) )
+		else: # Error already reported; just need to exit
 			sys.exit( 207 )
 
 		outputDir = os.path.dirname( savePath )
+
+	if not outputDir: # May be empty if the save path was just a filename
+		outputDir = os.getcwd()
 
 	# Copy over the map file to the destination folder, if it was generated
 	mapSaveDir = os.path.dirname( disc.mapSavePath )

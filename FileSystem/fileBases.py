@@ -319,7 +319,7 @@ class FileBase( object ):
 			return True
 
 		except Exception as err:
-			printStatus( 'An error occurred while exporting {}: {}'.format(self.filename, err), error=True )
+			printStatus( 'An error occurred while exporting "{}": {}'.format(self.filename, err), error=True )
 			return False
 
 	def getDescription( self ):

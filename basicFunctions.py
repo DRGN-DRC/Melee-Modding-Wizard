@@ -322,18 +322,27 @@ def openFolder( folderPath, fileToSelect='', showWarnings=True ):
 
 
 def createFolders( folderPath ):
+
+	""" Creates folders for the given path if any folders within it don't already exist. 
+		This is blocking; it will wait a few fractions of a second to ensure the folder 
+		exists before returning. """
+
+	if not folderPath:
+		return
+
 	try:
 		os.makedirs( folderPath )
 
-		# Primitive failsafe to prevent race condition
+		# Primitive failsafe to ensure the folder exists and prevent race conditions
 		attempt = 0
 		while not os.path.exists( folderPath ):
-			time.sleep( .3 )
+			time.sleep( .2 )
 			if attempt > 10:
 				raise Exception( 'Unable to create folder: ' + folderPath )
 			attempt += 1
 
 	except OSError as error: # Python >2.5
+		# Ignore an exception raised from the folder already existing
 		if error.errno == errno.EEXIST and os.path.isdir( folderPath ):
 			pass
 		else: raise
