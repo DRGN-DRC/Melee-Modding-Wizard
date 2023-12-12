@@ -3269,6 +3269,12 @@ def installCodes( dol ):
 			break
 
 	if codeSpaceNeeded:
+		if not args.codeRegions:
+			print( 'No custom code regions were defined to be used!' )
+			print( 'These are required in this case in order to store custom code, '
+					'and should be provided by the --codeRegions argument.' )
+			sys.exit( 6 ) #todo: we don't need to fail here once codes.bin is hooked up
+
 		# Set the code regions to use
 		regionsAvailable = globalData.overwriteOptions.keys()
 		regionsRequested = parseInputList( args.codeRegions )
@@ -3282,7 +3288,12 @@ def installCodes( dol ):
 
 		# Check if we should continue (any regions were found)
 		if regionsFound == 0:
-			print( 'Unable to install; no custom code regions could be found.' )
+			if len( regionsRequested ) == 1:
+				print( 'The code region "{}" could not be found among the '
+						'regions available for this DOL.'.format(regionsRequested[0]) )
+			else:
+				print( 'The requested code regions could not be found among the '
+						'regions available for this DOL.' )
 			sys.exit( 6 ) #todo: we don't need to fail here once codes.bin is hooked up
 
 		# Check whether all requested regions were found

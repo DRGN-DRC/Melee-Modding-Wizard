@@ -2513,12 +2513,10 @@ class Disc( object ):
 					# Check if this module is used
 					for funcName in functionNames:
 						if funcName in standaloneFunctionsUsed:
-							print( 'SF-only module', mod.name, 'detected in save routine' )
 							mod.setState( 'enabled', updateControlPanelCounts=False ) # Already added to the SF table in the Summary Tab
 							#totalModsInstalled += 1
-							break # only takes one to make it count
-					else: # loop didn't break; no functions for this mod used
-						print( 'SF-only module', mod.name, 'NOT detected in save routine' )
+							break # Only takes one to make it count as used
+					else: # The loop above didn't break; no functions for this mod are used
 						mod.setState( 'disabled', updateControlPanelCounts=False )
 
 		toc = time.clock()
