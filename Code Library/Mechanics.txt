@@ -1,5 +1,3 @@
-
-
 v1.00 Hitlag Behavior
 - Prevents moves that deal less than 1% from having hitlag and being A/S/DIable. 
 - Allows many moves, such as Y.Link's Up-B and Zelda's Fsmash, to work properly.
@@ -118,10 +116,10 @@ Version -- DOL Offset ------ Hex to Replace ---------- ASM Code
 
 Ledge Invincibility Attrition
 This basically make ledge invincibility behave similarly to shields, in that after grabbing the ledge a few times in quick succession, subsequent grabs will reduces ledge invincibility. The ledge invincibility recovers over time, like shields, and is reset when you die, just like shields. (I figure this is a better solution that the one PM has, not only because I feel it feels more natural, but also because of things like the haxdash that can circumvent it. - _glook)
-Notes: http://smashboards.com/threads/melee-gecko-codes-guide-and-discussion.327311/page-35#post-19218896
+<http://smashboards.com/threads/melee-gecko-codes-guide-and-discussion.327311/page-35#post-19218896> #
 [_glook]
-Version -- DOL Offset ------ Hex to Replace ---------- ASM Code
-1.02 ----- 0x8009A8AC --- 8084049C -> Branch
+Revision ---- DOL Offset ---- Hex to Replace ---------- ASM Code -
+NTSC 1.02 --- 0x8009A8AC ---- 8084049C -> Branch
 
 7C671B78 8063002C
 8084049C 80A31068
@@ -134,7 +132,7 @@ Version -- DOL Offset ------ Hex to Replace ---------- ASM Code
 7C862050 7CE33B78
 60000000 48000000
 
-1.02 ----- 0x8006A414 --- 807F1990 -> Branch
+------------- 0x8006A414 ---- 807F1990 -> Branch
 
 807F198C 809F1988
 7C632378 2C030000
@@ -150,9 +148,11 @@ Version -- DOL Offset ------ Hex to Replace ---------- ASM Code
 Wall Bracing
 Its main purpose is to get rid of wall infinites.
 If you are on the ground and you're moving into a wall (either by purposely walking/running into it or, more likely, if you're being shined into the wall), if you get hit by a non-launching attack, you can press the analog stick left or right to brace against the wall, which will make your feet leave the ground. The direction you press doesn't matter, and this was purposefully done to help with Smash DI (which is actually just a justification for my laziness. - _glook).
+<https://smashboards.com/threads/melee-gecko-codes-guide-and-discussion.327311/post-19254768>
+<https://youtu.be/pFbPOTBDKgY>
 [_glook]
-Version -- DOL Offset ------ Hex to Replace ---------- ASM Code
-1.02 ----- 0x8008DFAC --- 2C1C0003 -> Branch
+Revision ---- DOL Offset ---- Hex to Replace ---------- ASM Code -
+NTSC 1.02 --- 0x8008DFAC ---- 2C1C0003 -> Branch
 
 2C1C0003 41820030
 887D0724 70630004
@@ -277,6 +277,8 @@ C21C0A48 0000001A
 
 
 	-==-
+
+
 !
 
 Tournament Style Overtime
@@ -552,8 +554,6 @@ NTSC 1.00 --- 0x8008EBA0 ---- 2c000000 -> Branch
 C021FFF0 FC000840 4C401382 40820008 38000000 2C000000 00000000
 
 
-
-
 	-==-
 
 
@@ -577,7 +577,6 @@ D0882340 3CE08006
 4E800021 3CE08008
 60E7E260 7CE803A6
 4E800020 00000000
-
 
 
 	-==-
@@ -630,7 +629,6 @@ NTSC 1.02 --- 0x8004250C ---- 3BC40000 -> Branch
 3D808037 618C32E8
 7D8903A6 4E800421
 7FE3FB78 00000000
-
 
 
 	-==-

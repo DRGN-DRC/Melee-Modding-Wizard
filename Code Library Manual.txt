@@ -263,9 +263,9 @@ This is description text.
 	    mod next to the Edit and Configuration buttons. You can add as many web 
 	    links/buttons to a mod as you like (each in their own set of brackets), 
 	    but to prevent any malicious use, the domains are currently restricted 
-	    to SmashBoards, GitHub, and YouTube.
+	    to SmashBoards, GitHub, and YouTube (or youtu.be).
 
-	    Following the header lines above I typically have this line:
+	    Following the header lines above, you may include this line:
 
 Revision ---- DOL Offset ---- Hex to Replace ---------- ASM Code -
 
@@ -275,11 +275,11 @@ Revision ---- DOL Offset ---- Hex to Replace ---------- ASM Code -
 	    want to.
 
 	    Next, we get to the mod's custom code changes. There can be any number 
-	    of static overwrites, injection mods, or "standalone" functions (and 
-	    can appear in any order). Static overwrites are the kind of modification 
+	    of static overwrites, injection mods, or "standalone functions". (These 
+	    may appear in any order.) Static overwrites are the kind of modification 
 	    that simply change one or more bytes from one set to another (i.e. no 
-	    branches or anything fancy like that). The change can be any length, and 
-	    can be written like this, for short ones:
+	    branches or anything fancy like that). The change can be of any byte 
+	    length, and can be written like this, for short ones:
 
 NTSC 1.02 ----- 0x8023cdd4 --- 7C7E01AE -> 7c7e032e
 
@@ -613,7 +613,7 @@ C2261A6C 00000005
 		* Checkboxes for flag values
 
 	    Currently the Mod Construction tab doesn't yet have an interface to add 
-	    configurations to a mod, but it's also fairly easy to add them by editing 
+	    configurations to a mod, but it's also pretty easy to add them by editing 
 	    the mod manually. Here's an example of a mod in MCM format with a single 
 	    configuration option:
 

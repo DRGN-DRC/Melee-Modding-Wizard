@@ -12,6 +12,7 @@
 # External Dependencies
 import os
 import json
+import time
 import struct
 import codecs
 import urlparse
@@ -338,7 +339,8 @@ class CodeChange( object ):
 			errorMsg = 'Unable to process custom code for {}:\n\n{}\n\n{}'.format( self.mod.name, codeSample, finishedCode )
 			msg( errorMsg, 'Error Resolving Custom Syntaxes' )
 		elif not finishedCode or not validHex( finishedCode ): # Failsafe; definitely not expected
-			msg( 'There was an unknown error while processing the following custom code for {}:\n\n{}'.format(self.mod.name, self.rawCode), 'Error During Final Code Processing', warning=True )
+			msg( 'There was an unknown error while processing the following custom '
+				 'code for {}:\n\n{}'.format(self.mod.name, self.rawCode), 'Error During Final Code Processing', warning=True )
 			returnCode = 6
 
 		return returnCode, finishedCode
@@ -780,11 +782,17 @@ class CodeMod( object ):
 		if not potentialLink.scheme:
 			print( 'Invalid link detected for "{}" (no scheme): {}'.format(self.name, origUrlString) )
 
+		elif potentialLink.netloc == 'youtu.be':
+			potentialLink.domain = 'youtube'
+			return potentialLink
+
 		# Check the domain against the whitelist. netloc will be something like "youtube.com" or "www.youtube.com"
-		elif potentialLink.netloc.split('.')[-2] not in ( 'smashboards', 'github', 'youtube' ):
+		netlocParts = potentialLink.netloc.split( '.' )
+		if netlocParts[-2] not in ( 'smashboards', 'github', 'youtube' ) or netlocParts[-1] != 'com':
 			print( 'Invalid link detected for "{}" (domain not allowed): {}'.format(self.name, origUrlString) )
 
 		else:
+			potentialLink.domain = netlocParts[-2]
 			return potentialLink
 
 	def buildModString( self ):
@@ -1085,7 +1093,7 @@ class CodeMod( object ):
 			already contains mods, the mod of the current index (self.fileIndex) will be replaced. 
 			If 'insert' is True, the mod will be inserted into that position instead (above existing index). 
 			If the current index is -1, this mod will be added at the end of the file. """
-		
+
 		# Set this mod's save location so that subsequent saves will automatically go to this same place
 		# Do this first in any case, in case this method fails
 		self.isMini = False
@@ -1193,7 +1201,7 @@ class CodeMod( object ):
 		# Set an overall revision if there are only changes for one available
 		if len( self.data ) == 1:
 			jsonData['codes'][0]['revision'] = self.data.keys()[0]
-		
+
 		# Add configuration definitions if present
 		if self.configurations:
 			# Format member lists such that name/value/comments are on the same line for better readability
@@ -1224,7 +1232,7 @@ class CodeMod( object ):
 				if not change.rawCode.strip():
 					print( 'No custom code to save for {}, code change {}'.format(self.name, change.offset) )
 					continue
-				
+
 				# Check for a simple annotation to add
 				#annotation = ''
 				#newHex = change.rawCode.strip()
@@ -1236,7 +1244,7 @@ class CodeMod( object ):
 				# 		changeDict['annotation'] = annotation
 				if change.anno:
 					changeDict['annotation'] = change.anno
-				
+
 				if change.type == 'static' and change.length <= 16: # Standard (Short) Static Overwrite
 					changeDict['type'] = 'replace'
 					changeDict['address'] = change.offset
@@ -1276,7 +1284,7 @@ class CodeMod( object ):
 					fullPath = os.path.join( self.path, change.name ) # No extension
 
 					# Create the file(s)
-					success = self.writeCustomCodeFiles( change, fullPath, saveCache=saveCodeCache )
+					success = self.writeCustomCodeFiles( change, fullPath, allowBinary=saveCodeCache )
 					if not success:
 						continue
 
@@ -1304,15 +1312,16 @@ class CodeMod( object ):
 
 		if longHeader:
 			return ( '####################################\n'
-					   '# Address: ' + change.offset + '\n'
-					   '# Author: ' + self.auth + '\n'
-					   '####################################\n\n' )
+					 '# Address: ' + change.offset + '\n'
+					 '# Author:  ' + self.auth + '\n'
+					 '####################################\n\n' )
 		else:
 			return '# To be inserted at ' + change.offset + '\n\n'
 
-	def writeCustomCodeFiles( self, change, sourcePath, longHeader=False, saveCache=True ):
+	def writeCustomCodeFiles( self, change, sourcePath, longHeader=False, allowBinary=True ):
 
-		""" An assembly (.asm) file should be saved if the custom code is assembly, or 
+		""" Used for the AMFS and Mini formats. 
+			An assembly (.asm) file should be saved if the custom code is assembly, or 
 			the code could not be pre-processed. Successfully pre-processed code may have 
 			custom syntax still within it, in which case it is saved to a text file. Or it 
 			is saved to a binary file if it is finished, purely-hex data. If longHeader is 
@@ -1321,61 +1330,58 @@ class CodeMod( object ):
 			there is no need to create the binary file. """
 
 		header = self.constructHeader( change, longHeader )
-
 		forceSavePreProc = False
-		# saveBinary = True
 
-		# Check if the original source code should be saved
-		if change.isAssembly or not change.preProcessedCode:
+		# Determine the type of source file to create
+		if self.isMini:
+			if change.type == 'static':
+				extension = '.s'
+			else:
+				extension = '.asm'
+
+		# Check if the original source code should be saved for AMFS
+		elif change.isAssembly or not change.preProcessedCode:
+			extension = '.asm'
+		else:
+			extension = ''
+
+		if extension:
 			# Create a source file for this custom code
 			try:
-				codeToSave = change.rawCode.strip()
+				code = change.rawCode.strip()
 
-				with open( sourcePath + '.asm', 'w' ) as newFile:
+				with open( sourcePath + extension, 'w' ) as newFile:
 					# Save a header only if one isn't already present
-					if not codeToSave.startswith('##########') and not codeToSave.startswith('# To be insert'):
+					if not code.startswith('##########') and not code.startswith('# To be insert'):
 						newFile.write( header )
-					newFile.write( codeToSave )
+					newFile.write( code )
 
 			except Exception as err:
-				print( 'Unable to create "' + sourcePath + '.asm"' )
+				print( 'Unable to create "' + sourcePath + extension + '"' )
 				print( err )
 				return False
 
 			if not change.preProcessedCode: # Done!
 				return True
 
-			# if change.syntaxInfo: # Contains custom syntax; cannot yet be fully assembled
-			# 	saveBinary = False
-			# else:
-			# if change.syntaxInfo:
-			# 	forceSavePreProc = True
+		elif change.syntaxInfo: # Contains custom syntax; cannot yet be fully assembled
+			forceSavePreProc = True
+		elif '#' in change.rawCode: # Prevent comments from being lost (no source file in this case)
+			forceSavePreProc = True
 
-		else: # The 'source' is actually hex code (isAssembly = False)
-			# Determine whether to save a pre-processed codes text file or binary file
-		# 	if change.syntaxInfo: # Contains custom syntax; cannot yet be fully assembled
-		# 		saveBinary = False
-		# 	# Check if there are comments to care about saving
-		# 	elif '#' in change.rawCode:
-		# 		saveBinary = False
-		# 	else: # No comments found to save in the hexcode
-		# 		savePreProc = False
-			if change.syntaxInfo or '#' in change.rawCode:
-				forceSavePreProc = True
-
-		if saveCache or forceSavePreProc:
-			success = self.saveCache( change, forceSavePreProc, header, longHeader, sourcePath, True, saveCache )
+		if allowBinary or forceSavePreProc:
+			success = self.saveCache( change, forceSavePreProc, header, longHeader, sourcePath, True )
 		else:
 			success = True
 
 		return success
 
-	def saveCache( self, change, forceSavePreProc=False, header='', longHeader=False, sourcePath='', cleanup=False, allowBin=True ):
+	def saveCache( self, change, forceSavePreProc=False, header='', longHeader=False, sourcePath='', cleanup=False ):
 
 		""" Saves assembled cache files for a code change for faster code installation performance. 
-			Saves preProcessed code that includes custom syntaxes mixed in to a code .txt file, or
+			Saves preProcessed code that includes custom syntaxes mixed in to a code .txt file, or 
 			raw binary to a .bin file. Returns True/False on success. """
-		
+
 		if not header:
 			header = self.constructHeader( change, longHeader )
 
@@ -1386,22 +1392,29 @@ class CodeMod( object ):
 		if self.isAmfs and change.type == 'static' and change.length <= 16:
 			return True
 
-		# savePreProc = False
-		# saveBinary = True
+		savePreProc = False
+		saveBinary = True
 
-		# if change.syntaxInfo:
-		# 	# Can't save binary file (due to custom syntax)
-		# 	saveBinary = False
+		# If the custom code is already pure hex (configs not supported in Mini)
+		# then prevent creating a binary file, which would be redundant.
+		if self.isMini and not change.isAssembly:
+			saveBinary = False
 
-		# 	if change.isAssembly:
-		# 		# Save mixed preProcessed code file (.txt)
-		# 		savePreProc = True
+		elif change.syntaxInfo:
+			# Can't save binary file (due to custom syntax)
+			saveBinary = False
 
-		#if savePreProc:
-		#if forceSavePreProc or change.:
-		
+			if change.isAssembly:
+				# Save mixed preProcessed code file (.txt)
+				savePreProc = True
+
+			elif not cleanup:
+				# Nothing left to do
+				change.isCached = False
+				return False
+
 		# Check to save a pre-processed code file (HEX mixed with comments and/or custom syntax)
-		if ( change.syntaxInfo and change.isAssembly ) or forceSavePreProc:
+		if savePreProc or forceSavePreProc:
 			if change.isAssembly:
 				if change.syntaxInfo:
 					# Mix custom syntax lines back into the pure hex
@@ -1440,7 +1453,7 @@ class CodeMod( object ):
 				print( 'Unable to delete {} cache file; {}'.format(sourcePath, err) )
 
 		# Check to save a raw binary/data file
-		if not change.syntaxInfo and allowBin:
+		if saveBinary:
 			try:
 				binData = bytearray.fromhex( change.preProcessedCode )
 				with open( sourcePath + '.bin', 'wb' ) as newFile:
@@ -1709,7 +1722,7 @@ class CodeLibraryParser():
 
 			if targetDescriptor.startswith( '0x8' ) and len( targetDescriptor ) == 10: return True # Using a RAM address
 			elif CodeLibraryParser.isStandaloneFunctionHeader( targetDescriptor ): return True # Using a function name
-			
+
 		return False
 
 	@staticmethod
@@ -1718,7 +1731,7 @@ class CodeLibraryParser():
 		""" A line may contain multiple pointer symbols, but it will always be 
 			part of (i.e. treated as) a single assembly instruction (ultimately 
 			resolving to 4 bytes).
-		
+
 			This returns a list of names, but can also just be evaluated as True/False. """
 
 		symbolNames = []
@@ -1729,14 +1742,14 @@ class CodeLibraryParser():
 					for potentialName in block.split( '>>' )[:-1]: # Skips last block (will never be a symbol)
 						if potentialName != '' and ' ' not in potentialName:
 							symbolNames.append( potentialName )
-		
+
 		return symbolNames
 
 	@staticmethod
 	def containsConfiguration( codeLine ):
 
 		optionNames = []
-		
+
 		if '[[' in codeLine and ']]' in codeLine:
 			sectionChunks = codeLine.split( '[[' )
 
@@ -1764,10 +1777,10 @@ class CodeLibraryParser():
 				continue # Skip this mod.
 			elif self.stopToRescan:
 				break
-			
+
 			basicInfoCollected = False
 			collectingConfigurations = False
-			
+
 			mod = CodeMod( '', srcPath=filepath )
 			mod.fileIndex = fileIndex
 			mod.desc = [] # Will be transformed into the expected string later
@@ -2499,7 +2512,7 @@ class CodeLibraryParser():
 		if customCode:
 			if not globalData.checkSetting( 'useCodeCache' ):
 				# No need for reading other source files if skipping code cache
-				print( 'loading source-only for ' + mod.name + ' (cache skipped)' )
+				#print( 'loading source-only for ' + mod.name + ' (cache skipped)' )
 				return 0, offset, author, customCode, '', False, annotation
 
 			# Check if the source code is newer than the assembled binary
@@ -2533,6 +2546,7 @@ class CodeLibraryParser():
 			except Exception as err:
 				preProcessedCode = ''
 		else:
+			# See if we can get pre-processed code from a text file
 			try:
 				# Open the file in byte-reading mode (rb). Strings will then need to be encoded.
 				with open( baseFilePath + '.txt', 'r' ) as preProcFile:
@@ -2543,7 +2557,7 @@ class CodeLibraryParser():
 
 		# Verify custom code was collected
 		if not customCode and not preProcessedCode:
-			filename = os.path.basename(baseFilePath) # Name only; no extension
+			filename = os.path.basename( baseFilePath ) # Name only; no extension
 			mod.parsingError = True
 			print( 'Unable to find custom code for ' + filename )
 			mod.errors.add( 'Missing custom for "{}"'.format(filename) )
@@ -3529,7 +3543,7 @@ class CommandProcessor( object ):
 			This process may require two passes. The first is always needed, in order to determine all addresses and syntax resolutions. 
 			The second may be needed for final assembly because some lines with custom syntaxes might need to reference other parts of 
 			the whole source code (raw custom code), such as for macros or label branch calculations. 
-			
+
 			May return these return codes:
 				0: Success (or no processing was needed)
 				2: Unable to assemble source (ASM) code with custom syntaxes
@@ -3779,7 +3793,8 @@ class CommandProcessor( object ):
 	@staticmethod
 	def codeIsAssembly( codeLines ):
 
-		""" For purposes of final code processing (resolving custom syntaxes), special syntaxes
+		""" Determines whether the given code is pure hex data, or contains assembly or special syntaxes. 
+			For purposes of final code processing (resolving custom syntaxes), special syntaxes
 			will be resolved to assembly, so they will also count as assembly here. """
 
 		isAssembly = False
