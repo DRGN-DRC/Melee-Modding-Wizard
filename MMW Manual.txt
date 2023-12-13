@@ -18,14 +18,35 @@
 	Here you'll find an overview of the things that you can modify using this 
 	program. This includes details on features and tools that may not be self-
 	evident or easy to find in the GUI. There are also some program settings 
-	in the "settings.ini" file that aren't present in the GUI (covered in 
-	detail in the last section, below). For more advanced usage or incorpor-
+	in the "settings.ini" file that aren't present in the GUI which are covered 
+	in detail in the last section, below. For more advanced usage or incorpor-
 	ation in some other automation/workflow, you can also use various features 
-	through command line. For details on that, see the "Command-Line Usage.txt" 
+	through command-line. For details on that, see the "Command-Line Usage.txt" 
 	file.
 
 	The program is currently written in Python 2, but I plan to move to 
 	Python 3 in the future. Feel free to contact me if you'd like to help.
+
+	This program is a work in-progress! While there are many complete and fully-
+	functional features, there are still a few that are WIP, and others that will 
+	be added over time. Most importantly, know that features that are requested 
+	are prioritized! So if you'd like to see a specific improvement or feature, 
+	let me know so I know how much demand there is for different aspects of 
+	the program. You can contact me via Discord, in the Melee Workshop server, 
+	or in the thread for this program, here:
+	
+	https://smashboards.com/threads/melee-modding-wizard-beta-v0-9-4.517823/
+
+	As a perk, Patreon subscribers will naturally have more sway in their input 
+	for requests and suggestions. They also occasionally will have polls for 
+	where I should focus upcoming work, and early access to new major builds.
+	You can find my patreon here: https://www.patreon.com/drgn
+
+	In addition to the above, the source code for this program is available on 
+	github here: https://github.com/DRGN-DRC/Melee-Modding-Wizard
+	Creating an issue there will put more eyes on the problem, so there's a 
+	chance other people may corroborate the finding, discuss it, or potentially 
+	even fix it. Pull requests are welcome!
 
 
 		Main Features so far:
@@ -42,6 +63,12 @@
 			Character Modding
 
 		Tools:
+
+			Character Color Converter
+			ASM <-> HEX Converter
+			Code Lookup
+			Test External Stage/Character File (Asset Test)
+			Build xDelta Patch
 
 
 	 Disc Management:
@@ -320,6 +347,82 @@
 	    You can add to or edit these regions by editing the "codeRegionSettings.py" file.
 
 
+	 Music Manager:
+	----------------
+
+	    This interface allows you to browse all songs (.hps) files in the game. With this, 
+	    you can also import/export, view information on the files, and even listen to them. 
+	    Some features (in order to convert file formats) will require you to install 
+	    .NET Framework 4.6.1, which you can get here: 
+
+		https://www.microsoft.com/en-us/download/details.aspx?id=49981
+
+	    Here's a more in-depth look at the features:
+
+		- Export:
+			Exports a single file, with the ability to convert it at the same 
+			time. HPS files may be exported as HPS or WAV. (In the future, this 
+			will likely be upgraded to be able to export multiple files. As with 
+			any potential features, letting me know when a feature is wanted will 
+			mean I'll try to get around to it sooner.)
+
+		- Import:
+			Import an external/standalone file into the disc, replacing the 
+			currently selected file. (If you'd instead like to ADD a file, not 
+			replacing an existing one, use the 'Add Track' feature.) This will 
+			also automatically convert the file into HPS format, if able. The 
+			input formats supported are HPS, DSP, WAV, and MP3.
+
+		- Rename:
+			Allows the user to rename the name of the track. This refers to the 
+			song title/description shown in the first column, not the file name
+			in the disc's filesystem. This description is stored in the yaml 
+			configuration file in ".\File Descriptions\GALE01.yaml" in most 
+			cases. The exception to this is that 20XX HP has its own storage 
+			for song titles in the CSS (Character Select Screen) file, for use 
+			with displaying songs in the Debug Menu.
+
+		- Edit Loop:
+			Not yet implemented.
+
+		- Delete:
+			Removes tracks from the disc entirely.
+
+		- Add Track:
+			Adds a new song (an external file) to the disc's filesystem. As with 
+			the import function, the file will automatically be converted to HPS 
+			format if it's not already an HPS file (same formats supported). In 
+			the case of 20XX HP, new tracks will automatically be added as a new 
+			'Hex Track' (i.e. the files 01.hps, 02.hps, etc.). In the latest 
+			versions of 20XX, these can be used on any stages, and are capped 
+			to 255 songs ("FF.hps" would be the last one; 00.hps is reserved).
+
+		- Find References:
+			Searches stage files to find instances where the currently selected 
+			song is used. This checks primary references in the stage's music 
+			table's first entry, which consists of main/alt. music and sudden 
+			death music, as well as what are referred to as "secondary references". 
+			Secondary references are those from the stage's music table beyond 
+			the first entry. Typically these other entries are used during one-
+			player modes for special occasions. And in many cases, these entries 
+			use the same songs as the first entry, but may have some slightly 
+			different properties. If a stage is listed under primary references, 
+			checks for its secondary references will be skipped, so it won't 
+			be listed in both sets.
+
+		- Color Code by File Size:
+			A useful feature for finding what songs are using the most space in 
+			your disc in case you're running low on space. Some game launchers 
+			can have problems if your disc is too large. When you use this feature, 
+			files will become color-coded to indicate their size; green files 
+			are relatively small, while red files will be the largest in your 
+			disc. Initially, this may not help much if you still have the Special 
+			Movie audio file included (which is just about 30 MB), resulting in 
+			most files being green besides the special movie audio. It's common 
+			to remove or replace this file (as well as the special movie video 
+			file) to free up space.
+
+
 	 Program Settings:
 	-------------------
 
@@ -449,20 +552,49 @@
 
 
 
-
 	 Tools:
 	--------
 
-		- Character Color Converter: 
+		- Character Color Converter:
+			Each character costume is designed to be used for only one specific 
+			color. So you cannot simply replace a blue costume with a green one 
+			and expect it to work. So this tool is used to convert a costume file 
+			into one for a different color slot. This involves changing the root 
+			node names (symbols), updating the file size in some cases, and also 
+			handles updating the character model skeleton, in order to prevent 
+			desyncs when playing online. There are a few conversions which are 
+			not currently supported, due to differing model parts, like hats.
 
 		- ASM <-> HEX Converter:
+			Convert assembly (ASM) to binary/hexadecimal data (HEX), or vice versa. 
+			This can also be used to beautify hex, or in other words reformat hex
+			code to change its whitespace or how it's laid out. For example, to go 
+			from reformat one continuous line of characters into 2 words (8 bytes) 
+			per line, like usually seen with Gecko codes. Or to go from 2 words to 
+			4 words per line (or more), or vice versa.
 
 		- Code Lookup:
+			Enter a DOL Offset or RAM Address into this tool, and it will display 
+			information on the code/function found there. Includes the function
+			name, start/end/length, and the assembly of the function.
 
 		- Test External Stage/Character File (Asset Test):
+			This allows for quick testing of a character or stage file. It will load 
+			an external/standalone file, put it into a custom Melee disc image, and 
+			then boot that image directly into a match (using that character or stage) 
+			using Dolphin. 
 
-		-
+		- Build xDelta Patch:
+			This offers a very easy (and copyright-friendly) way to share full-game 
+			or multi-file mods with others by creating an xDelta patch. Once created, 
+			the patch contains all differences between the disc you currently have 
+			loaded in the GUI and a vanilla, NTSC 1.02 disc. Others can then apply 
+			this patch to their own NTSC 1.02 disc to re-create your mod. 
 
+			The patch is generated using the xDelta program and the following 
+			command arguments:
+
+			"xDelta.exe -B 1363148800 -e -9 -f -v -S djw -s "[vanillaDisc]" "[currentDisc]" "[outputPath]"
 
 
 

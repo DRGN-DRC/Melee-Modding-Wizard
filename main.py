@@ -265,7 +265,7 @@ class ToolsMenu( Tk.Menu, object ):
 		self.add_cascade( label="Test External Character File", command=self.testCharacter, underline=14 )				# C
 		self.add_separator()
 		self.add_cascade( label="Build xDelta Patch", command=self.buildPatch, underline=6 )							# X
-		self.add_cascade( label="Build from Patch", command=self.notDone, underline=11 )								# P
+		#self.add_cascade( label="Build from Patch", command=self.notDone, underline=11 )								# P
 
 		if globalData.disc and globalData.disc.is20XX:
 			self.add_separator()
@@ -427,8 +427,9 @@ class ToolsMenu( Tk.Menu, object ):
 		discSize = os.path.getsize( currentDiscPath ) / 1048576 # Getting the size in MB
 		try:
 			while process.poll() is None:
-				# Read the line output from the program and get how many bytes have been processed so far
-				output = process.stderr.readline() # Looking for lines like "xdelta3: 127: in 8.00 MiB: out 18.7 KiB: total in 1.00 GiB: out 619 MiB: 41 ms"
+				# Read the line output from the program and get how many bytes have been processed so far.
+				# Looking for lines like "xdelta3: 127: in 8.00 MiB: out 18.7 KiB: total in 1.00 GiB: out 619 MiB: 41 ms"
+				output = process.stderr.readline()
 				if not output or 'total in' not in output:
 					continue
 

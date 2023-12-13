@@ -150,7 +150,7 @@ class AudioManager( ttk.Frame ):
 		ttk.Button( self.controlsFrame, text='Edit Loop', command=self.editLoop, state='disabled' ).grid( column=1, row=1, padx=5, pady=5 )
 		ttk.Button( self.controlsFrame, text='Delete', command=self.delete, state='disabled' ).grid( column=0, row=2, padx=5, pady=5 )
 		ttk.Button( self.controlsFrame, text='Add Track', command=self.addTrack ).grid( column=1, row=2, padx=5, pady=5 )
-		ttk.Button( self.controlsFrame, text='Look for References', command=self.findReferences, state='disabled' ).grid( column=0, row=3, columnspan=2, ipadx=10, padx=5, pady=5 )
+		ttk.Button( self.controlsFrame, text='Find References', command=self.findReferences, state='disabled' ).grid( column=0, row=3, columnspan=2, ipadx=10, padx=5, pady=5 )
 		self.controlsFrame.pack( pady=6 )
 
 		# Add buttons outside of the 'controlsFrame' above; these will always be enabled (won't be disabled depending on file selection)
@@ -202,12 +202,7 @@ class AudioManager( ttk.Frame ):
 		self.colorCodeDetails['text'] = ''
 
 		# Update the main control buttons (to a state of no item is selected)
-		for widget in self.controlsFrame.winfo_children():
-			if widget.winfo_class() == 'TButton':
-				if widget['text'] == 'Add Track':
-					widget['state'] = 'normal'
-				else:
-					widget['state'] = 'disabled'
+		self.disableButtons( exceptions=('Add Track',) )
 
 	def loadFileList( self, restoreState=True ):
 
@@ -261,6 +256,9 @@ class AudioManager( ttk.Frame ):
 
 	def getSelectedFile( self ):
 
+		""" If a single file is selected, this returns the file object for it from the disc. 
+			If no files/folders are selected, or if multiple items are selected, this returns None. """
+
 		iidSelectionsTuple = self.fileTree.selection()
 		if len( iidSelectionsTuple ) != 1:
 			return None
@@ -270,8 +268,8 @@ class AudioManager( ttk.Frame ):
 		musicFile = globalData.disc.files.get( isoPath )
 
 		if not musicFile: # This was probably a folder that was clicked on (being in the fileTree list means the file must be in the disc)
-			globalData.gui.updateProgramStatus( 'No file is selected' )
-		
+			self.onFileTreeDeselect()
+
 		return musicFile
 
 	def updateGeneralInfo( self, filecount=0, totalMusicSize=0 ):
@@ -314,39 +312,66 @@ class AudioManager( ttk.Frame ):
 			# Open any folders than need opening, and scroll to the target item
 			self.fileTree.see( isoPath )
 
+	def disableButtons( self, exceptions=None ):
+
+		""" Disables all buttons in the control panel, except those listed by 'exceptions'. """
+
+		if exceptions:
+			for widget in self.controlsFrame.winfo_children():
+				if widget.winfo_class() == 'TButton':
+					if widget['text'] in exceptions:
+						widget['state'] = 'normal'
+					else:
+						widget['state'] = 'disabled'
+		else:
+			for widget in self.controlsFrame.winfo_children():
+				if widget.winfo_class() == 'TButton':
+					widget['state'] = 'disabled'
+
+	def enableButtons( self, exceptions=None ):
+
+		""" Enables all buttons in the control panel, except those listed by 'exceptions'. """
+
+		if exceptions:
+			for widget in self.controlsFrame.winfo_children():
+				if widget.winfo_class() == 'TButton':
+					if widget['text'] in exceptions:
+						widget['state'] = 'disabled'
+					else:
+						widget['state'] = 'normal'
+		else:
+			for widget in self.controlsFrame.winfo_children():
+				if widget.winfo_class() == 'TButton':
+					widget['state'] = 'normal'
+
 	def onFileTreeSelect( self, event=None ):
 
 		""" Called when an item (file or folder) in the Disc File Tree is selected. Iterates over 
 			the selected items, calculates total file(s) size, and displays it in the GUI. """
 
+		# Get the current selection
 		iidSelectionsTuple = self.fileTree.selection()
 		if not iidSelectionsTuple: # Failsafe; not possible?
 			return
 
-		# Multiple items selected
+		# Check if multiple items are selected
 		elif len( iidSelectionsTuple ) > 1:
 			# Update the main control buttons
-			for widget in self.controlsFrame.winfo_children():
-				if widget.winfo_class() == 'TButton':
-					if widget['text'] in ( 'Export', 'Delete', 'Add Track' ):
-						widget['state'] = 'normal'
-					else:
-						widget['state'] = 'disabled'
+			self.disableButtons( exceptions=('Delete', 'Add Track') )
 			self.trackInfoLabel['text'] = ''
+			globalData.gui.updateProgramStatus( 'Multiple files selected' )
 			return
-		
+
 		# One item selected; check that it's a file
 		musicFile = globalData.disc.files.get( iidSelectionsTuple[0] )
-		if not musicFile: return # A folder is likely selected
+		if not musicFile:
+			self.onFileTreeDeselect()
+			return # A folder is likely selected
+		globalData.gui.updateProgramStatus( '{} selected'.format(musicFile.shortDescription) )
 
 		# Update the main control buttons
-		for widget in self.controlsFrame.winfo_children():
-			if widget.winfo_class() == 'TButton':
-				if widget['text'] in ( 'Edit Loop' ):
-					widget['state'] = 'disabled'
-				else:
-					widget['state'] = 'normal'
-		
+		self.enableButtons( exceptions=('Edit Loop',) )
+
 		# Read the file and populate the GUI's Track Info section
 		musicFile.readBlocks()
 		self.controlModule.audioFile = musicFile
@@ -387,6 +412,20 @@ class AudioManager( ttk.Frame ):
 		# else:
 		# 	self.controlModule.showPlayBtn()
 
+	def onFileTreeDeselect( self ):
+
+		""" Disables buttons in the control panel. Should be called once there is no selection
+			in the treeview. """
+
+		# Clear control panel labels that pertain to a specific file
+		self.trackInfoLabel['text'] = ''
+		self.referencesList['text'] = ''
+
+		# Update the main control buttons (to a state of no item is selected)
+		self.disableButtons( exceptions=('Add Track',) )
+
+		globalData.gui.updateProgramStatus( 'No file is selected' )
+
 	def exportTrack( self ):
 
 		""" Exports a single file, while prompting the user on where they'd like to save it. 
@@ -396,7 +435,12 @@ class AudioManager( ttk.Frame ):
 			Also handles updating the GUI with the operation's success/failure status. """
 
 		musicFile = self.getSelectedFile()
-		if not musicFile: return
+		if not musicFile: # Failsafe; the export button should be disabled
+			if not self.fileTree.selection():
+				msg( "You must first select a file that you'd like to export.", 'No file selected', warning=True )
+			else:
+				msg( 'Please select just one file to export.', 'Invalid selection', warning=True ) #todo: add multi-file export
+			return
 
 		# Determine the filetype to try to save as by default
 		if self.lastExportFormat == 'hps':
@@ -470,7 +514,13 @@ class AudioManager( ttk.Frame ):
 			a new file and converts it to HPS format if it is not already an HPS file. """
 
 		musicFile = self.getSelectedFile()
-		if not musicFile: return
+		if not musicFile: # Failsafe; the export button should be disabled
+			if not self.fileTree.selection():
+				msg( "No file is selected to replace!\n\nIf what you'd like "
+					 "to do is to add a file instead, select the 'Add Track' option.", 'No file selected', warning=True )
+			else:
+				msg( 'Please select just one file to replace.', 'Invalid selection', warning=True )
+			return
 
 		# Prompt the user to select a new external file to import (and convert/initialize it)
 		newMusicFile = getHpsFile( isoPath=musicFile.isoPath )
@@ -500,17 +550,21 @@ class AudioManager( ttk.Frame ):
 
 	def rename( self ):
 
-		""" Prompts the user to enter a new name for the selected file, and updates it in the CSS or yaml file. """
+		""" Prompts the user to enter a new name (the 'description' shown in the first column, 
+			not the disc filesystem name) for the selected file, and updates it in the CSS or yaml file. """
 
 		musicFile = self.getSelectedFile()
 		if not musicFile: return
 
 		if musicFile.isHexTrack:
+			# Get the CSS file from the disc
 			cssFile = globalData.disc.files.get( globalData.disc.gameId + '/MnSlChr.0sd' )
 			if not cssFile:
 				msg( "Unable to update CSS with song name; the CSS file (MnSlChr.0sd) could not be found in the disc." )
 				globalData.gui.updateProgramStatus( "Unable to update CSS with song name; couldn't find the CSS file in the disc", error=True )
 				return
+
+			# Check character length limit for this track (varies)
 			charLimit = cssFile.checkMaxHexTrackNameLen( musicFile.trackNumber )
 			if charLimit == -1:
 				msg( "Unable to update CSS with song name; a character limit could not be determined from the CSS song names table." )
@@ -581,17 +635,20 @@ class AudioManager( ttk.Frame ):
 
 		self.updateGeneralInfo()
 
-		# Reload the Disc File Tree tab
+		# Reload the Disc File Tree tab if it's open
 		discTab = globalData.gui.discTab
 		if discTab:
 			discTab.loadDisc( updateStatus=False, preserveTreeState=True )
-		
-		# Update the Disc Details Tab
+
+		# Update the Disc Details Tab if it's open
 		detailsTab = globalData.gui.discDetailsTab
 		if detailsTab:
 			detailsTab.isoFileCountText.set( "{:,}".format(len(globalData.disc.files)) )
 			#detailsTab # todo: disc size as well
-		
+
+		# Clear control panel labels and update the main control buttons (to a state of no item is selected)
+		self.onFileTreeDeselect()
+
 		if len( fileObjects ) == 1:
 			globalData.gui.updateProgramStatus( '1 file removed from the disc' )
 		else:
@@ -657,7 +714,7 @@ class AudioManager( ttk.Frame ):
 	def findReferences( self ):
 
 		""" Scans all stage files to find references to the currently selected music file. """
-		
+
 		musicFile = self.getSelectedFile()
 		if not musicFile: return
 
