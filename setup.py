@@ -25,32 +25,44 @@ else: environIs64bit = False
 buildOptions = dict(
 	packages = [], 
 	excludes = [], 
-	namespace_packages = [ "ruamel.yaml" ], # Must have ruamel.base installed as well
+	namespace_packages = [ 
+		"ruamel.yaml", # Must have ruamel.base installed as well
+
+		# The following are for pyglet, and might not be needed after transition to Python 3
+		'UserList',
+		'UserString',
+		'pyglet.clock'
+	],
 	include_files = [
 		'.include',
 		'bin',
 		'Code Library',
 		'File Descriptions',
 		'fonts',
-		'imgs'
-	# 	#'ReadMe.txt',
-	# 	#'tk', # Includes a needed folder for drag 'n drop functionality.
+		'imgs',
+		'sfx',
+		'- - Asset Test.bat',
+		'Code Library Manual.txt',
+		'Command-Line Usage.txt',
+		'MMW Manual.txt'
 	]
 )
 
 
-# Check whether to preserve the console window that opens with the GUI 
-# (arg 1 should be "build", second should be %useConsole%)
-if sys.argv[2].startswith( 'y' ):
-	base = 'Console'
+if len( sys.argv ) > 2:
+	# Check whether to preserve the console window that opens with the GUI 
+	# (arg 1 should be "build", second should be %useConsole%)
+	if sys.argv[2].startswith( 'y' ):
+		base = 'Console'
+	else:
+		base = 'Win32GUI' if sys.platform == 'win32' else None
+
+	# Strip off extra command line arguments, because setup isn't 
+	# expecting them and will throw an invalid command error.
+	sys.argv = sys.argv[:2]
+
 else:
 	base = 'Win32GUI' if sys.platform == 'win32' else None
-
-# Strip off extra command line arguments, because setup isn't expecting them and will throw an invalid command error.
-if len( sys.argv ) > 1:
-	print( 'Unexpected arguments were found for building!: ' + str(sys.argv) )
-	print( 'Only the first two will be used by setup.py' )
-sys.argv = sys.argv[:2]
 
 # Normalize the version string for setup ('version' below must be a string, with only numbers or dots)
 simpleVersion = '.'.join( [char for char in globalData.programVersion.split('.') if char.isdigit()] )
@@ -66,7 +78,7 @@ setup(
 		Executable(
 			script = "main.py", 
 			targetName = programName + '.exe',
-			#icon = 'appIcon5.ico', # For the executable icon. "appIcon.png" (in main) is for the running program's window icon.
+			icon = '.\\imgs\\appIcon.ico', # For the executable icon. "appIcon.png" is for the running program's window icon.
 			base = base)
 		]
 	)
@@ -100,6 +112,11 @@ while os.path.exists( newFolderPath ):
 	nameIndex += 1
 os.rename( oldFolderPath, newFolderPath )
 print( '\nNew program folder successfully created and renamed to "' + os.path.basename(newFolderPath) + '".' )
+
+
+# Rename the Asset Test script (the dashes are no longer that useful in the new folder)
+os.chdir( newFolderPath )
+os.rename( '- - Asset Test.bat', 'Asset Test.bat' )
 
 
 # Delete the Micro Melee disc and temp files, if present
