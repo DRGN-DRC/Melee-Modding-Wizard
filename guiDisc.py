@@ -460,12 +460,12 @@ class DiscTab( ttk.Frame ):
 		if folderName == 'audio':
 			description = '\t\t --< Music and Sound Effects >--'
 			iconImage = globalData.gui.imageBank( 'audioIcon' )
-		else: 
+		else:
 			description = ''
 			iconImage = globalData.gui.imageBank( 'folderIcon' )
-		
+
 		self.isoFileTree.insert( parent, 'end', iid=isoPath, text=' ' + folderName, values=(description, 'nFolder'), image=iconImage, tags=('nFolder',) )
-		
+
 	def addFileToFileTree( self, discFile, usingConvenienceFolders ):
 
 		""" Adds files and any folders they may need to the Disc File Tree, including convenience folders. """
@@ -577,13 +577,12 @@ class DiscTab( ttk.Frame ):
 					self.isoFileTree.insert( parent, 'end', iid='ty', text=' Ty__.dat', values=('\t\t --< Trophies >--', 'cFolder'), image=globalData.gui.imageBank('folderIcon'), tags=('cFolder',) )
 				parent = 'ty'
 
-		# Add the file to the treeview (all files in the treeview should be added with the line below, but may be modified elsewhere)
 		if usingConvenienceFolders:
 			# Add extra space to indent the name from the parent folder name
 			description = '     ' + discFile.shortDescription
 		else:
 			description = discFile.longDescription
-		
+
 		try:
 			# The following commented-out code is occasionally used for ad-hoc testing
 
@@ -672,9 +671,25 @@ class DiscTab( ttk.Frame ):
 			# 	print( discFile.filename + ' | ' + discFile.charName )
 			# 	print( lookupTable.getValues() )
 			
+			# Add the file to the treeview (all files in the treeview should be added with the line below, but may be modified elsewhere)
 			self.isoFileTree.insert( parent, 'end', iid=discFile.isoPath, text=' ' + entryName, values=(description, 'file') )
 		except Exception as err:
 			printStatus( u'Unable to add {} to the Disc File Tree; {}'.format(discFile.longDescription, err) )
+
+	def updateDescription( self, isoPath, description, alt='' ):
+
+		""" Updates the description of a file in the treeview (second column). 
+			If 'alt' is given, it will be used in cases where the option,
+			'useDiscConvenienceFolders' is False (typically a longer description). """
+
+		# Add the file to the treeview (all files in the treeview should be added with the line below, but may be modified elsewhere)
+		if globalData.checkSetting( 'useDiscConvenienceFolders' ):
+			# Add extra space to indent the name from the parent folder name
+			description = '     ' + description
+		elif alt:
+			description = alt
+
+		self.isoFileTree.item( isoPath, values=(description, 'file'), tags='changed' )
 
 	def scanDiscItemForStats( self, iidSelectionsTuple, folderContents ):
 
@@ -2372,7 +2387,7 @@ class DiscMenu( Tk.Menu, object ):
 		# self.fileTree.item( isoPath, 'text', newName )
 
 	def renameDescription( self ):
-		
+
 		charLimit = 42 # Somewhat arbitrary limit
 
 		if self.fileObj.__class__.__name__ == 'StageFile' and self.fileObj.isRandomNeutral():
@@ -2393,18 +2408,14 @@ class DiscMenu( Tk.Menu, object ):
 
 		# Store the new name to file
 		returnCode = self.fileObj.setDescription( newName )
-		
+
 		if returnCode == 0:
 			# Update the new name in the treeview on this tab, as well as in the Stage Manager tab
-			if globalData.checkSetting( 'useDiscConvenienceFolders' ):
-				# Add extra space to indent the name from the parent folder name
-				description = '     ' + self.fileObj.shortDescription
-			else:
-				description = self.fileObj.longDescription
-			globalData.gui.discTab.isoFileTree.item( self.fileObj.isoPath, values=(description, 'file') )
+			globalData.gui.discTab.updateDescription( self.fileObj.isoPath, self.fileObj.shortDescription, alt=self.fileObj.longDescription )
 			if globalData.gui.stageManagerTab:
 				globalData.gui.stageManagerTab.renameTreeviewItem( self.fileObj.isoPath, newName ) # No error if not currently displayed
 
+			# Update the program status bar
 			if self.fileObj.__class__.__name__ == 'StageFile' and self.fileObj.isRandomNeutral():
 				globalData.gui.updateProgramStatus( 'Stage name updated in the CSS file', success=True )
 			elif self.fileObj.__class__.__name__ == 'MusicFile' and self.fileObj.isHexTrack:

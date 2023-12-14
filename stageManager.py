@@ -2085,7 +2085,7 @@ class StageManager( ttk.Frame ):
 			# Success. Update the new name in the treeview on this tab, as well as in the Disc File Tree
 			self.renameTreeviewItem( self.selectedStage.isoPath, newName ) # No error if not currently displayed
 			if globalData.gui.discTab:
-				globalData.gui.discTab.isoFileTree.item( self.selectedStage.isoPath, values=(newName, 'file'), tags='changed' )
+				globalData.gui.discTab.updateDescription( self.selectedStage.isoPath, self.selectedStage.shortDescription, alt=self.selectedStage.longDescription )
 
 			if updateProgramStatus:
 				if self.selectedStage.isRandomNeutral():

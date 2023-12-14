@@ -73,8 +73,9 @@ def getHpsFile( windowParent=None, isoPath='' ):
 		meleeMediaExe = globalData.paths['meleeMedia']
 		newFilename = os.path.basename( newFilePath ).rsplit( '.', 1 )[0] + '.hps'
 		outputPath = os.path.join( globalData.paths['tempFolder'], newFilename )
-		
+
 		# Convert the file
+		globalData.gui.updateProgramStatus( 'Converting file to HPS format...', forceUpdate=True )
 		command = '"{}" "{}" "{}"{}'.format( meleeMediaExe, newFilePath, outputPath, loopEditorWindow.loopArg )
 		returnCode, output = cmdChannel( command )
 
@@ -535,10 +536,6 @@ class AudioManager( ttk.Frame ):
 			# Prompt the user to enter a new name for this track
 			self.rename()
 
-			# Reload the Disc File Tree to show the new file
-			if globalData.gui.discTab:
-				globalData.gui.discTab.isoFileTree.item( musicFile.isoPath, tags='changed' )
-
 			# Update the Disc Details Tab
 			# detailsTab = globalData.gui.discDetailsTab
 			# if detailsTab:
@@ -584,7 +581,8 @@ class AudioManager( ttk.Frame ):
 		
 		if returnCode == 0:
 			# Update the new name in the Disc File Tree
-			globalData.gui.discTab.isoFileTree.item( musicFile.isoPath, values=(newName, 'file'), tags='changed' )
+			if globalData.gui.discTab:
+				globalData.gui.discTab.updateDescription( musicFile.isoPath, newName )
 
 			self.fileTree.item( musicFile.isoPath, text=newName )
 
@@ -621,7 +619,7 @@ class AudioManager( ttk.Frame ):
 		for isoPath in fileIids:
 			# Collect a file object from the disc for this path, and remove it from the GUI
 			fileObj = discFiles.get( isoPath )
-			assert fileObj, 'IsoFileTree displays a missing file! ' + isoPath
+			assert fileObj, 'Music Manager fileTree displays a missing file! ' + isoPath
 			fileObjects.append( fileObj )
 			self.fileTree.delete( isoPath )
 

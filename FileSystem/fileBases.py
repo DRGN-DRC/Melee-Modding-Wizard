@@ -269,9 +269,7 @@ class FileBase( object ):
 		# If the Disc File Tree is present, indicate this file has changes waiting to be saved there
 		if globalData.gui and globalData.gui.discTab:
 			if treeviewDescription:
-				if globalData.checkSetting( 'useDiscConvenienceFolders' ):
-					treeviewDescription = '     ' + treeviewDescription
-				globalData.gui.discTab.isoFileTree.item( self.isoPath, values=(treeviewDescription, 'file'), tags='changed' )
+				globalData.gui.discTab.updateDescription( self.isoPath, treeviewDescription )
 			else:
 				globalData.gui.discTab.isoFileTree.item( self.isoPath, tags='changed' )
 
