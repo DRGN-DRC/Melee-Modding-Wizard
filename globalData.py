@@ -12,7 +12,7 @@
 """ Container for global data that all program files or modules may access. 
 	Contains settings, settings-related load/save functions, and look-up tables. """
 
-programVersion = '0.9.9'
+programVersion = '1.0.0'
 
 # External Dependencies
 import os
