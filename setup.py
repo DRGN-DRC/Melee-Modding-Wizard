@@ -29,6 +29,7 @@ buildOptions = dict(
 		"ruamel.yaml", # Must have ruamel.base installed as well
 
 		# The following are for pyglet, and might not be needed after transition to Python 3
+		'commands',
 		'UserList',
 		'UserString',
 		'pyglet.clock'

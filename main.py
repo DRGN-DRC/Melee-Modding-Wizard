@@ -62,6 +62,34 @@ from newTkDnD.tkDnD import TkDnD
 DEBUGMODE = False
 
 
+# If the program has been compiled, output errors to an 
+# error log, since the console likely won't be available.
+if programArgs[0][-4:] == '.exe':
+	try:
+		if not os.path.exists( 'Error Log.txt' ):
+			sys.stderr = open( 'Error Log.txt', 'a' )
+
+			# Collect some info to put in the header
+			import platform
+			pInfo = platform.uname()
+			bitness = '64-bit' if sys.maxsize > 2**32 else '32-bit'
+			windowsInfo = '{} {} ({})'.format( pInfo[0], pInfo[2], bitness )
+			osInfo = [
+				':: MMW Version:   {}'.format( globalData.programVersion ),
+				':: OS:            {}'.format( windowsInfo ),
+				':: OS Build:      {}\n'.format( pInfo[3] )
+			]
+			sys.stderr.write( '\n'.join(osInfo) )
+		else:
+			sys.stderr = open( 'Error Log.txt', 'a' )
+			sys.stderr.write( '\n ---------------------------------------\n' )
+
+	except Exception as err:
+		tkMessageBox.showinfo( message=('MMW was unable to create the "Error Log.txt" file. This is likely '
+			"due to not having write access to its own directory. This can be caused by Windows' Controlled "
+			'Folder Access feature, if that is enabled.' ), title='Unable to Create Error Log' )
+
+
 class FileMenu( Tk.Menu, object ):
 
 	def __init__( self, parent, tearoff=True, *args, **kwargs ):
