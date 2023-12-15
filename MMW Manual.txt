@@ -507,6 +507,7 @@
 
 		- Always Enable Crash Reports:
 
+
 	    These other settings are only accessible within the "settings.ini" file; 
 	    in most cases you likely won't need to change these:
 
@@ -550,6 +551,11 @@
 			Selected' on the Disc File Tree tab. Valid values are "png" or "tpl" (no 
 			quotes).
 
+		- suppressVanillaDiscPrompt:
+			If True, this disables the pop-up window asking for a vanilla disc 
+			reference. Features that require reference to vanilla code or other 
+			assets will fail if a vanilla path isn't provided, and the prompt 
+			to ask for a path will be silently skipped.
 
 
 	 Tools:

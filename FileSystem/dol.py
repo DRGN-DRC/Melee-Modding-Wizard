@@ -991,10 +991,20 @@ class Dol( FileBase ):
 		# self._externalCodelistData = self.disc.getGeckoData()
 		# self._externalInjectionData = self.disc.getInjectionData()
 
+		# See if we can get a vanilla DOL or disc for reference, which
+		# may be used to get vanilla code references (via .origCode property).
+		revertVanillaDiscPromptSetting = False
+		if not globalData.checkSetting( 'suppressVanillaDiscPrompt' ):
+			try: globalData.getVanillaDol()
+			except:
+				# Need to temporarily disable prompts for a vanilla disc, or else it will be called repeatedly
+				globalData.setSetting( 'suppressVanillaDiscPrompt', True )
+				revertVanillaDiscPromptSetting = True
+
 		standaloneFunctionsInstalled = set()
 		functionOnlyModules = [] # Remember some info on modules composed of only standalone functions
 		requiredDisabledRegions = []
-		
+
 		tic = time.clock()
 
 		# Primary Mod-Detection pass. Set the state (highlighting & notes) of each module based on whether its codes are found in the DOL.
@@ -1215,6 +1225,10 @@ class Dol( FileBase ):
 		# Finished checking for mods (end of allMods loop).
 		toc = time.clock()
 		print( 'Time to check for installed codes: ' + str(toc-tic) )
+
+		# Re-enable the vanilla disc prompt window if it was disabled
+		if revertVanillaDiscPromptSetting:
+			globalData.setSetting( 'suppressVanillaDiscPrompt', False )
 
 		# Ask to enable regions that appear to have custom code
 		if requiredDisabledRegions:

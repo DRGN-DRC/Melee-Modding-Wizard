@@ -102,6 +102,7 @@ def init( programArgs ):
 		'runDolphinInDebugMode': '0',
 		'createHiResCSPs': '0',
 		'disableMainMenuAnimations': '0',
+		'suppressVanillaDiscPrompt': '0',
 
 		# Code related
 		'alwaysEnableCrashReports': '1',
@@ -589,37 +590,43 @@ def getVanillaDiscPath():
 		file from the user settings, and prompts the user to enter one if a good path is not found. 
 		Can't be contained in main because it's needed in other files (which can't import from main). """
 
+	if checkSetting( 'suppressVanillaDiscPrompt' ):
+		return ''
+
 	# Check the settings file to see if a vanilla path is available
 	vanillaDiscPath = settings.get( 'General Settings', 'vanillaDiscPath' )
 
 	# And ensure the path is still good...
 	if not vanillaDiscPath:
-		message = ( 'Please specify the full path to a vanilla NTSC 1.02 SSBM game disc. This path only '
-					'needs to be given once, and can be changed at any time in the settings.ini file. '
-					"If you have already set this, the path seems to have broken." )
+		message = ( 'Please specify the full path to a vanilla, NTSC 1.02 SSBM game disc. '
+			 		'This is used for a variety of functions, such as getting references to '
+					'vanilla game code, restoring content (such as files or other resources), '
+					'getting character model skeletons, and more. (This path should only '
+					'need to be given once, and can be changed at any time in the settings.ini file. '
+					"If you have already set this, the path seems to have broken.)" )
 	elif not os.path.exists( vanillaDiscPath ):
 		message = ( 'The path provided for a vanilla reference disc seems to be broken.'
 					'\nPlease specify a new full path to a vanilla NTSC 1.02 SSBM game disc.' )
 	else:
-		message = ''
+		# Got a good path
+		return vanillaDiscPath
 
-	# If there's a message created above, we need to get a new path
-	if message:
-		message += (
-			'\n\nPro-tip: In Windows, if you hold Shift while right-clicking on a file, there appears a context menu '
-			"""option called "Copy as path". This will copy the file's full path into your clipboard. Or if it's a shortcut, """
-			"""you can quickly get the full file path by right-clicking on the icon and going to Properties.""" )
+	# Need to get a new path
+	message += (
+		'\n\nPro-tip: In Windows, if you hold Shift while right-clicking on a file, there appears a context menu '
+		"""option called "Copy as path". This will copy the file's full path into your clipboard. Or if it's a shortcut, """
+		"""you can quickly get the full file path by right-clicking on the icon and going to Properties.""" )
 
-		if gui:
-			popupWindow = VanillaDiscEntry( gui.root, message=message, title='Set Vanilla Disc Path' )
-			vanillaDiscPath = popupWindow.entryText.replace( '"', '' )
-		else:
-			vanillaDiscPath = input( message )
+	if gui:
+		popupWindow = VanillaDiscEntry( gui.root, message=message, title='Set Vanilla Disc Path' )
+		vanillaDiscPath = popupWindow.entryText.replace( '"', '' )
+	else:
+		vanillaDiscPath = input( message )
 
-		if vanillaDiscPath: # A path was given (user didn't hit 'Cancel')
-			# Update the path in the settings file and global variable.
-			settings.set( 'General Settings', 'vanillaDiscPath', vanillaDiscPath )
-			saveProgramSettings()
+	if vanillaDiscPath: # A path was provided! (user didn't hit 'Cancel')
+		# Update the path in the settings file and global variable.
+		settings.set( 'General Settings', 'vanillaDiscPath', vanillaDiscPath )
+		saveProgramSettings()
 
 	return vanillaDiscPath
 
@@ -628,7 +635,7 @@ def getVanillaDol( skipCache=False ):
 
 	""" Retrieves and returns the Start.dol file from a vanilla disc. 
 		Or, if a path is given for the 'dolSource' setting, that DOL is used. 
-		May raise an exception if a DOL cannot be retrieved. """
+		Should raise an exception if a DOL cannot be retrieved. """
 
 	# Check for a cached copy to use
 	global dol

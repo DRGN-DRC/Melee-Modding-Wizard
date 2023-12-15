@@ -73,7 +73,7 @@ class CodeChange( object ):
 			try:
 				dol = globalData.getVanillaDol()
 			except Exception as err:
-				printStatus( 'Unable to get DOL data; {}'.format(err.message), warning=True )
+				#printStatus( 'Unable to get DOL data; {}'.format(err.message), warning=True )
 				return ''
 
 			# Normalize the offset string, and get the target file data
