@@ -347,13 +347,28 @@
 	    You can add to or edit these regions by editing the "codeRegionSettings.py" file.
 
 
+	 Code Construction:
+	--------------------
+
+	    A GUI is available to simplify creating code-based mods. You can access this 
+	    via Tools -> New Code Mod, or by clicking on the Edit button on any mod. 
+	    This interface is also where you can import Gecko codes (with the "Import 
+	    Gecko Code" button in the top-right) and convert a mod to another format 
+	    (via Save or Save As). While mods can pretty easily be created manually, 
+	    The Mod Construction tab is quite useful for handling the syntax for you, 
+	    and catching syntax or assembly errors.
+
+	    Much more info on this interface as well as how to create code mods manually 
+	    can be found in the Code Library Manual.
+
+
 	 Music Manager:
 	----------------
 
 	    This interface allows you to browse all songs (.hps) files in the game. With this, 
 	    you can also import/export, view information on the files, and even listen to them. 
-	    Some features (in order to convert file formats) will require you to install 
-	    .NET Framework 4.6.1, which you can get here: 
+	    In order to convert file formats, some features might need you to install 
+	    .NET Framework 4.6.1, which you can get here:
 
 		https://www.microsoft.com/en-us/download/details.aspx?id=49981
 
@@ -421,6 +436,12 @@
 			most files being green besides the special movie audio. It's common 
 			to remove or replace this file (as well as the special movie video 
 			file) to free up space.
+
+	 
+	 Sound Effect Editor:
+	----------------------
+
+	    WIP!
 
 
 	 Program Settings:
