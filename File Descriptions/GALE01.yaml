@@ -142,7 +142,7 @@ MnSlMap.dat: Stage Select Screen
 NtAppro.dat: "'New Challenger' Screens"
 opening.bnr: Game banner, title, and description texts
 PlCo.dat: Textures & global data common to the cast
-usa.ini: Language indicator (tells game to use .usd)
+usa.ini: Language indicator (tells game to use .usd files)
 
 # UI / Menu text strings
 SdClr.dat: Target Test stage clear text
@@ -347,15 +347,15 @@ TyMnDisp.dat: Trophy Collection Room
 TyMnFigp.dat: Trophy Lottery
 TyMnView.dat: Trophy Gallery Menu View
 
-# Adventure Mode Cutscenes
-Vi0102.dat: Adventure Mode cutscenes (Mario & Luigi)
-Vi0401.dat: Adventure Mode cutscenes data
-Vi0402.dat: Adventure Mode cutscenes data
-Vi0501.dat: Adventure Mode cutscenes (Kirby)
-Vi0502.dat: Adventure Mode cutscenes (Kirby)
-Vi0601.dat: Adventure Mode cutscenes data
-Vi0801.dat: Adventure Mode cutscenes data
-Vi1101.dat: Adventure Mode cutscenes (Mario & Luigi)
-Vi1201v1.dat: Adventure Mode cutscenes data
-Vi1201v2.dat: Adventure Mode cutscenes (Giga Bowser)
-Vi1202.dat: Adventure Mode cutscenes data
+# Adventure Mode Cutscene Animations
+Vi0102.dat: Animations for Mario & Luigi cutscene (Adventure Mode)
+Vi0401.dat: Animations for Brinstar cutscene 1 (Intro)
+Vi0402.dat: Animations for Brinstar cutscene 2 (Explosion/Exit)
+Vi0501.dat: Animations for Green Greens cutscene 1 (Intro)
+Vi0502.dat: Animations for Green Greens cutscene 2 (Giant Kirby)
+Vi0601.dat: Animations for Corneria cutscene (Adventure Mode)
+Vi0801.dat: Animations for F-Zero Grand Prix cutscene (Adventure Mode)
+Vi1101.dat: Animations for Mario/Luigi Metal Bros. cutscene
+Vi1201v1.dat: Animations for Bowser outro scene (Adventure Mode)
+Vi1201v2.dat: Animations for Giga Bowser intro scene (Adventure Mode)
+Vi1202.dat: Animations for Giga/Bowser defeated/outro
