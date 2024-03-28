@@ -478,6 +478,30 @@ Version -- DOL Offset ------ Hex to Replace ---------- ASM Code
 	-==-
 
 
+Game Over options
+
+Configurations:
+    uint8 Continues = 0
+        0: On
+        1: Off
+    uint8 Continues (low coinage) = 1
+        0: On
+        1: Off
+[Muzzarino]
+Version -- DOL Offset ------ Hex to Replace ---------- ASM Code
+1.00 ----- 0x8019FD3C --- 38000000 -> 380000[[No Continues]]
+1.00 ----- 0x8019FD48 --- 38000000 -> 380000[[No Continues (low coinage)]]
+1.01 ----- 0x801A043C --- 38000000 -> 380000[[No Continues]]
+1.01 ----- 0x801A0448 --- 38000000 -> 380000[[No Continues (low coinage)]]
+1.02 ----- 0x801A0A84 --- 38000000 -> 380000[[No Continues]]
+1.02 ----- 0x801A0A90 --- 38000000 -> 380000[[No Continues (low coinage)]]
+PAL ------ 0x801A15E4 --- 38000000 -> 380000[[No Continues]]
+PAL ------ 0x801A15F0 --- 38000000 -> 380000[[No Continues (low coinage)]]
+
+
+	-==-
+
+
 Name Tag Shadow Box Automatically Scales to Tag Length
 [Achilles]
 Version -- DOL Offset ------ Hex to Replace ---------- ASM Code
