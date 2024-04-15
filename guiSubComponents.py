@@ -259,12 +259,12 @@ def exportSingleTexture( defaultFilename, texture=None, fileObj=None, textureOff
 	if not savePath:
 		return ''
 
-	# Update the default directory to start in when opening or exporting files.
-	globalData.setLastUsedDir( directoryPath, 'png' )
-
 	# Make sure folders exist for the chosen destination
 	directoryPath = os.path.dirname( savePath ) # Used at the end of this function
 	createFolders( directoryPath )
+
+	# Update the default directory to start in when opening or exporting files.
+	globalData.setLastUsedDir( directoryPath, 'png' )
 
 	# Get the texture if it wasn't provided
 	if not texture:
