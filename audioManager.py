@@ -692,11 +692,12 @@ class AudioManager( ttk.Frame ):
 		if not newTrack:
 			return
 
+		# Add the file to the disc
 		newTrack.insertionKey = insertionKey
 		globalData.disc.addFiles( [newTrack], insertAfter )
 
 		# Add the file to the internal file list and GUI for this tab, and update General Info
-		self.loadFileList()
+		self.loadFileList( restoreState=False )
 
 		# Reload the Disc File Tree to show the new file
 		if globalData.gui.discTab:
@@ -708,6 +709,9 @@ class AudioManager( ttk.Frame ):
 		if detailsTab:
 			detailsTab.isoFileCountText.set( "{:,}".format(len(globalData.disc.files)) )
 			#detailsTab # todo: disc size as well
+
+		# Now that the new track has been added to the file tree, select it
+		self.selectSong( newTrack.isoPath )
 
 	def findReferences( self ):
 
@@ -1135,7 +1139,7 @@ class TrackAdder( BasicWindow ):
 				self.loopEditor.toggleTrackLooping( True )
 
 			else: # Make sure the Loop radio buttons are enabled
-				for widget in self.loopPointFrame.winfo_children():
+				for widget in self.loopEditor.winfo_children():
 					if widget.winfo_class() == 'TRadiobutton':
 						widget['state'] = 'normal'
 

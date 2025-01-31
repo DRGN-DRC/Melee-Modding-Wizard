@@ -67,7 +67,7 @@ def init( programArgs ):
 		
 		# Bin (binary) paths
 		'tempFolder': os.path.join( scriptHomeFolder, 'bin', 'tempFiles' ),
-		'meleeMedia': os.path.join( scriptHomeFolder, 'bin', 'MeleeMedia', 'MeleeMedia.exe' ),
+		'meleeMedia': os.path.join( scriptHomeFolder, 'bin', 'MeleeMedia', 'MeleeMediaCLI.exe' ),
 		'triCsps': os.path.join( scriptHomeFolder, 'bin', 'Tri-CSP Creation' ),
 		'microMelee': os.path.join( scriptHomeFolder, 'bin', 'Micro Melee.iso' ),
 		'eabi': os.path.join( scriptHomeFolder, 'bin', 'eabi' ),
